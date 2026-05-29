@@ -2,7 +2,11 @@
   <aside
     :class="[
       'fixed top-0 left-0 h-full z-40 flex flex-col transition-all duration-300 ease-in-out',
-      collapsed ? 'w-[72px]' : 'w-[260px]',
+      // Desktop: collapsed or expanded
+      collapsed ? 'lg:w-[72px]' : 'lg:w-[260px]',
+      // Mobile: always full width drawer, hidden off-screen unless open
+      'w-[260px]',
+      mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
     ]"
     style="background: linear-gradient(180deg, var(--sidebar-from) 0%, var(--sidebar-to) 100%); border-right: 1px solid rgb(var(--tint)/0.07);"
   >
@@ -238,8 +242,8 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{ collapsed: boolean }>()
-defineEmits(['toggle'])
+defineProps<{ collapsed: boolean; mobileOpen?: boolean }>()
+defineEmits(['toggle', 'close-mobile'])
 
 const { user: sessionUser } = useUserSession()
 const initials = computed(() => {

@@ -361,17 +361,46 @@ html.theme-transitioning .nav-item-active {
   .modal-overlay {
     position: fixed; inset: 0; z-index: 50;
     background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center; padding: 1.5rem;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0.75rem;
   }
   .modal-box {
     border-radius: 1.25rem;
     border: 1px solid rgb(var(--tint) / 0.10);
     background: linear-gradient(160deg, #151517 0%, #101012 100%);
     box-shadow: 0 24px 60px rgba(0,0,0,0.7), inset 0 1px 0 rgb(var(--tint) / 0.08);
-    padding: 1.5rem;
-    max-height: 90vh;
+    padding: 1.25rem;
+    width: 100%;
+    max-height: 92vh;
     overflow-y: auto;
   }
+  @media (min-width: 640px) {
+    .modal-overlay { padding: 1.5rem; }
+    .modal-box     { padding: 1.5rem; }
+  }
+}
+
+/* ── Mobile responsive helpers ────────────────────────────── */
+
+/* Tables: always scrollable horizontally */
+.overflow-x-auto { -webkit-overflow-scrolling: touch; }
+
+/* On small screens tighten table cells */
+@media (max-width: 639px) {
+  .th { padding: 0.5rem 0.5rem; font-size: 0.65rem; }
+  .td { padding: 0.5rem 0.5rem; font-size: 0.8rem; }
+
+  /* Stack 2-col grids to 1 col on mobile */
+  .grid.grid-cols-2:not(.no-stack)    { grid-template-columns: 1fr !important; }
+  .grid.lg\:grid-cols-3               { grid-template-columns: 1fr !important; }
+  .grid.lg\:grid-cols-4               { grid-template-columns: repeat(2,1fr) !important; }
+
+  /* Reduce glass card padding on mobile */
+  .glass-card.p-5 { padding: 1rem !important; }
+  .glass-card.p-6 { padding: 1rem !important; }
+
+  /* Buttons full width in forms on mobile */
+  .btn-primary, .btn-secondary { min-height: 2.5rem; }
 }
 
 /* ════════════════════════════════════════════════════════════

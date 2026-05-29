@@ -10,6 +10,15 @@ export default {
     './plugins/**/*.{js,ts}',
     './app.vue',
   ],
+  safelist: [
+    'lg:ml-[72px]',
+    'lg:ml-[260px]',
+    'lg:w-[72px]',
+    'lg:w-[260px]',
+    '-translate-x-full',
+    'translate-x-0',
+    'lg:translate-x-0',
+  ],
   theme: {
     extend: {
       fontFamily: {
