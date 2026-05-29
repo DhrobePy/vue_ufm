@@ -1,0 +1,24 @@
+import { query } from '~/server/utils/db'
+
+export default defineEventHandler(async (event) => {
+  const q = getQuery(event)
+  const status     = q.status as string | undefined
+  const employeeId = q.employeeId ? Number(q.employeeId) : null
+
+  let sql = `
+    SELECT sa.*, e.first_name, e.last_name, p.name AS position_name
+    FROM hr_salary_advances sa
+    JOIN hr_employees e ON sa.employee_id = e.id
+    LEFT JOIN hr_positions p ON e.position_id = p.id
+    WHERE 1=1
+  `
+  const params: any[] = []
+  if (status)     { sql += ' AND sa.status = ?';      params.push(status) }
+  if (employeeId) { sql += ' AND sa.employee_id = ?'; params.push(employeeId) }
+  sql += ' ORDER BY sa.advance_date DESC'
+
+  const advances  = await query(sql, params)
+  const employees = await query(`SELECT id, first_name, last_name FROM hr_employees WHERE status = 'active' ORDER BY first_name`)
+
+  return { advances, employees }
+})

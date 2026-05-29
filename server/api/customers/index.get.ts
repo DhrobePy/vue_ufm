@@ -1,0 +1,55 @@
+import { query, queryOne, paginate } from '~/server/utils/db'
+
+export default defineEventHandler(async (event) => {
+  const q      = getQuery(event)
+  const search = (q.search as string) || ''
+  const type   = (q.type   as string) || ''
+  const page   = Number(q.page) || 1
+  const per    = Number(q.per)  || 30
+  const { limit, offset } = paginate(page, per)
+
+  const where: string[] = []
+  const params: unknown[] = []
+
+  if (search) {
+    where.push('(c.name LIKE ? OR c.business_name LIKE ? OR c.phone_number LIKE ?)')
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`)
+  }
+  if (type) { where.push('c.customer_type = ?'); params.push(type) }
+
+  const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
+
+  const [customers, [cnt], stats] = await Promise.all([
+    query(
+      `SELECT c.id, c.name, c.business_name, c.phone_number, c.email,
+              c.customer_type, c.credit_limit, c.current_balance,
+              c.status, c.created_at,
+              COUNT(DISTINCT o.id) AS total_orders,
+              COALESCE(SUM(o.total_amount),0) AS total_sales
+       FROM customers c
+       LEFT JOIN credit_orders o ON o.customer_id = c.id
+       ${w}
+       GROUP BY c.id
+       ORDER BY c.name
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    ),
+    query(`SELECT COUNT(*) AS total FROM customers c ${w}`, params) as any,
+    queryOne(
+      `SELECT
+         COUNT(*) AS total_customers,
+         SUM(customer_type = 'Credit') AS credit_customers,
+         SUM(status = 'blacklisted')   AS blacklisted,
+         COALESCE(SUM(current_balance),0) AS total_outstanding
+       FROM customers`,
+    ),
+  ])
+
+  return {
+    customers,
+    total: (cnt as any).total,
+    page,
+    perPage: limit,
+    stats,
+  }
+})

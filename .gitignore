@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Nuxt build output
+.nuxt/
+.output/
+.nitro/
+
+# Environment — NEVER commit real credentials
+.env
+.env.*
+!.env.example
+
+# Uploads (user-generated files, not code)
+public/uploads/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Editor
+.vscode/
+.idea/
