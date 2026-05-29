@@ -260,14 +260,7 @@ interface Notification {
   read: boolean
 }
 
-const notifications = ref<Notification[]>([
-  { id: 1, text: 'Order CR-20260525-0002 needs approval — 87% credit utilisation', type: 'warning', time: '2m ago',   route: '/credit-sales/approve',  read: false },
-  { id: 2, text: 'Payment ৳1,85,000 received from Rahim Traders Ltd.',             type: 'success', time: '8m ago',   route: '/credit-sales/payments', read: false },
-  { id: 3, text: 'Expense EXP-20260525-001 submitted for review',                  type: 'info',    time: '22m ago',  route: '/expenses/approve',      read: false },
-  { id: 4, text: 'GRN-0083 confirmed — 48 MT wheat received from AgriTrade',       type: 'success', time: '1h ago',   route: '/purchase/grn',          read: false },
-  { id: 5, text: 'Order CR-20260524-0009 escalated — exceeds credit limit',        type: 'warning', time: '2h ago',   route: '/credit-sales/approve',  read: true  },
-  { id: 6, text: 'Vehicle TRK-04 maintenance due — scheduled for tomorrow',        type: 'info',    time: '3h ago',   route: '/logistics/maintenance', read: true  },
-])
+const notifications = ref<Notification[]>([])
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
