@@ -1,0 +1,24 @@
+import { g as defineEventHandler, t as getRouterParam, d as createError, F as queryOne, E as query } from '../../../../nitro/nitro.mjs';
+import 'mysql2/promise';
+import 'node:http';
+import 'node:https';
+import 'node:crypto';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'node:url';
+
+const _id__get = defineEventHandler(async (event) => {
+  const id = Number(getRouterParam(event, "id"));
+  if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
+  const [purchase, items] = await Promise.all([
+    queryOne(`SELECT * FROM fleet_purchases WHERE id = ?`, [id]),
+    query(`SELECT fpi.*, fi.item_code FROM fleet_purchase_items fpi LEFT JOIN fleet_items fi ON fi.id = fpi.item_id WHERE fpi.purchase_id = ? ORDER BY fpi.id`, [id])
+  ]);
+  if (!purchase) throw createError({ statusCode: 404, statusMessage: "Purchase not found" });
+  return { purchase, items };
+});
+
+export { _id__get as default };
+//# sourceMappingURL=_id_.get.mjs.map

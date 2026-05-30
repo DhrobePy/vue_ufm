@@ -1,0 +1,138 @@
+import { _ as __nuxt_component_0 } from './nuxt-link-BjcgcLNw.mjs';
+import { defineComponent, computed, withAsyncContext, mergeProps, unref, withCtx, createTextVNode, useSSRContext } from 'vue';
+import { ssrRenderAttrs, ssrRenderStyle, ssrRenderComponent, ssrInterpolate, ssrRenderList } from 'vue/server-renderer';
+import { j as useRoute } from './server.mjs';
+import { u as useFetch } from './fetch-BuG1JnEF.mjs';
+import '../nitro/nitro.mjs';
+import 'mysql2/promise';
+import 'node:http';
+import 'node:https';
+import 'node:crypto';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'node:url';
+import 'vue-router';
+import '@vue/shared';
+import 'perfect-debounce';
+
+const _sfc_main = /* @__PURE__ */ defineComponent({
+  __name: "invoice",
+  __ssrInlineRender: true,
+  async setup(__props) {
+    let __temp, __restore;
+    const route = useRoute();
+    const orderId = computed(() => Number(route.params.id));
+    const { data, error } = ([__temp, __restore] = withAsyncContext(() => useFetch(
+      () => `/api/credit-sales/${orderId.value}`,
+      "$bi99f3578J"
+      /* nuxt-injected */
+    )), __temp = await __temp, __restore(), __temp);
+    const invoiceNo = computed(() => {
+      var _a, _b, _c;
+      return (_c = (_b = (_a = data.value) == null ? void 0 : _a.order) == null ? void 0 : _b.order_number) != null ? _c : `INV-${orderId.value}`;
+    });
+    const order = computed(() => {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+      const o = (_a = data.value) == null ? void 0 : _a.order;
+      if (!o) return null;
+      return {
+        customer: o.customer_name,
+        customerType: (_b = o.customer_type) != null ? _b : "credit",
+        branch: (_c = o.branch_name) != null ? _c : "\u2014",
+        status: o.status,
+        priority: o.priority,
+        total: Number((_d = o.total_amount) != null ? _d : 0),
+        advance: Number((_e = o.amount_paid) != null ? _e : 0),
+        orderDate: String(o.order_date).slice(0, 10),
+        requiredDate: o.required_date ? String(o.required_date).slice(0, 10) : "\u2014",
+        deliveryAddress: (_f = o.delivery_address) != null ? _f : "",
+        notes: (_g = o.notes) != null ? _g : "",
+        // Customer credit info
+        creditLimit: Number((_h = o.credit_limit) != null ? _h : 0),
+        currentBalance: Number((_i = o.current_balance) != null ? _i : 0),
+        balanceDue: Number((_j = o.balance_due) != null ? _j : 0)
+      };
+    });
+    const items = computed(
+      () => {
+        var _a, _b;
+        return ((_b = (_a = data.value) == null ? void 0 : _a.items) != null ? _b : []).map((i) => {
+          var _a2, _b2, _c, _d;
+          return {
+            id: i.id,
+            product: `${(_a2 = i.product_name) != null ? _a2 : "\u2014"}${i.weight_variant ? " \u2014 " + i.weight_variant : ""}`,
+            qty: Number((_b2 = i.quantity) != null ? _b2 : 0),
+            price: Number((_c = i.unit_price) != null ? _c : 0),
+            discount: Number((_d = i.discount_amount) != null ? _d : 0)
+          };
+        });
+      }
+    );
+    const subtotal = computed(() => items.value.reduce((s, i) => s + i.qty * i.price, 0));
+    const totalDiscount = computed(() => items.value.reduce((s, i) => s + i.discount, 0));
+    const statusStyle = computed(() => {
+      var _a, _b;
+      const s = (_b = (_a = order.value) == null ? void 0 : _a.status) != null ? _b : "";
+      if (s === "completed" || s === "delivered") return "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;";
+      if (s === "cancelled" || s === "rejected") return "background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;";
+      if (s === "in_production" || s === "ready_to_ship") return "background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe;";
+      if (s === "escalated") return "background:#fed7aa;color:#9a3412;border:1px solid #fdba74;";
+      return "background:#fef3c7;color:#92400e;border:1px solid #fcd34d;";
+    });
+    const generatedAt = (/* @__PURE__ */ new Date()).toLocaleString("en-BD", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    return (_ctx, _push, _parent, _attrs) => {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+      const _component_NuxtLink = __nuxt_component_0;
+      _push(`<div${ssrRenderAttrs(mergeProps({ style: { "min-height": "100vh", "background": "#e8e4dd", "font-family": "'Inter',sans-serif" } }, _attrs))}><div class="no-print" style="${ssrRenderStyle({ "position": "sticky", "top": "0", "z-index": "100", "background": "rgba(14,12,10,0.95)", "backdrop-filter": "blur(12px)", "border-bottom": "1px solid rgba(255,255,255,0.08)", "padding": "12px 24px", "display": "flex", "align-items": "center", "gap": "12px" })}">`);
+      _push(ssrRenderComponent(_component_NuxtLink, {
+        to: `/credit-sales/${unref(route).params.id}`,
+        style: { "display": "inline-flex", "align-items": "center", "gap": "6px", "padding": "7px 14px", "border-radius": "10px", "border": "1px solid rgba(255,255,255,0.12)", "color": "#9ca3af", "font-size": "12px", "font-weight": "500", "text-decoration": "none", "transition": "all .15s ease" },
+        onmouseover: "this.style.color='#e5e7eb';this.style.borderColor='rgba(255,255,255,0.22)'",
+        onmouseout: "this.style.color='#9ca3af';this.style.borderColor='rgba(255,255,255,0.12)'"
+      }, {
+        default: withCtx((_, _push2, _parent2, _scopeId) => {
+          if (_push2) {
+            _push2(` \u2190 Back to Order `);
+          } else {
+            return [
+              createTextVNode(" \u2190 Back to Order ")
+            ];
+          }
+        }),
+        _: 1
+      }, _parent));
+      _push(`<div style="${ssrRenderStyle({ "flex": "1", "text-align": "center" })}"><span style="${ssrRenderStyle({ "font-size": "13px", "color": "#d1d5db", "font-weight": "600" })}">${ssrInterpolate(unref(invoiceNo))}</span><span style="${ssrRenderStyle({ "font-size": "11px", "color": "#6b7280", "margin-left": "8px" })}">Preview \u2014 click Print to generate PDF</span></div><button onclick="window.print()" style="${ssrRenderStyle({ "display": "inline-flex", "align-items": "center", "gap": "6px", "padding": "8px 18px", "border-radius": "10px", "background": "linear-gradient(135deg,#f59e0b,#d97706)", "color": "#000", "font-size": "12px", "font-weight": "700", "border": "none", "cursor": "pointer" })}"> \u{1F5A8}\uFE0F Print / Save PDF </button></div><div style="${ssrRenderStyle({ "max-width": "794px", "margin": "32px auto", "padding-bottom": "48px" })}" class="no-print-margin"><div id="invoice-paper" style="${ssrRenderStyle({ "background": "#fff", "box-shadow": "0 4px 32px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.12)", "border-radius": "4px", "overflow": "hidden" })}"><div style="${ssrRenderStyle({ "background": "linear-gradient(135deg,#1a1208 0%,#2d1f0a 60%,#1a1208 100%)", "padding": "32px 40px", "display": "flex", "align-items": "flex-start", "justify-content": "space-between", "gap": "24px" })}"><div style="${ssrRenderStyle({ "display": "flex", "align-items": "flex-start", "gap": "16px" })}"><div style="${ssrRenderStyle({ "width": "52px", "height": "52px", "background": "linear-gradient(135deg,#f59e0b,#d97706)", "border-radius": "12px", "display": "flex", "align-items": "center", "justify-content": "center", "font-weight": "900", "font-size": "22px", "color": "#000", "flex-shrink": "0", "box-shadow": "0 4px 16px rgba(245,158,11,0.4)" })}">U</div><div><div style="${ssrRenderStyle({ "font-size": "20px", "font-weight": "800", "color": "#fff", "letter-spacing": "-0.3px" })}">Ujjal Flour Mills Co.</div><div style="${ssrRenderStyle({ "font-size": "11px", "color": "#f59e0b", "font-weight": "600", "margin-top": "3px", "letter-spacing": "0.05em" })}">PREMIUM WHEAT PRODUCTS</div><div style="${ssrRenderStyle({ "font-size": "10.5px", "color": "#9ca3af", "margin-top": "6px", "line-height": "1.7" })}"> Sirajgonj Sadar, Sirajgonj-6700 \xB7 Demra, Dhaka-1361<br> \u{1F4DE} +880 1711-000000 \xB7 \u2709 accounts@ujjalfmc.com<br> Trade Lic: TL-SRG-2018-4821 \xB7 BIN: 002148694 </div></div></div><div style="${ssrRenderStyle({ "text-align": "right", "flex-shrink": "0" })}"><div style="${ssrRenderStyle({ "font-size": "10px", "font-weight": "700", "color": "#f59e0b", "letter-spacing": "0.15em", "text-transform": "uppercase", "margin-bottom": "6px" })}">Credit Invoice</div><div style="${ssrRenderStyle({ "font-size": "24px", "font-weight": "900", "color": "#fff", "letter-spacing": "-0.5px" })}">${ssrInterpolate(unref(invoiceNo))}</div><div style="${ssrRenderStyle({ "margin-top": "10px", "display": "flex", "flex-direction": "column", "gap": "4px", "align-items": "flex-end" })}"><div style="${ssrRenderStyle({ "display": "flex", "gap": "8px", "align-items": "center" })}"><span style="${ssrRenderStyle({ "font-size": "10px", "color": "#6b7280" })}">Issue Date</span><span style="${ssrRenderStyle({ "font-size": "11px", "color": "#e5e7eb", "font-weight": "600" })}">${ssrInterpolate(unref(order).orderDate)}</span></div><div style="${ssrRenderStyle({ "display": "flex", "gap": "8px", "align-items": "center" })}"><span style="${ssrRenderStyle({ "font-size": "10px", "color": "#6b7280" })}">Due Date</span><span style="${ssrRenderStyle({ "font-size": "11px", "color": "#f87171", "font-weight": "700" })}">${ssrInterpolate(unref(order).requiredDate)}</span></div><div style="${ssrRenderStyle({ "display": "flex", "gap": "8px", "align-items": "center" })}"><span style="${ssrRenderStyle({ "font-size": "10px", "color": "#6b7280" })}">Branch</span><span style="${ssrRenderStyle({ "font-size": "11px", "color": "#e5e7eb", "font-weight": "600" })}">${ssrInterpolate(unref(order).branch)}</span></div><div style="${ssrRenderStyle({ "margin-top": "6px" })}"><span style="${ssrRenderStyle(`font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;${unref(statusStyle)}`)}">${ssrInterpolate(unref(order).status.replace(/_/g, " ").toUpperCase())}</span></div></div></div></div><div style="${ssrRenderStyle({ "display": "grid", "grid-template-columns": "1fr 1fr", "border-bottom": "1px solid #f0ede8" })}"><div style="${ssrRenderStyle({ "padding": "24px 40px", "border-right": "1px solid #f0ede8" })}"><div style="${ssrRenderStyle({ "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.12em", "text-transform": "uppercase", "margin-bottom": "10px" })}">Bill To</div><div style="${ssrRenderStyle({ "font-size": "15px", "font-weight": "800", "color": "#111", "margin-bottom": "4px" })}">${ssrInterpolate(unref(order).customer)}</div><div style="${ssrRenderStyle({ "font-size": "11px", "color": "#6b7280", "line-height": "1.8" })}"><div>${ssrInterpolate(unref(order).customerType)} Customer \xB7 ${ssrInterpolate(unref(order).branch)} Territory</div><div>Credit Limit: <span style="${ssrRenderStyle({ "font-weight": "700", "color": "#d97706" })}">\u09F3${ssrInterpolate(((_b = (_a = unref(order)) == null ? void 0 : _a.creditLimit) != null ? _b : 0).toLocaleString())}</span></div><div>Outstanding: <span style="${ssrRenderStyle({ "font-weight": "700", "color": "#dc2626" })}">\u09F3${ssrInterpolate(((_d = (_c = unref(order)) == null ? void 0 : _c.currentBalance) != null ? _d : 0).toLocaleString())}</span></div></div></div><div style="${ssrRenderStyle({ "padding": "24px 40px" })}"><div style="${ssrRenderStyle({ "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.12em", "text-transform": "uppercase", "margin-bottom": "10px" })}">Ship To</div><div style="${ssrRenderStyle({ "font-size": "13px", "font-weight": "600", "color": "#111", "margin-bottom": "4px" })}">${ssrInterpolate(unref(order).customer)}</div><div style="${ssrRenderStyle({ "font-size": "11px", "color": "#6b7280", "line-height": "1.8" })}"><div>${ssrInterpolate(unref(order).deliveryAddress)}</div><div>Priority: <span style="${ssrRenderStyle(`font-weight:700;color:${unref(order).priority === "urgent" ? "#dc2626" : unref(order).priority === "high" ? "#ea580c" : "#6b7280"}`)}">${ssrInterpolate(unref(order).priority.toUpperCase())}</span></div></div></div></div><div style="${ssrRenderStyle({ "padding": "0 40px" })}"><table style="${ssrRenderStyle({ "width": "100%", "border-collapse": "collapse", "margin": "0" })}"><thead><tr style="${ssrRenderStyle({ "background": "#faf8f5", "border-bottom": "2px solid #f0ede8" })}"><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "left", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">#</th><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "left", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">Product Description</th><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "center", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">Qty (Bags)</th><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "right", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">Unit Price</th><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "right", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">Discount</th><th style="${ssrRenderStyle({ "padding": "12px 10px", "text-align": "right", "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.1em", "text-transform": "uppercase" })}">Line Total</th></tr></thead><tbody><!--[-->`);
+      ssrRenderList(unref(items), (item, i) => {
+        _push(`<tr style="${ssrRenderStyle(`border-bottom:1px solid #f5f3f0;background:${i % 2 === 0 ? "#fff" : "#fefcfa"}`)}"><td style="${ssrRenderStyle({ "padding": "13px 10px", "font-size": "11px", "color": "#9ca3af", "font-weight": "600" })}">${ssrInterpolate(i + 1)}</td><td style="${ssrRenderStyle({ "padding": "13px 10px" })}"><div style="${ssrRenderStyle({ "font-size": "13px", "font-weight": "700", "color": "#111" })}">${ssrInterpolate(item.product)}</div><div style="${ssrRenderStyle({ "font-size": "10px", "color": "#9ca3af", "margin-top": "2px" })}">Premium wheat flour \xB7 Ujjal FMC brand</div></td><td style="${ssrRenderStyle({ "padding": "13px 10px", "text-align": "center", "font-size": "13px", "font-weight": "700", "color": "#374151" })}">${ssrInterpolate(item.qty.toLocaleString())}</td><td style="${ssrRenderStyle({ "padding": "13px 10px", "text-align": "right", "font-size": "13px", "color": "#374151", "font-family": "monospace" })}">\u09F3${ssrInterpolate(item.price.toLocaleString())}</td><td style="${ssrRenderStyle({ "padding": "13px 10px", "text-align": "right", "font-size": "12px", "color": "#dc2626", "font-family": "monospace" })}">${ssrInterpolate(item.discount > 0 ? `-\u09F3${item.discount.toLocaleString()}` : "\u2014")}</td><td style="${ssrRenderStyle({ "padding": "13px 10px", "text-align": "right", "font-size": "13px", "font-weight": "700", "color": "#111", "font-family": "monospace" })}"> \u09F3${ssrInterpolate((item.qty * item.price - item.discount).toLocaleString())}</td></tr>`);
+      });
+      _push(`<!--]--></tbody></table></div><div style="${ssrRenderStyle({ "display": "grid", "grid-template-columns": "1fr 300px", "gap": "0", "border-top": "2px solid #f0ede8", "margin": "0 40px 0 40px", "padding-top": "24px", "padding-bottom": "24px" })}"><div style="${ssrRenderStyle({ "padding-right": "32px" })}"><div style="${ssrRenderStyle({ "font-size": "9px", "font-weight": "800", "color": "#9ca3af", "letter-spacing": "0.12em", "text-transform": "uppercase", "margin-bottom": "8px" })}">Notes &amp; Terms</div><div style="${ssrRenderStyle({ "font-size": "11px", "color": "#6b7280", "line-height": "1.8" })}">`);
+      if (unref(order).notes) {
+        _push(`<div style="${ssrRenderStyle({ "margin-bottom": "6px", "font-style": "italic", "color": "#374151" })}">${ssrInterpolate(unref(order).notes)}</div>`);
+      } else {
+        _push(`<!---->`);
+      }
+      _push(`<div>\u2022 Payment due within 30 days of invoice date.</div><div>\u2022 Goods once sold cannot be returned without prior approval.</div><div>\u2022 Interest @ 2% per month charged on overdue balances.</div><div>\u2022 Subject to Sirajgonj jurisdiction.</div></div></div><div style="${ssrRenderStyle({ "background": "#faf8f5", "border-radius": "12px", "padding": "20px", "border": "1px solid #f0ede8" })}"><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "padding": "5px 0", "font-size": "12px" })}"><span style="${ssrRenderStyle({ "color": "#6b7280" })}">Subtotal</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#374151" })}">\u09F3${ssrInterpolate(unref(subtotal).toLocaleString())}</span></div><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "padding": "5px 0", "font-size": "12px" })}"><span style="${ssrRenderStyle({ "color": "#6b7280" })}">Line Discounts</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#dc2626" })}">-\u09F3${ssrInterpolate(unref(totalDiscount).toLocaleString())}</span></div><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "padding": "5px 0", "font-size": "12px" })}"><span style="${ssrRenderStyle({ "color": "#6b7280" })}">Overall Discount</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#dc2626" })}">\u09F30</span></div><div style="${ssrRenderStyle({ "border-top": "1px solid #e5e0d8", "margin": "8px 0" })}"></div><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "padding": "8px 0", "font-size": "15px", "font-weight": "800" })}"><span style="${ssrRenderStyle({ "color": "#111" })}">Invoice Total</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#b45309" })}">\u09F3${ssrInterpolate(((_f = (_e = unref(order)) == null ? void 0 : _e.total) != null ? _f : 0).toLocaleString())}</span></div><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "padding": "5px 0", "font-size": "12px" })}"><span style="${ssrRenderStyle({ "color": "#6b7280" })}">Advance Paid</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#16a34a", "font-weight": "600" })}">-\u09F3${ssrInterpolate(((_h = (_g = unref(order)) == null ? void 0 : _g.advance) != null ? _h : 0).toLocaleString())}</span></div><div style="${ssrRenderStyle({ "background": "linear-gradient(135deg,#fef3c7,#fef9ee)", "border-radius": "8px", "padding": "12px 14px", "margin-top": "8px", "border": "1px solid #fcd34d" })}"><div style="${ssrRenderStyle({ "display": "flex", "justify-content": "space-between", "font-size": "14px", "font-weight": "800" })}"><span style="${ssrRenderStyle({ "color": "#92400e" })}">Balance Due</span><span style="${ssrRenderStyle({ "font-family": "monospace", "color": "#b45309" })}">\u09F3${ssrInterpolate(((_j = (_i = unref(order)) == null ? void 0 : _i.balanceDue) != null ? _j : 0).toLocaleString())}</span></div><div style="${ssrRenderStyle({ "font-size": "10px", "color": "#b45309", "margin-top": "4px", "opacity": "0.8" })}">Due: ${ssrInterpolate((_k = unref(order)) == null ? void 0 : _k.requiredDate)}</div></div></div></div><div style="${ssrRenderStyle({ "margin": "0 40px", "padding": "24px 0 0", "border-top": "1px solid #f0ede8", "display": "grid", "grid-template-columns": "1fr 1fr 1fr", "gap": "32px" })}"><!--[-->`);
+      ssrRenderList(["Sales Officer", "Accounts & Finance", "Customer / Receiver"], (sig) => {
+        _push(`<div style="${ssrRenderStyle({ "text-align": "center" })}"><div style="${ssrRenderStyle({ "height": "48px", "border-bottom": "1.5px solid #d1d5db", "margin-bottom": "8px" })}"></div><div style="${ssrRenderStyle({ "font-size": "10px", "font-weight": "700", "color": "#6b7280", "letter-spacing": "0.05em" })}">${ssrInterpolate(sig)}</div><div style="${ssrRenderStyle({ "font-size": "9px", "color": "#9ca3af", "margin-top": "3px" })}">Signature &amp; Stamp</div></div>`);
+      });
+      _push(`<!--]--></div><div style="${ssrRenderStyle({ "margin-top": "28px", "background": "#faf8f5", "border-top": "1px solid #f0ede8", "padding": "16px 40px", "display": "flex", "align-items": "center", "justify-content": "space-between" })}"><div style="${ssrRenderStyle({ "font-size": "10px", "color": "#9ca3af" })}"> Generated by Ujjal FMC ERP \xB7 ${ssrInterpolate(unref(generatedAt))}</div><div style="${ssrRenderStyle({ "font-size": "10px", "color": "#9ca3af", "text-align": "center" })}"> This is a computer-generated invoice and is valid without signature<br> when processed through the ERP system. </div><div style="${ssrRenderStyle({ "text-align": "right" })}"><div style="${ssrRenderStyle({ "width": "48px", "height": "48px", "background": "#111", "border-radius": "6px", "display": "flex", "align-items": "center", "justify-content": "center", "margin-left": "auto" })}"><svg width="36" height="36" viewBox="0 0 36 36" fill="none"><rect x="2" y="2" width="14" height="14" rx="2" fill="white"></rect><rect x="5" y="5" width="8" height="8" rx="1" fill="#111"></rect><rect x="20" y="2" width="14" height="14" rx="2" fill="white"></rect><rect x="23" y="5" width="8" height="8" rx="1" fill="#111"></rect><rect x="2" y="20" width="14" height="14" rx="2" fill="white"></rect><rect x="5" y="23" width="8" height="8" rx="1" fill="#111"></rect><rect x="20" y="20" width="4" height="4" fill="white"></rect><rect x="26" y="20" width="4" height="4" fill="white"></rect><rect x="20" y="26" width="4" height="4" fill="white"></rect><rect x="26" y="26" width="8" height="8" fill="white"></rect><rect x="32" y="20" width="2" height="4" fill="white"></rect></svg></div><div style="${ssrRenderStyle({ "font-size": "8px", "color": "#9ca3af", "margin-top": "3px", "text-align": "center" })}">Scan to verify</div></div></div></div></div></div>`);
+    };
+  }
+});
+const _sfc_setup = _sfc_main.setup;
+_sfc_main.setup = (props, ctx) => {
+  const ssrContext = useSSRContext();
+  (ssrContext.modules || (ssrContext.modules = /* @__PURE__ */ new Set())).add("pages/credit-sales/[id]/invoice.vue");
+  return _sfc_setup ? _sfc_setup(props, ctx) : void 0;
+};
+
+export { _sfc_main as default };
+//# sourceMappingURL=invoice-DXALCWyv.mjs.map
