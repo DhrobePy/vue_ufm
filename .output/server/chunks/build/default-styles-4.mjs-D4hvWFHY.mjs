@@ -1,4 +1,0 @@
-const ThemePicker_vue_vue_type_style_index_0_scoped_afed1e27_lang = ".picker-slide-enter-active[data-v-afed1e27]{transition:transform .28s cubic-bezier(.32,.72,0,1)}.picker-slide-leave-active[data-v-afed1e27]{transition:transform .22s cubic-bezier(.32,.72,0,1)}.picker-slide-enter-from[data-v-afed1e27],.picker-slide-leave-to[data-v-afed1e27]{transform:translate(100%)}.picker-overlay-enter-active[data-v-afed1e27]{transition:opacity .22s ease}.picker-overlay-leave-active[data-v-afed1e27]{transition:opacity .18s ease}.picker-overlay-enter-from[data-v-afed1e27],.picker-overlay-leave-to[data-v-afed1e27]{opacity:0}aside[data-v-afed1e27]{background:var(--sidebar-from)!important}";
-
-export { ThemePicker_vue_vue_type_style_index_0_scoped_afed1e27_lang as T };
-//# sourceMappingURL=default-styles-4.mjs-D4hvWFHY.mjs.map

@@ -93,7 +93,7 @@ export default defineEventHandler(async (event) => {
     if (autoApprove) {
       // ── Ledger: credit note reduces the customer's balance ───
       const [[lastLedger]] = await conn.query<any>(
-        `SELECT COALESCE(running_balance, 0) AS bal
+        `SELECT COALESCE(balance_after, 0) AS bal
          FROM customer_ledger WHERE customer_id = ?
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [order.customer_id],
@@ -103,13 +103,13 @@ export default defineEventHandler(async (event) => {
 
       await conn.query(
         `INSERT INTO customer_ledger
-           (customer_id, entry_date, entry_type, reference_number,
-            description, debit_amount, credit_amount, running_balance)
-         VALUES (?, ?, 'Credit Note', ?, ?, 0, ?, ?)`,
+           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+         VALUES (?, ?, 'credit_note', 'credit_order_return', ?, ?, ?, 0, ?, ?, ?)`,
         [
-          order.customer_id, retDate, retNo,
+          order.customer_id, retDate, returnId, retNo,
           `Goods Return Credit Note — ${retNo} (Order ${order.order_number})`,
-          totalRetAmount, newBal,
+          totalRetAmount, newBal, userId,
         ],
       )
 

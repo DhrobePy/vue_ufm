@@ -49,7 +49,7 @@ export default defineEventHandler(async (event) => {
 
     // Ledger: debit_note to reverse the credit that the payment created
     const [[lastLedger]] = await conn.query<any>(
-      `SELECT COALESCE(running_balance, 0) AS bal
+      `SELECT COALESCE(balance_after, 0) AS bal
        FROM customer_ledger WHERE customer_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [pmt.customer_id],
@@ -60,13 +60,13 @@ export default defineEventHandler(async (event) => {
     const refNo = `REV-${pmt.reference_number ?? pmt.id}`
     await conn.query(
       `INSERT INTO customer_ledger
-         (customer_id, entry_date, entry_type, reference_number,
-          description, debit_amount, credit_amount, running_balance)
-       VALUES (?, ?, 'Adjustment', ?, ?, ?, 0, ?)`,
+         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+       VALUES (?, ?, 'debit_note', 'payment_reversal', ?, ?, ?, ?, 0, ?, ?)`,
       [
-        pmt.customer_id, today, refNo,
+        pmt.customer_id, today, payment_id, refNo,
         `Payment Reversal — ${refNo}${reason ? ` (${reason})` : ''}`,
-        pmtAmount, newBal,
+        pmtAmount, newBal, userId,
       ],
     )
 
