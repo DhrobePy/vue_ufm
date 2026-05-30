@@ -11,7 +11,24 @@ export default defineEventHandler(async (event) => {
               c.customer_type, c.credit_limit, c.current_balance,
               cr.display_name AS created_by_name,
               ap.display_name AS approved_by_name,
-              b.name AS branch_name
+              b.name AS branch_name,
+              -- Ledger balance = actual delivered-but-unpaid amount (double-entry running total)
+              COALESCE((
+                SELECT SUM(cl.debit_amount) - SUM(cl.credit_amount)
+                FROM customer_ledger cl WHERE cl.customer_id = c.id
+              ), 0) AS ledger_balance,
+              -- Pending commitment = balance_due on orders not yet on the ledger
+              -- (pre-delivery states only — delivered orders are already in the ledger)
+              COALESCE((
+                SELECT SUM(o2.balance_due)
+                FROM credit_orders o2
+                WHERE o2.customer_id = c.id
+                  AND o2.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped')
+                  AND o2.id != o.id
+              ), 0) AS other_pending_exposure,
+              -- This order's own uncommitted balance (if not yet delivered)
+              CASE WHEN o.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped')
+                   THEN o.balance_due ELSE 0 END AS this_order_pending
        FROM credit_orders o
        JOIN customers c ON c.id = o.customer_id
        LEFT JOIN users cr ON cr.id = o.created_by_user_id

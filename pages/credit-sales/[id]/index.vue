@@ -115,16 +115,42 @@
           <div class="glass-card p-5">
             <div class="flex items-center justify-between mb-3">
               <h3 class="section-title">Credit Utilisation</h3>
-              <span class="text-xs text-gray-500">{{ creditPct }}% used</span>
+              <span :class="['text-xs font-semibold', creditPct > 100 ? 'text-red-400' : creditPct > 80 ? 'text-orange-400' : 'text-gray-500']">
+                {{ creditPct }}% used
+              </span>
             </div>
             <div class="h-2 rounded-full bg-white/[0.06] overflow-hidden">
               <div class="h-full rounded-full transition-all duration-500"
-                   :style="`width:${Math.min(creditPct,100)}%;background:${creditPct > 80 ? '#ef4444' : creditPct > 60 ? '#f97316' : '#10b981'}`" />
+                   :style="`width:${Math.min(creditPct,100)}%;background:${creditPct > 100 ? '#ef4444' : creditPct > 80 ? '#ef4444' : creditPct > 60 ? '#f97316' : '#10b981'}`" />
             </div>
-            <div class="flex justify-between text-[11px] text-gray-600 mt-2">
-              <span>Limit: ৳{{ Number(order.credit_limit || 0).toLocaleString() }}</span>
-              <span>Balance: ৳{{ Number(order.current_balance || 0).toLocaleString() }}</span>
+            <!-- Three-row breakdown -->
+            <div class="mt-3 space-y-1.5 text-[11px]">
+              <div class="flex justify-between text-gray-600">
+                <span>Credit Limit</span>
+                <span class="text-gray-400 font-medium">৳{{ Number(order.credit_limit || 0).toLocaleString() }}</span>
+              </div>
+              <div class="flex justify-between text-gray-600">
+                <span>Delivered &amp; Unpaid (Ledger)</span>
+                <span class="text-orange-400/80">৳{{ Math.max(0, Number(order.ledger_balance ?? order.current_balance ?? 0)).toLocaleString() }}</span>
+              </div>
+              <div v-if="Number(order.other_pending_exposure) > 0" class="flex justify-between text-gray-600">
+                <span>Other Pending Orders</span>
+                <span class="text-yellow-400/80">৳{{ Number(order.other_pending_exposure).toLocaleString() }}</span>
+              </div>
+              <div v-if="Number(order.this_order_pending) > 0" class="flex justify-between text-gray-600">
+                <span>This Order (pre-delivery)</span>
+                <span class="text-blue-400/80">৳{{ Number(order.this_order_pending).toLocaleString() }}</span>
+              </div>
+              <div class="flex justify-between border-t border-white/[0.06] pt-1.5 mt-1">
+                <span class="font-semibold text-gray-400">Total Exposure</span>
+                <span :class="['font-bold', creditPct > 100 ? 'text-red-400' : creditPct > 80 ? 'text-orange-400' : 'text-emerald-400']">
+                  ৳{{ totalExposure.toLocaleString() }}
+                </span>
+              </div>
             </div>
+            <p v-if="creditPct > 100" class="mt-2 text-[10px] text-red-400/80 leading-snug">
+              ⚠ Customer is over credit limit. Escalate to CFO before processing further orders.
+            </p>
           </div>
 
           <!-- Line items -->
@@ -343,11 +369,20 @@ const order     = computed(() => (data.value?.order     ?? {}) as any)
 const items     = computed(() => (data.value?.items     ?? []) as any[])
 const apiWorkflow = computed(() => (data.value?.workflow ?? []) as any[])
 
+// Total exposure = what's already on the ledger (delivered & unpaid)
+//                + pre-delivery order commitments from OTHER orders
+//                + this order's own uncommitted balance (if pre-delivery)
+const totalExposure = computed(() => {
+  const ledger  = Number(order.value.ledger_balance         ?? order.value.current_balance ?? 0)
+  const others  = Number(order.value.other_pending_exposure ?? 0)
+  const thisOrd = Number(order.value.this_order_pending     ?? 0)
+  return Math.max(0, ledger + others + thisOrd)
+})
+
 const creditPct = computed(() => {
-  const limit   = Number(order.value.credit_limit   ?? 0)
-  const balance = Number(order.value.current_balance ?? 0)
+  const limit = Number(order.value.credit_limit ?? 0)
   if (!limit) return 0
-  return Math.round((balance / limit) * 100)
+  return Math.min(150, Math.round((totalExposure.value / limit) * 100))
 })
 
 const canCollectPayment = computed(() =>

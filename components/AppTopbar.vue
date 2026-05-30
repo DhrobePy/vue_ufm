@@ -57,12 +57,15 @@
         @click="notifOpen = !notifOpen"
         class="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/[0.07] transition-all duration-150"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+        <svg :class="['w-4 h-4 transition-colors duration-300',
+                      bellRing ? 'animate-bell text-gold-400' : unreadCount > 0 ? 'text-gold-400/70' : '']"
+             fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
         </svg>
         <!-- Unread badge -->
         <span v-if="unreadCount > 0"
-              class="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold px-1"
+              :class="['absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full flex items-center justify-center text-[10px] font-bold px-1',
+                       bellRing ? 'animate-pulse' : '']"
               :style="`background: linear-gradient(135deg, var(--accent-from), var(--accent-to)); color: var(--accent-text)`">
           {{ unreadCount > 9 ? '9+' : unreadCount }}
         </span>
@@ -208,7 +211,7 @@ const router = useRouter()
 const { user: sessionUser, clear } = useUserSession()
 const searchStore = useGlobalSearch()
 const themeStore  = useTheme()
-const { success } = useToast()
+const { success, warning: toastWarning } = useToast()
 
 const dropdownOpen = ref(false)
 const notifOpen    = ref(false)
@@ -261,17 +264,33 @@ interface Notification {
 }
 
 const notifications = ref<Notification[]>([])
+const bellRing      = ref(false)
+// -1 = "first load, don't ring yet"
+let   _prevUnread   = -1
 
-// Fetch live notifications on mount; refresh every 60 s
+// Fetch live notifications; ring the bell when new unread items arrive
 async function loadNotifications() {
   try {
     const data = await $fetch<Notification[]>('/api/notifications')
-    notifications.value = data ?? []
-  } catch {}
+    const fresh = data ?? []
+    const newUnread = fresh.filter(n => !n.read).length
+
+    // Ring + toast only when unread count INCREASES after the first load
+    if (_prevUnread >= 0 && newUnread > _prevUnread) {
+      bellRing.value = true
+      setTimeout(() => { bellRing.value = false }, 2500)
+      const diff = newUnread - _prevUnread
+      toastWarning(`🔔 ${diff} new notification${diff > 1 ? 's' : ''}`)
+    }
+    _prevUnread = newUnread
+    notifications.value = fresh
+  } catch { /* network blip — keep stale data */ }
 }
+
 onMounted(() => {
   loadNotifications()
-  const timer = setInterval(loadNotifications, 60_000)
+  // Poll every 30 s — fast enough to feel responsive without hammering the DB
+  const timer = setInterval(loadNotifications, 30_000)
   onUnmounted(() => clearInterval(timer))
 })
 
@@ -306,4 +325,23 @@ const vClickOutside = {
 .dropdown-leave-active { transition: all 0.1s ease-in; }
 .dropdown-enter-from   { opacity: 0; transform: translateY(-6px) scale(0.97); }
 .dropdown-leave-to     { opacity: 0; transform: translateY(-4px) scale(0.98); }
+
+/* Bell ring animation — triggered when new notifications arrive */
+@keyframes bell-ring {
+  0%   { transform: rotate(0deg); }
+  10%  { transform: rotate(14deg); }
+  20%  { transform: rotate(-10deg); }
+  30%  { transform: rotate(14deg); }
+  40%  { transform: rotate(-8deg); }
+  50%  { transform: rotate(10deg); }
+  60%  { transform: rotate(-6deg); }
+  70%  { transform: rotate(6deg); }
+  80%  { transform: rotate(-4deg); }
+  90%  { transform: rotate(4deg); }
+  100% { transform: rotate(0deg); }
+}
+.animate-bell {
+  animation: bell-ring 0.8s ease-in-out;
+  transform-origin: top center;
+}
 </style>

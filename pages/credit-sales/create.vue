@@ -41,20 +41,22 @@
             </button>
             <svg v-else class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
           </div>
-          <!-- Dropdown -->
+          <!-- Dropdown — solid dark panel so text is readable against any background -->
           <div v-if="customerDropdownOpen && filteredCustomers.length"
-            class="absolute left-0 right-0 top-full mt-1 z-30 glass-card shadow-2xl rounded-xl max-h-56 overflow-y-auto py-1">
+            class="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl max-h-56 overflow-y-auto py-1.5"
+            style="background:rgba(18,18,20,0.98);border:1px solid rgba(255,255,255,0.10);box-shadow:0 16px 40px rgba(0,0,0,0.65);backdrop-filter:blur(20px)">
             <button
               v-for="c in filteredCustomers" :key="c.id"
               type="button"
-              class="w-full text-left px-4 py-2.5 hover:bg-white/[0.06] transition-colors"
+              class="w-full text-left px-4 py-2.5 hover:bg-white/[0.07] transition-colors"
               @mousedown.prevent="selectCustomer(c)">
-              <span class="text-sm text-gray-200 font-medium">{{ c.name }}</span>
+              <span class="text-sm text-gray-100 font-medium">{{ c.name }}</span>
               <span v-if="c.business" class="text-xs text-gray-500 ml-2">{{ c.business }}</span>
             </button>
           </div>
           <div v-else-if="customerDropdownOpen && customerQuery.length >= 1 && !filteredCustomers.length"
-            class="absolute left-0 right-0 top-full mt-1 z-30 glass-card rounded-xl py-3 text-center text-xs text-gray-600">
+            class="absolute left-0 right-0 top-full mt-1 z-30 rounded-xl py-3 text-center text-xs text-gray-500"
+            style="background:rgba(18,18,20,0.98);border:1px solid rgba(255,255,255,0.10);box-shadow:0 16px 40px rgba(0,0,0,0.65)">
             No customers match "{{ customerQuery }}"
           </div>
         </div>
@@ -88,14 +90,46 @@
         </div>
       </div>
       <!-- Credit info banner -->
-      <div v-if="form.customerId && selectedCustomer" class="flex items-center gap-3 p-3.5 rounded-xl" style="background:rgba(245,158,11,0.07);border:1px solid rgba(245,158,11,0.15);">
-        <svg class="w-4 h-4 text-gold-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <div class="flex-1 flex flex-wrap gap-x-6 gap-y-1 text-xs">
-          <span class="text-gray-400">Credit Limit: <strong class="text-gray-200">৳{{ Number(selectedCustomer.credit_limit || 0).toLocaleString() }}</strong></span>
-          <span class="text-gray-400">Outstanding: <strong class="text-orange-300">৳{{ Number(selectedCustomer.current_balance || 0).toLocaleString() }}</strong></span>
-          <span class="text-gray-400">Available: <strong :class="creditAvailable > 0 ? 'text-emerald-300' : 'text-red-400'">৳{{ creditAvailable.toLocaleString() }}</strong></span>
-          <span class="text-gray-400">Utilisation: <strong :class="creditUtilPct > 80 ? 'text-red-400' : 'text-orange-300'">{{ creditUtilPct }}%</strong></span>
+      <div v-if="form.customerId && selectedCustomer"
+           :class="['rounded-xl p-4 space-y-3', creditUtilPct > 100 ? 'border border-red-500/25' : 'border border-amber-500/15']"
+           :style="creditUtilPct > 100 ? 'background:rgba(239,68,68,0.07)' : 'background:rgba(245,158,11,0.06)'">
+        <!-- Header row -->
+        <div class="flex items-center gap-2">
+          <svg class="w-3.5 h-3.5 text-gold-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span class="text-xs font-semibold text-gray-400">Credit Standing — {{ selectedCustomer.name }}</span>
+          <span :class="['ml-auto text-[11px] font-bold', creditUtilPct > 100 ? 'text-red-400' : creditUtilPct > 80 ? 'text-orange-400' : 'text-emerald-400']">
+            {{ creditUtilPct }}% exposed
+          </span>
         </div>
+        <!-- Progress bar -->
+        <div class="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500"
+               :style="`width:${Math.min(creditUtilPct,100)}%;background:${creditUtilPct > 100 ? '#ef4444' : creditUtilPct > 80 ? '#f97316' : '#10b981'}`" />
+        </div>
+        <!-- Grid of figures -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1.5 text-xs">
+          <div>
+            <p class="text-gray-600">Credit Limit</p>
+            <p class="text-gray-200 font-semibold">৳{{ Number(selectedCustomer.credit_limit || 0).toLocaleString() }}</p>
+          </div>
+          <div>
+            <p class="text-gray-600">Delivered &amp; Unpaid</p>
+            <p class="text-orange-300 font-semibold">৳{{ Number(selectedCustomer.current_balance || 0).toLocaleString() }}</p>
+          </div>
+          <div>
+            <p class="text-gray-600">Pending Orders</p>
+            <p class="text-yellow-300 font-semibold">৳{{ customerPendingExposure.toLocaleString() }}</p>
+          </div>
+          <div>
+            <p class="text-gray-600">Available (after this order)</p>
+            <p :class="['font-bold', creditAvailable > 0 ? 'text-emerald-300' : 'text-red-400']">
+              ৳{{ (Math.max(0, Number(selectedCustomer.credit_limit || 0) - totalExposure)).toLocaleString() }}
+            </p>
+          </div>
+        </div>
+        <p v-if="creditUtilPct > 100" class="text-[11px] text-red-400/90 leading-snug">
+          ⚠ This order will take {{ selectedCustomer.name }} over their credit limit. The order will be escalated for CFO approval.
+        </p>
       </div>
     </div>
 
@@ -265,17 +299,38 @@ function clearCustomer() {
   customerDropdownOpen.value = true
 }
 
+// Pending exposure for selected customer (pre-delivery orders not yet on ledger)
+const customerPendingExposure = ref(0)
+
+watch(() => form.customerId, async (newId) => {
+  if (!newId) { customerPendingExposure.value = 0; return }
+  try {
+    const row = await $fetch<{ pending: number }>(`/api/customers/${newId}/credit-exposure`)
+    customerPendingExposure.value = Number(row?.pending ?? 0)
+  } catch { customerPendingExposure.value = 0 }
+})
+
+// Total exposure = ledger balance + other pending orders + this new order's total
+const currentOrderTotal = computed(() => subtotal.value - totalDiscount.value)
+
+const totalExposure = computed(() => {
+  if (!selectedCustomer.value) return 0
+  const ledger  = Number(selectedCustomer.value.current_balance || 0)
+  const pending = customerPendingExposure.value
+  return Math.max(0, ledger + pending + currentOrderTotal.value)
+})
+
 const creditAvailable = computed(() => {
   if (!selectedCustomer.value) return 0
-  return Math.max(0, Number(selectedCustomer.value.credit_limit || 0) - Number(selectedCustomer.value.current_balance || 0))
+  const limit = Number(selectedCustomer.value.credit_limit || 0)
+  return Math.max(0, limit - (Number(selectedCustomer.value.current_balance || 0) + customerPendingExposure.value))
 })
 
 const creditUtilPct = computed(() => {
   if (!selectedCustomer.value) return 0
-  const limit   = Number(selectedCustomer.value.credit_limit   || 0)
-  const balance = Number(selectedCustomer.value.current_balance || 0)
+  const limit = Number(selectedCustomer.value.credit_limit || 0)
   if (!limit) return 0
-  return Math.min(100, Math.round((balance / limit) * 100))
+  return Math.min(150, Math.round((totalExposure.value / limit) * 100))
 })
 
 // Flatten product variants for the line-item dropdown
