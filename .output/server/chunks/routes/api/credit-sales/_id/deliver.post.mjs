@@ -10,7 +10,7 @@ import 'node:path';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -34,7 +34,8 @@ const deliver_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[order]] = await conn.query(
-      `SELECT id, customer_id, status FROM credit_orders WHERE id = ?`,
+      `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date
+       FROM credit_orders o WHERE o.id = ?`,
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
@@ -46,6 +47,7 @@ const deliver_post = defineEventHandler(async (event) => {
     const delNo = `DEL-${today}-${seq}`;
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
+    const delivDate = delivery_date != null ? delivery_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const [result] = await conn.query(
       `INSERT INTO credit_order_deliveries
          (delivery_number, order_id, customer_id, delivery_date,
@@ -56,7 +58,7 @@ const deliver_post = defineEventHandler(async (event) => {
         delNo,
         id,
         order.customer_id,
-        delivery_date != null ? delivery_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+        delivDate,
         truck_number != null ? truck_number : null,
         driver_name != null ? driver_name : null,
         driver_contact != null ? driver_contact : null,
@@ -84,15 +86,38 @@ const deliver_post = defineEventHandler(async (event) => {
         ]
       );
     }
+    const [[lastLedger]] = await conn.query(
+      `SELECT COALESCE(balance_after, 0) AS bal
+       FROM customer_ledger WHERE customer_id = ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [order.customer_id]
+    );
+    const prevBal = Number((_e = lastLedger == null ? void 0 : lastLedger.bal) != null ? _e : 0);
+    const newBal = prevBal + totalAmount;
+    const shipType = is_final ? "Full Delivery" : "Partial Delivery";
+    await conn.query(
+      `INSERT INTO customer_ledger
+         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+       VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
+      [
+        order.customer_id,
+        delivDate,
+        deliveryId,
+        delNo,
+        `${shipType} \u2014 ${delNo} (Order ${order.order_number})`,
+        totalAmount,
+        newBal,
+        userId
+      ]
+    );
+    await conn.query(
+      `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
+      [totalAmount, order.customer_id]
+    );
     if (is_final) {
       await conn.query(
         `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
-    } else {
-      await conn.query(
-        `UPDATE credit_orders SET status = CASE WHEN status = 'in_production' THEN 'produced' ELSE status END,
-                                  updated_at = NOW() WHERE id = ?`,
         [id]
       );
     }

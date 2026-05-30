@@ -262,6 +262,19 @@ interface Notification {
 
 const notifications = ref<Notification[]>([])
 
+// Fetch live notifications on mount; refresh every 60 s
+async function loadNotifications() {
+  try {
+    const data = await $fetch<Notification[]>('/api/notifications')
+    notifications.value = data ?? []
+  } catch {}
+}
+onMounted(() => {
+  loadNotifications()
+  const timer = setInterval(loadNotifications, 60_000)
+  onUnmounted(() => clearInterval(timer))
+})
+
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
 function goNotif(n: Notification) {

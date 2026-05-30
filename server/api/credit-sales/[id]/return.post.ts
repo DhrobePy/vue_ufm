@@ -7,10 +7,11 @@ export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
   const session = await getUserSession(event)
   const userId  = session?.user?.id ?? 1
+  const role    = (session?.user?.role ?? '').toLowerCase()
 
   const {
     return_date,
-    return_type = 'partial',
+    return_type   = 'partial',
     return_reason,
     notes,
     items,   // [{ order_item_id, product_id, variant_id, original_qty, returned_qty, unit_price }]
@@ -27,33 +28,43 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, balance_due, amount_paid FROM credit_orders WHERE id = ?`, [id],
+      `SELECT id, customer_id, order_number, balance_due, amount_paid, total_amount
+       FROM credit_orders WHERE id = ?`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
     // Generate return number
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const [[cnt]] = await conn.query<any>(
       `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`,
     )
-    const seq     = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const retNo   = `RET-${today}-${seq}`
+    const seq   = String((cnt.n ?? 0) + 1).padStart(4, '0')
+    const retNo = `RTN-${today}-${seq}`
+    const retDate = return_date ?? new Date().toISOString().slice(0, 10)
 
-    const totalQty    = items.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)
-    const totalAmount = items.reduce((s: number, i: any) => s + Number(i.returned_qty) * Number(i.unit_price), 0)
+    const totalRetQty    = items.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)
+    const totalRetAmount = items.reduce(
+      (s: number, i: any) => s + Number(i.returned_qty) * Number(i.unit_price), 0,
+    )
 
-    // Insert return header (pending approval)
+    // Admin/superadmin auto-approve; others go to pending
+    const autoApprove = ['admin', 'superadmin'].includes(role)
+    const retStatus   = autoApprove ? 'approved' : 'pending'
+
+    // Insert return header
     const [result] = await conn.query<any>(
       `INSERT INTO credit_order_returns
          (return_number, order_id, customer_id, return_date, return_type,
           return_reason, total_returned_amount, total_returned_qty,
-          status, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+          status, approved_by_user_id, approved_at, notes, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        retNo, id, order.customer_id,
-        return_date ?? new Date().toISOString().slice(0, 10),
+        retNo, id, order.customer_id, retDate,
         return_type, return_reason ?? null,
-        totalAmount, totalQty,
+        totalRetAmount, totalRetQty,
+        retStatus,
+        autoApprove ? userId : null,
+        autoApprove ? new Date() : null,
         notes ?? null, userId,
       ],
     )
@@ -79,8 +90,57 @@ export default defineEventHandler(async (event) => {
       )
     }
 
+    if (autoApprove) {
+      // ── Ledger: credit note reduces the customer's balance ───
+      const [[lastLedger]] = await conn.query<any>(
+        `SELECT COALESCE(balance_after, 0) AS bal
+         FROM customer_ledger WHERE customer_id = ?
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [order.customer_id],
+      )
+      const prevBal = Number(lastLedger?.bal ?? 0)
+      const newBal  = Math.max(0, prevBal - totalRetAmount)
+
+      await conn.query(
+        `INSERT INTO customer_ledger
+           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+         VALUES (?, ?, 'credit_note', 'credit_order_return', ?, ?, ?, 0, ?, ?, ?)`,
+        [
+          order.customer_id, retDate, returnId, retNo,
+          `Goods Return Credit Note — ${retNo} (Order ${order.order_number})`,
+          totalRetAmount, newBal, userId,
+        ],
+      )
+
+      // Reduce order total_amount and balance_due
+      await conn.query(
+        `UPDATE credit_orders
+         SET total_amount = GREATEST(0, total_amount - ?),
+             balance_due  = GREATEST(0, balance_due  - ?),
+             updated_at   = NOW()
+         WHERE id = ?`,
+        [totalRetAmount, totalRetAmount, id],
+      )
+
+      // Reduce customer running balance
+      await conn.query(
+        `UPDATE customers
+         SET current_balance = GREATEST(0, current_balance - ?),
+             updated_at = NOW()
+         WHERE id = ?`,
+        [totalRetAmount, order.customer_id],
+      )
+    }
+
     await conn.commit()
-    return { ok: true, return_number: retNo, return_id: returnId, status: 'pending' }
+    return {
+      ok: true,
+      return_number: retNo,
+      return_id:     returnId,
+      status:        retStatus,
+      amount:        totalRetAmount,
+    }
   } catch (e) {
     await conn.rollback()
     throw e

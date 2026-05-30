@@ -78,6 +78,34 @@ export default defineEventHandler(async (event) => {
       [pmtAmount, order.customer_id],
     )
 
+    // ── Write customer ledger entry (payment credit) ──────────
+    const [[lastLedger]] = await conn.query<any>(
+      `SELECT COALESCE(balance_after, 0) AS bal
+       FROM customer_ledger WHERE customer_id = ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [order.customer_id],
+    )
+    const prevBal  = Number(lastLedger?.bal ?? 0)
+    const newBal   = Math.max(0, prevBal - pmtAmount)
+
+    await conn.query(
+      `INSERT INTO customer_ledger
+         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+       VALUES (?, ?, 'payment', 'customer_payment', ?,
+               ?, ?, 0, ?, ?, ?)`,
+      [
+        order.customer_id,
+        payment_date ?? new Date().toISOString().slice(0, 10),
+        result.insertId,
+        autoRef,
+        `Payment received — ${autoRef} (${payment_method ?? 'Cash'})`,
+        pmtAmount,
+        newBal,
+        userId,
+      ],
+    )
+
     await conn.commit()
     return { ok: true, id: result.insertId, reference_number: autoRef, new_balance: newBalance }
   } catch (e) {

@@ -22,12 +22,41 @@
     <div v-if="currentStep === 0" class="glass-card p-6 space-y-5 animate-slide-up">
       <h3 class="section-title">Customer Details</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="md:col-span-2 space-y-1.5">
+        <!-- Searchable customer combobox -->
+        <div class="md:col-span-2 space-y-1.5 relative" ref="customerComboRef">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer *</label>
-          <select v-model="form.customerId" class="input-glass">
-            <option value="">Select customer…</option>
-            <option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name }} · {{ c.business }}</option>
-          </select>
+          <div class="relative">
+            <input
+              v-model="customerQuery"
+              type="text"
+              class="input-glass w-full pr-8"
+              placeholder="Search customer by name or business…"
+              autocomplete="off"
+              @focus="onCustomerFocus"
+              @input="onCustomerInput"
+            />
+            <button v-if="form.customerId" type="button" @click="clearCustomer"
+              class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-600 hover:text-gray-300 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <svg v-else class="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/></svg>
+          </div>
+          <!-- Dropdown -->
+          <div v-if="customerDropdownOpen && filteredCustomers.length"
+            class="absolute left-0 right-0 top-full mt-1 z-30 glass-card shadow-2xl rounded-xl max-h-56 overflow-y-auto py-1">
+            <button
+              v-for="c in filteredCustomers" :key="c.id"
+              type="button"
+              class="w-full text-left px-4 py-2.5 hover:bg-white/[0.06] transition-colors"
+              @mousedown.prevent="selectCustomer(c)">
+              <span class="text-sm text-gray-200 font-medium">{{ c.name }}</span>
+              <span v-if="c.business" class="text-xs text-gray-500 ml-2">{{ c.business }}</span>
+            </button>
+          </div>
+          <div v-else-if="customerDropdownOpen && customerQuery.length >= 1 && !filteredCustomers.length"
+            class="absolute left-0 right-0 top-full mt-1 z-30 glass-card rounded-xl py-3 text-center text-xs text-gray-600">
+            No customers match "{{ customerQuery }}"
+          </div>
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Order Date *</label>
@@ -179,6 +208,11 @@ const form = reactive({
   items: [{ variantId: '', productId: '', quantity: 1, unitPrice: 0, discount: 0 }],
 })
 
+// ── Searchable customer combobox ─────────────────────────
+const customerQuery        = ref('')
+const customerDropdownOpen = ref(false)
+const customerComboRef     = ref<HTMLElement | null>(null)
+
 // Load customers and products from real API in parallel
 const [{ data: custData }, { data: prodData }] = await Promise.all([
   useFetch('/api/customers', { query: { per: 200 } }),
@@ -198,6 +232,38 @@ const customers = computed(() =>
 const selectedCustomer = computed(() =>
   customers.value.find(c => c.id === form.customerId) ?? null
 )
+
+// Combobox filtering — show first 20 when no query, else filter by name/business
+const filteredCustomers = computed(() => {
+  const q = customerQuery.value.toLowerCase().trim()
+  if (!q) return customers.value.slice(0, 20)
+  return customers.value
+    .filter(c => c.name.toLowerCase().includes(q) || (c.business || '').toLowerCase().includes(q))
+    .slice(0, 20)
+})
+
+function onCustomerFocus() {
+  customerDropdownOpen.value = true
+  // Clear input so user can type to search; selection still tracked via form.customerId
+  if (form.customerId) customerQuery.value = ''
+}
+
+function onCustomerInput() {
+  customerDropdownOpen.value = true
+  form.customerId = '' // deselect when user modifies input
+}
+
+function selectCustomer(c: { id: string; name: string; business: string }) {
+  form.customerId        = c.id
+  customerQuery.value    = c.name + (c.business ? ' · ' + c.business : '')
+  customerDropdownOpen.value = false
+}
+
+function clearCustomer() {
+  form.customerId        = ''
+  customerQuery.value    = ''
+  customerDropdownOpen.value = true
+}
 
 const creditAvailable = computed(() => {
   if (!selectedCustomer.value) return 0
@@ -245,11 +311,37 @@ function addItem() { form.items.push({ variantId: '', productId: '', quantity: 1
 // ── Auto-save draft to localStorage every 30s ────
 const DRAFT_KEY = 'erp_order_draft'
 let draftTimer: ReturnType<typeof setInterval>
+
 onMounted(() => {
+  // Restore draft
   const saved = localStorage.getItem(DRAFT_KEY)
-  if (saved) { try { Object.assign(form, JSON.parse(saved)) } catch {} }
+  if (saved) {
+    try {
+      Object.assign(form, JSON.parse(saved))
+      // Restore customer display name if a customer was saved in draft
+      if (form.customerId) {
+        const c = customers.value.find(x => x.id === form.customerId)
+        if (c) customerQuery.value = c.name + (c.business ? ' · ' + c.business : '')
+      }
+    } catch {}
+  }
   draftTimer = setInterval(() => { localStorage.setItem(DRAFT_KEY, JSON.stringify(form)) }, 30_000)
+
+  // Close customer dropdown when clicking outside the combobox
+  function handleClickOutside(e: MouseEvent) {
+    if (customerComboRef.value && !customerComboRef.value.contains(e.target as Node)) {
+      customerDropdownOpen.value = false
+      // If user focused but didn't select anyone, restore the display name
+      if (form.customerId && !customerQuery.value) {
+        const c = customers.value.find(x => x.id === form.customerId)
+        if (c) customerQuery.value = c.name + (c.business ? ' · ' + c.business : '')
+      }
+    }
+  }
+  document.addEventListener('mousedown', handleClickOutside)
+  onUnmounted(() => document.removeEventListener('mousedown', handleClickOutside))
 })
+
 onUnmounted(() => clearInterval(draftTimer))
 
 async function submitOrder() {

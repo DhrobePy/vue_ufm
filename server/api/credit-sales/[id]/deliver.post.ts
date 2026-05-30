@@ -30,12 +30,13 @@ export default defineEventHandler(async (event) => {
 
     // Verify order exists
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, status FROM credit_orders WHERE id = ?`, [id],
+      `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date
+       FROM credit_orders o WHERE o.id = ?`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
     // Generate delivery number
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const [[cnt]] = await conn.query<any>(
       `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`,
     )
@@ -44,6 +45,7 @@ export default defineEventHandler(async (event) => {
 
     const totalQty    = items.reduce((s: number, i: any) => s + Number(i.qty_delivered), 0)
     const totalAmount = items.reduce((s: number, i: any) => s + Number(i.qty_delivered) * Number(i.unit_price), 0)
+    const delivDate   = delivery_date ?? new Date().toISOString().slice(0, 10)
 
     // Insert delivery header
     const [result] = await conn.query<any>(
@@ -54,7 +56,7 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         delNo, id, order.customer_id,
-        delivery_date ?? new Date().toISOString().slice(0, 10),
+        delivDate,
         truck_number ?? null, driver_name ?? null, driver_contact ?? null,
         totalQty, totalAmount, is_final ? 1 : 0, notes ?? null, userId,
       ],
@@ -79,19 +81,48 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    // Update order status if final delivery
+    // ── Customer ledger entry (invoice debit on delivery) ─────
+    // This is where revenue hits the ledger — on confirmed shipment/delivery
+    const [[lastLedger]] = await conn.query<any>(
+      `SELECT COALESCE(balance_after, 0) AS bal
+       FROM customer_ledger WHERE customer_id = ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [order.customer_id],
+    )
+    const prevBal  = Number(lastLedger?.bal ?? 0)
+    const newBal   = prevBal + totalAmount
+    const shipType = is_final ? 'Full Delivery' : 'Partial Delivery'
+
+    await conn.query(
+      `INSERT INTO customer_ledger
+         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+       VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
+      [
+        order.customer_id,
+        delivDate,
+        deliveryId,
+        delNo,
+        `${shipType} — ${delNo} (Order ${order.order_number})`,
+        totalAmount,
+        newBal,
+        userId,
+      ],
+    )
+
+    // Update customer running balance
+    await conn.query(
+      `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
+      [totalAmount, order.customer_id],
+    )
+
+    // Update order status
     if (is_final) {
       await conn.query(
         `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [id],
       )
-    } else {
-      // Partial — mark as in-delivery if not already
-      await conn.query(
-        `UPDATE credit_orders SET status = CASE WHEN status = 'in_production' THEN 'produced' ELSE status END,
-                                  updated_at = NOW() WHERE id = ?`,
-        [id],
-      )
     }
+    // Partial delivery — keep current status (shipped/ready_to_ship) for next shipment
 
     await conn.commit()
     return { ok: true, delivery_number: delNo, delivery_id: deliveryId }

@@ -10,7 +10,7 @@ import 'node:path';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -71,6 +71,31 @@ const payment_post = defineEventHandler(async (event) => {
     await conn.query(
       `UPDATE customers SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW() WHERE id = ?`,
       [pmtAmount, order.customer_id]
+    );
+    const [[lastLedger]] = await conn.query(
+      `SELECT COALESCE(balance_after, 0) AS bal
+       FROM customer_ledger WHERE customer_id = ?
+       ORDER BY created_at DESC, id DESC LIMIT 1`,
+      [order.customer_id]
+    );
+    const prevBal = Number((_f = lastLedger == null ? void 0 : lastLedger.bal) != null ? _f : 0);
+    const newBal = Math.max(0, prevBal - pmtAmount);
+    await conn.query(
+      `INSERT INTO customer_ledger
+         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+       VALUES (?, ?, 'payment', 'customer_payment', ?,
+               ?, ?, 0, ?, ?, ?)`,
+      [
+        order.customer_id,
+        payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+        result.insertId,
+        autoRef,
+        `Payment received \u2014 ${autoRef} (${payment_method != null ? payment_method : "Cash"})`,
+        pmtAmount,
+        newBal,
+        userId
+      ]
     );
     await conn.commit();
     return { ok: true, id: result.insertId, reference_number: autoRef, new_balance: newBalance };

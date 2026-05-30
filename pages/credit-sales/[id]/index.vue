@@ -33,10 +33,15 @@
             @click="advanceStatus('ready_to_ship', 'Marked ready to ship')">
             📤 Ready to Dispatch
           </button>
-          <button v-else-if="order.status === 'ready_to_ship'"
+          <button v-else-if="order.status === 'ready_to_ship' || order.status === 'shipped'"
             class="btn-gold text-xs"
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
+          </button>
+          <button v-if="isAdmin"
+            class="btn-ghost text-xs text-red-400 hover:bg-red-500/10 border-red-500/20"
+            @click="deleteModal = true">
+            🗑️ Delete
           </button>
         </template>
       </UiPageHeader>
@@ -207,13 +212,18 @@
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
             <button @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
             <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
-            <NuxtLink v-if="order.status === 'ready_to_ship'" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
+            <NuxtLink v-if="order.status === 'ready_to_ship' || order.status === 'shipped'" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
             <button @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
             <NuxtLink :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
             <button v-if="!['cancelled','completed','rejected'].includes(order.status)"
               @click="cancelModal = true"
               class="btn-ghost w-full justify-start text-xs py-2 text-red-400 hover:bg-red-500/10">
               ❌ Cancel Order
+            </button>
+            <button v-if="isAdmin"
+              @click="deleteModal = true"
+              class="btn-ghost w-full justify-start text-xs py-2 text-red-500 hover:bg-red-500/10">
+              🗑️ Delete Order
             </button>
           </div>
         </div>
@@ -259,6 +269,32 @@
         </Transition>
       </Teleport>
 
+      <!-- ── Delete Order Modal ──────────────────────────── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="deleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="deleteModal = false" />
+            <div class="relative w-full max-w-md glass-card p-6 space-y-4 animate-slide-up">
+              <h3 class="section-title text-red-400">🗑️ Delete Order</h3>
+              <p class="text-sm text-gray-400">
+                This will permanently delete <strong class="text-gold-400">{{ order.order_number }}</strong>
+                along with all deliveries, returns, payments and ledger entries.
+              </p>
+              <div class="rounded-xl p-3 text-xs" style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2)">
+                <p class="text-red-400 font-semibold">⚠ This action cannot be undone.</p>
+              </div>
+              <div class="flex gap-3">
+                <button @click="deleteModal = false" class="btn-ghost flex-1">Go Back</button>
+                <button @click="confirmDelete" :disabled="acting"
+                  class="flex-1 py-2 rounded-xl text-sm font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  {{ acting ? '…' : 'Confirm Delete' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- ── Cancel Order Modal ──────────────────────────── -->
       <Teleport to="body">
         <Transition name="modal">
@@ -294,6 +330,10 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const id    = computed(() => Number(route.params.id))
 const { success, error: toastError, warning } = useToast()
+const { user: sessionUser } = useUserSession()
+const isAdmin = computed(() =>
+  ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase())
+)
 
 const { data, pending, error, refresh } = await useFetch(
   () => `/api/credit-sales/${id.value}`,
@@ -350,6 +390,7 @@ const approvalModal   = ref(false)
 const approvalComment = ref('')
 const cancelModal     = ref(false)
 const cancelReason    = ref('')
+const deleteModal     = ref(false)
 const acting          = ref(false)
 
 // ── API-backed actions ───────────────────────────────────
@@ -402,6 +443,20 @@ async function confirmCancel() {
     cancelReason.value = ''
     warning(`${order.value.order_number} cancelled`)
   } catch {}
+}
+
+async function confirmDelete() {
+  acting.value = true
+  try {
+    await $fetch(`/api/credit-sales/${id.value}`, { method: 'DELETE' })
+    deleteModal.value = false
+    success(`Order ${order.value.order_number} deleted`)
+    navigateTo('/credit-sales/all')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Delete failed')
+  } finally {
+    acting.value = false
+  }
 }
 
 function sendAlert() {

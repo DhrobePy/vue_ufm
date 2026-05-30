@@ -899,7 +899,7 @@ const _routes = [
     name: "credit-sales-create",
     path: "/credit-sales/create",
     meta: __nuxt_page_meta$J || {},
-    component: () => import('./create-DR_aIy8Y.mjs')
+    component: () => import('./create-BsopQbfq.mjs')
   },
   {
     name: "credit-sales-ledger",
@@ -1055,7 +1055,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$j || {},
-    component: () => import('./index-CIf2w0y8.mjs')
+    component: () => import('./index-DX3EfwYo.mjs')
   },
   {
     name: "credit-sales-production",
@@ -1768,7 +1768,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-B1rb9Vk4.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-D4vvn3-B.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m))
 };
 const routeRulesMatcher = _routeRulesMatcher;
