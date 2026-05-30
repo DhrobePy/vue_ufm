@@ -11,6 +11,7 @@
         <span class="badge text-[10px]" :class="trip.report_status === 'reported' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-amber-500/10 text-amber-400'">
           {{ trip.report_status }}
         </span>
+        <NuxtLink :to="`/fleet/trips/${id}/print`" target="_blank" class="btn-secondary text-xs">🖨 Print Sheet</NuxtLink>
       </template>
     </UiPageHeader>
 

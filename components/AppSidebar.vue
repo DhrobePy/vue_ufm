@@ -84,14 +84,17 @@
 
       <!-- Fleet Management -->
       <SidebarGroup label="Fleet" route="/fleet" :collapsed="collapsed" icon-type="truck" color="teal">
-        <SidebarNavItem label="Dashboard"   route="/fleet"              :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Vehicles"    route="/fleet/vehicles"     :collapsed="collapsed" icon-type="truck"     sub />
-        <SidebarNavItem label="Drivers"     route="/fleet/drivers"      :collapsed="collapsed" icon-type="users"     sub />
-        <SidebarNavItem label="Trips"       route="/fleet/trips"        :collapsed="collapsed" icon-type="list"      sub />
-        <SidebarNavItem label="Maintenance" route="/fleet/maintenance"  :collapsed="collapsed" icon-type="cog"       sub />
-        <SidebarNavItem label="Fuel Logs"   route="/fleet/fuel"         :collapsed="collapsed" icon-type="receipt"   sub />
-        <SidebarNavItem label="Items"       route="/fleet/items"        :collapsed="collapsed" icon-type="box"       sub />
-        <SidebarNavItem label="Reports"     route="/fleet/reports"      :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem label="Dashboard"    route="/fleet"                       :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="Vehicles"     route="/fleet/vehicles"              :collapsed="collapsed" icon-type="truck"     sub />
+        <SidebarNavItem label="Drivers"      route="/fleet/drivers"               :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem label="Trips"        route="/fleet/trips"                 :collapsed="collapsed" icon-type="list"      sub />
+        <SidebarNavItem label="Maintenance"  route="/fleet/maintenance"           :collapsed="collapsed" icon-type="cog"       sub />
+        <SidebarNavItem label="PM Rules"     route="/fleet/maintenance/rules"     :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem label="Fuel Logs"    route="/fleet/fuel"                  :collapsed="collapsed" icon-type="receipt"   sub />
+        <SidebarNavItem label="Fuel Report"  route="/fleet/fuel/efficiency"       :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem label="Purchases"    route="/fleet/purchases"             :collapsed="collapsed" icon-type="cart"      sub />
+        <SidebarNavItem label="Items"        route="/fleet/items"                 :collapsed="collapsed" icon-type="box"       sub />
+        <SidebarNavItem label="Reports"      route="/fleet/reports"               :collapsed="collapsed" icon-type="chart"     sub />
       </SidebarGroup>
 
       <!-- Purchase -->

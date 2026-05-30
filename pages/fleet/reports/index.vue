@@ -21,11 +21,12 @@
 definePageMeta({ layout: 'default' })
 
 const reports = [
-  { title: 'Trip Summary',          desc: 'Revenue, expenses, driver performance',   to: '/fleet/reports/trips',        icon: '🚛', bg: 'bg-blue-500/20' },
-  { title: 'Vehicle Utilisation',   desc: 'Fleet availability and usage analytics', to: '/fleet/reports/vehicles',     icon: '📊', bg: 'bg-teal-500/20' },
-  { title: 'Fuel Efficiency',       desc: 'Mileage, consumption by vehicle',         to: '/fleet/reports/fuel',         icon: '⛽', bg: 'bg-amber-500/20' },
-  { title: 'Maintenance Summary',   desc: 'Repair costs, downtime by vehicle',       to: '/fleet/reports/maintenance',  icon: '🔧', bg: 'bg-orange-500/20' },
-  { title: 'Driver Performance',    desc: 'Trips, on-time, complaints by driver',    to: '/fleet/reports/drivers',      icon: '👤', bg: 'bg-purple-500/20' },
-  { title: 'Monthly P&L',           desc: 'Revenue vs cost for the period',          to: '/fleet/reports/pnl',          icon: '💰', bg: 'bg-emerald-500/20' },
+  { title: 'Trip Summary',            desc: 'Revenue, expenses, driver performance',      to: '/fleet/reports/trips',          icon: '🚛', bg: 'bg-blue-500/20'    },
+  { title: 'Vehicle Utilisation',     desc: 'Fleet availability and usage analytics',     to: '/fleet/reports/vehicles',       icon: '📊', bg: 'bg-teal-500/20'    },
+  { title: 'Fuel Efficiency',         desc: 'Mileage, consumption by vehicle',            to: '/fleet/fuel/efficiency',        icon: '⛽', bg: 'bg-amber-500/20'   },
+  { title: 'Maintenance Summary',     desc: 'Repair costs, downtime by vehicle',          to: '/fleet/reports/maintenance',    icon: '🔧', bg: 'bg-orange-500/20'  },
+  { title: 'Driver Performance',      desc: 'Trips, on-time, complaints by driver',       to: '/fleet/reports/drivers',        icon: '👤', bg: 'bg-purple-500/20'  },
+  { title: 'Monthly P&L',             desc: 'Revenue vs cost for the period',             to: '/fleet/reports/pnl',            icon: '💰', bg: 'bg-emerald-500/20' },
+  { title: 'PM Rules',                desc: 'Manage preventive maintenance schedules',    to: '/fleet/maintenance/rules',      icon: '📋', bg: 'bg-indigo-500/20'  },
 ]
 </script>
