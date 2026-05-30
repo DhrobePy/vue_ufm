@@ -13,7 +13,7 @@ const reverse_post = defineEventHandler(async (event) => {
   var _a, _b, _c, _d, _e, _f, _g;
   const body = await readBody(event);
   const session = await getUserSession(event);
-  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
   if (!["admin", "superadmin"].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can reverse payments" });
@@ -45,7 +45,7 @@ const reverse_post = defineEventHandler(async (event) => {
       [today, reason != null ? reason : null, payment_id]
     );
     const [[lastLedger]] = await conn.query(
-      `SELECT COALESCE(balance_after, 0) AS bal
+      `SELECT COALESCE(running_balance, 0) AS bal
        FROM customer_ledger WHERE customer_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [pmt.customer_id]
@@ -55,18 +55,16 @@ const reverse_post = defineEventHandler(async (event) => {
     const refNo = `REV-${(_g = pmt.reference_number) != null ? _g : pmt.id}`;
     await conn.query(
       `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'debit_note', 'payment_reversal', ?, ?, ?, ?, 0, ?, ?)`,
+         (customer_id, entry_date, entry_type, reference_number,
+          description, debit_amount, credit_amount, running_balance)
+       VALUES (?, ?, 'Adjustment', ?, ?, ?, 0, ?)`,
       [
         pmt.customer_id,
         today,
-        payment_id,
         refNo,
         `Payment Reversal \u2014 ${refNo}${reason ? ` (${reason})` : ""}`,
         pmtAmount,
-        newBal,
-        userId
+        newBal
       ]
     );
     await conn.query(

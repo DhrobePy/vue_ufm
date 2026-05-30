@@ -87,7 +87,7 @@ const deliver_post = defineEventHandler(async (event) => {
       );
     }
     const [[lastLedger]] = await conn.query(
-      `SELECT COALESCE(balance_after, 0) AS bal
+      `SELECT COALESCE(running_balance, 0) AS bal
        FROM customer_ledger WHERE customer_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
@@ -97,18 +97,16 @@ const deliver_post = defineEventHandler(async (event) => {
     const shipType = is_final ? "Full Delivery" : "Partial Delivery";
     await conn.query(
       `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
+         (customer_id, entry_date, entry_type, reference_number,
+          description, debit_amount, credit_amount, running_balance)
+       VALUES (?, ?, 'Sale Invoice', ?, ?, ?, 0, ?)`,
       [
         order.customer_id,
         delivDate,
-        deliveryId,
         delNo,
         `${shipType} \u2014 ${delNo} (Order ${order.order_number})`,
         totalAmount,
-        newBal,
-        userId
+        newBal
       ]
     );
     await conn.query(

@@ -95,7 +95,7 @@ const return_post = defineEventHandler(async (event) => {
     }
     if (autoApprove) {
       const [[lastLedger]] = await conn.query(
-        `SELECT COALESCE(balance_after, 0) AS bal
+        `SELECT COALESCE(running_balance, 0) AS bal
          FROM customer_ledger WHERE customer_id = ?
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [order.customer_id]
@@ -104,18 +104,16 @@ const return_post = defineEventHandler(async (event) => {
       const newBal = Math.max(0, prevBal - totalRetAmount);
       await conn.query(
         `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'credit_note', 'credit_order_return', ?, ?, ?, 0, ?, ?, ?)`,
+           (customer_id, entry_date, entry_type, reference_number,
+            description, debit_amount, credit_amount, running_balance)
+         VALUES (?, ?, 'Credit Note', ?, ?, 0, ?, ?)`,
         [
           order.customer_id,
           retDate,
-          returnId,
           retNo,
           `Goods Return Credit Note \u2014 ${retNo} (Order ${order.order_number})`,
           totalRetAmount,
-          newBal,
-          userId
+          newBal
         ]
       );
       await conn.query(

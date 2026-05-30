@@ -47,19 +47,21 @@ const payment_post = defineEventHandler(async (event) => {
     const autoRef = reference_number || `PMT-${today}-${seq}`;
     const [result] = await conn.query(
       `INSERT INTO customer_payments
-         (customer_id, payment_date, amount, payment_method,
+         (customer_id, credit_order_id, payment_date, amount, payment_method,
           reference_number, bank_account_id,
-          allocation_status, allocated_amount, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?,
+          collected_by_user_id, allocation_status, notes, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?,
                ?, ?,
-               'unallocated', 0, ?, ?)`,
+               ?, 'unallocated', ?, ?)`,
       [
         order.customer_id,
+        id,
         payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
         pmtAmount,
-        payment_method != null ? payment_method : "Cash",
+        payment_method != null ? payment_method : "cash",
         autoRef,
         bank_account_id ? Number(bank_account_id) : null,
+        userId,
         notes != null ? notes : null,
         userId
       ]
@@ -73,7 +75,7 @@ const payment_post = defineEventHandler(async (event) => {
       [pmtAmount, order.customer_id]
     );
     const [[lastLedger]] = await conn.query(
-      `SELECT COALESCE(balance_after, 0) AS bal
+      `SELECT COALESCE(running_balance, 0) AS bal
        FROM customer_ledger WHERE customer_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
@@ -82,19 +84,16 @@ const payment_post = defineEventHandler(async (event) => {
     const newBal = Math.max(0, prevBal - pmtAmount);
     await conn.query(
       `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'payment', 'customer_payment', ?,
-               ?, ?, 0, ?, ?, ?)`,
+         (customer_id, entry_date, entry_type, reference_number,
+          description, debit_amount, credit_amount, running_balance)
+       VALUES (?, ?, 'Payment Received', ?, ?, 0, ?, ?)`,
       [
         order.customer_id,
         payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
-        result.insertId,
         autoRef,
-        `Payment received \u2014 ${autoRef} (${payment_method != null ? payment_method : "Cash"})`,
+        `Payment received \u2014 ${autoRef} (${payment_method != null ? payment_method : "cash"})`,
         pmtAmount,
-        newBal,
-        userId
+        newBal
       ]
     );
     await conn.commit();
