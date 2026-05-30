@@ -82,7 +82,7 @@ export default defineEventHandler(async (event) => {
 
     // ── Write customer ledger entry (payment credit) ──────────
     const [[lastLedger]] = await conn.query<any>(
-      `SELECT COALESCE(balance_after, 0) AS bal
+      `SELECT COALESCE(running_balance, 0) AS bal
        FROM customer_ledger WHERE customer_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id],
@@ -92,19 +92,16 @@ export default defineEventHandler(async (event) => {
 
     await conn.query(
       `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'payment', 'customer_payment', ?,
-               ?, ?, 0, ?, ?, ?)`,
+         (customer_id, entry_date, entry_type, reference_number,
+          description, debit_amount, credit_amount, running_balance)
+       VALUES (?, ?, 'Payment Received', ?, ?, 0, ?, ?)`,
       [
         order.customer_id,
         payment_date ?? new Date().toISOString().slice(0, 10),
-        result.insertId,
         autoRef,
-        `Payment received — ${autoRef} (${payment_method ?? 'Cash'})`,
+        `Payment received — ${autoRef} (${payment_method ?? 'cash'})`,
         pmtAmount,
         newBal,
-        userId,
       ],
     )
 

@@ -10,9 +10,9 @@ export default defineEventHandler(async (event) => {
   const where: string[] = []
   const params: unknown[] = []
 
-  if (customerId) { where.push('l.customer_id = ?');          params.push(customerId) }
-  if (dateFrom)   { where.push('l.transaction_date >= ?');    params.push(dateFrom) }
-  if (dateTo)     { where.push('l.transaction_date <= ?');    params.push(dateTo) }
+  if (customerId) { where.push('l.customer_id = ?');   params.push(customerId) }
+  if (dateFrom)   { where.push('l.entry_date >= ?');    params.push(dateFrom) }
+  if (dateTo)     { where.push('l.entry_date <= ?');    params.push(dateTo) }
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
 
@@ -23,16 +23,16 @@ export default defineEventHandler(async (event) => {
 
   try {
     ledger = await query(
-      `SELECT l.id, l.transaction_date AS date, l.transaction_type AS type,
-              COALESCE(l.invoice_number, l.reference_id) AS ref,
+      `SELECT l.id, l.entry_date AS date, l.entry_type AS type,
+              l.reference_number AS ref,
               l.description,
               l.debit_amount AS debit, l.credit_amount AS credit,
-              l.balance_after AS balance,
+              l.running_balance AS balance,
               c.name AS customer_name
        FROM customer_ledger l
        JOIN customers c ON c.id = l.customer_id
        ${w}
-       ORDER BY l.transaction_date DESC, l.id DESC
+       ORDER BY l.entry_date DESC, l.id DESC
        LIMIT 200`,
       params,
     ) as any[]
