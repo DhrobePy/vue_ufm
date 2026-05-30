@@ -332,6 +332,52 @@ html.theme-transitioning .nav-item-active {
     color: #6b7280; margin-bottom: 0.3rem;
   }
 
+  /* ── Fleet / shared form classes ───────────────────────────
+     Used throughout fleet, HR and other modules.
+     .form-input works on <input>, <select>, <textarea>.
+     color-scheme: dark ensures native date/time pickers
+     render with a dark chrome even on Safari/Chrome.
+  ─────────────────────────────────────────────────────────── */
+  .form-input {
+    display: block;
+    width: 100%;
+    background: rgb(var(--tint) / 0.06);
+    border: 1px solid rgb(var(--tint) / 0.12);
+    border-radius: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: #e5e7eb;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    appearance: none;
+    -webkit-appearance: none;
+    outline: none;
+    color-scheme: dark;
+  }
+  .form-input:focus {
+    border-color: rgb(var(--accent) / 0.5);
+    box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
+  }
+  .form-input::placeholder { color: #6b7280; }
+  .form-input option        { background: #1a1a1a; color: #e5e7eb; }
+  .form-input:disabled      { opacity: 0.45; cursor: not-allowed; }
+  /* Re-add a subtle chevron for select elements */
+  select.form-input {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.625rem center;
+    padding-right: 2rem;
+  }
+
+  .form-label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6b7280;
+    margin-bottom: 0.35rem;
+  }
+
   /* Table helpers */
   .th {
     padding: 0.625rem 0.875rem; text-align: left;
@@ -461,6 +507,16 @@ html[data-theme="light"] .field-input::placeholder,
 html[data-theme="light"] .input-glass::placeholder { color: #9ca3af !important; }
 html[data-theme="light"] .field-input option { background: #fff !important; color: #111827 !important; }
 html[data-theme="light"] .field-label { color: #6b7280 !important; }
+
+html[data-theme="light"] .form-input {
+  background: rgba(0,0,0,0.04) !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+}
+html[data-theme="light"] .form-input::placeholder { color: #9ca3af !important; }
+html[data-theme="light"] .form-input option { background: #fff !important; color: #111827 !important; }
+html[data-theme="light"] .form-label { color: #6b7280 !important; }
 
 /* Section title in light */
 html[data-theme="light"] .section-title { color: #111827 !important; }
