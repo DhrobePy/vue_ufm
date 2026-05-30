@@ -9,9 +9,9 @@ export default defineEventHandler(async (event) => {
 
   const result = await query(
     `INSERT INTO customer_payments
-       (customer_id, payment_date, amount, payment_method, notes, allocation_status, allocated_amount, created_by_user_id)
-     VALUES (?, CURDATE(), ?, ?, ?, 'unallocated', 0, 1)`,
-    [customer_id, Number(amount), method ?? 'Cash', notes ?? null],
+       (customer_id, payment_date, amount, payment_method, notes, allocation_status, created_by_user_id)
+     VALUES (?, CURDATE(), ?, ?, ?, 'unallocated', 1)`,
+    [customer_id, Number(amount), method ?? 'cash', notes ?? null],
   ) as any
 
   return { id: result.insertId, message: 'Collection recorded' }

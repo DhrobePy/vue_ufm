@@ -1,4 +1,4 @@
-import { getDb, queryOne } from '~/server/utils/db'
+import { getDb } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -45,22 +45,24 @@ export default defineEventHandler(async (event) => {
     const seq       = String((cnt.n ?? 0) + 1).padStart(4, '0')
     const autoRef   = reference_number || `PMT-${today}-${seq}`
 
-    // Insert into customer_payments (using real schema columns)
+    // Insert into customer_payments
     const [result] = await conn.query<any>(
       `INSERT INTO customer_payments
-         (customer_id, payment_date, amount, payment_method,
+         (customer_id, credit_order_id, payment_date, amount, payment_method,
           reference_number, bank_account_id,
-          allocation_status, allocated_amount, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?,
+          collected_by_user_id, allocation_status, notes, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?,
                ?, ?,
-               'unallocated', 0, ?, ?)`,
+               ?, 'unallocated', ?, ?)`,
       [
         order.customer_id,
+        id,
         payment_date ?? new Date().toISOString().slice(0, 10),
         pmtAmount,
-        payment_method ?? 'Cash',
+        payment_method ?? 'cash',
         autoRef,
         bank_account_id ? Number(bank_account_id) : null,
+        userId,
         notes ?? null,
         userId,
       ],
