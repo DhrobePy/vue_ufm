@@ -1,0 +1,108 @@
+import { g as defineEventHandler, G as readBody, u as getUserSession, d as createError, m as getDb } from '../../nitro/nitro.mjs';
+import 'mysql2/promise';
+import 'node:http';
+import 'node:https';
+import 'node:crypto';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'node:url';
+
+const index_post = defineEventHandler(async (event) => {
+  var _a, _b, _c, _d, _e, _f, _g, _h;
+  const body = await readBody(event);
+  const session = await getUserSession(event);
+  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  const {
+    customer_id,
+    branch_id,
+    order_date,
+    required_date,
+    priority,
+    delivery_address,
+    special_notes,
+    amount_paid,
+    // advance
+    items
+    // [{ variant_id, qty_bags, unit_price, discount_amount }]
+  } = body != null ? body : {};
+  if (!customer_id || !(items == null ? void 0 : items.length)) {
+    throw createError({ statusCode: 400, statusMessage: "customer_id and items are required" });
+  }
+  const db = getDb();
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
+    const [[cnt]] = await conn.query(
+      `SELECT COUNT(*) AS n FROM credit_orders WHERE DATE(created_at) = CURDATE()`
+    );
+    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
+    const orderNo = `CR-${today}-${seq}`;
+    let totalAmount = 0;
+    for (const it of items) {
+      const line = Number(it.qty_bags) * Number(it.unit_price) - Number((_d = it.discount_amount) != null ? _d : 0);
+      totalAmount += line;
+    }
+    const balanceDue = totalAmount - Number(amount_paid != null ? amount_paid : 0);
+    const [result] = await conn.query(
+      `INSERT INTO credit_orders
+         (order_number, customer_id, branch_id, order_date, required_date, priority,
+          status, delivery_address, special_notes,
+          total_amount, amount_paid, balance_due,
+          created_by_user_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending_approval', ?, ?,
+               ?, ?, ?,
+               ?, NOW(), NOW())`,
+      [
+        orderNo,
+        customer_id,
+        branch_id != null ? branch_id : null,
+        order_date,
+        required_date != null ? required_date : null,
+        priority != null ? priority : "normal",
+        delivery_address != null ? delivery_address : null,
+        special_notes != null ? special_notes : null,
+        totalAmount,
+        Number(amount_paid != null ? amount_paid : 0),
+        balanceDue,
+        userId
+      ]
+    );
+    const orderId = result.insertId;
+    for (const it of items) {
+      const lineTotal = Number(it.qty_bags) * Number(it.unit_price) - Number((_e = it.discount_amount) != null ? _e : 0);
+      await conn.query(
+        `INSERT INTO credit_order_items
+           (order_id, product_id, variant_id, qty_bags, unit_price, discount_amount, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          orderId,
+          (_f = it.product_id) != null ? _f : null,
+          (_g = it.variant_id) != null ? _g : null,
+          it.qty_bags,
+          it.unit_price,
+          (_h = it.discount_amount) != null ? _h : 0,
+          lineTotal
+        ]
+      );
+    }
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, NULL, 'pending_approval', 'created', ?, 'Order created', NOW())`,
+      [orderId, userId]
+    );
+    await conn.commit();
+    return { ok: true, id: orderId, order_number: orderNo };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+});
+
+export { index_post as default };
+//# sourceMappingURL=index.post.mjs.map

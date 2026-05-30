@@ -1,10 +1,10 @@
 # Dependencies
 node_modules/
 
-# Nuxt build output
+# Nuxt build artifacts (keep .output/ tracked for zero-build deploys)
 .nuxt/
-.output/
 .nitro/
+# .output/ — intentionally NOT ignored so cPanel can serve without rebuilding
 
 # Environment — NEVER commit real credentials
 .env
