@@ -19,7 +19,7 @@ const dispatch_get = defineEventHandler(async () => {
        FROM credit_orders o
        JOIN customers c ON c.id = o.customer_id
        LEFT JOIN branches b ON b.id = o.assigned_branch_id
-       WHERE o.status IN ('ready_to_ship', 'approved', 'produced')
+       WHERE o.status = 'ready_to_ship'
        ORDER BY o.priority = 'urgent' DESC, o.priority = 'high' DESC, o.required_date ASC
        LIMIT 50`
     ),

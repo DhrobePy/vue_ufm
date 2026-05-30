@@ -965,7 +965,7 @@ const _routes = [
     name: "credit-sales-dispatch",
     path: "/credit-sales/dispatch",
     meta: __nuxt_page_meta$y || {},
-    component: () => import('./dispatch-CXsVjP-M.mjs')
+    component: () => import('./dispatch-C32eBMd7.mjs')
   },
   {
     name: "credit-sales-payments",
