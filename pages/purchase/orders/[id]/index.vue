@@ -169,9 +169,24 @@
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               Edit PO
             </NuxtLink>
-            <button class="btn-ghost text-xs w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:border-red-500/30">
+            <NuxtLink :to="`/purchase/adjustments/create?po_id=${route.params.id}`" class="btn-ghost text-xs w-full justify-start gap-2">
+              📋 Adjustment Note (DAN/CAN)
+            </NuxtLink>
+            <button v-if="po.delivery_status !== 'closed' && po.po_status !== 'cancelled'"
+              @click="closePO" :disabled="actionBusy"
+              class="btn-ghost text-xs w-full justify-start gap-2 text-yellow-400 hover:border-yellow-500/30">
+              🔒 {{ actionBusy === 'close' ? 'Closing…' : 'Close Delivery' }}
+            </button>
+            <button v-if="po.delivery_status === 'closed'"
+              @click="reopenPO" :disabled="actionBusy"
+              class="btn-ghost text-xs w-full justify-start gap-2 text-emerald-400 hover:border-emerald-500/30">
+              🔓 {{ actionBusy === 'reopen' ? 'Reopening…' : 'Reopen Delivery' }}
+            </button>
+            <button v-if="po.po_status !== 'cancelled'"
+              @click="cancelPO" :disabled="actionBusy"
+              class="btn-ghost text-xs w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:border-red-500/30">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-12.728 12.728"/><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636l12.728 12.728"/></svg>
-              Cancel PO
+              {{ actionBusy === 'cancel' ? 'Cancelling…' : 'Cancel PO' }}
             </button>
           </div>
         </div>
@@ -182,9 +197,11 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-const route = useRoute()
+const route  = useRoute()
+const { success, error: toastError } = useToast()
+const actionBusy = ref<string | false>(false)
 
-const { data, pending, error } = await useFetch(
+const { data, pending, error, refresh } = await useFetch(
   () => `/api/purchase/orders/${route.params.id}`,
 )
 
@@ -207,5 +224,35 @@ const deliveredPct  = computed(() => {
 
 function printPO() {
   navigateTo(`/purchase/orders/${route.params.id}/print`)
+}
+
+async function closePO() {
+  if (!confirm(`Close delivery for PO ${po.value.po_number}? No further goods can be received.`)) return
+  actionBusy.value = 'close'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'close' } })
+    success('PO delivery closed')
+    await refresh()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
+}
+
+async function reopenPO() {
+  if (!confirm(`Reopen delivery for PO ${po.value.po_number}?`)) return
+  actionBusy.value = 'reopen'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'reopen' } })
+    success('PO delivery reopened')
+    await refresh()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
+}
+
+async function cancelPO() {
+  if (!confirm(`Cancel PO ${po.value.po_number}? Related GRNs and payments will be preserved.`)) return
+  actionBusy.value = 'cancel'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}`, { method: 'DELETE' })
+    success('PO cancelled')
+    await refresh()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
 }
 </script>

@@ -48,6 +48,19 @@
         </div>
       </div>
     </div>
+
+    <!-- Quick Links -->
+    <div class="glass-card p-5">
+      <h2 class="section-title mb-4">Quick Links</h2>
+      <div class="flex flex-wrap gap-3">
+        <NuxtLink to="/purchase/orders" class="btn-ghost text-xs">📋 Purchase Orders</NuxtLink>
+        <NuxtLink to="/purchase/grn" class="btn-ghost text-xs">📦 GRN List</NuxtLink>
+        <NuxtLink to="/purchase/grn/variance" class="btn-ghost text-xs">📊 Variance Report</NuxtLink>
+        <NuxtLink to="/purchase/payments" class="btn-ghost text-xs">💳 Payments</NuxtLink>
+        <NuxtLink to="/purchase/adjustments" class="btn-ghost text-xs">⚖ Adjustment Notes</NuxtLink>
+        <NuxtLink to="/purchase/suppliers" class="btn-ghost text-xs">🏭 Suppliers</NuxtLink>
+      </div>
+    </div>
   </div>
 </template>
 

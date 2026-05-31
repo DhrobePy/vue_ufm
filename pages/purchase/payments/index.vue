@@ -33,8 +33,8 @@
     <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
 
     <UiDataTable v-else :columns="cols" :rows="rows" :per-page="perPage" exportable search-placeholder="">
-      <template #cell-payment_voucher_number="{ value }">
-        <span class="font-mono text-xs text-gold-400/80">{{ value }}</span>
+      <template #cell-payment_voucher_number="{ row }">
+        <NuxtLink :to="`/purchase/payments/${row.id}`" class="font-mono text-xs text-gold-400/80 hover:underline">{{ row.payment_voucher_number }}</NuxtLink>
       </template>
       <template #cell-amount_paid="{ value }">
         <span class="font-semibold text-emerald-400 font-mono text-xs">৳{{ Number(value).toLocaleString() }}</span>

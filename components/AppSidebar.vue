@@ -99,12 +99,14 @@
 
       <!-- Purchase -->
       <SidebarGroup label="Purchase" route="/purchase" :collapsed="collapsed" icon-type="cart" color="orange">
-        <SidebarNavItem label="Dashboard"      route="/purchase"                  :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="All POs"        route="/purchase/orders"           :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem label="Create PO"      route="/purchase/orders/create"    :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="Goods Received" route="/purchase/grn"              :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Payments"       route="/purchase/payments"         :collapsed="collapsed" icon-type="money"     sub />
-        <SidebarNavItem label="Suppliers"      route="/purchase/suppliers"        :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem label="Dashboard"       route="/purchase"                   :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="All POs"         route="/purchase/orders"            :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem label="Goods Received"  route="/purchase/grn"               :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem label="Variance Report" route="/purchase/grn/variance"      :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
+        <SidebarNavItem label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
       </SidebarGroup>
 
       <div class="py-1">

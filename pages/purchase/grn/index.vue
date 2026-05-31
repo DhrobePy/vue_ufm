@@ -3,6 +3,7 @@
     <UiPageHeader title="Goods Received Notes" subtitle="Record and confirm wheat deliveries"
                   :breadcrumb="['Purchase','GRNs']">
       <template #actions>
+        <NuxtLink to="/purchase/grn/variance" class="btn-ghost text-xs">📊 Variance Report</NuxtLink>
         <NuxtLink to="/purchase/grn/create" class="btn-gold text-xs">+ Record GRN</NuxtLink>
       </template>
     </UiPageHeader>
@@ -21,8 +22,8 @@
     <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
 
     <UiDataTable v-else :columns="cols" :rows="rows" :per-page="perPage" exportable search-placeholder="">
-      <template #cell-grn_number="{ value }">
-        <span class="font-mono text-xs text-gold-400/80 font-medium">{{ value }}</span>
+      <template #cell-grn_number="{ row }">
+        <NuxtLink :to="`/purchase/grn/${row.id}`" class="font-mono text-xs text-gold-400/80 font-medium hover:underline">{{ row.grn_number }}</NuxtLink>
       </template>
       <template #cell-quantity_received_kg="{ value }">
         <span class="font-mono text-xs text-gray-300">{{ Number(value).toLocaleString() }} kg</span>
