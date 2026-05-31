@@ -45,15 +45,12 @@
       <!-- Log entries -->
       <div class="glass-card overflow-hidden">
         <div class="divide-y divide-white/[0.04]">
-          <component
-            :is="routeFor(log) ? 'NuxtLink' : 'div'"
+          <div
             v-for="log in logs"
             :key="log.id"
-            :to="routeFor(log) || undefined"
             class="flex gap-4 p-4 transition-colors group"
-            :class="routeFor(log)
-              ? 'hover:bg-white/[0.04] cursor-pointer'
-              : 'hover:bg-white/[0.02]'"
+            :class="routeFor(log) ? 'hover:bg-white/[0.04] cursor-pointer' : 'hover:bg-white/[0.02]'"
+            @click="routeFor(log) && navigateTo(routeFor(log))"
           >
             <!-- Severity dot -->
             <div class="flex flex-col items-center shrink-0 mt-1.5">
@@ -110,7 +107,7 @@
                 <span v-if="log.ip_address" class="text-[11px] text-gray-700 font-mono">{{ log.ip_address }}</span>
               </div>
             </div>
-          </component>
+          </div>
 
           <div v-if="!logs.length" class="py-12 text-center">
             <p class="text-2xl mb-2">🔍</p>
