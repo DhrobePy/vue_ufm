@@ -1223,7 +1223,7 @@ const _routes = [
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$q || {},
-    component: () => import('./production-DXqcRBqd.mjs')
+    component: () => import('./production-xBZlGrhh.mjs')
   },
   {
     name: "fleet-drivers-id-edit",

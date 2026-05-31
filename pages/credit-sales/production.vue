@@ -187,6 +187,11 @@ const { data, pending, error, refresh } = await useFetch('/api/credit-sales/prod
 const stats       = computed(() => (data.value?.stats ?? {}) as any)
 const urgentCount = computed(() => queue.value.filter(o => o.priority === 'urgent').length)
 
+// ── Drag & Drop state (declared before the watch that references isDragging) ──
+const dragging   = ref<number | null>(null)
+const dragOver   = ref<number | null>(null)
+const isDragging = ref(false)
+
 // Local copy of the queue — owned by drag-and-drop logic
 const queue = ref<any[]>([])
 
@@ -200,11 +205,6 @@ watch(
   },
   { immediate: true },
 )
-
-// ── Drag & Drop ───────────────────────────────────────────
-const dragging   = ref<number | null>(null)
-const dragOver   = ref<number | null>(null)
-const isDragging = ref(false)
 
 function onDragStart(_e: DragEvent, idx: number) {
   dragging.value   = idx
