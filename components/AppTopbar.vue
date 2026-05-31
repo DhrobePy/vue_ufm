@@ -92,10 +92,9 @@
             </div>
           </div>
           <div class="divide-y divide-white/[0.04] max-h-72 overflow-y-auto">
-            <div v-for="n in notifications" :key="n.id"
+            <div v-for="n in unreadNotifications" :key="n.id"
                  @click="goNotif(n)"
-                 class="flex gap-3 px-4 py-3 cursor-pointer transition-colors group"
-                 :class="n.read ? 'opacity-60 hover:opacity-80' : 'hover:bg-white/[0.04]'">
+                 class="flex gap-3 px-4 py-3 cursor-pointer transition-colors group hover:bg-white/[0.04]">
               <!-- Type dot -->
               <div class="w-2 h-2 rounded-full mt-1.5 shrink-0 transition-transform group-hover:scale-125"
                    :class="n.type === 'warning' ? 'bg-yellow-400' : n.type === 'error' ? 'bg-red-400' : n.type === 'info' ? 'bg-blue-400' : 'bg-emerald-400'" />
@@ -104,14 +103,14 @@
                 <p class="text-[10px] text-gray-600 mt-0.5">{{ n.time }}</p>
               </div>
               <!-- Unread dot -->
-              <div v-if="!n.read" class="w-1.5 h-1.5 rounded-full bg-gold-400 mt-1.5 shrink-0" />
+              <div class="w-1.5 h-1.5 rounded-full bg-gold-400 mt-1.5 shrink-0" />
               <!-- Arrow -->
               <svg class="w-3 h-3 text-gray-700 mt-1.5 shrink-0 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
               </svg>
             </div>
-            <div v-if="!notifications.length" class="px-4 py-8 text-center text-xs text-gray-600">
-              No notifications
+            <div v-if="!unreadNotifications.length" class="px-4 py-8 text-center text-xs text-gray-600">
+              All caught up 🎉
             </div>
           </div>
           <div class="px-4 py-2.5 border-t border-white/[0.06] flex justify-between items-center">
@@ -119,7 +118,7 @@
                       class="text-xs text-gold-400 hover:text-gold-300 transition-colors">
               View full audit log →
             </NuxtLink>
-            <button v-if="notifications.length" @click="clearAll" class="text-[10px] text-gray-600 hover:text-gray-400">Clear</button>
+            <button v-if="unreadNotifications.length" @click="clearAll" class="text-[10px] text-gray-600 hover:text-gray-400">Clear all</button>
           </div>
         </div>
       </Transition>
@@ -321,7 +320,11 @@ onMounted(() => {
   onUnmounted(() => clearInterval(timer))
 })
 
-const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+// Only unread notifications are shown in the dropdown.
+// Read items are tracked internally (for badge/polling) but never displayed —
+// this ensures Clear and Mark all read truly clear the list across reloads.
+const unreadNotifications = computed(() => notifications.value.filter(n => !n.read))
+const unreadCount         = computed(() => unreadNotifications.value.length)
 
 function goNotif(n: Notification) {
   n.read = true
@@ -342,11 +345,11 @@ function markAllRead() {
 }
 
 function clearAll() {
-  // Persist all IDs as read so they don't come back on next poll
+  // Mark everything read and persist — unreadNotifications computed empties automatically.
+  // On next poll/reload, applyReadSet restores read:true so the list stays empty.
   const readSet = loadReadSet()
-  notifications.value.forEach(n => readSet.add(n.id))
+  notifications.value.forEach(n => { n.read = true; readSet.add(n.id) })
   saveReadSet(readSet)
-  notifications.value = []
   _prevUnread = 0
 }
 
