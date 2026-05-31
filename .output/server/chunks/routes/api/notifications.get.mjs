@@ -24,7 +24,7 @@ async function safeQuery(fn, fallback) {
   }
 }
 const notifications_get = defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions] = await Promise.all([
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
       `SELECT o.id, o.order_number, o.status, o.total_amount,
@@ -89,6 +89,16 @@ const notifications_get = defineEventHandler(async () => {
          AND r.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
        ORDER BY r.approved_at DESC
        LIMIT 4`
+    ), []),
+    // Orders deleted in the last 48 h — queried from the tombstone log
+    // safeQuery handles missing table gracefully (returns [] until first delete happens)
+    safeQuery(() => query(
+      `SELECT id, order_number, customer_name, total_amount, balance_due,
+              order_status, deleted_by_name, deleted_at
+       FROM order_deletion_log
+       WHERE deleted_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY deleted_at DESC
+       LIMIT 6`
     ), [])
   ]);
   const notifications = [];
@@ -159,6 +169,20 @@ const notifications_get = defineEventHandler(async () => {
       time: timeAgo(new Date(r.approved_at)),
       route: `/credit-sales/${r.order_id}`,
       read: true
+    });
+  }
+  for (const d of recentDeletions) {
+    const amt = Number(d.total_amount).toLocaleString();
+    const byLine = d.deleted_by_name ? ` \xB7 by ${d.deleted_by_name}` : "";
+    const wasComplete = d.order_status === "completed";
+    notifications.push({
+      id: nid++,
+      text: `\u{1F5D1}\uFE0F Order ${d.order_number} deleted${byLine} \u2014 ${d.customer_name} \xB7 \u09F3${amt}${wasComplete ? " (was completed)" : ""}`,
+      type: "error",
+      time: timeAgo(new Date(d.deleted_at)),
+      route: "/credit-sales/all",
+      // order is gone — link to the list
+      read: false
     });
   }
   return notifications;

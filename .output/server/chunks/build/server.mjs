@@ -911,13 +911,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1e || {},
-    component: () => import('./create-ClwmkP_H.mjs')
+    component: () => import('./create-kWvzcAy0.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1d || {},
-    component: () => import('./index-DLG-nDxG.mjs')
+    component: () => import('./index-YPboTiwT.mjs')
   },
   {
     name: "fleet-trips-create",

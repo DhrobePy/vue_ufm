@@ -14,7 +14,7 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions] = await Promise.all([
 
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -85,6 +85,17 @@ export default defineEventHandler(async () => {
          AND r.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
        ORDER BY r.approved_at DESC
        LIMIT 4`,
+    ), []),
+
+    // Orders deleted in the last 48 h — queried from the tombstone log
+    // safeQuery handles missing table gracefully (returns [] until first delete happens)
+    safeQuery(() => query(
+      `SELECT id, order_number, customer_name, total_amount, balance_due,
+              order_status, deleted_by_name, deleted_at
+       FROM order_deletion_log
+       WHERE deleted_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY deleted_at DESC
+       LIMIT 6`,
     ), []),
   ])
 
@@ -163,6 +174,20 @@ export default defineEventHandler(async () => {
       time:  timeAgo(new Date(r.approved_at)),
       route: `/credit-sales/${r.order_id}`,
       read:  true,
+    })
+  }
+
+  for (const d of recentDeletions as any[]) {
+    const amt    = Number(d.total_amount).toLocaleString()
+    const byLine = d.deleted_by_name ? ` · by ${d.deleted_by_name}` : ''
+    const wasComplete = d.order_status === 'completed'
+    notifications.push({
+      id:    nid++,
+      text:  `🗑️ Order ${d.order_number} deleted${byLine} — ${d.customer_name} · ৳${amt}${wasComplete ? ' (was completed)' : ''}`,
+      type:  'error',
+      time:  timeAgo(new Date(d.deleted_at)),
+      route: '/credit-sales/all',   // order is gone — link to the list
+      read:  false,
     })
   }
 

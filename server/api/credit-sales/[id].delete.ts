@@ -4,6 +4,7 @@ export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
   const session = await getUserSession(event)
   const role    = (session?.user?.role ?? '').toLowerCase()
+  const userId  = session?.user?.id ?? 1
 
   if (!['admin', 'superadmin'].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: 'Only admin/superadmin can delete orders' })
@@ -16,13 +17,58 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Fetch order to get customer_id
+    // Auto-provision deletion audit log (no migration needed — first call creates it)
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS order_deletion_log (
+        id                 INT AUTO_INCREMENT PRIMARY KEY,
+        order_id           INT NOT NULL,
+        order_number       VARCHAR(50) NOT NULL,
+        customer_id        INT,
+        customer_name      VARCHAR(200),
+        total_amount       DECIMAL(15,2),
+        amount_paid        DECIMAL(15,2),
+        balance_due        DECIMAL(15,2),
+        order_status       VARCHAR(50),
+        deleted_by_user_id INT,
+        deleted_by_name    VARCHAR(200),
+        deleted_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_deleted_at (deleted_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+
+    // Load order + customer + deleting user — all the info we want to preserve
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, order_number FROM credit_orders WHERE id = ?`, [id],
+      `SELECT o.id, o.customer_id, o.order_number,
+              o.total_amount, o.amount_paid, o.balance_due,
+              CASE WHEN o.status = 'delivered' AND o.balance_due = 0
+                   THEN 'completed' ELSE o.status END AS order_status,
+              c.name AS customer_name,
+              u.display_name AS deleted_by_name
+       FROM credit_orders o
+       JOIN customers c ON c.id = o.customer_id
+       LEFT JOIN users u ON u.id = ?
+       WHERE o.id = ?`,
+      [userId, id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
-    // 1. Fetch delivery IDs for cascade
+    // ── Write tombstone BEFORE cascade delete ──────────────────────────────
+    await conn.query(
+      `INSERT INTO order_deletion_log
+         (order_id, order_number, customer_id, customer_name,
+          total_amount, amount_paid, balance_due, order_status,
+          deleted_by_user_id, deleted_by_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id, order.order_number, order.customer_id, order.customer_name,
+        order.total_amount, order.amount_paid, order.balance_due, order.order_status,
+        userId, order.deleted_by_name ?? null,
+      ],
+    )
+
+    // ── Cascade delete ─────────────────────────────────────────────────────
+
+    // 1. Delivery items
     const [deliveries] = await conn.query<any[]>(
       `SELECT id FROM credit_order_deliveries WHERE order_id = ?`, [id],
     )
@@ -31,7 +77,7 @@ export default defineEventHandler(async (event) => {
     }
     await conn.query(`DELETE FROM credit_order_deliveries WHERE order_id = ?`, [id])
 
-    // 2. Fetch return IDs for cascade
+    // 2. Return items
     const [returns] = await conn.query<any[]>(
       `SELECT id FROM credit_order_returns WHERE order_id = ?`, [id],
     )
@@ -43,19 +89,19 @@ export default defineEventHandler(async (event) => {
     // 3. Workflow history
     await conn.query(`DELETE FROM credit_order_workflow WHERE order_id = ?`, [id])
 
-    // 4. Audit trail
+    // 4. Audit trail (order-level)
     await conn.query(`DELETE FROM credit_order_audit WHERE order_id = ?`, [id])
 
-    // 5. Ledger entries tied to this order (invoices posted on delivery)
+    // 5. Ledger entries tied to deliveries or the order directly
     await conn.query(
-      `DELETE FROM customer_ledger WHERE reference_type IN ('credit_order','credit_order_delivery') AND reference_id IN (
-         SELECT id FROM credit_order_deliveries WHERE order_id = ?
-         UNION ALL
-         SELECT ? AS id
-       )`,
+      `DELETE FROM customer_ledger
+       WHERE reference_type IN ('credit_order','credit_order_delivery')
+         AND reference_id IN (
+           SELECT id FROM credit_order_deliveries WHERE order_id = ?
+           UNION ALL SELECT ? AS id
+         )`,
       [id, id],
     )
-    // Also remove direct reference to the order itself
     await conn.query(
       `DELETE FROM customer_ledger WHERE reference_type = 'credit_order' AND reference_id = ?`,
       [id],
@@ -71,7 +117,8 @@ export default defineEventHandler(async (event) => {
     await conn.query(
       `UPDATE customers
        SET current_balance = COALESCE(
-         (SELECT SUM(debit_amount) - SUM(credit_amount) FROM customer_ledger WHERE customer_id = ?),
+         (SELECT SUM(debit_amount) - SUM(credit_amount)
+          FROM customer_ledger WHERE customer_id = ?),
          0),
            updated_at = NOW()
        WHERE id = ?`,
