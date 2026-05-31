@@ -43,7 +43,7 @@ const return_post = defineEventHandler(async (event) => {
       `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`
     );
     const seq = String(((_e = cnt.n) != null ? _e : 0) + 1).padStart(4, "0");
-    const retNo = `RTN-${today}-${seq}`;
+    const retNo = `RET-${today}-${seq}`;
     const retDate = return_date != null ? return_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const totalRetQty = items.reduce((s, i) => s + Number(i.returned_qty), 0);
     const totalRetAmount = items.reduce(

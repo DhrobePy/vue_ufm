@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
       `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`,
     )
     const seq   = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const retNo = `RTN-${today}-${seq}`
+    const retNo = `RET-${today}-${seq}`
     const retDate = return_date ?? new Date().toISOString().slice(0, 10)
 
     const totalRetQty    = items.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)
