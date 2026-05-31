@@ -59,6 +59,7 @@
         <NuxtLink to="/purchase/payments" class="btn-ghost text-xs">💳 Payments</NuxtLink>
         <NuxtLink to="/purchase/adjustments" class="btn-ghost text-xs">⚖ Adjustment Notes</NuxtLink>
         <NuxtLink to="/purchase/suppliers" class="btn-ghost text-xs">🏭 Suppliers</NuxtLink>
+        <NuxtLink to="/purchase/suppliers/summary" class="btn-ghost text-xs">📈 Supplier Summary</NuxtLink>
       </div>
     </div>
   </div>

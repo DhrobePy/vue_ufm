@@ -107,6 +107,7 @@
         <SidebarNavItem label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"    sub />
       </SidebarGroup>
 
       <div class="py-1">
