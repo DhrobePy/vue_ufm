@@ -12,10 +12,10 @@
              placeholder="Search PO #, supplier…" />
       <select v-model="statusFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
         <option value="">All Status</option>
-        <option value="draft">Draft</option>
-        <option value="approved">Approved</option>
+        <option value="pending">Pending</option>
+        <option value="confirmed">Confirmed</option>
         <option value="partial">Partial</option>
-        <option value="completed">Completed</option>
+        <option value="closed">Closed</option>
         <option value="cancelled">Cancelled</option>
       </select>
       <div class="ml-auto text-xs text-gray-500">

@@ -2,9 +2,10 @@ import { query, paginate } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const q      = getQuery(event)
-  const search = (q.search as string) || ''
-  const page   = Number(q.page) || 1
-  const { limit, offset } = paginate(page, 25)
+  const search   = (q.search as string) || ''
+  const page     = Number(q.page) || 1
+  const perPage  = Math.min(Number(q.per) || 25, 500)   // honour ?per= up to 500
+  const { limit, offset } = paginate(page, perPage)
 
   const where: string[] = []
   const params: unknown[] = []

@@ -4,8 +4,9 @@ export default defineEventHandler(async (event) => {
   const q      = getQuery(event)
   const search = (q.search as string) || ''
   const status = (q.status as string) || ''
-  const page   = Number(q.page) || 1
-  const { limit, offset } = paginate(page, 25)
+  const page    = Number(q.page) || 1
+  const perPage = Math.min(Number(q.per) || 25, 200)
+  const { limit, offset } = paginate(page, perPage)
 
   const where: string[] = []
   const params: unknown[] = []

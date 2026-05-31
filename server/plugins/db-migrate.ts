@@ -30,4 +30,29 @@ export default defineNitroPlugin(async () => {
   } catch (e) {
     console.warn('[db-migrate] credit_orders.production_seq patch failed:', e)
   }
+
+  // ── purchase_payments_adnan column extensions ─────────────────────────────
+  // The original schema used minimal columns.  The payment API now stores
+  // richer denormalised data.  Each ADD COLUMN IF NOT EXISTS is a no-op when
+  // the column already exists.
+  const paymentCols: [string, string][] = [
+    ['payment_voucher_number', 'VARCHAR(30)  NULL DEFAULT NULL'],
+    ['po_number',              'VARCHAR(30)  NULL DEFAULT NULL'],
+    ['supplier_id',            'INT UNSIGNED NULL DEFAULT NULL'],
+    ['supplier_name',          'VARCHAR(180) NULL DEFAULT NULL'],
+    ['amount_paid',            'DECIMAL(15,2) NULL DEFAULT NULL'],
+    ['bank_name',              'VARCHAR(120) NULL DEFAULT NULL'],
+    ['payment_type',           "VARCHAR(30)  NOT NULL DEFAULT 'regular'"],
+    ['remarks',                'TEXT         NULL DEFAULT NULL'],
+  ]
+  for (const [col, def] of paymentCols) {
+    try {
+      const db3 = getDb()
+      await db3.query(
+        `ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS ${col} ${def}`,
+      )
+    } catch (e) {
+      console.warn(`[db-migrate] purchase_payments_adnan.${col} patch failed:`, e)
+    }
+  }
 })

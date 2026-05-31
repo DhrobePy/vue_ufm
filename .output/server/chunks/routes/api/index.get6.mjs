@@ -13,7 +13,8 @@ const index_get = defineEventHandler(async (event) => {
   const q = getQuery(event);
   const search = q.search || "";
   const page = Number(q.page) || 1;
-  const { limit, offset } = paginate(page, 25);
+  const perPage = Math.min(Number(q.per) || 25, 500);
+  const { limit, offset } = paginate(page, perPage);
   const where = [];
   const params = [];
   if (search) {

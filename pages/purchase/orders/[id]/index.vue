@@ -61,7 +61,7 @@
                 <tr>
                   <td class="py-3 px-3 text-gray-200">{{ po.wheat_origin ? po.wheat_origin + ' Wheat' : 'Wheat' }}</td>
                   <td class="py-3 px-3 text-right font-mono text-gray-300">{{ Number(po.quantity_kg).toLocaleString() }}</td>
-                  <td class="py-3 px-3 text-right font-mono text-gray-300">৳{{ Number(po.rate_per_kg || 0).toLocaleString() }}</td>
+                  <td class="py-3 px-3 text-right font-mono text-gray-300">৳{{ Number(po.unit_price_per_kg || 0).toLocaleString() }}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-gray-200">৳{{ Number(po.total_order_value).toLocaleString() }}</td>
                 </tr>
               </tbody>
@@ -74,8 +74,8 @@
             </table>
 
             <!-- Notes -->
-            <div v-if="po.notes" class="text-xs text-gray-500 border-t border-white/[0.06] pt-3">
-              <span class="font-semibold text-gray-600">Notes: </span>{{ po.notes }}
+            <div v-if="po.remarks" class="text-xs text-gray-500 border-t border-white/[0.06] pt-3">
+              <span class="font-semibold text-gray-600">Notes: </span>{{ po.remarks }}
             </div>
           </div>
 
@@ -88,9 +88,8 @@
               <div>
                 <p class="font-mono text-gold-400/80">{{ grn.grn_number }}</p>
                 <p class="text-gray-500 mt-0.5">
-                  {{ grn.grn_date }} · {{ Number(grn.quantity_kg).toLocaleString() }} kg
-                  <span v-if="grn.grade"> · Grade {{ grn.grade }}</span>
-                  <span v-if="grn.moisture_pct"> · Moisture {{ grn.moisture_pct }}%</span>
+                  {{ grn.grn_date }} · {{ Number(grn.quantity_received_kg).toLocaleString() }} kg
+                  <span v-if="grn.quality_grade"> · Grade {{ grn.quality_grade }}</span>
                   <span v-if="grn.unload_branch_name"> · {{ grn.unload_branch_name }}</span>
                 </p>
               </div>
@@ -105,14 +104,14 @@
             <div v-for="pmt in payments" :key="pmt.id"
                  class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs">
               <div>
-                <p class="font-semibold text-gray-200">৳{{ Number(pmt.amount).toLocaleString() }}</p>
+                <p class="font-semibold text-gray-200">৳{{ Number(pmt.amount_paid ?? pmt.amount ?? 0).toLocaleString() }}</p>
                 <p class="text-gray-500 mt-0.5">
                   {{ pmt.payment_date }} · {{ pmt.payment_mode || pmt.payment_method || '—' }}
                   <span v-if="pmt.bank_name"> · {{ pmt.bank_name }}</span>
                   <span v-if="pmt.reference_number"> · Ref: {{ pmt.reference_number }}</span>
                 </p>
               </div>
-              <UiStatusBadge :status="pmt.payment_status || 'approved'" />
+              <UiStatusBadge status="approved" />
             </div>
           </div>
         </div>
@@ -199,7 +198,7 @@ const paidPct       = computed(() => {
   if (!total) return 0
   return Math.min(100, Math.round((Number(po.value.total_paid ?? 0) / total) * 100))
 })
-const receivedKg    = computed(() => grns.value.reduce((s: number, g: any) => s + Number(g.quantity_kg ?? 0), 0))
+const receivedKg    = computed(() => grns.value.reduce((s: number, g: any) => s + Number(g.quantity_received_kg ?? 0), 0))
 const deliveredPct  = computed(() => {
   const ordered = Number(po.value.quantity_kg ?? 0)
   if (!ordered) return 0

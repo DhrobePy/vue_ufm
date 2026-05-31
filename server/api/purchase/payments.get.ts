@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
     query(
       `SELECT p.id, p.payment_voucher_number, p.payment_date, p.supplier_name,
               p.po_number, p.amount_paid, p.payment_method, p.bank_name,
-              p.payment_type, p.reference_number, p.is_posted, p.remarks,
+              p.payment_type, p.reference_number, p.remarks,
               cr.display_name AS created_by_name
        FROM purchase_payments_adnan p
        LEFT JOIN users cr ON cr.id = p.created_by_user_id

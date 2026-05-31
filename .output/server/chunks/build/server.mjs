@@ -1133,7 +1133,7 @@ const _routes = [
     name: "purchase-orders",
     path: "/purchase/orders",
     meta: __nuxt_page_meta$F || {},
-    component: () => import('./index-D6Tuhx7A.mjs')
+    component: () => import('./index-8fw-8UCq.mjs')
   },
   {
     name: "accounts-journal",
@@ -1355,7 +1355,7 @@ const _routes = [
     name: "purchase-orders-id",
     path: "/purchase/orders/:id()",
     meta: __nuxt_page_meta$4 || {},
-    component: () => import('./index-BkiyESIm.mjs')
+    component: () => import('./index-DG4NVkxO.mjs')
   },
   {
     name: "purchase-orders-id-print",

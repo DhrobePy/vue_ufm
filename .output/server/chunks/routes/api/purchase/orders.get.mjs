@@ -14,7 +14,8 @@ const orders_get = defineEventHandler(async (event) => {
   const search = q.search || "";
   const status = q.status || "";
   const page = Number(q.page) || 1;
-  const { limit, offset } = paginate(page, 25);
+  const perPage = Math.min(Number(q.per) || 25, 200);
+  const { limit, offset } = paginate(page, perPage);
   const where = [];
   const params = [];
   if (search) {
