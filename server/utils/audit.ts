@@ -1,44 +1,45 @@
 import type mysql from 'mysql2/promise'
 
-// ─── Auto-provision ───────────────────────────────────────────────────────────
-// system_audit_log is not in the original schema_seed.sql.
-// We create it on first use so no manual migration is needed.
-// created_at uses UTC_TIMESTAMP() to guarantee UTC regardless of MySQL server TZ.
+// ─── Column constraints from actual system_audit_log schema ──────────────────
+//
+// action  ENUM: 'created','updated','deleted','approved','rejected','cancelled',
+//               'viewed','printed','exported','shipped','dispatched','received',
+//               'allocated','paid','refunded','logged_in','logged_out',
+//               'login_failed','login_error','session_timeout','status_changed',
+//               'priority_changed','assigned','other'
+//
+// severity ENUM: 'info','warning','critical'   ← NOT 'error'
+//
+// status   ENUM: 'success','failed','pending'  ← NOT 'deleted'/'completed' etc.
+//
+// user_id  bigint NOT NULL                     ← cannot be null
 
-const ENSURE_TABLE_SQL = `
-  CREATE TABLE IF NOT EXISTS system_audit_log (
-    id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    user_id          INT UNSIGNED,
-    action           VARCHAR(80)  NOT NULL,
-    module           VARCHAR(60)  DEFAULT 'credit_sales',
-    record_type      VARCHAR(60),
-    reference_number VARCHAR(80),
-    description      TEXT,
-    severity         ENUM('info','warning','error') DEFAULT 'info',
-    status           VARCHAR(50),
-    ip_address       VARCHAR(45),
-    created_at       DATETIME DEFAULT UTC_TIMESTAMP(),
-    INDEX idx_created_at (created_at),
-    INDEX idx_action     (action),
-    INDEX idx_user_id    (user_id)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-`
-
-let tableEnsured = false   // process-level flag — only CREATE once per server boot
-
-async function ensureTable(conn: mysql.PoolConnection) {
-  if (tableEnsured) return
-  try {
-    await conn.query(ENSURE_TABLE_SQL)
-    tableEnsured = true
-  } catch { /* ignore — table may already exist */ }
+// Map our internal action names → valid DB ENUM values
+const ACTION_MAP: Record<string, string> = {
+  order_deleted:    'deleted',
+  order_completed:  'status_changed',
+  payment_received: 'paid',
+  delivered:        'dispatched',
+  partial_delivery: 'dispatched',
+  return_submitted: 'other',
+  return_approved:  'approved',
+  return_rejected:  'rejected',
 }
 
-// ─── Public helper ────────────────────────────────────────────────────────────
+// Map severity → valid DB ENUM  ('error' is not in the ENUM; use 'critical')
+const SEVERITY_MAP: Record<string, string> = {
+  info:     'info',
+  warning:  'warning',
+  error:    'critical',
+  critical: 'critical',
+}
+
 /**
  * Write a row to system_audit_log inside an existing DB transaction.
  * Silently swallowed so audit failures never abort the main operation.
- * created_at is explicitly UTC_TIMESTAMP() to avoid MySQL server-TZ drift.
+ *
+ * Maps our internal action/severity strings to the correct ENUM values
+ * enforced by the real table schema.
  */
 export async function auditLog(
   conn: mysql.PoolConnection,
@@ -47,33 +48,37 @@ export async function auditLog(
     action:           string
     module?:          string
     recordType?:      string
+    recordId?:        number | null
     referenceNumber?: string
     description:      string
-    severity?:        'info' | 'warning' | 'error'
-    status?:          string
+    severity?:        'info' | 'warning' | 'error' | 'critical'
     ipAddress?:       string
   },
 ) {
   try {
-    await ensureTable(conn)
+    const dbAction   = ACTION_MAP[opts.action]   ?? opts.action  // pass through if already valid
+    const dbSeverity = SEVERITY_MAP[opts.severity ?? 'info'] ?? 'info'
+
     await conn.query(
       `INSERT INTO system_audit_log
-         (user_id, action, module, record_type, reference_number,
-          description, severity, status, ip_address, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
+         (user_id, module, action, record_type, record_id, reference_number,
+          description, ip_address, severity, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'success')`,
       [
-        opts.userId          ?? null,
-        opts.action,
+        opts.userId          ?? 1,        // NOT NULL — fallback to system user id=1
         opts.module          ?? 'credit_sales',
+        dbAction,
         opts.recordType      ?? null,
+        opts.recordId        ?? null,
         opts.referenceNumber ?? null,
         opts.description,
-        opts.severity        ?? 'info',
-        opts.status          ?? null,
         opts.ipAddress       ?? null,
+        dbSeverity,
       ],
     )
-  } catch {
+  } catch (e) {
     // Never crash or roll back the main operation due to audit failure
+    // Uncomment below for debugging if audit writes are still failing:
+    // console.error('[auditLog] INSERT failed:', e)
   }
 }

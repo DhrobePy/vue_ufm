@@ -141,12 +141,12 @@ export default defineEventHandler(async (event) => {
       action:          isNowComplete ? 'order_completed' : 'payment_received',
       module:          'credit_sales',
       recordType:      'credit_order',
+      recordId:        id,
       referenceNumber: payNo,
       description:     isNowComplete
-        ? `Order ${order.id} fully paid & completed — ${payNo} · ৳${pmtAmount.toLocaleString()} via ${mappedMethod}`
+        ? `Order fully paid & completed — ${payNo} · ৳${pmtAmount.toLocaleString()} via ${mappedMethod}`
         : `Payment received — ${payNo} · ৳${pmtAmount.toLocaleString()} via ${mappedMethod} · balance ৳${newBalance.toLocaleString()} remaining`,
       severity:        'info',
-      status:          isNowComplete ? 'completed' : 'partial',
       ipAddress,
     })
 

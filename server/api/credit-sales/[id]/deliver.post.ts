@@ -139,13 +139,13 @@ export default defineEventHandler(async (event) => {
     // ── System audit log ───────────────────────────────────────────────
     await auditLog(conn, {
       userId,
-      action:          wfAction,
+      action:          wfAction,       // 'delivered' or 'partial_delivery' → maps to 'dispatched'
       module:          'credit_sales',
       recordType:      'credit_order',
+      recordId:        id,
       referenceNumber: delNo,
       description:     `${is_final ? 'Final' : 'Partial'} delivery ${delNo} for Order ${order.order_number} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}`,
       severity:        'info',
-      status:          wfToStatus,
       ipAddress,
     })
 

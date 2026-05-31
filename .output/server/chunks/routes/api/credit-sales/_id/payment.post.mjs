@@ -124,10 +124,10 @@ const payment_post = defineEventHandler(async (event) => {
       action: isNowComplete ? "order_completed" : "payment_received",
       module: "credit_sales",
       recordType: "credit_order",
+      recordId: id,
       referenceNumber: payNo,
-      description: isNowComplete ? `Order ${order.id} fully paid & completed \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod}` : `Payment received \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()} remaining`,
+      description: isNowComplete ? `Order fully paid & completed \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod}` : `Payment received \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()} remaining`,
       severity: "info",
-      status: isNowComplete ? "completed" : "partial",
       ipAddress
     });
     await conn.commit();

@@ -134,12 +134,13 @@ const deliver_post = defineEventHandler(async (event) => {
     await auditLog(conn, {
       userId,
       action: wfAction,
+      // 'delivered' or 'partial_delivery' → maps to 'dispatched'
       module: "credit_sales",
       recordType: "credit_order",
+      recordId: id,
       referenceNumber: delNo,
       description: `${is_final ? "Final" : "Partial"} delivery ${delNo} for Order ${order.order_number} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`,
       severity: "info",
-      status: wfToStatus,
       ipAddress
     });
     await conn.commit();

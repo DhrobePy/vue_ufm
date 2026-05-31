@@ -61,10 +61,10 @@ export default defineEventHandler(async (event) => {
       action:          'order_deleted',
       module:          'credit_sales',
       recordType:      'credit_order',
+      recordId:        id,
       referenceNumber: order.order_number,
       description:     `Order ${order.order_number} deleted — ${order.customer_name} · ৳${auditAmt} · status was ${order.order_status}`,
-      severity:        'error',
-      status:          'deleted',
+      severity:        'critical',
       ipAddress,
     })
 

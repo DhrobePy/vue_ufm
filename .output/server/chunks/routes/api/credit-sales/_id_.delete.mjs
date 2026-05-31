@@ -61,10 +61,10 @@ const _id__delete = defineEventHandler(async (event) => {
       action: "order_deleted",
       module: "credit_sales",
       recordType: "credit_order",
+      recordId: id,
       referenceNumber: order.order_number,
       description: `Order ${order.order_number} deleted \u2014 ${order.customer_name} \xB7 \u09F3${auditAmt} \xB7 status was ${order.order_status}`,
-      severity: "error",
-      status: "deleted",
+      severity: "critical",
       ipAddress
     });
     await conn.query(

@@ -148,13 +148,13 @@ export default defineEventHandler(async (event) => {
     // ── System audit log ───────────────────────────────────────────────
     await auditLog(conn, {
       userId,
-      action:          wfAction,
+      action:          wfAction,       // 'return_submitted'→'other', 'return_approved'→'approved'
       module:          'credit_sales',
       recordType:      'credit_order_return',
+      recordId:        returnId,
       referenceNumber: retNo,
-      description:     `Return ${retNo} submitted for Order ${order.order_number} — ${order.customer_id} · ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString()} · ${autoApprove ? 'auto-approved' : 'pending approval'}`,
+      description:     `Return ${retNo} for Order ${order.order_number} — ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString()} · ${autoApprove ? 'auto-approved' : 'pending approval'}`,
       severity:        autoApprove ? 'info' : 'warning',
-      status:          retStatus,
       ipAddress,
     })
 

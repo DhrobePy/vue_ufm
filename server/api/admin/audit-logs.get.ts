@@ -10,29 +10,6 @@ export default defineEventHandler(async (event) => {
   const per      = Math.min(100, Number(q.per || 50))
   const offset   = (page - 1) * per
 
-  // ── Auto-provision system_audit_log if it doesn't yet exist ──────────────
-  // Same table created by server/utils/audit.ts — safe to run CREATE IF NOT EXISTS here too
-  try {
-    await query(`
-      CREATE TABLE IF NOT EXISTS system_audit_log (
-        id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id          INT UNSIGNED,
-        action           VARCHAR(80)  NOT NULL,
-        module           VARCHAR(60)  DEFAULT 'credit_sales',
-        record_type      VARCHAR(60),
-        reference_number VARCHAR(80),
-        description      TEXT,
-        severity         ENUM('info','warning','error') DEFAULT 'info',
-        status           VARCHAR(50),
-        ip_address       VARCHAR(45),
-        created_at       DATETIME DEFAULT UTC_TIMESTAMP(),
-        INDEX idx_created_at (created_at),
-        INDEX idx_action     (action),
-        INDEX idx_user_id    (user_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `)
-  } catch { /* ignore */ }
-
   // ── Build WHERE conditions ────────────────────────────────────────────────
   const conditions: string[] = []
   const params:     any[]    = []
@@ -49,10 +26,11 @@ export default defineEventHandler(async (event) => {
     query(
       `SELECT sal.id,
               sal.user_id,
-              COALESCE(u.display_name, sal.action) AS user_name,
+              COALESCE(u.display_name, 'System') AS user_name,
               sal.action,
               sal.module,
               sal.record_type,
+              sal.record_id,
               sal.reference_number,
               sal.description,
               sal.severity,

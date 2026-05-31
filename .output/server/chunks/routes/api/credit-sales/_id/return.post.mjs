@@ -146,12 +146,13 @@ const return_post = defineEventHandler(async (event) => {
     await auditLog(conn, {
       userId,
       action: wfAction,
+      // 'return_submitted'→'other', 'return_approved'→'approved'
       module: "credit_sales",
       recordType: "credit_order_return",
+      recordId: returnId,
       referenceNumber: retNo,
-      description: `Return ${retNo} submitted for Order ${order.order_number} \u2014 ${order.customer_id} \xB7 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString()} \xB7 ${autoApprove ? "auto-approved" : "pending approval"}`,
+      description: `Return ${retNo} for Order ${order.order_number} \u2014 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString()} \xB7 ${autoApprove ? "auto-approved" : "pending approval"}`,
       severity: autoApprove ? "info" : "warning",
-      status: retStatus,
       ipAddress
     });
     await conn.commit();
