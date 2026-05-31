@@ -958,7 +958,7 @@ const _routes = [
     name: "purchase-grn",
     path: "/purchase/grn",
     meta: __nuxt_page_meta$1j || {},
-    component: () => import('./index-B6u8g7-z.mjs')
+    component: () => import('./index-ACzbxkEL.mjs')
   },
   {
     name: "bank-accounts",
@@ -1036,7 +1036,7 @@ const _routes = [
     name: "purchase-grn-create",
     path: "/purchase/grn/create",
     meta: __nuxt_page_meta$16 || {},
-    component: () => import('./create-EmWfup-l.mjs')
+    component: () => import('./create-DMbMApeW.mjs')
   },
   {
     name: "credit-sales-approve",
@@ -1210,7 +1210,7 @@ const _routes = [
     name: "purchase-grn-id-edit",
     path: "/purchase/grn/:id()/edit",
     meta: __nuxt_page_meta$F || {},
-    component: () => import('./edit-BOy-f2Wz.mjs')
+    component: () => import('./edit-D345CbCC.mjs')
   },
   {
     name: "purchase-orders-create",
@@ -1276,13 +1276,13 @@ const _routes = [
     name: "purchase-grn-id",
     path: "/purchase/grn/:id()",
     meta: __nuxt_page_meta$u || {},
-    component: () => import('./index-CNS-fRUj.mjs')
+    component: () => import('./index-CeWLtNl0.mjs')
   },
   {
     name: "purchase-grn-id-print",
     path: "/purchase/grn/:id()/print",
     meta: __nuxt_page_meta$t || {},
-    component: () => import('./print-DJKPjqZV.mjs')
+    component: () => import('./print-CwgqUNb0.mjs')
   },
   {
     name: "purchase-payments",

@@ -10,7 +10,10 @@ export default defineEventHandler(async (event) => {
     grn_date,
     truck_number,
     quantity_received_kg,
+    expected_quantity,
     unload_point_name,
+    unload_point_branch_id,
+    variance_remarks,
     remarks,
   } = body ?? {}
 
@@ -32,36 +35,40 @@ export default defineEventHandler(async (event) => {
     }
 
     const newQtyKg    = Number(quantity_received_kg ?? grn.quantity_received_kg)
+    const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(grn.unit_price_per_kg)
     const totalValue  = newQtyKg * unitPrice
 
-    // Variance % vs ordered qty on PO
-    const [[po]] = await conn.query<any>(
-      `SELECT quantity_kg FROM purchase_orders_adnan WHERE id = ?`,
-      [grn.purchase_order_id],
-    )
-    const orderedKg      = Number(po?.quantity_kg ?? 0)
-    const weightVariance = newQtyKg - orderedKg
-    const variancePct    = orderedKg > 0 ? ((weightVariance / orderedKg) * 100).toFixed(4) : '0'
+    // Variance vs expected_quantity (if provided)
+    const baseQty  = expectedKg > 0 ? expectedKg : newQtyKg
+    const varPct   = baseQty > 0 && expectedKg > 0
+      ? (((newQtyKg - expectedKg) / expectedKg) * 100).toFixed(4)
+      : '0'
 
     await conn.query(
       `UPDATE goods_received_adnan
-       SET grn_date           = ?,
-           truck_number       = ?,
-           quantity_received_kg = ?,
-           total_value        = ?,
-           variance_percentage = ?,
-           unload_point_name  = ?,
-           remarks            = ?,
-           updated_at         = NOW()
+       SET grn_date               = ?,
+           truck_number           = ?,
+           quantity_received_kg   = ?,
+           expected_quantity      = ?,
+           total_value            = ?,
+           variance_percentage    = ?,
+           unload_point_name      = ?,
+           unload_point_branch_id = ?,
+           variance_remarks       = ?,
+           remarks                = ?,
+           updated_at             = NOW()
        WHERE id = ?`,
       [
         grn_date,
         truck_number ?? null,
         newQtyKg,
+        expectedKg > 0 ? expectedKg : null,
         totalValue,
-        variancePct,
+        varPct,
         unload_point_name ?? null,
+        unload_point_branch_id ?? null,
+        variance_remarks ?? null,
         remarks ?? null,
         id,
       ],

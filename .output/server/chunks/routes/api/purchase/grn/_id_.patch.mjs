@@ -10,7 +10,6 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid GRN ID" });
   const body = await readBody(event);
@@ -18,7 +17,10 @@ const _id__patch = defineEventHandler(async (event) => {
     grn_date,
     truck_number,
     quantity_received_kg,
+    expected_quantity,
     unload_point_name,
+    unload_point_branch_id,
+    variance_remarks,
     remarks
   } = body != null ? body : {};
   if (!grn_date) throw createError({ statusCode: 400, statusMessage: "grn_date is required" });
@@ -36,33 +38,35 @@ const _id__patch = defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: "Cannot edit a cancelled GRN" });
     }
     const newQtyKg = Number(quantity_received_kg != null ? quantity_received_kg : grn.quantity_received_kg);
+    const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(grn.unit_price_per_kg);
     const totalValue = newQtyKg * unitPrice;
-    const [[po]] = await conn.query(
-      `SELECT quantity_kg FROM purchase_orders_adnan WHERE id = ?`,
-      [grn.purchase_order_id]
-    );
-    const orderedKg = Number((_a = po == null ? void 0 : po.quantity_kg) != null ? _a : 0);
-    const weightVariance = newQtyKg - orderedKg;
-    const variancePct = orderedKg > 0 ? (weightVariance / orderedKg * 100).toFixed(4) : "0";
+    const baseQty = expectedKg > 0 ? expectedKg : newQtyKg;
+    const varPct = baseQty > 0 && expectedKg > 0 ? ((newQtyKg - expectedKg) / expectedKg * 100).toFixed(4) : "0";
     await conn.query(
       `UPDATE goods_received_adnan
-       SET grn_date           = ?,
-           truck_number       = ?,
-           quantity_received_kg = ?,
-           total_value        = ?,
-           variance_percentage = ?,
-           unload_point_name  = ?,
-           remarks            = ?,
-           updated_at         = NOW()
+       SET grn_date               = ?,
+           truck_number           = ?,
+           quantity_received_kg   = ?,
+           expected_quantity      = ?,
+           total_value            = ?,
+           variance_percentage    = ?,
+           unload_point_name      = ?,
+           unload_point_branch_id = ?,
+           variance_remarks       = ?,
+           remarks                = ?,
+           updated_at             = NOW()
        WHERE id = ?`,
       [
         grn_date,
         truck_number != null ? truck_number : null,
         newQtyKg,
+        expectedKg > 0 ? expectedKg : null,
         totalValue,
-        variancePct,
+        varPct,
         unload_point_name != null ? unload_point_name : null,
+        unload_point_branch_id != null ? unload_point_branch_id : null,
+        variance_remarks != null ? variance_remarks : null,
         remarks != null ? remarks : null,
         id
       ]
