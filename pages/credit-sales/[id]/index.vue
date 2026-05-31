@@ -218,6 +218,60 @@
             <p class="text-sm text-gray-400 italic">{{ order.special_notes }}</p>
           </div>
 
+          <!-- ── Payments Received ─────────────────────────────── -->
+          <div class="glass-card p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="section-title">Payments Received</h3>
+              <span v-if="payments.length" class="text-[11px] font-semibold text-emerald-400">
+                ৳{{ totalPaid.toLocaleString() }} of ৳{{ Number(order.total_amount).toLocaleString() }}
+              </span>
+            </div>
+
+            <div v-if="payments.length" class="space-y-0 divide-y divide-white/[0.04]">
+              <div v-for="p in payments" :key="p.id"
+                   class="flex items-center gap-4 py-3">
+                <!-- Method icon -->
+                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10 text-emerald-400 text-xs font-bold">
+                  {{ methodIcon(p.payment_method) }}
+                </div>
+                <!-- Details -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
+                  <p class="text-[11px] text-gray-500 mt-0.5">
+                    {{ p.payment_method }}
+                    <span v-if="p.reference_number && p.reference_number !== p.payment_number">
+                      · Ref: {{ p.reference_number }}
+                    </span>
+                    <span v-if="p.collected_by"> · {{ p.collected_by }}</span>
+                  </p>
+                  <p v-if="p.notes" class="text-[10px] text-gray-600 mt-0.5 italic">{{ p.notes }}</p>
+                </div>
+                <!-- Date + Amount -->
+                <div class="text-right shrink-0">
+                  <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
+                  <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Empty state -->
+            <div v-else class="py-6 text-center">
+              <p class="text-xs text-gray-600">No payments recorded yet.</p>
+              <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`"
+                        class="text-xs text-gold-400 hover:text-gold-300 mt-1 inline-block transition-colors">
+                + Collect payment →
+              </NuxtLink>
+            </div>
+
+            <!-- Running total footer -->
+            <div v-if="payments.length" class="flex items-center justify-between pt-3 border-t border-white/[0.06] text-xs">
+              <span class="text-gray-500">Balance remaining</span>
+              <span :class="['font-bold', Number(order.balance_due) > 0 ? 'text-red-400' : 'text-emerald-400']">
+                ৳{{ Number(order.balance_due).toLocaleString() }}
+              </span>
+            </div>
+          </div>
+
           <!-- ── Returns / Credit Notes ─────────────────────── -->
           <div v-if="returns.length" class="glass-card p-5 space-y-4">
             <div class="flex items-center justify-between">
@@ -504,7 +558,21 @@ const { data, pending, error, refresh } = await useFetch(
 const order     = computed(() => (data.value?.order     ?? {}) as any)
 const items     = computed(() => (data.value?.items     ?? []) as any[])
 const returns   = computed(() => (data.value?.returns   ?? []) as any[])
+const payments  = computed(() => (data.value?.payments  ?? []) as any[])
 const apiWorkflow = computed(() => (data.value?.workflow ?? []) as any[])
+
+const totalPaid = computed(() =>
+  payments.value.reduce((s: number, p: any) => s + Number(p.amount), 0),
+)
+
+function methodIcon(method: string): string {
+  const m = (method ?? '').toLowerCase()
+  if (m.includes('cash'))   return '💵'
+  if (m.includes('mobile') || m.includes('bkash') || m.includes('nagad')) return '📱'
+  if (m.includes('bank') || m.includes('transfer')) return '🏦'
+  if (m.includes('cheque') || m.includes('check'))  return '📄'
+  return '💳'
+}
 
 const approvedReturns = computed(() => returns.value.filter((r: any) => r.status === 'approved'))
 const pendingReturns  = computed(() => returns.value.filter((r: any) => r.status === 'pending'))

@@ -165,6 +165,63 @@ export default defineEventHandler(async (event) => {
       [orderId, orderStatus, wfAction, userId, wfComment],
     )
 
+    // ── Advance payment → customer_payments + ledger ────────────────────────
+    // If the customer paid an advance at order creation, record it properly so
+    // it appears in the payment history and reduces the customer's ledger balance.
+    if (advancePaid > 0) {
+      const advDay = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+      const [[acnt]] = await conn.query<any>(
+        `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
+      )
+      const advSeq = String((acnt.n ?? 0) + 1).padStart(4, '0')
+      const advNo  = `PAY-${advDay}-${advSeq}`
+
+      // 1. Insert payment record (order_id links it to this order)
+      const [advResult] = await conn.query<any>(
+        `INSERT INTO customer_payments
+           (order_id, payment_number, customer_id, payment_date, amount, payment_method,
+            payment_type, reference_number,
+            allocation_status, allocated_amount, notes, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 'Cash',
+                 'invoice_payment', ?,
+                 'allocated', ?, 'Advance payment at order creation', ?)`,
+        [orderId, advNo, customer_id, order_date, advancePaid, advNo, advancePaid, userId],
+      )
+      const advPaymentId = advResult.insertId
+
+      // 2. Get current running ledger balance for this customer
+      const [[lastLedger]] = await conn.query<any>(
+        `SELECT COALESCE(balance_after, 0) AS bal
+         FROM customer_ledger WHERE customer_id = ?
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [customer_id],
+      )
+      const prevBal = Number(lastLedger?.bal ?? 0)
+      const newBal  = Math.max(0, prevBal - advancePaid)
+
+      // 3. Credit the ledger — reduces what the customer owes
+      await conn.query(
+        `INSERT INTO customer_ledger
+           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+         VALUES (?, ?, 'payment', 'customer_payment', ?,
+                 ?, ?, 0, ?, ?, ?)`,
+        [
+          customer_id, order_date, advPaymentId,
+          advNo, `Advance payment — ${advNo} (Order ${orderNo})`,
+          advancePaid, newBal, userId,
+        ],
+      )
+
+      // 4. Reduce customer running balance
+      await conn.query(
+        `UPDATE customers
+         SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
+         WHERE id = ?`,
+        [advancePaid, customer_id],
+      )
+    }
+
     // ── Audit log ───────────────────────────────────────────────────────────
     await auditLog(conn, {
       userId,

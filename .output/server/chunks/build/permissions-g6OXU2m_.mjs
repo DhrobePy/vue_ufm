@@ -4,7 +4,6 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrIncludeBooleanAttr, ssrInterpola
 import { c as _export_sfc, j as useRoute } from './server.mjs';
 import { u as useFetch } from './fetch-BuG1JnEF.mjs';
 import '../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -12,6 +11,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 import 'vue-router';
 import '@vue/shared';

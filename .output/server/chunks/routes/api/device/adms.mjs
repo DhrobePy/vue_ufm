@@ -1,5 +1,4 @@
 import { h as defineEventHandler, M as setResponseHeader, o as getMethod, p as getQuery, r as getRequestURL, K as readRawBody, n as getDb, H as queryOne } from '../../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,6 +6,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const adms = defineEventHandler(async (event) => {

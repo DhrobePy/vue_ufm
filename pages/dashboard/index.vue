@@ -237,7 +237,7 @@
                     d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
             </svg>
             <p class="text-xs text-gray-600">No recent activity</p>
-            <p class="text-[11px] text-gray-700">Activity log coming soon</p>
+            <p class="text-[11px] text-gray-700">Events appear here as the team works</p>
           </div>
         </div>
       </div>
@@ -314,14 +314,73 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-// ── Live stats from DB ────────────────────────────
-const { data: statsData }         = await useFetch('/api/dashboard/stats')
-const { data: monthlyRevenueData } = await useFetch('/api/dashboard/monthly-revenue')
+// ── Live stats — SSR fetch, then polled every 30 s ────────────────
+const { data: statsData, refresh: refreshStats } =
+  await useFetch('/api/dashboard/stats')
 
-const s  = computed(() => (statsData.value?.orderStats    ?? {}) as any)
-const rv = computed(() => (statsData.value?.revenueStats  ?? {}) as any)
-const ex = computed(() => (statsData.value?.expenseStats  ?? {}) as any)
-const po = computed(() => (statsData.value?.purchaseStats ?? {}) as any)
+// ── Chart period — reactive; re-fetches when changed ─────────────
+const chartPeriod = ref('1M')
+const { data: monthlyRevenueData, refresh: refreshRevenue } =
+  await useFetch('/api/dashboard/monthly-revenue', {
+    query: computed(() => ({ period: chartPeriod.value })),
+  })
+watch(chartPeriod, () => refreshRevenue())
+
+// ── Activity feed ─────────────────────────────────────────────────
+interface ActivityItem { id: number; icon: string; label: string; time: string; type: string }
+const activityFeed = ref<ActivityItem[]>([])
+
+function activityIcon(action: string, module: string): string {
+  if (action === 'approved')   return '✅'
+  if (action === 'rejected')   return '❌'
+  if (action === 'deleted')    return '🗑️'
+  if (action === 'paid')       return '💰'
+  if (action === 'dispatched') return '📦'
+  if (action === 'other' && module === 'credit_sales') return '📋'
+  if (module === 'expense')    return '💸'
+  if (module === 'purchase')   return '🛒'
+  if (module === 'supplier')   return '🏭'
+  if (module === 'authentication') return '🔐'
+  return '🔔'
+}
+
+function activityType(severity: string): string {
+  if (severity === 'critical') return 'error'
+  if (severity === 'warning')  return 'warning'
+  return 'success'
+}
+
+function timeAgo(dateStr: string): string {
+  const s = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
+  if (s < 60)    return `${s}s ago`
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  return `${Math.floor(s / 86400)}d ago`
+}
+
+async function loadActivity() {
+  try {
+    const rows = await $fetch<any[]>('/api/dashboard/activity')
+    activityFeed.value = (rows ?? []).map((r: any) => ({
+      id:    r.id,
+      icon:  activityIcon(r.action, r.module),
+      label: r.description ?? `${r.action} · ${r.module}`,
+      time:  timeAgo(r.created_at),
+      type:  activityType(r.severity),
+    }))
+  } catch { /* keep stale */ }
+}
+
+// ── Auto-refresh every 30 s ───────────────────────────────────────
+onMounted(() => {
+  loadActivity()
+  const timer = setInterval(() => {
+    refreshStats()
+    refreshRevenue()
+    loadActivity()
+  }, 30_000)
+  onUnmounted(() => clearInterval(timer))
+})
 
 // ── Logged-in user ────────────────────────────────
 const { user: sessionUser } = useUserSession()
@@ -335,14 +394,17 @@ const formattedDate = computed(() =>
   new Date().toLocaleDateString('en-BD', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 )
 
-const chartPeriod = ref('1M')
-
 function fmtLakh(val: any): string {
   const n = Number(val ?? 0)
   if (n >= 10_000_000) return '৳' + (n / 10_000_000).toFixed(1) + 'Cr'
   if (n >= 100_000)    return '৳' + (n / 100_000).toFixed(1) + 'L'
   return '৳' + n.toLocaleString()
 }
+
+const s  = computed(() => (statsData.value?.orderStats    ?? {}) as any)
+const rv = computed(() => (statsData.value?.revenueStats  ?? {}) as any)
+const ex = computed(() => (statsData.value?.expenseStats  ?? {}) as any)
+const po = computed(() => (statsData.value?.purchaseStats ?? {}) as any)
 
 // ── Collection rate ───────────────────────────────
 const collectionRate = computed(() => {
@@ -352,7 +414,15 @@ const collectionRate = computed(() => {
   return Math.min(100, Math.round((collected / total) * 100))
 })
 
-// ── KPI cards — 100% live ─────────────────────────
+// ── Real sparkline values from monthly revenue history ────────────
+const revenueSpark = computed(() =>
+  (monthlyRevenueData.value as any[] ?? []).map((r: any) => Number(r.revenue) / 100_000),
+)
+const orderCountSpark = computed(() =>
+  (monthlyRevenueData.value as any[] ?? []).map((r: any) => Number(r.order_count)),
+)
+
+// ── KPI cards ─────────────────────────────────────
 const kpiCards = computed(() => [
   {
     label: 'Month Revenue',
@@ -361,7 +431,7 @@ const kpiCards = computed(() => [
     trend: `${fmtLakh(rv.value.total_outstanding)} outstanding`,
     up: true,
     valueColor: 'text-gold-400',
-    spark: [0, 0, 0, 0, 0, 0, Number(rv.value.total_revenue ?? 0) / 100_000],
+    spark: revenueSpark.value.length ? revenueSpark.value : [0],
   },
   {
     label: 'Pending Approvals',
@@ -379,7 +449,7 @@ const kpiCards = computed(() => [
     trend: `${s.value.cancelled ?? 0} cancelled`,
     up: true,
     valueColor: 'text-orange-400',
-    spark: [0, 0, 0, 0, 0, 0, s.value.total ?? 0],
+    spark: orderCountSpark.value.length ? orderCountSpark.value : [0],
   },
   {
     label: 'Month Expenses',
@@ -392,7 +462,7 @@ const kpiCards = computed(() => [
   },
 ])
 
-// ── Revenue chart — dynamic SVG from real DB data ─
+// ── Revenue chart SVG ─────────────────────────────
 const chartSvgData = computed(() => {
   const rows = (monthlyRevenueData.value as any[]) ?? []
   if (rows.length < 2) return { area: '', line: '', points: [] as { x: number; y: number }[] }
@@ -413,16 +483,13 @@ const chartSvgData = computed(() => {
 })
 
 const chartLabels = computed(() =>
-  (monthlyRevenueData.value as any[] ?? []).map((r: any) => r.month)
+  (monthlyRevenueData.value as any[] ?? []).map((r: any) => r.month),
 )
 
-// ── Activity feed — starts empty; populate via audit log API later ──
-const activityFeed = ref<{ id: number; icon: string; label: string; time: string; type: string }[]>([])
-
-// ── Pending orders ────────────────────────────────
+// ── Pending orders ─────────────────────────────────
 const pendingOrdersList = computed(() => (statsData.value?.pendingOrdersList ?? []) as any[])
 
-// ── War Room ─────────────────────────────────────
+// ── War Room ──────────────────────────────────────
 const warRoom     = ref(false)
 const warRoomTime = ref('')
 let warRoomClock: ReturnType<typeof setInterval>
@@ -459,7 +526,7 @@ if (import.meta.client) {
 
 onUnmounted(() => clearInterval(warRoomClock))
 
-// ── Offline draft banner ─────────────────────────
+// ── Offline draft banner ──────────────────────────
 const hasDraft = ref(false)
 onMounted(() => {
   hasDraft.value = !!localStorage.getItem('erp_order_draft')

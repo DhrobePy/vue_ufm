@@ -2,7 +2,6 @@ import { c as _export_sfc, _ as __nuxt_component_0 } from './server.mjs';
 import { defineComponent, reactive, ref, withCtx, unref, createVNode, withModifiers, openBlock, createBlock, withDirectives, vModelText, toDisplayString, createCommentVNode, vModelDynamic, vModelCheckbox, Transition, createTextVNode, useSSRContext } from 'vue';
 import { ssrRenderAttrs, ssrRenderComponent, ssrRenderStyle, ssrRenderAttr, ssrRenderClass, ssrInterpolate, ssrRenderDynamicModel, ssrIncludeBooleanAttr, ssrLooseContain } from 'vue/server-renderer';
 import '../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,6 +9,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 import 'vue-router';
 

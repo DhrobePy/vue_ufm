@@ -1,5 +1,4 @@
 import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,6 +6,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
@@ -56,13 +56,14 @@ const payment_post = defineEventHandler(async (event) => {
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
       `INSERT INTO customer_payments
-         (payment_number, customer_id, payment_date, amount, payment_method,
+         (order_id, payment_number, customer_id, payment_date, amount, payment_method,
           payment_type, reference_number, bank_account_id,
           allocation_status, allocated_amount, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?,
                'invoice_payment', ?, ?,
-               'unallocated', 0, ?, ?)`,
+               'allocated', ?, ?, ?)`,
       [
+        id,
         payNo,
         order.customer_id,
         payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
@@ -70,6 +71,8 @@ const payment_post = defineEventHandler(async (event) => {
         mappedMethod,
         autoRef,
         bank_account_id ? Number(bank_account_id) : null,
+        pmtAmount,
+        // allocated_amount = full payment (it's for this specific order)
         notes != null ? notes : null,
         userId
       ]

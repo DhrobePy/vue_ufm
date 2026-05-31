@@ -1,5 +1,4 @@
 import { h as defineEventHandler, p as getQuery, G as query } from '../../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,6 +6,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const ICONS = ["\u{1F69B}", "\u26A1", "\u{1F4CE}", "\u{1F527}", "\u{1F477}", "\u26FD", "\u{1F4E6}", "\u{1F3F7}\uFE0F", "\u{1F4BC}", "\u{1F529}"];

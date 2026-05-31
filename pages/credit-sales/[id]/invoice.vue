@@ -152,8 +152,8 @@
               <span style="font-family:monospace;color:#b45309;">৳{{ (order?.total ?? 0).toLocaleString() }}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;">
-              <span style="color:#6b7280;">Advance Paid</span>
-              <span style="font-family:monospace;color:#16a34a;font-weight:600;">-৳{{ (order?.advance ?? 0).toLocaleString() }}</span>
+              <span style="color:#6b7280;">Total Paid{{ payments.length > 1 ? ` (${payments.length} payments)` : payments.length === 1 ? ' (1 payment)' : '' }}</span>
+              <span style="font-family:monospace;color:#16a34a;font-weight:600;">-৳{{ totalPaid.toLocaleString() }}</span>
             </div>
             <div style="background:linear-gradient(135deg,#fef3c7,#fef9ee);border-radius:8px;padding:12px 14px;margin-top:8px;border:1px solid #fcd34d;">
               <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:800;">
@@ -163,6 +163,39 @@
               <div style="font-size:10px;color:#b45309;margin-top:4px;opacity:0.8;">Due: {{ order?.requiredDate }}</div>
             </div>
           </div>
+        </div>
+
+        <!-- ═══ PAYMENT HISTORY ══════════════════════════ -->
+        <div v-if="payments.length" style="margin:0 40px 24px;padding:20px;border-radius:12px;background:#f9fafb;border:1px solid #f0ede8;">
+          <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">
+            Payment History
+          </div>
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="border-bottom:1px solid #e5e7eb;">
+                <th style="padding:4px 8px;text-align:left;font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;">Date</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;">Reference</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;">Method</th>
+                <th style="padding:4px 8px;text-align:left;font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;">Note</th>
+                <th style="padding:4px 8px;text-align:right;font-size:9px;font-weight:700;color:#9ca3af;text-transform:uppercase;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="p in payments" :key="p.id" style="border-bottom:1px solid #f3f4f6;">
+                <td style="padding:6px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ String(p.payment_date).slice(0,10) }}</td>
+                <td style="padding:6px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ p.payment_number }}</td>
+                <td style="padding:6px 8px;font-size:11px;color:#6b7280;">{{ p.payment_method }}</td>
+                <td style="padding:6px 8px;font-size:10px;color:#9ca3af;font-style:italic;">{{ p.notes || '—' }}</td>
+                <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;font-family:monospace;">৳{{ Number(p.amount).toLocaleString() }}</td>
+              </tr>
+            </tbody>
+            <tfoot>
+              <tr style="border-top:2px solid #e5e7eb;">
+                <td colspan="4" style="padding:8px 8px;font-size:12px;font-weight:700;color:#374151;">Total Paid</td>
+                <td style="padding:8px 8px;text-align:right;font-size:13px;font-weight:800;color:#16a34a;font-family:monospace;">৳{{ totalPaid.toLocaleString() }}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
 
         <!-- ═══ SIGNATURE STRIP ══════════════════════════ -->
@@ -251,6 +284,9 @@ const items = computed(() =>
     discount: Number(i.discount_amount ?? 0),
   }))
 )
+
+const payments  = computed(() => (data.value?.payments ?? []) as any[])
+const totalPaid = computed(() => payments.value.reduce((s: number, p: any) => s + Number(p.amount), 0))
 
 const subtotal      = computed(() => items.value.reduce((s: number, i: any) => s + i.qty * i.price, 0))
 const totalDiscount = computed(() => items.value.reduce((s: number, i: any) => s + i.discount, 0))

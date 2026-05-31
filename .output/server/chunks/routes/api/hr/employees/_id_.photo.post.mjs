@@ -2,12 +2,12 @@ import { h as defineEventHandler, v as getRouterParam, e as createError, J as re
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
+import 'mysql2/promise';
 import 'node:url';
 
 const _id__photo_post = defineEventHandler(async (event) => {

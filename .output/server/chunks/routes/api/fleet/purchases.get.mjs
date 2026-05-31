@@ -1,5 +1,4 @@
 import { h as defineEventHandler, p as getQuery, G as query } from '../../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,6 +6,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const purchases_get = defineEventHandler(async (event) => {

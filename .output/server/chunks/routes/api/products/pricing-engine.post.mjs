@@ -1,12 +1,12 @@
 import { h as defineEventHandler, I as readBody, e as createError, G as query } from '../../../nitro/nitro.mjs';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
+import 'mysql2/promise';
 import 'node:url';
 
 const CONFIG_FILE = resolve("server/data/pricing_engine_config.json");

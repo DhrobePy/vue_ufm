@@ -5,7 +5,6 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrRenderClass, ssrRenderStyle, ssr
 import { c as _export_sfc, j as useRoute, b as __nuxt_component_2, o as useUserSession, k as useRouter, m as useState } from './server.mjs';
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import '../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -13,6 +12,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 import 'vue-router';
 

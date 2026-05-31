@@ -1,6 +1,5 @@
 import { h as defineEventHandler, I as readBody, e as createError, H as queryOne, N as setUserSession, P as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -8,6 +7,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const DEV_USERS = {

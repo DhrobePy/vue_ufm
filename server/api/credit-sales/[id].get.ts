@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
 
-  const [order, items, workflow, deliveries, returns] = await Promise.all([
+  const [order, items, workflow, deliveries, returns, payments] = await Promise.all([
     queryOne(
       `SELECT o.*,
               c.name AS customer_name, c.business_name, c.phone_number,
@@ -74,6 +74,18 @@ export default defineEventHandler(async (event) => {
        ORDER BY r.created_at DESC`,
       [id],
     ),
+
+    // Payments linked to this specific order (order_id column added by db-migrate plugin)
+    query(
+      `SELECT p.id, p.order_id, p.payment_number, p.payment_date, p.amount,
+              p.payment_method, p.reference_number, p.notes, p.created_at,
+              u.display_name AS collected_by
+       FROM customer_payments p
+       LEFT JOIN users u ON u.id = p.created_by_user_id
+       WHERE p.order_id = ?
+       ORDER BY p.payment_date ASC, p.created_at ASC`,
+      [id],
+    ),
   ])
 
   if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
@@ -97,5 +109,5 @@ export default defineEventHandler(async (event) => {
     )
   }
 
-  return { order, items, workflow, deliveries, returns }
+  return { order, items, workflow, deliveries, returns, payments }
 })

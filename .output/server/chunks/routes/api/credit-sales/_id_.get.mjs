@@ -1,5 +1,4 @@
 import { h as defineEventHandler, v as getRouterParam, e as createError, H as queryOne, G as query } from '../../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,12 +6,13 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const _id__get = defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
-  const [order, items, workflow, deliveries, returns] = await Promise.all([
+  const [order, items, workflow, deliveries, returns, payments] = await Promise.all([
     queryOne(
       `SELECT o.*,
               c.name AS customer_name, c.business_name, c.phone_number,
@@ -81,6 +81,17 @@ const _id__get = defineEventHandler(async (event) => {
        WHERE r.order_id = ?
        ORDER BY r.created_at DESC`,
       [id]
+    ),
+    // Payments linked to this specific order (order_id column added by db-migrate plugin)
+    query(
+      `SELECT p.id, p.order_id, p.payment_number, p.payment_date, p.amount,
+              p.payment_method, p.reference_number, p.notes, p.created_at,
+              u.display_name AS collected_by
+       FROM customer_payments p
+       LEFT JOIN users u ON u.id = p.created_by_user_id
+       WHERE p.order_id = ?
+       ORDER BY p.payment_date ASC, p.created_at ASC`,
+      [id]
     )
   ]);
   if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
@@ -98,7 +109,7 @@ const _id__get = defineEventHandler(async (event) => {
       [ret.id]
     );
   }
-  return { order, items, workflow, deliveries, returns };
+  return { order, items, workflow, deliveries, returns, payments };
 });
 
 export { _id__get as default };

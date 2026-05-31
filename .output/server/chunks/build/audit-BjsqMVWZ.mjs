@@ -3,7 +3,6 @@ import { defineComponent, ref, withAsyncContext, computed, mergeProps, withCtx, 
 import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrRenderClass, ssrInterpolate, ssrIncludeBooleanAttr, ssrLooseContain, ssrLooseEqual, ssrRenderAttr } from 'vue/server-renderer';
 import { u as useFetch } from './fetch-BuG1JnEF.mjs';
 import '../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -11,6 +10,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 import '@vue/shared';
 import './server.mjs';

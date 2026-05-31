@@ -2,7 +2,6 @@ import process from 'node:process';globalThis._importMeta_=globalThis._importMet
 import { e as createError$1, E as parseURL, k as encodePath, g as decodePath, x as hasProtocol, z as isScriptProtocol, A as joinURL, Q as withQuery, j as defu, L as sanitizeStatusCode, m as getContext, $ as $fetch$1, b as baseURL, f as createHooks, l as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,6 +9,7 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 if (!globalThis.$fetch) {
@@ -761,7 +761,7 @@ const _routes = [
     name: "dashboard",
     path: "/dashboard",
     meta: __nuxt_page_meta$1D || {},
-    component: () => import('./index-U7OCsdxH.mjs')
+    component: () => import('./index-Cp7QfetA.mjs')
   },
   {
     name: "expenses-create",
@@ -1217,7 +1217,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$r || {},
-    component: () => import('./index-DjsiRHI7.mjs')
+    component: () => import('./index-CKclsShJ.mjs')
   },
   {
     name: "credit-sales-production",
@@ -1313,7 +1313,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$b || {},
-    component: () => import('./invoice-DXALCWyv.mjs')
+    component: () => import('./invoice-2ffpWe8T.mjs')
   },
   {
     name: "credit-sales-id-payment",

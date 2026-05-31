@@ -57,16 +57,17 @@ export default defineEventHandler(async (event) => {
     const payNo    = `PAY-${today}-${seq}`
     const autoRef  = reference_number || payNo
 
-    // Insert into customer_payments (matches actual table schema)
+    // Insert into customer_payments — order_id links this payment back to the order
     const [result] = await conn.query<any>(
       `INSERT INTO customer_payments
-         (payment_number, customer_id, payment_date, amount, payment_method,
+         (order_id, payment_number, customer_id, payment_date, amount, payment_method,
           payment_type, reference_number, bank_account_id,
           allocation_status, allocated_amount, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?,
                'invoice_payment', ?, ?,
-               'unallocated', 0, ?, ?)`,
+               'allocated', ?, ?, ?)`,
       [
+        id,
         payNo,
         order.customer_id,
         payment_date ?? new Date().toISOString().slice(0, 10),
@@ -74,6 +75,7 @@ export default defineEventHandler(async (event) => {
         mappedMethod,
         autoRef,
         bank_account_id ? Number(bank_account_id) : null,
+        pmtAmount,   // allocated_amount = full payment (it's for this specific order)
         notes ?? null,
         userId,
       ],

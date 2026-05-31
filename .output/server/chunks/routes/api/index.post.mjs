@@ -1,5 +1,4 @@
 import { h as defineEventHandler, I as readBody, w as getUserSession, q as getRequestHeader, e as createError, n as getDb, a as auditLog } from '../../nitro/nitro.mjs';
-import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -7,10 +6,11 @@ import 'node:events';
 import 'node:buffer';
 import 'node:fs';
 import 'node:path';
+import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -151,6 +151,56 @@ const index_post = defineEventHandler(async (event) => {
        VALUES (?, 'draft', ?, ?, ?, ?, NOW())`,
       [orderId, orderStatus, wfAction, userId, wfComment]
     );
+    if (advancePaid > 0) {
+      const advDay = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
+      const [[acnt]] = await conn.query(
+        `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`
+      );
+      const advSeq = String(((_t = acnt.n) != null ? _t : 0) + 1).padStart(4, "0");
+      const advNo = `PAY-${advDay}-${advSeq}`;
+      const [advResult] = await conn.query(
+        `INSERT INTO customer_payments
+           (order_id, payment_number, customer_id, payment_date, amount, payment_method,
+            payment_type, reference_number,
+            allocation_status, allocated_amount, notes, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, 'Cash',
+                 'invoice_payment', ?,
+                 'allocated', ?, 'Advance payment at order creation', ?)`,
+        [orderId, advNo, customer_id, order_date, advancePaid, advNo, advancePaid, userId]
+      );
+      const advPaymentId = advResult.insertId;
+      const [[lastLedger]] = await conn.query(
+        `SELECT COALESCE(balance_after, 0) AS bal
+         FROM customer_ledger WHERE customer_id = ?
+         ORDER BY created_at DESC, id DESC LIMIT 1`,
+        [customer_id]
+      );
+      const prevBal = Number((_u = lastLedger == null ? void 0 : lastLedger.bal) != null ? _u : 0);
+      const newBal = Math.max(0, prevBal - advancePaid);
+      await conn.query(
+        `INSERT INTO customer_ledger
+           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
+            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
+         VALUES (?, ?, 'payment', 'customer_payment', ?,
+                 ?, ?, 0, ?, ?, ?)`,
+        [
+          customer_id,
+          order_date,
+          advPaymentId,
+          advNo,
+          `Advance payment \u2014 ${advNo} (Order ${orderNo})`,
+          advancePaid,
+          newBal,
+          userId
+        ]
+      );
+      await conn.query(
+        `UPDATE customers
+         SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
+         WHERE id = ?`,
+        [advancePaid, customer_id]
+      );
+    }
     await auditLog(conn, {
       userId,
       action: overLimit ? "other" : isAdmin ? "approved" : "other",
