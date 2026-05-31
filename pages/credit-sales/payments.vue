@@ -259,17 +259,17 @@ const { data, pending: loading, error, refresh } = await useFetch('/api/credit-s
 const payments = computed(() =>
   (data.value?.payments ?? []).map((p: any) => ({
     id:          p.id,
-    receiptNo:   p.reference_number ?? `PAY-${p.id}`,
-    date:        p.payment_date,
+    receiptNo:   p.payment_number ?? p.reference_number ?? `PAY-${p.id}`,
+    date:        String(p.payment_date ?? '').slice(0, 10),
     customer:    p.customer_name ?? '—',
-    orderId:     null,
-    orderRef:    '—',
+    orderId:     p.order_id ?? null,
+    orderRef:    p.order_number ?? '—',
     amount:      Number(p.amount ?? 0),
     method:      p.payment_method ?? '—',
     reference:   p.reference_number ?? '',
-    collectedBy: '—',
+    collectedBy: p.collected_by ?? '—',
     branch:      '—',
-    status:      p.allocation_status ?? p.status ?? 'cleared',
+    status:      p.allocation_status ?? 'cleared',
     notes:       p.notes ?? '',
   }))
 )
