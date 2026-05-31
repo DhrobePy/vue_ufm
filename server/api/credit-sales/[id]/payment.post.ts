@@ -77,15 +77,15 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
-    // Update order paid / balance — auto-complete when fully paid
+    // Update order paid / balance
+    // NOTE: 'completed' is not in the credit_orders.status ENUM — we derive it in
+    // the API response (balance_due = 0 → show as completed). Status stays 'delivered'.
     const isNowComplete = newBalance === 0 && order.status === 'delivered'
     await conn.query(
       `UPDATE credit_orders
-       SET amount_paid = ?, balance_due = ?,
-           status = CASE WHEN ? = 1 THEN 'completed' ELSE status END,
-           updated_at = NOW()
+       SET amount_paid = ?, balance_due = ?, updated_at = NOW()
        WHERE id = ?`,
-      [newPaid, newBalance, isNowComplete ? 1 : 0, id],
+      [newPaid, newBalance, id],
     )
 
     // Reduce customer current_balance

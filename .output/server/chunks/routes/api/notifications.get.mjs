@@ -65,13 +65,15 @@ const notifications_get = defineEventHandler(async () => {
        ORDER BY r.created_at DESC
        LIMIT 6`
     ), []),
-    // Orders completed in the last 24 h (fully paid)
+    // Orders fully paid in the last 24 h (balance_due = 0, delivered)
+    // 'completed' is not in the ENUM — detect via balance_due = 0 + delivered status
     safeQuery(() => query(
       `SELECT o.id, o.order_number, o.total_amount, o.updated_at,
               c.name AS customer_name
        FROM credit_orders o
        JOIN customers c ON c.id = o.customer_id
-       WHERE o.status = 'completed'
+       WHERE o.status = 'delivered'
+         AND o.balance_due = 0
          AND o.updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
        ORDER BY o.updated_at DESC
        LIMIT 4`

@@ -76,11 +76,9 @@ const payment_post = defineEventHandler(async (event) => {
     const isNowComplete = newBalance === 0 && order.status === "delivered";
     await conn.query(
       `UPDATE credit_orders
-       SET amount_paid = ?, balance_due = ?,
-           status = CASE WHEN ? = 1 THEN 'completed' ELSE status END,
-           updated_at = NOW()
+       SET amount_paid = ?, balance_due = ?, updated_at = NOW()
        WHERE id = ?`,
-      [newPaid, newBalance, isNowComplete ? 1 : 0, id]
+      [newPaid, newBalance, id]
     );
     await conn.query(
       `UPDATE customers SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW() WHERE id = ?`,

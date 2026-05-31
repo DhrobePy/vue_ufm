@@ -1,4 +1,4 @@
-import { queryOne, query, getDb } from '~/server/utils/db'
+import { queryOne, query } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -78,17 +78,11 @@ export default defineEventHandler(async (event) => {
 
   if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
-  // Auto-heal: if delivered + balance=0 but DB still says 'delivered', fix it now
+  // Virtual 'completed' state: 'completed' is not in the DB ENUM.
+  // Derive it on the fly — delivered + balance_due = 0 → show as completed in UI.
   const ord = order as any
   if (ord.status === 'delivered' && Number(ord.balance_due) === 0) {
     ord.status = 'completed'
-    // Persist the fix silently — don't block the response if it fails
-    const db = getDb()
-    db.query(
-      `UPDATE credit_orders SET status = 'completed', updated_at = NOW()
-       WHERE id = ? AND status = 'delivered' AND balance_due = 0`,
-      [id],
-    ).catch(() => {})
   }
 
   // Attach items to each return
