@@ -151,7 +151,7 @@ export default defineEventHandler(async (event) => {
       action:          wfAction,       // 'return_submitted'→'other', 'return_approved'→'approved'
       module:          'credit_sales',
       recordType:      'credit_order_return',
-      recordId:        returnId,
+      recordId:        id,        // store the CREDIT ORDER id so audit page can link to /credit-sales/{id}
       referenceNumber: retNo,
       description:     `Return ${retNo} for Order ${order.order_number} — ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString()} · ${autoApprove ? 'auto-approved' : 'pending approval'}`,
       severity:        autoApprove ? 'info' : 'warning',

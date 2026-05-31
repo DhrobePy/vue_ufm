@@ -121,7 +121,7 @@ export default defineEventHandler(async (event) => {
       action:          wfAction,       // 'return_approved'→'approved', 'return_rejected'→'rejected'
       module:          'credit_sales',
       recordType:      'credit_order_return',
-      recordId:        returnId,
+      recordId:        ret.order_id,  // credit order id — audit page links to /credit-sales/{id}
       referenceNumber: ret.return_number,
       description:     `${action === 'approve' ? 'Approved' : 'Rejected'} return ${ret.return_number} (Order ${ret.order_number}) — ৳${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` · ${notes}` : ''}`,
       severity:        action === 'approve' ? 'info' : 'warning',

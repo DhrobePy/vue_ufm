@@ -107,7 +107,8 @@ const status_patch = defineEventHandler(async (event) => {
       // 'return_approved'→'approved', 'return_rejected'→'rejected'
       module: "credit_sales",
       recordType: "credit_order_return",
-      recordId: returnId,
+      recordId: ret.order_id,
+      // credit order id — audit page links to /credit-sales/{id}
       referenceNumber: ret.return_number,
       description: `${action === "approve" ? "Approved" : "Rejected"} return ${ret.return_number} (Order ${ret.order_number}) \u2014 \u09F3${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` \xB7 ${notes}` : ""}`,
       severity: action === "approve" ? "info" : "warning",

@@ -149,7 +149,8 @@ const return_post = defineEventHandler(async (event) => {
       // 'return_submitted'→'other', 'return_approved'→'approved'
       module: "credit_sales",
       recordType: "credit_order_return",
-      recordId: returnId,
+      recordId: id,
+      // store the CREDIT ORDER id so audit page can link to /credit-sales/{id}
       referenceNumber: retNo,
       description: `Return ${retNo} for Order ${order.order_number} \u2014 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString()} \xB7 ${autoApprove ? "auto-approved" : "pending approval"}`,
       severity: autoApprove ? "info" : "warning",
