@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, order_number, balance_due, amount_paid, total_amount
+      `SELECT id, customer_id, order_number, balance_due, amount_paid, total_amount, status
        FROM credit_orders WHERE id = ?`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
@@ -135,7 +135,7 @@ export default defineEventHandler(async (event) => {
 
     // ── Workflow timeline entry ────────────────────────────
     const wfAction  = autoApprove ? 'return_approved' : 'return_submitted'
-    const wfComment = `Return ${retNo} — ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString('en-BD')} (${return_reason ?? 'no reason'})${autoApprove ? ' · Auto-approved' : ' · Pending approval'}`
+    const wfComment = `Return ${retNo} — ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString()} (${return_reason ?? 'no reason'})${autoApprove ? ' · Auto-approved' : ' · Pending approval'}`
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)

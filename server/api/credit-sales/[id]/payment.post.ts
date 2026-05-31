@@ -82,7 +82,7 @@ export default defineEventHandler(async (event) => {
     await conn.query(
       `UPDATE credit_orders
        SET amount_paid = ?, balance_due = ?,
-           status = IF(? AND status = 'delivered', 'completed', status),
+           status = CASE WHEN ? = 1 THEN 'completed' ELSE status END,
            updated_at = NOW()
        WHERE id = ?`,
       [newPaid, newBalance, isNowComplete ? 1 : 0, id],
@@ -125,7 +125,7 @@ export default defineEventHandler(async (event) => {
     // ── Workflow timeline entry ────────────────────────────
     const wfToStatus  = isNowComplete ? 'completed' : order.status
     const wfAction    = isNowComplete ? 'completed'  : 'payment_received'
-    const wfComments  = `Payment ${payNo} received — ৳${pmtAmount.toLocaleString('en-BD')} via ${mappedMethod}${isNowComplete ? ' · Order fully paid' : ''}`
+    const wfComments  = `Payment ${payNo} received — ৳${pmtAmount.toLocaleString()} via ${mappedMethod}${isNowComplete ? ' · Order fully paid' : ''}`
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)

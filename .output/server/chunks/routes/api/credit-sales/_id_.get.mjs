@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, d as createError, F as queryOne, E as query } from '../../../nitro/nitro.mjs';
+import { g as defineEventHandler, t as getRouterParam, d as createError, F as queryOne, E as query, m as getDb } from '../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -84,6 +84,17 @@ const _id__get = defineEventHandler(async (event) => {
     )
   ]);
   if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+  const ord = order;
+  if (ord.status === "delivered" && Number(ord.balance_due) === 0) {
+    ord.status = "completed";
+    const db = getDb();
+    db.query(
+      `UPDATE credit_orders SET status = 'completed', updated_at = NOW()
+       WHERE id = ? AND status = 'delivered' AND balance_due = 0`,
+      [id]
+    ).catch(() => {
+    });
+  }
   for (const ret of returns) {
     ret.items = await query(
       `SELECT ri.*, p.base_name AS product_name, pv.weight_variant

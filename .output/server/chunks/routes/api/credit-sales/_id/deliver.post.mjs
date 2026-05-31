@@ -117,7 +117,7 @@ const deliver_post = defineEventHandler(async (event) => {
     );
     const wfToStatus = is_final ? "delivered" : order.status;
     const wfAction = is_final ? "delivered" : "partial_delivery";
-    const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString("en-BD")}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`;
+    const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`;
     if (is_final) {
       await conn.query(
         `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`,

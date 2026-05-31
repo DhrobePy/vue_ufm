@@ -105,7 +105,7 @@ export default defineEventHandler(async (event) => {
 
     // ── Workflow timeline entry ────────────────────────────
     const wfAction  = action === 'approve' ? 'return_approved' : 'return_rejected'
-    const wfComment = `${action === 'approve' ? 'Approved' : 'Rejected'} return ${ret.return_number} — ৳${Number(ret.total_returned_amount).toLocaleString('en-BD')}${notes ? ` | ${notes}` : ''}`
+    const wfComment = `${action === 'approve' ? 'Approved' : 'Rejected'} return ${ret.return_number} — ৳${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` | ${notes}` : ''}`
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)

@@ -91,7 +91,7 @@ export default defineEventHandler(async () => {
 
   for (const o of pendingOrders as any[]) {
     const escalated = o.status === 'escalated'
-    const amt = Number(o.total_amount).toLocaleString('en-BD')
+    const amt = Number(o.total_amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  escalated
@@ -105,7 +105,7 @@ export default defineEventHandler(async () => {
   }
 
   for (const e of pendingExpenses as any[]) {
-    const amt = Number(e.total_amount).toLocaleString('en-BD')
+    const amt = Number(e.total_amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  `💸 Expense pending — ${e.description || 'Voucher'} · ৳${amt}`,
@@ -117,7 +117,7 @@ export default defineEventHandler(async () => {
   }
 
   for (const p of recentPayments as any[]) {
-    const amt = Number(p.amount).toLocaleString('en-BD')
+    const amt = Number(p.amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  `✅ Payment ৳${amt} received — ${p.customer_name} (${p.payment_method})`,
@@ -129,7 +129,7 @@ export default defineEventHandler(async () => {
   }
 
   for (const r of pendingReturns as any[]) {
-    const amt = Number(r.total_returned_amount).toLocaleString('en-BD')
+    const amt = Number(r.total_returned_amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  `↩️ Return ${r.return_number} pending approval — ${r.customer_name} · ৳${amt} (Order ${r.order_number})`,
@@ -141,7 +141,7 @@ export default defineEventHandler(async () => {
   }
 
   for (const o of recentCompletions as any[]) {
-    const amt = Number(o.total_amount).toLocaleString('en-BD')
+    const amt = Number(o.total_amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  `✅ Order ${o.order_number} fully paid & completed — ${o.customer_name} · ৳${amt}`,
@@ -153,7 +153,7 @@ export default defineEventHandler(async () => {
   }
 
   for (const r of recentReturnApprovals as any[]) {
-    const amt = Number(r.total_returned_amount).toLocaleString('en-BD')
+    const amt = Number(r.total_returned_amount).toLocaleString()
     notifications.push({
       id:    nid++,
       text:  `↩️ Return ${r.return_number} approved — ${r.customer_name} · -৳${amt} (Order ${r.order_number})`,

@@ -119,7 +119,7 @@ export default defineEventHandler(async (event) => {
     // Update order status + write workflow timeline entry
     const wfToStatus = is_final ? 'delivered' : order.status
     const wfAction   = is_final ? 'delivered' : 'partial_delivery'
-    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString('en-BD')}${truck_number ? ` · Truck ${truck_number}` : ''}`
+    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}`
 
     if (is_final) {
       await conn.query(

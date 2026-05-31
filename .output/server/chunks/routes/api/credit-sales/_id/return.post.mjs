@@ -33,7 +33,7 @@ const return_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[order]] = await conn.query(
-      `SELECT id, customer_id, order_number, balance_due, amount_paid, total_amount
+      `SELECT id, customer_id, order_number, balance_due, amount_paid, total_amount, status
        FROM credit_orders WHERE id = ?`,
       [id]
     );
@@ -135,7 +135,7 @@ const return_post = defineEventHandler(async (event) => {
       );
     }
     const wfAction = autoApprove ? "return_approved" : "return_submitted";
-    const wfComment = `Return ${retNo} \u2014 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString("en-BD")} (${return_reason != null ? return_reason : "no reason"})${autoApprove ? " \xB7 Auto-approved" : " \xB7 Pending approval"}`;
+    const wfComment = `Return ${retNo} \u2014 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString()} (${return_reason != null ? return_reason : "no reason"})${autoApprove ? " \xB7 Auto-approved" : " \xB7 Pending approval"}`;
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)

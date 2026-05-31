@@ -25,8 +25,13 @@ export default defineEventHandler(async (event) => {
 
   const [orders, totals] = await Promise.all([
     query(
-      `SELECT o.id, o.order_number, o.order_date, o.required_date, o.status, o.priority,
-              o.total_amount, o.balance_due, o.amount_paid, o.total_weight_kg,
+      `SELECT o.id, o.order_number,
+              DATE_FORMAT(o.order_date, '%d %b %Y') AS order_date,
+              o.required_date, o.priority, o.total_amount, o.balance_due, o.amount_paid,
+              o.total_weight_kg,
+              -- Auto-heal: delivered + fully paid → completed (even if DB not updated yet)
+              CASE WHEN o.status = 'delivered' AND o.balance_due = 0 THEN 'completed'
+                   ELSE o.status END AS status,
               c.id AS customer_id, c.name AS customer_name, c.business_name,
               c.phone_number, c.credit_limit, c.current_balance
        FROM credit_orders o
