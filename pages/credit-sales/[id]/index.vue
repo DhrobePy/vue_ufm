@@ -229,14 +229,18 @@
 
             <div v-if="payments.length" class="space-y-0 divide-y divide-white/[0.04]">
               <div v-for="p in payments" :key="p.id"
-                   class="flex items-center gap-4 py-3">
+                   class="flex items-center gap-4 py-3"
+                   :class="isReversed(p) ? 'opacity-40' : ''">
                 <!-- Method icon -->
                 <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10 text-emerald-400 text-xs font-bold">
                   {{ methodIcon(p.payment_method) }}
                 </div>
                 <!-- Details -->
                 <div class="flex-1 min-w-0">
-                  <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
+                  <div class="flex items-center gap-2">
+                    <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
+                    <span v-if="isReversed(p)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">REVERSED</span>
+                  </div>
                   <p class="text-[11px] text-gray-500 mt-0.5">
                     {{ p.payment_method }}
                     <span v-if="p.reference_number && p.reference_number !== p.payment_number">
@@ -246,10 +250,20 @@
                   </p>
                   <p v-if="p.notes" class="text-[10px] text-gray-600 mt-0.5 italic">{{ p.notes }}</p>
                 </div>
-                <!-- Date + Amount -->
-                <div class="text-right shrink-0">
-                  <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
-                  <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
+                <!-- Date + Amount + Reverse button -->
+                <div class="flex items-center gap-3 shrink-0">
+                  <div class="text-right">
+                    <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
+                    <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
+                  </div>
+                  <button v-if="isAdmin && !isReversed(p)"
+                    @click="openReversePayment(p)"
+                    class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
+                    title="Reverse this payment">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
@@ -304,14 +318,24 @@
                     <p class="text-[11px] text-gray-500 mt-0.5">{{ ret.return_date }} · {{ ret.return_reason ?? '—' }}</p>
                     <p class="text-[10px] text-gray-600 mt-0.5">By {{ ret.created_by_name ?? 'Unknown' }}</p>
                   </div>
-                  <div class="text-right shrink-0">
-                    <p class="text-sm font-bold text-red-400">-৳{{ Number(ret.total_returned_amount).toLocaleString() }}</p>
-                    <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 inline-block',
-                      ret.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
-                      ret.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
-                      'bg-yellow-500/15 text-yellow-400']">
-                      {{ ret.status }}
-                    </span>
+                  <div class="flex flex-col items-end gap-2 shrink-0">
+                    <div class="text-right">
+                      <p class="text-sm font-bold text-red-400">-৳{{ Number(ret.total_returned_amount).toLocaleString() }}</p>
+                      <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 inline-block',
+                        ret.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                        ret.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                        'bg-yellow-500/15 text-yellow-400']">
+                        {{ ret.status }}
+                      </span>
+                    </div>
+                    <button v-if="isAdmin" @click="openDeleteReturn(ret)"
+                      class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-700 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
+                      title="Delete this return">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
 
@@ -537,6 +561,122 @@
           </div>
         </Transition>
       </Teleport>
+
+      <!-- ── Reverse Payment Modal ──────────────────────── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="reverseModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="reverseModal = false" />
+            <div class="relative w-full max-w-md glass-card p-6 space-y-4 animate-slide-up">
+              <h3 class="section-title text-amber-400">↩ Reverse Payment</h3>
+
+              <div v-if="reverseTarget" class="rounded-xl p-3 text-xs space-y-1.5"
+                   style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2)">
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Payment #</span>
+                  <span class="font-mono font-bold text-gold-400/80">{{ reverseTarget.payment_number }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Amount</span>
+                  <span class="font-bold text-emerald-400">৳{{ Number(reverseTarget.amount).toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Method</span>
+                  <span class="text-gray-300">{{ reverseTarget.payment_method }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Date</span>
+                  <span class="text-gray-400">{{ String(reverseTarget.payment_date).slice(0,10) }}</span>
+                </div>
+              </div>
+
+              <p class="text-xs text-gray-400 leading-relaxed">
+                This will <strong class="text-red-400">void the payment</strong> by posting a debit note to the ledger,
+                restoring <span class="text-red-400 font-semibold">৳{{ Number(reverseTarget?.amount ?? 0).toLocaleString() }}</span>
+                back to the order balance and customer account.
+                The original payment record will be marked as <em>REVERSED</em>.
+              </p>
+
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason (optional)</label>
+                <textarea v-model="reverseReason" rows="2" class="field-input w-full resize-none text-sm"
+                          placeholder="e.g. Cheque bounced, wrong amount, duplicate entry…" />
+              </div>
+
+              <div class="rounded-xl p-3 text-xs" style="background:rgba(249,115,22,0.06);border:1px solid rgba(249,115,22,0.2)">
+                <p class="text-orange-400 font-semibold">⚠ This cannot be undone.</p>
+                <p class="text-gray-500 mt-0.5">The balance due on this order will increase by the reversed amount.</p>
+              </div>
+
+              <div class="flex gap-3">
+                <button @click="reverseModal = false" class="btn-ghost flex-1">Go Back</button>
+                <button @click="confirmReversePayment" :disabled="acting"
+                  class="flex-1 py-2 rounded-xl text-sm font-semibold text-amber-400 border border-amber-500/30 hover:bg-amber-500/10 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  {{ acting ? '…' : '↩ Confirm Reversal' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- ── Delete Return Modal ────────────────────────── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="deleteReturnModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="deleteReturnModal = false" />
+            <div class="relative w-full max-w-md glass-card p-6 space-y-4 animate-slide-up">
+              <h3 class="section-title text-red-400">🗑️ Delete Return</h3>
+
+              <div v-if="deleteReturnTarget" class="rounded-xl p-3 text-xs space-y-1.5"
+                   style="background:rgba(239,68,68,0.07);border:1px solid rgba(239,68,68,0.2)">
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Return #</span>
+                  <span class="font-mono font-bold text-gold-400/80">{{ deleteReturnTarget.return_number }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Amount</span>
+                  <span class="font-bold text-red-400">৳{{ Number(deleteReturnTarget.total_returned_amount).toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Status</span>
+                  <span :class="deleteReturnTarget.status === 'approved' ? 'text-emerald-400' : deleteReturnTarget.status === 'rejected' ? 'text-red-400' : 'text-yellow-400'">
+                    {{ deleteReturnTarget.status }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Approved return: extra warning about reversal -->
+              <div v-if="deleteReturnTarget?.status === 'approved'"
+                   class="rounded-xl p-3 text-xs space-y-1"
+                   style="background:rgba(249,115,22,0.08);border:1px solid rgba(249,115,22,0.25)">
+                <p class="text-orange-400 font-semibold">⚠ Approved return — accounting will be reversed</p>
+                <p class="text-gray-500 leading-relaxed mt-0.5">
+                  Because this return was already approved, deleting it will:
+                </p>
+                <ul class="text-gray-500 mt-1 space-y-0.5 pl-2 list-disc list-inside leading-relaxed">
+                  <li>Remove the credit note from the customer ledger</li>
+                  <li>Add <span class="text-orange-300 font-semibold">৳{{ Number(deleteReturnTarget?.total_returned_amount ?? 0).toLocaleString() }}</span> back to the order balance</li>
+                  <li>Restore the customer's outstanding balance</li>
+                </ul>
+              </div>
+
+              <!-- Pending / rejected: simple confirmation -->
+              <p v-else class="text-xs text-gray-400">
+                This return request will be permanently removed. No accounting adjustments will be made as it was never approved.
+              </p>
+
+              <div class="flex gap-3">
+                <button @click="deleteReturnModal = false" class="btn-ghost flex-1">Go Back</button>
+                <button @click="confirmDeleteReturn" :disabled="acting"
+                  class="flex-1 py-2 rounded-xl text-sm font-semibold text-red-400 border border-red-500/30 hover:bg-red-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-all">
+                  {{ acting ? '…' : 'Confirm Delete' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
     </template>
   </div>
 </template>
@@ -572,6 +712,10 @@ function methodIcon(method: string): string {
   if (m.includes('bank') || m.includes('transfer')) return '🏦'
   if (m.includes('cheque') || m.includes('check'))  return '📄'
   return '💳'
+}
+
+function isReversed(p: any): boolean {
+  return (p.notes ?? '').startsWith('REVERSED')
 }
 
 const approvedReturns = computed(() => returns.value.filter((r: any) => r.status === 'approved'))
@@ -701,6 +845,59 @@ async function submitReturnApproval() {
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Action failed')
+  } finally {
+    acting.value = false
+  }
+}
+
+// ── Payment reversal ─────────────────────────────────────
+const reverseModal  = ref(false)
+const reverseTarget = ref<any>(null)
+const reverseReason = ref('')
+
+function openReversePayment(p: any) {
+  reverseTarget.value = p
+  reverseReason.value = ''
+  reverseModal.value  = true
+}
+
+async function confirmReversePayment() {
+  if (!reverseTarget.value) return
+  acting.value = true
+  try {
+    await $fetch('/api/credit-sales/payments/reverse', {
+      method: 'POST',
+      body: { payment_id: reverseTarget.value.id, reason: reverseReason.value || undefined },
+    })
+    reverseModal.value = false
+    warning(`Payment ${reverseTarget.value.payment_number} reversed — ledger adjusted`)
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Reversal failed')
+  } finally {
+    acting.value = false
+  }
+}
+
+// ── Return deletion ───────────────────────────────────────
+const deleteReturnModal  = ref(false)
+const deleteReturnTarget = ref<any>(null)
+
+function openDeleteReturn(ret: any) {
+  deleteReturnTarget.value = ret
+  deleteReturnModal.value  = true
+}
+
+async function confirmDeleteReturn() {
+  if (!deleteReturnTarget.value) return
+  acting.value = true
+  try {
+    await $fetch(`/api/credit-sales/returns/${deleteReturnTarget.value.id}`, { method: 'DELETE' })
+    deleteReturnModal.value = false
+    success(`Return ${deleteReturnTarget.value.return_number} deleted`)
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Delete failed')
   } finally {
     acting.value = false
   }
