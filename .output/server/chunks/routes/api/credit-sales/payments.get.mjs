@@ -14,12 +14,13 @@ const payments_get = defineEventHandler(async (event) => {
   const search = q.search || "";
   const status = q.status || "";
   const page = Number(q.page) || 1;
-  const { limit, offset } = paginate(page, 30);
+  const per = Number(q.per) || 15;
+  const { limit, offset } = paginate(page, per);
   const where = [];
   const params = [];
   if (search) {
-    where.push("(p.reference_number LIKE ? OR c.name LIKE ?)");
-    params.push(`%${search}%`, `%${search}%`);
+    where.push("(p.payment_number LIKE ? OR p.reference_number LIKE ? OR c.name LIKE ?)");
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
   if (status) {
     where.push("p.allocation_status = ?");
@@ -28,20 +29,40 @@ const payments_get = defineEventHandler(async (event) => {
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
   const [payments, [cnt]] = await Promise.all([
     query(
-      `SELECT p.id, p.reference_number, p.payment_date, p.amount,
-              p.allocated_amount, p.allocation_status, p.payment_method,
-              p.notes, p.status, p.created_at,
-              c.id AS customer_id, c.name AS customer_name
-       FROM customer_payments p
-       JOIN customers c ON c.id = p.customer_id
+      `SELECT p.id,
+              p.payment_number,
+              p.reference_number,
+              p.payment_date,
+              p.amount,
+              p.payment_method,
+              p.payment_type,
+              p.allocation_status,
+              p.allocated_amount,
+              p.notes,
+              p.created_at,
+              p.order_id,
+              c.id   AS customer_id,
+              c.name AS customer_name,
+              o.order_number,
+              u.display_name AS collected_by
+       FROM   customer_payments p
+       JOIN   customers c  ON c.id = p.customer_id
+       LEFT JOIN credit_orders o ON o.id = p.order_id
+       LEFT JOIN users u         ON u.id = p.created_by_user_id
        ${w}
        ORDER BY p.payment_date DESC, p.id DESC
        LIMIT ? OFFSET ?`,
       [...params, limit, offset]
     ),
-    query(`SELECT COUNT(*) AS total FROM customer_payments p JOIN customers c ON c.id = p.customer_id ${w}`, params)
+    query(
+      `SELECT COUNT(*) AS total
+       FROM   customer_payments p
+       JOIN   customers c ON c.id = p.customer_id
+       ${w}`,
+      params
+    )
   ]);
-  return { payments, total: cnt.total, page, perPage: limit };
+  return { payments, total: cnt.total, page, perPage: per };
 });
 
 export { payments_get as default };

@@ -1079,7 +1079,7 @@ const _routes = [
     name: "credit-sales-payments",
     path: "/credit-sales/payments",
     meta: __nuxt_page_meta$O || {},
-    component: () => import('./payments-BuzfMjAQ.mjs')
+    component: () => import('./payments-CRio2h1Q.mjs')
   },
   {
     name: "expenses-id-voucher",
@@ -1217,7 +1217,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$r || {},
-    component: () => import('./index-CKclsShJ.mjs')
+    component: () => import('./index-BbHAHcWv.mjs')
   },
   {
     name: "credit-sales-production",

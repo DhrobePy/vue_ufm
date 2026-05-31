@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, w as getUserSession, q as getRequestHeader, e as createError, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,11 +10,12 @@ import 'mysql2/promise';
 import 'node:url';
 
 const reverse_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
+  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
   if (!["admin", "superadmin"].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can reverse payments" });
   }
@@ -32,15 +33,17 @@ const reverse_post = defineEventHandler(async (event) => {
       [payment_id]
     );
     if (!pmt) throw createError({ statusCode: 404, statusMessage: "Payment not found" });
-    if (((_e = pmt.notes) != null ? _e : "").startsWith("REVERSED")) {
-      throw createError({ statusCode: 409, statusMessage: "Payment already reversed" });
+    if (((_g = pmt.notes) != null ? _g : "").startsWith("REVERSED")) {
+      throw createError({ statusCode: 409, statusMessage: "Payment is already reversed" });
     }
     const pmtAmount = Number(pmt.amount);
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     await conn.query(
       `UPDATE customer_payments
-       SET notes = CONCAT('REVERSED on ', ?, ' \u2014 ', COALESCE(?, 'No reason given'), IF(notes IS NOT NULL, CONCAT(' | Orig: ', notes), '')),
-           allocation_status = 'unallocated', updated_at = NOW()
+       SET notes             = CONCAT('REVERSED on ', ?, ' \u2014 ', COALESCE(?, 'No reason given'),
+                               IF(notes IS NOT NULL AND notes != '', CONCAT(' | Orig: ', notes), '')),
+           allocation_status = 'unallocated',
+           updated_at        = NOW()
        WHERE id = ?`,
       [today, reason != null ? reason : null, payment_id]
     );
@@ -50,9 +53,9 @@ const reverse_post = defineEventHandler(async (event) => {
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [pmt.customer_id]
     );
-    const prevBal = Number((_f = lastLedger == null ? void 0 : lastLedger.bal) != null ? _f : 0);
+    const prevBal = Number((_h = lastLedger == null ? void 0 : lastLedger.bal) != null ? _h : 0);
     const newBal = prevBal + pmtAmount;
-    const refNo = `REV-${(_g = pmt.reference_number) != null ? _g : pmt.id}`;
+    const refNo = `REV-${(_i = pmt.payment_number) != null ? _i : pmt.id}`;
     await conn.query(
       `INSERT INTO customer_ledger
          (customer_id, transaction_date, transaction_type, reference_type, reference_id,
@@ -70,27 +73,32 @@ const reverse_post = defineEventHandler(async (event) => {
       ]
     );
     await conn.query(
-      `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
+      `UPDATE customers
+       SET current_balance = current_balance + ?, updated_at = NOW()
+       WHERE id = ?`,
       [pmtAmount, pmt.customer_id]
     );
-    if (pmt.allocated_to_invoices) {
-      try {
-        const invoices = JSON.parse(pmt.allocated_to_invoices);
-        for (const inv of invoices) {
-          if (inv.order_id) {
-            await conn.query(
-              `UPDATE credit_orders
-               SET balance_due  = balance_due  + ?,
-                   amount_paid  = GREATEST(0, amount_paid - ?),
-                   updated_at   = NOW()
-               WHERE id = ?`,
-              [pmtAmount, pmtAmount, inv.order_id]
-            );
-          }
-        }
-      } catch {
-      }
+    if (pmt.order_id) {
+      await conn.query(
+        `UPDATE credit_orders
+         SET balance_due = balance_due + ?,
+             amount_paid = GREATEST(0, amount_paid - ?),
+             updated_at  = NOW()
+         WHERE id = ?`,
+        [pmtAmount, pmtAmount, pmt.order_id]
+      );
     }
+    await auditLog(conn, {
+      userId,
+      action: "other",
+      module: "credit_sales",
+      recordType: "customer_payment",
+      recordId: (_j = pmt.order_id) != null ? _j : payment_id,
+      referenceNumber: refNo,
+      description: `Payment reversed \u2014 ${refNo} \xB7 \u09F3${pmtAmount.toLocaleString()} for ${pmt.customer_name}${reason ? ` \xB7 Reason: ${reason}` : ""}`,
+      severity: "warning",
+      ipAddress
+    });
     await conn.commit();
     return { ok: true, reversed_amount: pmtAmount, reference: refNo };
   } catch (e) {
