@@ -50,22 +50,21 @@ export default defineEventHandler(async (event) => {
          (po_number, po_date, supplier_id, supplier_name, wheat_origin,
           expected_delivery_date, quantity_kg, unit_price_per_kg,
           total_order_value, balance_payable,
-          qty_yet_to_receive,
           po_status, delivery_status, payment_status,
           branch_id, created_by_user_id, remarks,
           created_at, updated_at)
        VALUES (?, ?, ?, ?, ?,
                ?, ?, ?,
                ?, ?,
-               ?,
-               'pending', 'pending', 'unpaid',
+               'draft', 'pending', 'unpaid',
                ?, ?, ?,
                NOW(), NOW())`,
       [
-        poNo, po_date, Number(supplier_id), supplierName, wheat_origin ?? null,
+        poNo, po_date, Number(supplier_id), supplierName,
+        wheat_origin || 'Other',                // NOT NULL in production — fall back to 'Other'
         expected_delivery_date ?? null, quantity_kg, unit_price_per_kg,
         total_order_value, total_order_value,
-        quantity_kg,
+        // qty_yet_to_receive is GENERATED ALWAYS — do NOT include in INSERT
         branch_id ? Number(branch_id) : null, userId, remarks ?? null,
       ],
     )

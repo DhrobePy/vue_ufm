@@ -63,17 +63,17 @@ const index_post = defineEventHandler(async (event) => {
          (grn_number, grn_date, purchase_order_id, po_number,
           supplier_id, supplier_name,
           quantity_received_kg, unit_price_per_kg, total_value,
-          weight_variance, variance_percentage,
-          quality_grade, truck_number, transporter_name,
-          grn_status, notes,
-          created_by_user_id, created_at, updated_at)
+          variance_percentage,
+          truck_number, remarks,
+          grn_status, receiver_user_id,
+          created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
                ?, ?, ?,
+               ?,
                ?, ?,
-               ?, ?, ?,
                'draft', ?,
-               ?, NOW(), NOW())`,
+               NOW(), NOW())`,
       [
         grnNo,
         grn_date,
@@ -84,11 +84,8 @@ const index_post = defineEventHandler(async (event) => {
         totalQtyKg,
         unit_price_per_kg,
         totalValue,
-        weightVariance,
         variancePct,
-        quality_grade != null ? quality_grade : "A",
         vehicle != null ? vehicle : null,
-        driver != null ? driver : null,
         notes != null ? notes : null,
         userId
       ]

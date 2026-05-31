@@ -89,7 +89,7 @@
                 <p class="font-mono text-gold-400/80">{{ grn.grn_number }}</p>
                 <p class="text-gray-500 mt-0.5">
                   {{ grn.grn_date }} · {{ Number(grn.quantity_received_kg).toLocaleString() }} kg
-                  <span v-if="grn.quality_grade"> · Grade {{ grn.quality_grade }}</span>
+                  <span v-if="grn.unload_point_name"> · {{ grn.unload_point_name }}</span>
                   <span v-if="grn.unload_branch_name"> · {{ grn.unload_branch_name }}</span>
                 </p>
               </div>
@@ -104,7 +104,7 @@
             <div v-for="pmt in payments" :key="pmt.id"
                  class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs">
               <div>
-                <p class="font-semibold text-gray-200">৳{{ Number(pmt.amount_paid ?? pmt.amount ?? 0).toLocaleString() }}</p>
+                <p class="font-semibold text-gray-200">৳{{ Number(pmt.amount_paid ?? 0).toLocaleString() }}</p>
                 <p class="text-gray-500 mt-0.5">
                   {{ pmt.payment_date }} · {{ pmt.payment_mode || pmt.payment_method || '—' }}
                   <span v-if="pmt.bank_name"> · {{ pmt.bank_name }}</span>

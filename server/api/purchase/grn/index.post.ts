@@ -58,29 +58,31 @@ export default defineEventHandler(async (event) => {
     const weightVariance = totalQtyKg - orderedKg
     const variancePct    = orderedKg > 0 ? ((weightVariance / orderedKg) * 100).toFixed(4) : '0'
 
+    // weight_variance is a GENERATED ALWAYS column in production — do NOT insert it
+    // quality_grade, transporter_name, notes, created_by_user_id don't exist in production
+    // receiver_user_id is the correct column for who recorded the GRN
     const [result] = await conn.query<any>(
       `INSERT INTO goods_received_adnan
          (grn_number, grn_date, purchase_order_id, po_number,
           supplier_id, supplier_name,
           quantity_received_kg, unit_price_per_kg, total_value,
-          weight_variance, variance_percentage,
-          quality_grade, truck_number, transporter_name,
-          grn_status, notes,
-          created_by_user_id, created_at, updated_at)
+          variance_percentage,
+          truck_number, remarks,
+          grn_status, receiver_user_id,
+          created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
                ?, ?, ?,
+               ?,
                ?, ?,
-               ?, ?, ?,
                'draft', ?,
-               ?, NOW(), NOW())`,
+               NOW(), NOW())`,
       [
         grnNo, grn_date, Number(po_id), po.po_number,
         po.supplier_id ?? null, po.supplier_name,
         totalQtyKg, unit_price_per_kg, totalValue,
-        weightVariance, variancePct,
-        quality_grade ?? 'A', vehicle ?? null, driver ?? null,
-        notes ?? null,
+        variancePct,
+        vehicle ?? null, notes ?? null,
         userId,
       ],
     )

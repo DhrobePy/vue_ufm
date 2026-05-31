@@ -15,7 +15,7 @@ const open_get = defineEventHandler(async () => {
             qty_yet_to_receive, unit_price_per_kg, total_order_value,
             balance_payable, total_paid
      FROM purchase_orders_adnan
-     WHERE po_status NOT IN ('cancelled', 'closed')
+     WHERE po_status NOT IN ('cancelled', 'completed')
      ORDER BY po_date DESC
      LIMIT 200`
   );
