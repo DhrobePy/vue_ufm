@@ -21,6 +21,8 @@ const index_post = defineEventHandler(async (event) => {
     driver,
     quality_grade,
     notes,
+    unload_point_name,
+    // e.g. সিরাজগঞ্জ, ডেমরা, রামপুরা, Head Office, Other
     items
     // [{ product, qty_mt, unit_price_per_mt, condition }]
   } = body != null ? body : {};
@@ -64,15 +66,15 @@ const index_post = defineEventHandler(async (event) => {
           supplier_id, supplier_name,
           quantity_received_kg, unit_price_per_kg, total_value,
           variance_percentage,
-          truck_number, remarks,
+          truck_number, unload_point_name, remarks,
           grn_status, receiver_user_id,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
                ?, ?, ?,
                ?,
-               ?, ?,
-               'draft', ?,
+               ?, ?, ?,
+               'verified', ?,
                NOW(), NOW())`,
       [
         grnNo,
@@ -86,6 +88,7 @@ const index_post = defineEventHandler(async (event) => {
         totalValue,
         variancePct,
         vehicle != null ? vehicle : null,
+        unload_point_name != null ? unload_point_name : null,
         notes != null ? notes : null,
         userId
       ]
@@ -93,11 +96,20 @@ const index_post = defineEventHandler(async (event) => {
     const grnId = result.insertId;
     await conn.query(
       `UPDATE purchase_orders_adnan
-       SET total_received_qty = COALESCE(total_received_qty,0) + ?,
-           qty_yet_to_receive = GREATEST(0, COALESCE(qty_yet_to_receive, quantity_kg) - ?),
+       SET total_received_qty   = COALESCE(total_received_qty, 0) + ?,
+           total_received_value = COALESCE(total_received_value, 0) + ?,
+           balance_payable      = GREATEST(0,
+             COALESCE(total_received_value, 0) + ? - COALESCE(total_paid, 0)
+           ),
+           delivery_status      = CASE
+             WHEN (COALESCE(total_received_qty, 0) + ?) <= 0              THEN 'pending'
+             WHEN (COALESCE(total_received_qty, 0) + ?) < quantity_kg     THEN 'partial'
+             WHEN (COALESCE(total_received_qty, 0) + ?) <= quantity_kg * 1.05 THEN 'completed'
+             ELSE 'over_received'
+           END,
            updated_at = NOW()
        WHERE id = ?`,
-      [totalQtyKg, totalQtyKg, po_id]
+      [totalQtyKg, totalValue, totalValue, totalQtyKg, totalQtyKg, totalQtyKg, po_id]
     );
     await conn.commit();
     return { ok: true, id: grnId, grn_number: grnNo };

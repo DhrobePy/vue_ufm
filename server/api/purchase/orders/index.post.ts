@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?,
                ?, ?, ?,
                ?, ?,
-               'draft', 'pending', 'unpaid',
+               'approved', 'pending', 'unpaid',
                ?, ?, ?,
                NOW(), NOW())`,
       [

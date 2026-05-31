@@ -90,8 +90,19 @@
 
         <!-- Transport & quality -->
         <div class="glass-card p-6 space-y-4">
-          <h3 class="section-title">Transport & Quality Check</h3>
+          <h3 class="section-title">Transport & Unloading</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Unload Point *</label>
+              <select v-model="form.unload_point_name" class="input-glass">
+                <option value="">— Select —</option>
+                <option value="সিরাজগঞ্জ">সিরাজগঞ্জ</option>
+                <option value="ডেমরা">ডেমরা</option>
+                <option value="রামপুরা">রামপুরা</option>
+                <option value="Head Office">Head Office</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Transport Vehicle</label>
               <input v-model="form.vehicle" type="text" class="input-glass" placeholder="Reg. plate / vehicle no." />
@@ -156,6 +167,7 @@ const form = reactive({
   poId: '' as string | number,
   date: new Date().toISOString().slice(0, 10),
   vehicle: '', driver: '', quality: 'A', notes: '',
+  unload_point_name: '',
   items: [{ product: '', qty_mt: 0, unit_price_per_mt: 45000, condition: 'good' }],
 })
 
@@ -191,12 +203,13 @@ async function submit() {
     const result = await $fetch('/api/purchase/grn', {
       method: 'POST',
       body: {
-        po_id:         Number(form.poId),
-        grn_date:      form.date,
-        vehicle:       form.vehicle || null,
-        driver:        form.driver  || null,
-        quality_grade: form.quality,
-        notes:         form.notes   || null,
+        po_id:              Number(form.poId),
+        grn_date:           form.date,
+        vehicle:            form.vehicle || null,
+        driver:             form.driver  || null,
+        quality_grade:      form.quality,
+        notes:              form.notes   || null,
+        unload_point_name:  form.unload_point_name || null,
         items: form.items.map(i => ({
           product:           i.product,
           qty_mt:            i.qty_mt,

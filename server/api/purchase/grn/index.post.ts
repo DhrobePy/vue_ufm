@@ -12,7 +12,8 @@ export default defineEventHandler(async (event) => {
     driver,
     quality_grade,
     notes,
-    items,           // [{ product, qty_mt, unit_price_per_mt, condition }]
+    unload_point_name,  // e.g. সিরাজগঞ্জ, ডেমরা, রামপুরা, Head Office, Other
+    items,              // [{ product, qty_mt, unit_price_per_mt, condition }]
   } = body ?? {}
 
   if (!po_id || !grn_date || !items?.length) {
@@ -61,42 +62,55 @@ export default defineEventHandler(async (event) => {
     // weight_variance is a GENERATED ALWAYS column in production — do NOT insert it
     // quality_grade, transporter_name, notes, created_by_user_id don't exist in production
     // receiver_user_id is the correct column for who recorded the GRN
+    // grn_status default in production is 'verified' (not 'draft')
     const [result] = await conn.query<any>(
       `INSERT INTO goods_received_adnan
          (grn_number, grn_date, purchase_order_id, po_number,
           supplier_id, supplier_name,
           quantity_received_kg, unit_price_per_kg, total_value,
           variance_percentage,
-          truck_number, remarks,
+          truck_number, unload_point_name, remarks,
           grn_status, receiver_user_id,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
                ?, ?, ?,
                ?,
-               ?, ?,
-               'draft', ?,
+               ?, ?, ?,
+               'verified', ?,
                NOW(), NOW())`,
       [
         grnNo, grn_date, Number(po_id), po.po_number,
         po.supplier_id ?? null, po.supplier_name,
         totalQtyKg, unit_price_per_kg, totalValue,
         variancePct,
-        vehicle ?? null, notes ?? null,
+        vehicle ?? null, unload_point_name ?? null, notes ?? null,
         userId,
       ],
     )
 
     const grnId = result.insertId
 
-    // Update PO received qty
+    // Update PO received qty, value, balance and delivery status.
+    // NOTE: qty_yet_to_receive is GENERATED ALWAYS AS (quantity_kg - total_received_qty) STORED
+    //       — do NOT include it in SET (MariaDB will reject it).
+    // All expressions in SET use the ORIGINAL column values (MariaDB evaluates before mutation).
     await conn.query(
       `UPDATE purchase_orders_adnan
-       SET total_received_qty = COALESCE(total_received_qty,0) + ?,
-           qty_yet_to_receive = GREATEST(0, COALESCE(qty_yet_to_receive, quantity_kg) - ?),
+       SET total_received_qty   = COALESCE(total_received_qty, 0) + ?,
+           total_received_value = COALESCE(total_received_value, 0) + ?,
+           balance_payable      = GREATEST(0,
+             COALESCE(total_received_value, 0) + ? - COALESCE(total_paid, 0)
+           ),
+           delivery_status      = CASE
+             WHEN (COALESCE(total_received_qty, 0) + ?) <= 0              THEN 'pending'
+             WHEN (COALESCE(total_received_qty, 0) + ?) < quantity_kg     THEN 'partial'
+             WHEN (COALESCE(total_received_qty, 0) + ?) <= quantity_kg * 1.05 THEN 'completed'
+             ELSE 'over_received'
+           END,
            updated_at = NOW()
        WHERE id = ?`,
-      [totalQtyKg, totalQtyKg, po_id],
+      [totalQtyKg, totalValue, totalValue, totalQtyKg, totalQtyKg, totalQtyKg, po_id],
     )
 
     await conn.commit()

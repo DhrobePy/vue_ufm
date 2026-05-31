@@ -7,7 +7,10 @@ export default defineEventHandler(async () => {
             qty_yet_to_receive, unit_price_per_kg, total_order_value,
             balance_payable, total_paid
      FROM purchase_orders_adnan
-     WHERE po_status NOT IN ('cancelled', 'completed')
+     WHERE po_status NOT IN ('cancelled')
+       AND delivery_status NOT IN ('closed')
+       AND is_delivery_locked = 0
+       AND qty_yet_to_receive > 0
      ORDER BY po_date DESC
      LIMIT 200`,
   ) as any[]

@@ -95,7 +95,7 @@ const ledger_get = defineEventHandler(async (event) => {
               CONCAT('Payment \u2014 ', p.payment_method) AS description,
               COALESCE(p.payment_voucher_number, CONCAT('PMT-', p.id)) AS ref,
               0 AS credit,
-              COALESCE(p.amount_paid, p.amount, 0) AS debit
+              COALESCE(p.amount_paid, 0) AS debit
        FROM purchase_payments_adnan p
        WHERE ${datePayWhere.join(" AND ")}
        ORDER BY p.payment_date ASC LIMIT 200`,

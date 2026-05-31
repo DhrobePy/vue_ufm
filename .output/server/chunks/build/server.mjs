@@ -1025,7 +1025,7 @@ const _routes = [
     name: "purchase-grn-create",
     path: "/purchase/grn/create",
     meta: __nuxt_page_meta$X || {},
-    component: () => import('./create-MJ3PkC5-.mjs')
+    component: () => import('./create-EmWfup-l.mjs')
   },
   {
     name: "credit-sales-approve",
