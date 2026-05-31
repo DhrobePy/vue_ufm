@@ -531,7 +531,7 @@ const canCollectPayment = computed(() =>
     .includes(order.value.status),
 )
 
-// Build workflow history for UiOrderProgress
+// Build workflow history for UiOrderProgress (oldest-first, API now returns ASC)
 const orderHistory = computed(() =>
   apiWorkflow.value.map((w: any) => ({
     status: w.to_status,
@@ -542,13 +542,47 @@ const orderHistory = computed(() =>
 
 // Build sidebar timeline
 const WF_COLORS = ['#6366f1','#eab308','#f97316','#10b981','#3b82f6','#06b6d4','#14b8a6','#a855f7']
+
+const WF_LABELS: Record<string, string> = {
+  pending_approval:  'Order Created',
+  escalated:         'Escalated',
+  approved:          'Approved',
+  in_production:     'Sent to Production',
+  ready_to_ship:     'Ready to Ship',
+  shipped:           'Shipped',
+  delivered:         'Delivery Recorded',
+  partial_delivery:  'Partial Delivery',
+  payment_received:  'Payment Received',
+  completed:         'Order Completed',
+  return_submitted:  'Return Submitted',
+  return_approved:   'Return Approved',
+  return_rejected:   'Return Rejected',
+  cancelled:         'Order Cancelled',
+  rejected:          'Order Rejected',
+}
+
+const WF_EVENT_COLORS: Record<string, string> = {
+  payment_received: '#10b981',
+  completed:        '#a855f7',
+  delivered:        '#14b8a6',
+  partial_delivery: '#06b6d4',
+  return_submitted: '#f59e0b',
+  return_approved:  '#10b981',
+  return_rejected:  '#ef4444',
+  approved:         '#10b981',
+  escalated:        '#f97316',
+  cancelled:        '#ef4444',
+  rejected:         '#ef4444',
+}
+
+// Sidebar timeline: newest on top (reverse of ASC api order)
 const workflowTimeline = computed(() =>
-  apiWorkflow.value.map((w: any, i: number) => ({
+  [...apiWorkflow.value].reverse().map((w: any, i: number) => ({
     id:     w.id,
-    action: (w.to_status as string).replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
+    action: WF_LABELS[w.to_status] ?? (w.to_status as string).replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
     by:     w.performed_by_name ?? 'System',
     time:   fmtDateTime(w.performed_at),
-    color:  WF_COLORS[i % WF_COLORS.length],
+    color:  WF_EVENT_COLORS[w.to_status] ?? WF_COLORS[i % WF_COLORS.length],
     note:   w.comments ?? '',
   })),
 )

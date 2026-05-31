@@ -10,7 +10,7 @@ import 'node:path';
 import 'node:url';
 
 const return_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -134,6 +134,14 @@ const return_post = defineEventHandler(async (event) => {
         [totalRetAmount, order.customer_id]
       );
     }
+    const wfAction = autoApprove ? "return_approved" : "return_submitted";
+    const wfComment = `Return ${retNo} \u2014 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString("en-BD")} (${return_reason != null ? return_reason : "no reason"})${autoApprove ? " \xB7 Auto-approved" : " \xB7 Pending approval"}`;
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, (_i = order.status) != null ? _i : "delivered", (_j = order.status) != null ? _j : "delivered", wfAction, userId, wfComment]
+    );
     await conn.commit();
     return {
       ok: true,

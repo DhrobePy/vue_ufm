@@ -60,7 +60,7 @@ const _id__get = defineEventHandler(async (event) => {
        FROM credit_order_workflow w
        LEFT JOIN users u ON u.id = w.performed_by_user_id
        WHERE w.order_id = ?
-       ORDER BY w.performed_at DESC`,
+       ORDER BY w.performed_at ASC`,
       [id]
     ),
     query(

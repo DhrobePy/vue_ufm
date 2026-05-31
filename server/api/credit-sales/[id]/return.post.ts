@@ -133,6 +133,16 @@ export default defineEventHandler(async (event) => {
       )
     }
 
+    // ── Workflow timeline entry ────────────────────────────
+    const wfAction  = autoApprove ? 'return_approved' : 'return_submitted'
+    const wfComment = `Return ${retNo} — ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString('en-BD')} (${return_reason ?? 'no reason'})${autoApprove ? ' · Auto-approved' : ' · Pending approval'}`
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, order.status ?? 'delivered', order.status ?? 'delivered', wfAction, userId, wfComment],
+    )
+
     await conn.commit()
     return {
       ok: true,

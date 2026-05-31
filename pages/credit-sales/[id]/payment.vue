@@ -205,7 +205,7 @@ async function submit() {
   if (!isValid.value) return
   saving.value = true
   try {
-    await $fetch(`/api/credit-sales/${orderId}/payment`, {
+    const res: any = await $fetch(`/api/credit-sales/${orderId}/payment`, {
       method: 'POST',
       body: {
         amount:               form.amount,
@@ -217,7 +217,11 @@ async function submit() {
         notes:                form.collectedBy ? `Collected by: ${form.collectedBy}${form.notes ? '. ' + form.notes : ''}` : form.notes || null,
       },
     })
-    success(`Payment of ৳${(form.amount || 0).toLocaleString()} recorded successfully`)
+    if (res?.completed) {
+      success(`🎉 Order fully paid & marked COMPLETED! ৳${(form.amount || 0).toLocaleString()} received.`)
+    } else {
+      success(`Payment of ৳${(form.amount || 0).toLocaleString()} recorded successfully`)
+    }
     navigateTo(`/credit-sales/${orderId}`)
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to record payment')

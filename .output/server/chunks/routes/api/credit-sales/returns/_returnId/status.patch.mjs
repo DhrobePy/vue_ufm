@@ -10,7 +10,7 @@ import 'node:path';
 import 'node:url';
 
 const status_patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g;
   const returnId = Number(getRouterParam(event, "returnId"));
   if (!returnId) throw createError({ statusCode: 400, statusMessage: "Invalid return ID" });
   const session = await getUserSession(event);
@@ -92,6 +92,14 @@ const status_patch = defineEventHandler(async (event) => {
         [totalRetAmount, ret.customer_id]
       );
     }
+    const wfAction = action === "approve" ? "return_approved" : "return_rejected";
+    const wfComment = `${action === "approve" ? "Approved" : "Rejected"} return ${ret.return_number} \u2014 \u09F3${Number(ret.total_returned_amount).toLocaleString("en-BD")}${notes ? ` | ${notes}` : ""}`;
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [ret.order_id, (_f = ret.status) != null ? _f : "delivered", (_g = ret.status) != null ? _g : "delivered", wfAction, userId, wfComment]
+    );
     await conn.commit();
     return { ok: true, status: newStatus, return_id: returnId };
   } catch (e) {

@@ -14,7 +14,7 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals] = await Promise.all([
 
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -58,6 +58,31 @@ export default defineEventHandler(async () => {
        WHERE r.status = 'pending'
        ORDER BY r.created_at DESC
        LIMIT 6`,
+    ), []),
+
+    // Orders completed in the last 24 h (fully paid)
+    safeQuery(() => query(
+      `SELECT o.id, o.order_number, o.total_amount, o.updated_at,
+              c.name AS customer_name
+       FROM credit_orders o
+       JOIN customers c ON c.id = o.customer_id
+       WHERE o.status = 'completed'
+         AND o.updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY o.updated_at DESC
+       LIMIT 4`,
+    ), []),
+
+    // Returns approved in the last 24 h
+    safeQuery(() => query(
+      `SELECT r.id, r.return_number, r.order_id, r.total_returned_amount,
+              r.approved_at, c.name AS customer_name, o.order_number
+       FROM credit_order_returns r
+       JOIN credit_orders o ON o.id = r.order_id
+       JOIN customers c ON c.id = r.customer_id
+       WHERE r.status = 'approved'
+         AND r.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY r.approved_at DESC
+       LIMIT 4`,
     ), []),
   ])
 
@@ -112,6 +137,30 @@ export default defineEventHandler(async () => {
       time:  timeAgo(new Date(r.created_at)),
       route: `/credit-sales/${r.order_id}`,
       read:  false,
+    })
+  }
+
+  for (const o of recentCompletions as any[]) {
+    const amt = Number(o.total_amount).toLocaleString('en-BD')
+    notifications.push({
+      id:    nid++,
+      text:  `✅ Order ${o.order_number} fully paid & completed — ${o.customer_name} · ৳${amt}`,
+      type:  'success',
+      time:  timeAgo(new Date(o.updated_at)),
+      route: `/credit-sales/${o.id}`,
+      read:  true,
+    })
+  }
+
+  for (const r of recentReturnApprovals as any[]) {
+    const amt = Number(r.total_returned_amount).toLocaleString('en-BD')
+    notifications.push({
+      id:    nid++,
+      text:  `↩️ Return ${r.return_number} approved — ${r.customer_name} · -৳${amt} (Order ${r.order_number})`,
+      type:  'success',
+      time:  timeAgo(new Date(r.approved_at)),
+      route: `/credit-sales/${r.order_id}`,
+      read:  true,
     })
   }
 

@@ -116,13 +116,23 @@ export default defineEventHandler(async (event) => {
       [totalAmount, order.customer_id],
     )
 
-    // Update order status
+    // Update order status + write workflow timeline entry
+    const wfToStatus = is_final ? 'delivered' : order.status
+    const wfAction   = is_final ? 'delivered' : 'partial_delivery'
+    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString('en-BD')}${truck_number ? ` · Truck ${truck_number}` : ''}`
+
     if (is_final) {
       await conn.query(
         `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [id],
       )
     }
-    // Partial delivery — keep current status (shipped/ready_to_ship) for next shipment
+
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, order.status, wfToStatus, wfAction, userId, wfComment],
+    )
 
     await conn.commit()
     return { ok: true, delivery_number: delNo, delivery_id: deliveryId }

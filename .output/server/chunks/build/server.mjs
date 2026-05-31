@@ -1217,7 +1217,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$r || {},
-    component: () => import('./index-Drspy0qz.mjs')
+    component: () => import('./index-DjsiRHI7.mjs')
   },
   {
     name: "credit-sales-production",

@@ -115,12 +115,21 @@ const deliver_post = defineEventHandler(async (event) => {
       `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
       [totalAmount, order.customer_id]
     );
+    const wfToStatus = is_final ? "delivered" : order.status;
+    const wfAction = is_final ? "delivered" : "partial_delivery";
+    const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString("en-BD")}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`;
     if (is_final) {
       await conn.query(
         `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`,
         [id]
       );
     }
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, order.status, wfToStatus, wfAction, userId, wfComment]
+    );
     await conn.commit();
     return { ok: true, delivery_number: delNo, delivery_id: deliveryId };
   } catch (e) {

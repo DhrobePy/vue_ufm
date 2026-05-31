@@ -24,7 +24,7 @@ async function safeQuery(fn, fallback) {
   }
 }
 const notifications_get = defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals] = await Promise.all([
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
       `SELECT o.id, o.order_number, o.status, o.total_amount,
@@ -64,6 +64,29 @@ const notifications_get = defineEventHandler(async () => {
        WHERE r.status = 'pending'
        ORDER BY r.created_at DESC
        LIMIT 6`
+    ), []),
+    // Orders completed in the last 24 h (fully paid)
+    safeQuery(() => query(
+      `SELECT o.id, o.order_number, o.total_amount, o.updated_at,
+              c.name AS customer_name
+       FROM credit_orders o
+       JOIN customers c ON c.id = o.customer_id
+       WHERE o.status = 'completed'
+         AND o.updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY o.updated_at DESC
+       LIMIT 4`
+    ), []),
+    // Returns approved in the last 24 h
+    safeQuery(() => query(
+      `SELECT r.id, r.return_number, r.order_id, r.total_returned_amount,
+              r.approved_at, c.name AS customer_name, o.order_number
+       FROM credit_order_returns r
+       JOIN credit_orders o ON o.id = r.order_id
+       JOIN customers c ON c.id = r.customer_id
+       WHERE r.status = 'approved'
+         AND r.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY r.approved_at DESC
+       LIMIT 4`
     ), [])
   ]);
   const notifications = [];
@@ -112,6 +135,28 @@ const notifications_get = defineEventHandler(async () => {
       time: timeAgo(new Date(r.created_at)),
       route: `/credit-sales/${r.order_id}`,
       read: false
+    });
+  }
+  for (const o of recentCompletions) {
+    const amt = Number(o.total_amount).toLocaleString("en-BD");
+    notifications.push({
+      id: nid++,
+      text: `\u2705 Order ${o.order_number} fully paid & completed \u2014 ${o.customer_name} \xB7 \u09F3${amt}`,
+      type: "success",
+      time: timeAgo(new Date(o.updated_at)),
+      route: `/credit-sales/${o.id}`,
+      read: true
+    });
+  }
+  for (const r of recentReturnApprovals) {
+    const amt = Number(r.total_returned_amount).toLocaleString("en-BD");
+    notifications.push({
+      id: nid++,
+      text: `\u21A9\uFE0F Return ${r.return_number} approved \u2014 ${r.customer_name} \xB7 -\u09F3${amt} (Order ${r.order_number})`,
+      type: "success",
+      time: timeAgo(new Date(r.approved_at)),
+      route: `/credit-sales/${r.order_id}`,
+      read: true
     });
   }
   return notifications;

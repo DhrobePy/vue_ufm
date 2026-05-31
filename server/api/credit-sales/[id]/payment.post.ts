@@ -38,7 +38,7 @@ export default defineEventHandler(async (event) => {
 
     // Load the order
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, balance_due, amount_paid FROM credit_orders WHERE id = ?`, [id],
+      `SELECT id, customer_id, balance_due, amount_paid, status FROM credit_orders WHERE id = ?`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
@@ -77,10 +77,15 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
-    // Update order paid / balance
+    // Update order paid / balance — auto-complete when fully paid
+    const isNowComplete = newBalance === 0 && order.status === 'delivered'
     await conn.query(
-      `UPDATE credit_orders SET amount_paid = ?, balance_due = ?, updated_at = NOW() WHERE id = ?`,
-      [newPaid, newBalance, id],
+      `UPDATE credit_orders
+       SET amount_paid = ?, balance_due = ?,
+           status = IF(? AND status = 'delivered', 'completed', status),
+           updated_at = NOW()
+       WHERE id = ?`,
+      [newPaid, newBalance, isNowComplete ? 1 : 0, id],
     )
 
     // Reduce customer current_balance
@@ -117,8 +122,25 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
+    // ── Workflow timeline entry ────────────────────────────
+    const wfToStatus  = isNowComplete ? 'completed' : order.status
+    const wfAction    = isNowComplete ? 'completed'  : 'payment_received'
+    const wfComments  = `Payment ${payNo} received — ৳${pmtAmount.toLocaleString('en-BD')} via ${mappedMethod}${isNowComplete ? ' · Order fully paid' : ''}`
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, order.status, wfToStatus, wfAction, userId, wfComments],
+    )
+
     await conn.commit()
-    return { ok: true, id: result.insertId, reference_number: payNo, new_balance: newBalance }
+    return {
+      ok: true,
+      id: result.insertId,
+      reference_number: payNo,
+      new_balance: newBalance,
+      completed: isNowComplete,
+    }
   } catch (e) {
     await conn.rollback()
     throw e
