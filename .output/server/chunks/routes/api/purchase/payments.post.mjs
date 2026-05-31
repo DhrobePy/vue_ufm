@@ -54,10 +54,10 @@ const payments_post = defineEventHandler(async (event) => {
     const [result] = await conn.query(
       `INSERT INTO purchase_payments_adnan
          (payment_voucher_number, payment_date, purchase_order_id, po_number,
-          supplier_id, supplier_name, amount_paid, payment_method,
+          supplier_id, supplier_name, amount, amount_paid, payment_method,
           bank_account_id, bank_name, reference_number,
           payment_type, remarks, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         voucherNo,
         payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
@@ -66,6 +66,9 @@ const payments_post = defineEventHandler(async (event) => {
         po.supplier_id,
         po.supplier_name,
         Number(amount_paid),
+        // amount  (original column — keeps NOT NULL satisfied)
+        Number(amount_paid),
+        // amount_paid (extended column)
         payment_method,
         bank_account_id ? Number(bank_account_id) : null,
         bankName,

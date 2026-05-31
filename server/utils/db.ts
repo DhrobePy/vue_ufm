@@ -39,9 +39,9 @@ export async function queryOne<T = Record<string, unknown>>(
   return rows[0] ?? null
 }
 
-/** Simple paginator helper */
+/** Simple paginator helper — callers are responsible for capping perPage */
 export function paginate(page: number, perPage: number) {
   const p  = Math.max(1, page)
-  const pp = Math.min(100, Math.max(1, perPage))
+  const pp = Math.min(500, Math.max(1, perPage))   // raised cap to 500
   return { limit: pp, offset: (p - 1) * pp }
 }
