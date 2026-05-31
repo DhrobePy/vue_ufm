@@ -14,7 +14,7 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions, recentReversals, recentReturnDeletions] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions, recentReversals, recentReturnDeletions, recentOrdersCreated] = await Promise.all([
 
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -36,13 +36,14 @@ export default defineEventHandler(async () => {
        LIMIT 4`,
     ), []),
 
-    // Payments received in last 24 h
+    // Payments received in last 24 h — exclude advance payments (captured via order notification)
     safeQuery(() => query(
       `SELECT p.id, p.payment_date, p.amount, p.payment_method,
               c.name AS customer_name, p.created_at
        FROM customer_payments p
        JOIN customers c ON c.id = p.customer_id
        WHERE p.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+         AND COALESCE(p.payment_type, '') != 'advance'
        ORDER BY p.created_at DESC
        LIMIT 4`,
     ), []),
@@ -124,6 +125,20 @@ export default defineEventHandler(async () => {
          AND l.action = 'deleted'
          AND l.created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
        ORDER BY l.created_at DESC
+       LIMIT 6`,
+    ), []),
+
+    // Orders created in the last 4 h that are NOT pending/escalated
+    // (pending/escalated already have their own co-{id} notification above)
+    // This catches auto-approved admin orders — including any advance payment recorded
+    safeQuery(() => query(
+      `SELECT o.id, o.order_number, o.status, o.total_amount, o.amount_paid,
+              c.name AS customer_name, o.created_at
+       FROM credit_orders o
+       JOIN customers c ON c.id = o.customer_id
+       WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 4 HOUR)
+         AND o.status NOT IN ('pending_approval','escalated','cancelled','rejected')
+       ORDER BY o.created_at DESC
        LIMIT 6`,
     ), []),
   ])
@@ -230,6 +245,20 @@ export default defineEventHandler(async () => {
       type:  'warning',
       time:  timeAgo(new Date(r.created_at)),
       route: '/credit-sales/payments',
+      read:  false,
+    })
+  }
+
+  for (const o of recentOrdersCreated as any[]) {
+    const total   = Number(o.total_amount).toLocaleString()
+    const advance = Number(o.amount_paid ?? 0)
+    const advStr  = advance > 0 ? ` · advance ৳${advance.toLocaleString()} paid` : ''
+    notifications.push({
+      id:    `nco-${o.id}`,
+      text:  `🆕 Order ${o.order_number} created — ${o.customer_name} · ৳${total}${advStr}`,
+      type:  'info',
+      time:  timeAgo(new Date(o.created_at)),
+      route: `/credit-sales/${o.id}`,
       read:  false,
     })
   }
