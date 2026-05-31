@@ -119,7 +119,7 @@
                       class="text-xs text-gold-400 hover:text-gold-300 transition-colors">
               View full audit log →
             </NuxtLink>
-            <button v-if="notifications.length" @click="notifications = []" class="text-[10px] text-gray-600 hover:text-gray-400">Clear</button>
+            <button v-if="notifications.length" @click="clearAll" class="text-[10px] text-gray-600 hover:text-gray-400">Clear</button>
           </div>
         </div>
       </Transition>
@@ -255,12 +255,37 @@ const formattedTime = computed(() => now.value.toLocaleTimeString('en-BD', { hou
 
 // ── Notifications ─────────────────────────────────────
 interface Notification {
-  id: number
+  id: string   // stable content-based ID e.g. "co-42", "exp-7", "del-CR-20250101-0001"
   text: string
   type: 'warning' | 'error' | 'success' | 'info'
   time: string
   route: string
   read: boolean
+}
+
+const NOTIF_READ_KEY = 'erp_notif_read'
+const MAX_STORED_IDS = 500   // prevent unbounded growth
+
+// Persist read IDs in localStorage so they survive page loads and polls
+function loadReadSet(): Set<string> {
+  try {
+    const raw = localStorage.getItem(NOTIF_READ_KEY)
+    return raw ? new Set<string>(JSON.parse(raw)) : new Set()
+  } catch { return new Set() }
+}
+
+function saveReadSet(s: Set<string>) {
+  try {
+    // Trim to most recent MAX_STORED_IDS entries to cap storage size
+    const arr = Array.from(s)
+    const trimmed = arr.length > MAX_STORED_IDS ? arr.slice(-MAX_STORED_IDS) : arr
+    localStorage.setItem(NOTIF_READ_KEY, JSON.stringify(trimmed))
+  } catch { /* storage full — ignore */ }
+}
+
+// Apply the persisted read set to a fresh batch from the API
+function applyReadSet(items: Notification[], readSet: Set<string>): Notification[] {
+  return items.map(n => readSet.has(n.id) ? { ...n, read: true } : n)
 }
 
 const notifications = ref<Notification[]>([])
@@ -271,8 +296,10 @@ let   _prevUnread   = -1
 // Fetch live notifications; ring the bell when new unread items arrive
 async function loadNotifications() {
   try {
-    const data = await $fetch<Notification[]>('/api/notifications')
-    const fresh = data ?? []
+    const data    = await $fetch<Notification[]>('/api/notifications')
+    const readSet = loadReadSet()
+    const fresh   = applyReadSet(data ?? [], readSet)
+
     const newUnread = fresh.filter(n => !n.read).length
 
     // Ring + toast only when unread count INCREASES after the first load
@@ -282,7 +309,7 @@ async function loadNotifications() {
       const diff = newUnread - _prevUnread
       toastWarning(`🔔 ${diff} new notification${diff > 1 ? 's' : ''}`)
     }
-    _prevUnread = newUnread
+    _prevUnread       = newUnread
     notifications.value = fresh
   } catch { /* network blip — keep stale data */ }
 }
@@ -298,12 +325,29 @@ const unreadCount = computed(() => notifications.value.filter(n => !n.read).leng
 
 function goNotif(n: Notification) {
   n.read = true
+  // Persist this single read so it survives the next poll
+  const readSet = loadReadSet()
+  readSet.add(n.id)
+  saveReadSet(readSet)
   notifOpen.value = false
   router.push(n.route)
 }
 
 function markAllRead() {
   notifications.value.forEach(n => (n.read = true))
+  // Persist all current IDs as read
+  const readSet = loadReadSet()
+  notifications.value.forEach(n => readSet.add(n.id))
+  saveReadSet(readSet)
+}
+
+function clearAll() {
+  // Persist all IDs as read so they don't come back on next poll
+  const readSet = loadReadSet()
+  notifications.value.forEach(n => readSet.add(n.id))
+  saveReadSet(readSet)
+  notifications.value = []
+  _prevUnread = 0
 }
 
 // Click-outside directive

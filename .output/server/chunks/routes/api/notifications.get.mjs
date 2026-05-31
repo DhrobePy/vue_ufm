@@ -102,24 +102,23 @@ const notifications_get = defineEventHandler(async () => {
     ), [])
   ]);
   const notifications = [];
-  let nid = 1;
   for (const o of pendingOrders) {
     const escalated = o.status === "escalated";
     const amt = Number(o.total_amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `co-${o.id}`,
       text: escalated ? `\u26A0\uFE0F Order ${o.order_number} escalated \u2014 ${o.customer_name} \xB7 \u09F3${amt}` : `\u{1F4CB} Order ${o.order_number} needs approval \u2014 ${o.customer_name} \xB7 \u09F3${amt}`,
       type: escalated ? "warning" : "info",
       time: timeAgo(new Date(o.created_at)),
       route: `/credit-sales/${o.id}`,
-      // go directly to the order, not generic approve list
       read: false
+      // frontend will override to true if this id is in the readSet
     });
   }
   for (const e of pendingExpenses) {
     const amt = Number(e.total_amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `exp-${e.id}`,
       text: `\u{1F4B8} Expense pending \u2014 ${e.description || "Voucher"} \xB7 \u09F3${amt}`,
       type: "info",
       time: timeAgo(new Date(e.created_at)),
@@ -130,18 +129,19 @@ const notifications_get = defineEventHandler(async () => {
   for (const p of recentPayments) {
     const amt = Number(p.amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `pay-${p.id}`,
       text: `\u2705 Payment \u09F3${amt} received \u2014 ${p.customer_name} (${p.payment_method})`,
       type: "success",
       time: timeAgo(new Date(p.created_at)),
       route: "/credit-sales/payments",
-      read: true
+      read: false
+      // frontend will mark read via readSet like everything else
     });
   }
   for (const r of pendingReturns) {
     const amt = Number(r.total_returned_amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `ret-${r.id}`,
       text: `\u21A9\uFE0F Return ${r.return_number} pending approval \u2014 ${r.customer_name} \xB7 \u09F3${amt} (Order ${r.order_number})`,
       type: "warning",
       time: timeAgo(new Date(r.created_at)),
@@ -152,23 +152,23 @@ const notifications_get = defineEventHandler(async () => {
   for (const o of recentCompletions) {
     const amt = Number(o.total_amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `cmp-${o.id}`,
       text: `\u2705 Order ${o.order_number} fully paid & completed \u2014 ${o.customer_name} \xB7 \u09F3${amt}`,
       type: "success",
       time: timeAgo(new Date(o.updated_at)),
       route: `/credit-sales/${o.id}`,
-      read: true
+      read: false
     });
   }
   for (const r of recentReturnApprovals) {
     const amt = Number(r.total_returned_amount).toLocaleString();
     notifications.push({
-      id: nid++,
+      id: `rta-${r.id}`,
       text: `\u21A9\uFE0F Return ${r.return_number} approved \u2014 ${r.customer_name} \xB7 -\u09F3${amt} (Order ${r.order_number})`,
       type: "success",
       time: timeAgo(new Date(r.approved_at)),
       route: `/credit-sales/${r.order_id}`,
-      read: true
+      read: false
     });
   }
   for (const d of recentDeletions) {
@@ -176,12 +176,11 @@ const notifications_get = defineEventHandler(async () => {
     const byLine = d.deleted_by_name ? ` \xB7 by ${d.deleted_by_name}` : "";
     const wasComplete = d.order_status === "completed";
     notifications.push({
-      id: nid++,
+      id: `del-${d.order_number}`,
       text: `\u{1F5D1}\uFE0F Order ${d.order_number} deleted${byLine} \u2014 ${d.customer_name} \xB7 \u09F3${amt}${wasComplete ? " (was completed)" : ""}`,
       type: "error",
       time: timeAgo(new Date(d.deleted_at)),
       route: "/admin/audit",
-      // order is gone — link to audit trail
       read: false
     });
   }
