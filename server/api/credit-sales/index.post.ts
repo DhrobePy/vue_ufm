@@ -1,9 +1,13 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
-  const body    = await readBody(event)
-  const session = await getUserSession(event)
-  const userId  = session?.user?.id ?? 1
+  const body      = await readBody(event)
+  const session   = await getUserSession(event)
+  const userId    = session?.user?.id ?? 1
+  const role      = (session?.user?.role ?? '').toLowerCase()
+  const isAdmin   = ['admin', 'superadmin'].includes(role)
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
     customer_id,
@@ -46,6 +50,51 @@ export default defineEventHandler(async (event) => {
     const advancePaid = Number(amount_paid ?? 0)
     const balanceDue  = Math.max(0, totalAmount - advancePaid)
 
+    // ── Credit limit check ──────────────────────────────────────────────────
+    const [[customer]] = await conn.query<any>(
+      `SELECT credit_limit, current_balance FROM customers WHERE id = ?`,
+      [customer_id],
+    )
+    const creditLimit    = Number(customer?.credit_limit    ?? 0)
+    const currentBalance = Number(customer?.current_balance ?? 0)
+
+    // Pending exposure: balance_due on orders that haven't hit the ledger yet
+    const [[expRow]] = await conn.query<any>(
+      `SELECT COALESCE(SUM(balance_due), 0) AS pending
+       FROM credit_orders
+       WHERE customer_id = ?
+         AND status IN ('pending_approval','escalated','approved',
+                        'in_production','produced','ready_to_ship','shipped')`,
+      [customer_id],
+    )
+    const pendingExposure = Number(expRow?.pending ?? 0)
+    // Total exposure = what is already owed (ledger) + uncommitted commitments + this new order
+    const totalExposure   = currentBalance + pendingExposure + balanceDue
+    const overLimit       = creditLimit > 0 && totalExposure > creditLimit
+    const excessAmount    = overLimit ? Math.round(totalExposure - creditLimit) : 0
+
+    // ── Determine order status ──────────────────────────────────────────────
+    // Over limit (any role)       → 'escalated'  (requires senior/CFO explicit approval)
+    // Admin/superadmin, OK limit  → 'approved'   (auto-approved, no queue needed)
+    // Regular user, OK limit      → 'pending_approval'
+    let orderStatus: string
+    let wfAction:    string
+    let wfComment:   string
+
+    if (overLimit) {
+      orderStatus = 'escalated'
+      wfAction    = 'escalated'
+      wfComment   = `Order created — ESCALATED · ৳${totalAmount.toLocaleString()} · credit limit ৳${creditLimit.toLocaleString()} exceeded by ৳${excessAmount.toLocaleString()}`
+    } else if (isAdmin) {
+      orderStatus = 'approved'
+      wfAction    = 'approved'
+      wfComment   = `Order created and auto-approved — ৳${totalAmount.toLocaleString()} (${role})`
+    } else {
+      orderStatus = 'pending_approval'
+      wfAction    = 'submit'
+      wfComment   = `Order created and submitted for approval — ৳${totalAmount.toLocaleString()}`
+    }
+
     // If product_id is missing for a variant, look it up
     for (const it of items) {
       if (!it.product_id && it.variant_id) {
@@ -63,7 +112,7 @@ export default defineEventHandler(async (event) => {
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
           created_by_user_id, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending_approval', ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
                ?, NOW(), NOW())`,
       [
@@ -73,6 +122,7 @@ export default defineEventHandler(async (event) => {
         order_date,
         required_date || null,
         priority ?? 'normal',
+        orderStatus,
         delivery_address || null,
         special_notes    || null,
         totalAmount,
@@ -107,16 +157,40 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    // Initial workflow entry — from_status is NOT NULL in DB, use 'draft'→'pending_approval'
+    // Workflow timeline entry
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, 'draft', 'pending_approval', 'submit', ?, 'Order created and submitted for approval', NOW())`,
-      [orderId, userId],
+       VALUES (?, 'draft', ?, ?, ?, ?, NOW())`,
+      [orderId, orderStatus, wfAction, userId, wfComment],
     )
 
+    // ── Audit log ───────────────────────────────────────────────────────────
+    await auditLog(conn, {
+      userId,
+      action:          overLimit ? 'other' : isAdmin ? 'approved' : 'other',
+      module:          'credit_sales',
+      recordType:      'credit_order',
+      recordId:        orderId,
+      referenceNumber: orderNo,
+      description:     overLimit
+        ? `Order ${orderNo} created — ESCALATED, credit limit exceeded by ৳${excessAmount.toLocaleString()} (total exposure ৳${totalExposure.toLocaleString()} vs limit ৳${creditLimit.toLocaleString()})`
+        : isAdmin
+          ? `Order ${orderNo} created and auto-approved — ৳${totalAmount.toLocaleString()} (${role})`
+          : `Order ${orderNo} created, pending approval — ৳${totalAmount.toLocaleString()}`,
+      severity:        overLimit ? 'warning' : 'info',
+      ipAddress,
+    })
+
     await conn.commit()
-    return { ok: true, id: orderId, order_number: orderNo }
+    return {
+      ok:         true,
+      id:         orderId,
+      order_number: orderNo,
+      status:     orderStatus,
+      over_limit: overLimit,
+      ...(overLimit ? { excess_amount: excessAmount } : {}),
+    }
   } catch (e) {
     await conn.rollback()
     throw e

@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
          SELECT SUM(o.balance_due)
          FROM credit_orders o
          WHERE o.customer_id = ?
-           AND o.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped')
+           AND o.status IN ('pending_approval','escalated','approved','in_production','produced','ready_to_ship','shipped')
        ), 0) AS pending
      FROM dual`,
     [id],

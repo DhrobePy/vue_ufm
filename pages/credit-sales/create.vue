@@ -128,7 +128,10 @@
           </div>
         </div>
         <p v-if="creditUtilPct > 100" class="text-[11px] text-red-400/90 leading-snug">
-          ⚠ This order will take {{ selectedCustomer.name }} over their credit limit. The order will be escalated for CFO approval.
+          ⚠ This order will take {{ selectedCustomer.name }} over their credit limit. It will be <strong>escalated</strong> for senior approval regardless of your role.
+        </p>
+        <p v-else-if="isAdminUser" class="text-[11px] text-emerald-400/90 leading-snug">
+          ✓ Credit limit OK — this order will be <strong>auto-approved</strong> (admin).
         </p>
       </div>
     </div>
@@ -230,6 +233,12 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
+
+// Determine current user's role so we can show role-aware credit messaging
+const { user: sessionUser } = useUserSession()
+const isAdminUser = computed(() =>
+  ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()),
+)
 
 const currentStep = ref(0)
 const steps = ['Customer', 'Line Items', 'Summary']
@@ -425,7 +434,12 @@ async function submitOrder() {
       },
     }) as any
     localStorage.removeItem(DRAFT_KEY)
-    success(`Order ${result.order_number} created ✓`)
+    const statusMsg = result.over_limit
+      ? `Order ${result.order_number} created — ESCALATED (credit limit exceeded)`
+      : result.status === 'approved'
+        ? `Order ${result.order_number} created & auto-approved ✓`
+        : `Order ${result.order_number} created, pending approval ✓`
+    success(statusMsg)
     navigateTo(`/credit-sales/${result.id}`)
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to create order')
