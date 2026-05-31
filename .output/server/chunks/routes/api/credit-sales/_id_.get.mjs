@@ -12,7 +12,7 @@ import 'node:url';
 const _id__get = defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
-  const [order, items, workflow, deliveries] = await Promise.all([
+  const [order, items, workflow, deliveries, returns] = await Promise.all([
     queryOne(
       `SELECT o.*,
               c.name AS customer_name, c.business_name, c.phone_number,
@@ -46,7 +46,8 @@ const _id__get = defineEventHandler(async (event) => {
       [id]
     ),
     query(
-      `SELECT oi.*, p.base_name AS product_name, pv.weight_variant, pv.grade, pv.sku
+      `SELECT oi.*, oi.quantity AS qty_bags,
+              p.base_name AS product_name, pv.weight_variant, pv.grade, pv.sku
        FROM credit_order_items oi
        LEFT JOIN products p  ON p.id = oi.product_id
        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
@@ -69,10 +70,31 @@ const _id__get = defineEventHandler(async (event) => {
        WHERE d.order_id = ?
        ORDER BY d.delivery_date DESC`,
       [id]
+    ),
+    query(
+      `SELECT r.*,
+              u.display_name AS created_by_name,
+              a.display_name AS approved_by_name
+       FROM credit_order_returns r
+       LEFT JOIN users u ON u.id = r.created_by_user_id
+       LEFT JOIN users a ON a.id = r.approved_by_user_id
+       WHERE r.order_id = ?
+       ORDER BY r.created_at DESC`,
+      [id]
     )
   ]);
   if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-  return { order, items, workflow, deliveries };
+  for (const ret of returns) {
+    ret.items = await query(
+      `SELECT ri.*, p.base_name AS product_name, pv.weight_variant
+       FROM credit_order_return_items ri
+       LEFT JOIN products p  ON p.id = ri.product_id
+       LEFT JOIN product_variants pv ON pv.id = ri.variant_id
+       WHERE ri.return_id = ?`,
+      [ret.id]
+    );
+  }
+  return { order, items, workflow, deliveries, returns };
 });
 
 export { _id__get as default };

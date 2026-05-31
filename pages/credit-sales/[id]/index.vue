@@ -186,16 +186,26 @@
                 </tbody>
                 <tfoot v-if="items.length">
                   <tr class="border-t border-white/[0.08]">
-                    <td colspan="4" class="pt-3 text-right text-sm font-bold text-gray-300">Grand Total</td>
+                    <td colspan="4" class="pt-3 text-right text-sm font-bold text-gray-300">Sub-Total</td>
                     <td class="pt-3 text-right font-bold text-gold-400 text-base">৳{{ Number(order.total_amount).toLocaleString() }}</td>
+                  </tr>
+                  <tr v-if="totalReturned > 0">
+                    <td colspan="4" class="pt-1 text-right text-xs text-amber-400/80">Credit Notes (Returns)</td>
+                    <td class="pt-1 text-right text-xs text-amber-400 font-semibold">-৳{{ totalReturned.toLocaleString() }}</td>
+                  </tr>
+                  <tr v-if="pendingReturns.length">
+                    <td colspan="4" class="pt-1 text-right text-xs text-yellow-500/70">Pending Returns (unprocessed)</td>
+                    <td class="pt-1 text-right text-xs text-yellow-500/70 italic">
+                      ৳{{ pendingReturns.reduce((s: number, r: any) => s + Number(r.total_returned_amount), 0).toLocaleString() }} ⏳
+                    </td>
                   </tr>
                   <tr>
                     <td colspan="4" class="pt-1 text-right text-xs text-gray-500">Amount Paid</td>
                     <td class="pt-1 text-right text-xs text-emerald-400 font-semibold">-৳{{ Number(order.amount_paid).toLocaleString() }}</td>
                   </tr>
-                  <tr>
-                    <td colspan="4" class="pt-1 text-right text-xs font-bold text-gray-300">Balance Due</td>
-                    <td class="pt-1 text-right text-sm font-bold text-red-400">৳{{ Number(order.balance_due).toLocaleString() }}</td>
+                  <tr class="border-t border-white/[0.06]">
+                    <td colspan="4" class="pt-2 text-right text-xs font-bold text-gray-300">Balance Due</td>
+                    <td class="pt-2 text-right text-sm font-bold text-red-400">৳{{ Number(order.balance_due).toLocaleString() }}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -206,6 +216,79 @@
           <div v-if="order.special_notes" class="glass-card p-5">
             <h3 class="section-title mb-2">Special Instructions</h3>
             <p class="text-sm text-gray-400 italic">{{ order.special_notes }}</p>
+          </div>
+
+          <!-- ── Returns / Credit Notes ─────────────────────── -->
+          <div v-if="returns.length" class="glass-card p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="section-title">Returns &amp; Credit Notes</h3>
+              <div class="flex items-center gap-2">
+                <span v-if="pendingReturns.length"
+                      class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-400 border border-yellow-500/20">
+                  {{ pendingReturns.length }} pending
+                </span>
+                <span v-if="approvedReturns.length"
+                      class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
+                  {{ approvedReturns.length }} approved
+                </span>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div v-for="ret in returns" :key="ret.id"
+                   class="rounded-xl border p-4 space-y-3"
+                   :class="ret.status === 'pending'
+                     ? 'border-yellow-500/25 bg-yellow-500/[0.04]'
+                     : ret.status === 'approved'
+                     ? 'border-emerald-500/20 bg-white/[0.02]'
+                     : 'border-red-500/20 bg-red-500/[0.03] opacity-60'">
+
+                <!-- Return header -->
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-xs font-mono font-bold text-gold-400/80">{{ ret.return_number }}</p>
+                    <p class="text-[11px] text-gray-500 mt-0.5">{{ ret.return_date }} · {{ ret.return_reason ?? '—' }}</p>
+                    <p class="text-[10px] text-gray-600 mt-0.5">By {{ ret.created_by_name ?? 'Unknown' }}</p>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <p class="text-sm font-bold text-red-400">-৳{{ Number(ret.total_returned_amount).toLocaleString() }}</p>
+                    <span :class="['text-[10px] font-semibold px-2 py-0.5 rounded-full mt-1 inline-block',
+                      ret.status === 'approved' ? 'bg-emerald-500/10 text-emerald-400' :
+                      ret.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                      'bg-yellow-500/15 text-yellow-400']">
+                      {{ ret.status }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Return items -->
+                <div v-if="ret.items?.length" class="text-[11px] text-gray-500 space-y-1">
+                  <div v-for="ri in ret.items" :key="ri.id" class="flex justify-between">
+                    <span>{{ ri.product_name }}<span v-if="ri.weight_variant" class="text-gray-600"> · {{ ri.weight_variant }}</span></span>
+                    <span class="font-mono">×{{ Number(ri.returned_qty).toFixed(0) }} @ ৳{{ Number(ri.unit_price).toLocaleString() }}</span>
+                  </div>
+                </div>
+
+                <!-- Approval controls (admin only, pending returns) -->
+                <div v-if="isAdmin && ret.status === 'pending'" class="flex items-center gap-2 pt-1">
+                  <span class="text-[10px] text-yellow-400/70 flex-1">⏳ Awaiting your approval — balance will be adjusted upon approval</span>
+                  <button @click="openReturnApproval(ret, 'approve')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all">
+                    ✓ Approve
+                  </button>
+                  <button @click="openReturnApproval(ret, 'reject')"
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all">
+                    ✗ Reject
+                  </button>
+                </div>
+
+                <!-- Approved by -->
+                <div v-else-if="ret.status === 'approved' && ret.approved_by_name"
+                     class="text-[10px] text-gray-600">
+                  Approved by {{ ret.approved_by_name }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -295,6 +378,59 @@
         </Transition>
       </Teleport>
 
+      <!-- ── Return Approval Modal ──────────────────────── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="returnApprovalModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="returnApprovalModal = false" />
+            <div class="relative w-full max-w-md glass-card p-6 space-y-4 animate-slide-up">
+              <h3 :class="['section-title', pendingReturnAction === 'reject' ? 'text-red-400' : 'text-emerald-400']">
+                {{ pendingReturnAction === 'approve' ? '✓ Approve Return' : '✗ Reject Return' }}
+              </h3>
+              <div v-if="pendingReturnTarget" class="rounded-xl p-3 text-xs space-y-1"
+                   :class="pendingReturnAction === 'approve'
+                     ? 'bg-emerald-500/08 border border-emerald-500/20'
+                     : 'bg-red-500/08 border border-red-500/20'">
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Return #</span>
+                  <span class="font-mono font-bold text-gold-400/80">{{ pendingReturnTarget.return_number }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Amount</span>
+                  <span class="font-bold text-red-400">৳{{ Number(pendingReturnTarget.total_returned_amount).toLocaleString() }}</span>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-gray-500">Reason</span>
+                  <span class="text-gray-300">{{ pendingReturnTarget.return_reason ?? '—' }}</span>
+                </div>
+              </div>
+              <p v-if="pendingReturnAction === 'approve'" class="text-xs text-gray-400">
+                Approving will immediately deduct <span class="text-red-400 font-semibold">৳{{ Number(pendingReturnTarget?.total_returned_amount ?? 0).toLocaleString() }}</span>
+                from the order balance and customer ledger.
+              </p>
+              <p v-else class="text-xs text-gray-400">
+                Rejecting will dismiss this return request. No balance adjustments will be made.
+              </p>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Note (optional)</label>
+                <textarea v-model="returnApprovalNote" rows="2" class="field-input w-full resize-none text-sm"
+                          placeholder="Add a note for the record…" />
+              </div>
+              <div class="flex gap-3">
+                <button @click="submitReturnApproval" :disabled="acting"
+                  :class="['flex-1 py-2 rounded-xl text-sm font-semibold disabled:opacity-40 transition-all',
+                    pendingReturnAction === 'approve'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
+                      : 'bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25']">
+                  {{ acting ? '…' : pendingReturnAction === 'approve' ? '✓ Confirm Approve' : '✗ Confirm Reject' }}
+                </button>
+                <button @click="returnApprovalModal = false" class="btn-ghost flex-1">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- ── Delete Order Modal ──────────────────────────── -->
       <Teleport to="body">
         <Transition name="modal">
@@ -367,7 +503,12 @@ const { data, pending, error, refresh } = await useFetch(
 
 const order     = computed(() => (data.value?.order     ?? {}) as any)
 const items     = computed(() => (data.value?.items     ?? []) as any[])
+const returns   = computed(() => (data.value?.returns   ?? []) as any[])
 const apiWorkflow = computed(() => (data.value?.workflow ?? []) as any[])
+
+const approvedReturns = computed(() => returns.value.filter((r: any) => r.status === 'approved'))
+const pendingReturns  = computed(() => returns.value.filter((r: any) => r.status === 'pending'))
+const totalReturned   = computed(() => approvedReturns.value.reduce((s: number, r: any) => s + Number(r.total_returned_amount), 0))
 
 // Total exposure = what's already on the ledger (delivered & unpaid)
 //                + pre-delivery order commitments from OTHER orders
@@ -427,6 +568,41 @@ const cancelModal     = ref(false)
 const cancelReason    = ref('')
 const deleteModal     = ref(false)
 const acting          = ref(false)
+
+// Return approval
+const returnApprovalModal  = ref(false)
+const returnApprovalNote   = ref('')
+const pendingReturnTarget  = ref<any>(null)
+const pendingReturnAction  = ref<'approve'|'reject'>('approve')
+
+function openReturnApproval(ret: any, action: 'approve'|'reject') {
+  pendingReturnTarget.value = ret
+  pendingReturnAction.value = action
+  returnApprovalNote.value  = ''
+  returnApprovalModal.value = true
+}
+
+async function submitReturnApproval() {
+  if (!pendingReturnTarget.value) return
+  acting.value = true
+  try {
+    await $fetch(`/api/credit-sales/returns/${pendingReturnTarget.value.id}/status`, {
+      method: 'PATCH',
+      body: { action: pendingReturnAction.value, notes: returnApprovalNote.value || undefined },
+    })
+    returnApprovalModal.value = false
+    if (pendingReturnAction.value === 'approve') {
+      success(`Return ${pendingReturnTarget.value.return_number} approved — balance adjusted ✓`)
+    } else {
+      toastError(`Return ${pendingReturnTarget.value.return_number} rejected`)
+    }
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Action failed')
+  } finally {
+    acting.value = false
+  }
+}
 
 // ── API-backed actions ───────────────────────────────────
 async function callWorkflow(toStatus: string, comments: string) {

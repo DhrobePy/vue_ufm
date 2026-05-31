@@ -14,7 +14,7 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns] = await Promise.all([
 
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -45,6 +45,19 @@ export default defineEventHandler(async () => {
        WHERE p.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
        ORDER BY p.created_at DESC
        LIMIT 4`,
+    ), []),
+
+    // Pending returns — critical: need admin approval before balance is adjusted
+    safeQuery(() => query(
+      `SELECT r.id, r.return_number, r.order_id, r.total_returned_amount,
+              r.return_reason, r.created_at,
+              c.name AS customer_name, o.order_number
+       FROM credit_order_returns r
+       JOIN credit_orders o ON o.id = r.order_id
+       JOIN customers c ON c.id = r.customer_id
+       WHERE r.status = 'pending'
+       ORDER BY r.created_at DESC
+       LIMIT 6`,
     ), []),
   ])
 
@@ -87,6 +100,18 @@ export default defineEventHandler(async () => {
       time:  timeAgo(new Date(p.created_at)),
       route: '/credit-sales/payments',
       read:  true,
+    })
+  }
+
+  for (const r of pendingReturns as any[]) {
+    const amt = Number(r.total_returned_amount).toLocaleString('en-BD')
+    notifications.push({
+      id:    nid++,
+      text:  `↩️ Return ${r.return_number} pending approval — ${r.customer_name} · ৳${amt} (Order ${r.order_number})`,
+      type:  'warning',
+      time:  timeAgo(new Date(r.created_at)),
+      route: `/credit-sales/${r.order_id}`,
+      read:  false,
     })
   }
 

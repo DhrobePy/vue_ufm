@@ -87,12 +87,12 @@
                     <p class="text-gray-200 font-medium">{{ item.product_name || '—' }}</p>
                     <p class="text-gray-600 text-[10px]">{{ item.weight_variant ?? '' }}</p>
                   </td>
-                  <td class="py-3 px-2 text-right text-gray-400">{{ Number(item.quantity).toFixed(0) }}</td>
+                  <td class="py-3 px-2 text-right text-gray-400">{{ Number(item.qty_bags).toFixed(0) }}</td>
                   <td class="py-3 px-2 text-right text-gray-400">৳{{ Number(item.unit_price).toLocaleString() }}</td>
                   <td class="py-3 px-2 text-right">
                     <input
                       v-model.number="returnItems[i].return_qty"
-                      type="number" min="0" :max="item.quantity" step="1"
+                      type="number" min="0" :max="item.qty_bags" step="1"
                       class="w-20 bg-white/[0.06] border border-white/[0.10] rounded-lg px-2 py-1.5
                              text-right text-xs text-gray-200 outline-none
                              focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/30"
@@ -274,12 +274,12 @@ watch(orderItems, (items) => {
 function clampQty(i: number) {
   const item = returnItems.value[i]
   if (item.return_qty < 0) item.return_qty = 0
-  if (item.return_qty > Number(item.quantity)) item.return_qty = Number(item.quantity)
+  if (item.return_qty > Number(item.qty_bags)) item.return_qty = Number(item.qty_bags)
 }
 
 function fillAll() {
   returnItems.value.forEach(item => {
-    item.return_qty = Number(item.quantity)
+    item.return_qty = Number(item.qty_bags)
   })
 }
 
@@ -334,7 +334,7 @@ async function submit() {
       order_item_id: i.id,
       product_id:    i.product_id ?? null,
       variant_id:    i.variant_id ?? null,
-      original_qty:  Number(i.quantity),
+      original_qty:  Number(i.qty_bags),
       returned_qty:  Number(i.return_qty),
       unit_price:    Number(i.unit_price),
     }))
