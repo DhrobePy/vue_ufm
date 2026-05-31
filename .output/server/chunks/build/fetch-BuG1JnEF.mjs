@@ -1,5 +1,5 @@
 import { computed, toValue, reactive, watch, getCurrentInstance, onServerPrefetch, ref, shallowRef, nextTick, unref, toRef } from 'vue';
-import { w as hash } from '../nitro/nitro.mjs';
+import { y as hash } from '../nitro/nitro.mjs';
 import { isPlainObject } from '@vue/shared';
 import { g as fetchDefaults, u as useNuxtApp, d as asyncDataDefaults, i as useRequestFetch, e as createError } from './server.mjs';
 import { debounce } from 'perfect-debounce';

@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, d as createError, u as getUserSession, G as readBody, m as getDb } from '../../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, w as getUserSession, I as readBody, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'node:path';
 import 'node:url';
 
 const status_patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const returnId = Number(getRouterParam(event, "returnId"));
   if (!returnId) throw createError({ statusCode: 400, statusMessage: "Invalid return ID" });
   const session = await getUserSession(event);
@@ -22,6 +22,7 @@ const status_patch = defineEventHandler(async (event) => {
   const body = await readBody(event);
   const action = body == null ? void 0 : body.action;
   const notes = body == null ? void 0 : body.notes;
+  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
   if (!["approve", "reject"].includes(action)) {
     throw createError({ statusCode: 400, statusMessage: 'action must be "approve" or "reject"' });
   }
@@ -58,7 +59,7 @@ const status_patch = defineEventHandler(async (event) => {
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [ret.customer_id]
       );
-      const prevBal = Number((_e = lastLedger == null ? void 0 : lastLedger.bal) != null ? _e : 0);
+      const prevBal = Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0);
       const newBal = Math.max(0, prevBal - totalRetAmount);
       await conn.query(
         `INSERT INTO customer_ledger
@@ -98,8 +99,19 @@ const status_patch = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [ret.order_id, (_f = ret.status) != null ? _f : "delivered", (_g = ret.status) != null ? _g : "delivered", wfAction, userId, wfComment]
+      [ret.order_id, (_h = ret.status) != null ? _h : "delivered", (_i = ret.status) != null ? _i : "delivered", wfAction, userId, wfComment]
     );
+    await auditLog(conn, {
+      userId,
+      action: wfAction,
+      module: "credit_sales",
+      recordType: "credit_order_return",
+      referenceNumber: ret.return_number,
+      description: `${action === "approve" ? "Approved" : "Rejected"} return ${ret.return_number} (Order ${ret.order_number}) \u2014 \u09F3${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` \xB7 ${notes}` : ""}`,
+      severity: action === "approve" ? "info" : "warning",
+      status: newStatus,
+      ipAddress
+    });
     await conn.commit();
     return { ok: true, status: newStatus, return_id: returnId };
   } catch (e) {

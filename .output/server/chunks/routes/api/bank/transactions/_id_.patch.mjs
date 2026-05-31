@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, G as readBody, d as createError, m as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, I as readBody, e as createError, n as getDb } from '../../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';

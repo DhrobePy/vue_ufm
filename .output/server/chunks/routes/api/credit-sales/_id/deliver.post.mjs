@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, d as createError, G as readBody, u as getUserSession, m as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -10,12 +10,13 @@ import 'node:path';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  const ipAddress = (_d = (_c = getRequestHeader(event, "x-forwarded-for")) != null ? _c : getRequestHeader(event, "x-real-ip")) != null ? _d : void 0;
   const {
     delivery_date,
     truck_number,
@@ -43,7 +44,7 @@ const deliver_post = defineEventHandler(async (event) => {
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
+    const seq = String(((_e = cnt.n) != null ? _e : 0) + 1).padStart(4, "0");
     const delNo = `DEL-${today}-${seq}`;
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
@@ -79,7 +80,7 @@ const deliver_post = defineEventHandler(async (event) => {
           deliveryId,
           item.order_item_id,
           item.product_id,
-          (_d = item.variant_id) != null ? _d : null,
+          (_f = item.variant_id) != null ? _f : null,
           Number(item.qty_delivered),
           Number(item.unit_price),
           Number(item.qty_delivered) * Number(item.unit_price)
@@ -92,7 +93,7 @@ const deliver_post = defineEventHandler(async (event) => {
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
     );
-    const prevBal = Number((_e = lastLedger == null ? void 0 : lastLedger.bal) != null ? _e : 0);
+    const prevBal = Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0);
     const newBal = prevBal + totalAmount;
     const shipType = is_final ? "Full Delivery" : "Partial Delivery";
     await conn.query(
@@ -130,6 +131,17 @@ const deliver_post = defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [id, order.status, wfToStatus, wfAction, userId, wfComment]
     );
+    await auditLog(conn, {
+      userId,
+      action: wfAction,
+      module: "credit_sales",
+      recordType: "credit_order",
+      referenceNumber: delNo,
+      description: `${is_final ? "Final" : "Partial"} delivery ${delNo} for Order ${order.order_number} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`,
+      severity: "info",
+      status: wfToStatus,
+      ipAddress
+    });
     await conn.commit();
     return { ok: true, delivery_number: delNo, delivery_id: deliveryId };
   } catch (e) {

@@ -1,4 +1,4 @@
-import { g as defineEventHandler, G as readBody, d as createError, E as query, m as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, e as createError, G as query, n as getDb } from '../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';

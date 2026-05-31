@@ -1,13 +1,15 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid order ID' })
 
-  const body    = await readBody(event)
-  const session = await getUserSession(event)
-  const userId  = session?.user?.id ?? 1
-  const role    = (session?.user?.role ?? '').toLowerCase()
+  const body      = await readBody(event)
+  const session   = await getUserSession(event)
+  const userId    = session?.user?.id ?? 1
+  const role      = (session?.user?.role ?? '').toLowerCase()
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
     return_date,
@@ -142,6 +144,19 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [id, order.status ?? 'delivered', order.status ?? 'delivered', wfAction, userId, wfComment],
     )
+
+    // ── System audit log ───────────────────────────────────────────────
+    await auditLog(conn, {
+      userId,
+      action:          wfAction,
+      module:          'credit_sales',
+      recordType:      'credit_order_return',
+      referenceNumber: retNo,
+      description:     `Return ${retNo} submitted for Order ${order.order_number} — ${order.customer_id} · ${totalRetQty} bags · ৳${totalRetAmount.toLocaleString()} · ${autoApprove ? 'auto-approved' : 'pending approval'}`,
+      severity:        autoApprove ? 'info' : 'warning',
+      status:          retStatus,
+      ipAddress,
+    })
 
     await conn.commit()
     return {

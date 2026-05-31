@@ -1,12 +1,14 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid order ID' })
 
-  const body    = await readBody(event)
-  const session = await getUserSession(event)
-  const userId  = session?.user?.id ?? 1
+  const body      = await readBody(event)
+  const session   = await getUserSession(event)
+  const userId    = session?.user?.id ?? 1
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
     delivery_date,
@@ -133,6 +135,19 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [id, order.status, wfToStatus, wfAction, userId, wfComment],
     )
+
+    // ── System audit log ───────────────────────────────────────────────
+    await auditLog(conn, {
+      userId,
+      action:          wfAction,
+      module:          'credit_sales',
+      recordType:      'credit_order',
+      referenceNumber: delNo,
+      description:     `${is_final ? 'Final' : 'Partial'} delivery ${delNo} for Order ${order.order_number} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}`,
+      severity:        'info',
+      status:          wfToStatus,
+      ipAddress,
+    })
 
     await conn.commit()
     return { ok: true, delivery_number: delNo, delivery_id: deliveryId }

@@ -1,4 +1,4 @@
-import { g as defineEventHandler, G as readBody, d as createError, E as query } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, e as createError, G as query } from '../../../nitro/nitro.mjs';
 import { writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import 'mysql2/promise';

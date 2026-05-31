@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 /**
  * PATCH /api/credit-sales/returns/:returnId/status
@@ -17,9 +18,10 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Admin access required to approve returns' })
   }
 
-  const body   = await readBody(event)
-  const action = body?.action as 'approve' | 'reject'
-  const notes  = body?.notes as string | undefined
+  const body      = await readBody(event)
+  const action    = body?.action as 'approve' | 'reject'
+  const notes     = body?.notes as string | undefined
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   if (!['approve', 'reject'].includes(action)) {
     throw createError({ statusCode: 400, statusMessage: 'action must be "approve" or "reject"' })
@@ -112,6 +114,19 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [ret.order_id, ret.status ?? 'delivered', ret.status ?? 'delivered', wfAction, userId, wfComment],
     )
+
+    // ── System audit log ───────────────────────────────────────────────
+    await auditLog(conn, {
+      userId,
+      action:          wfAction,
+      module:          'credit_sales',
+      recordType:      'credit_order_return',
+      referenceNumber: ret.return_number,
+      description:     `${action === 'approve' ? 'Approved' : 'Rejected'} return ${ret.return_number} (Order ${ret.order_number}) — ৳${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` · ${notes}` : ''}`,
+      severity:        action === 'approve' ? 'info' : 'warning',
+      status:          newStatus,
+      ipAddress,
+    })
 
     await conn.commit()
     return { ok: true, status: newStatus, return_id: returnId }

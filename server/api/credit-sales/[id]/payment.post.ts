@@ -1,12 +1,14 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid order ID' })
 
-  const body    = await readBody(event)
-  const session = await getUserSession(event)
-  const userId  = session?.user?.id ?? 1
+  const body      = await readBody(event)
+  const session   = await getUserSession(event)
+  const userId    = session?.user?.id ?? 1
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
     amount,
@@ -132,6 +134,21 @@ export default defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [id, order.status, wfToStatus, wfAction, userId, wfComments],
     )
+
+    // ── System audit log ───────────────────────────────────────────────
+    await auditLog(conn, {
+      userId,
+      action:          isNowComplete ? 'order_completed' : 'payment_received',
+      module:          'credit_sales',
+      recordType:      'credit_order',
+      referenceNumber: payNo,
+      description:     isNowComplete
+        ? `Order ${order.id} fully paid & completed — ${payNo} · ৳${pmtAmount.toLocaleString()} via ${mappedMethod}`
+        : `Payment received — ${payNo} · ৳${pmtAmount.toLocaleString()} via ${mappedMethod} · balance ৳${newBalance.toLocaleString()} remaining`,
+      severity:        'info',
+      status:          isNowComplete ? 'completed' : 'partial',
+      ipAddress,
+    })
 
     await conn.commit()
     return {

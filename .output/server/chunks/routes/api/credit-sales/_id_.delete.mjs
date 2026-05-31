@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, u as getUserSession, d as createError, m as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, w as getUserSession, q as getRequestHeader, e as createError, n as getDb, a as auditLog } from '../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -10,11 +10,12 @@ import 'node:path';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g;
   const id = Number(getRouterParam(event, "id"));
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   const userId = (_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.id) != null ? _d : 1;
+  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
   if (!["admin", "superadmin"].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can delete orders" });
   }
@@ -54,6 +55,18 @@ const _id__delete = defineEventHandler(async (event) => {
       [userId, id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+    const auditAmt = Number(order.total_amount).toLocaleString();
+    await auditLog(conn, {
+      userId,
+      action: "order_deleted",
+      module: "credit_sales",
+      recordType: "credit_order",
+      referenceNumber: order.order_number,
+      description: `Order ${order.order_number} deleted \u2014 ${order.customer_name} \xB7 \u09F3${auditAmt} \xB7 status was ${order.order_status}`,
+      severity: "error",
+      status: "deleted",
+      ipAddress
+    });
     await conn.query(
       `INSERT INTO order_deletion_log
          (order_id, order_number, customer_id, customer_name,
@@ -70,7 +83,7 @@ const _id__delete = defineEventHandler(async (event) => {
         order.balance_due,
         order.order_status,
         userId,
-        (_e = order.deleted_by_name) != null ? _e : null
+        (_g = order.deleted_by_name) != null ? _g : null
       ]
     );
     const [deliveries] = await conn.query(

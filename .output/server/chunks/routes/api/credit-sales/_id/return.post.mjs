@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, d as createError, G as readBody, u as getUserSession, m as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -10,13 +10,14 @@ import 'node:path';
 import 'node:url';
 
 const return_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
+  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
   const {
     return_date,
     return_type = "partial",
@@ -42,7 +43,7 @@ const return_post = defineEventHandler(async (event) => {
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_e = cnt.n) != null ? _e : 0) + 1).padStart(4, "0");
+    const seq = String(((_g = cnt.n) != null ? _g : 0) + 1).padStart(4, "0");
     const retNo = `RET-${today}-${seq}`;
     const retDate = return_date != null ? return_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const totalRetQty = items.reduce((s, i) => s + Number(i.returned_qty), 0);
@@ -85,8 +86,8 @@ const return_post = defineEventHandler(async (event) => {
           returnId,
           item.order_item_id,
           item.product_id,
-          (_f = item.variant_id) != null ? _f : null,
-          Number((_g = item.original_qty) != null ? _g : 0),
+          (_h = item.variant_id) != null ? _h : null,
+          Number((_i = item.original_qty) != null ? _i : 0),
           Number(item.returned_qty),
           Number(item.unit_price),
           Number(item.returned_qty) * Number(item.unit_price)
@@ -100,7 +101,7 @@ const return_post = defineEventHandler(async (event) => {
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [order.customer_id]
       );
-      const prevBal = Number((_h = lastLedger == null ? void 0 : lastLedger.bal) != null ? _h : 0);
+      const prevBal = Number((_j = lastLedger == null ? void 0 : lastLedger.bal) != null ? _j : 0);
       const newBal = Math.max(0, prevBal - totalRetAmount);
       await conn.query(
         `INSERT INTO customer_ledger
@@ -140,8 +141,19 @@ const return_post = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, (_i = order.status) != null ? _i : "delivered", (_j = order.status) != null ? _j : "delivered", wfAction, userId, wfComment]
+      [id, (_k = order.status) != null ? _k : "delivered", (_l = order.status) != null ? _l : "delivered", wfAction, userId, wfComment]
     );
+    await auditLog(conn, {
+      userId,
+      action: wfAction,
+      module: "credit_sales",
+      recordType: "credit_order_return",
+      referenceNumber: retNo,
+      description: `Return ${retNo} submitted for Order ${order.order_number} \u2014 ${order.customer_id} \xB7 ${totalRetQty} bags \xB7 \u09F3${totalRetAmount.toLocaleString()} \xB7 ${autoApprove ? "auto-approved" : "pending approval"}`,
+      severity: autoApprove ? "info" : "warning",
+      status: retStatus,
+      ipAddress
+    });
     await conn.commit();
     return {
       ok: true,

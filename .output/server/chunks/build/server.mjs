@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { d as createError$1, C as parseURL, j as encodePath, f as decodePath, v as hasProtocol, x as isScriptProtocol, y as joinURL, O as withQuery, i as defu, J as sanitizeStatusCode, l as getContext, $ as $fetch$1, b as baseURL, e as createHooks, k as executeAsync } from '../nitro/nitro.mjs';
+import { e as createError$1, E as parseURL, k as encodePath, g as decodePath, x as hasProtocol, z as isScriptProtocol, A as joinURL, Q as withQuery, j as defu, L as sanitizeStatusCode, m as getContext, $ as $fetch$1, b as baseURL, f as createHooks, l as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'mysql2/promise';
@@ -911,13 +911,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1e || {},
-    component: () => import('./create-kWvzcAy0.mjs')
+    component: () => import('./create-ClwmkP_H.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1d || {},
-    component: () => import('./index-YPboTiwT.mjs')
+    component: () => import('./index-DLG-nDxG.mjs')
   },
   {
     name: "fleet-trips-create",

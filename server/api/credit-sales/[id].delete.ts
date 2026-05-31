@@ -1,10 +1,12 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
-  const id      = Number(getRouterParam(event, 'id'))
-  const session = await getUserSession(event)
-  const role    = (session?.user?.role ?? '').toLowerCase()
-  const userId  = session?.user?.id ?? 1
+  const id        = Number(getRouterParam(event, 'id'))
+  const session   = await getUserSession(event)
+  const role      = (session?.user?.role ?? '').toLowerCase()
+  const userId    = session?.user?.id ?? 1
+  const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   if (!['admin', 'superadmin'].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: 'Only admin/superadmin can delete orders' })
@@ -51,6 +53,20 @@ export default defineEventHandler(async (event) => {
       [userId, id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
+
+    // ── System audit log (visible on /admin/audit) ─────────────────────
+    const auditAmt = Number(order.total_amount).toLocaleString()
+    await auditLog(conn, {
+      userId,
+      action:          'order_deleted',
+      module:          'credit_sales',
+      recordType:      'credit_order',
+      referenceNumber: order.order_number,
+      description:     `Order ${order.order_number} deleted — ${order.customer_name} · ৳${auditAmt} · status was ${order.order_status}`,
+      severity:        'error',
+      status:          'deleted',
+      ipAddress,
+    })
 
     // ── Write tombstone BEFORE cascade delete ──────────────────────────────
     await conn.query(

@@ -1,4 +1,4 @@
-import { g as defineEventHandler, u as getUserSession } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, w as getUserSession } from '../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';

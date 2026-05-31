@@ -1,4 +1,4 @@
-import { g as defineEventHandler, t as getRouterParam, d as createError, G as readBody, u as getUserSession, m as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'mysql2/promise';
 import 'node:http';
 import 'node:https';
@@ -10,12 +10,13 @@ import 'node:path';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  const ipAddress = (_d = (_c = getRequestHeader(event, "x-forwarded-for")) != null ? _c : getRequestHeader(event, "x-real-ip")) != null ? _d : void 0;
   const {
     amount,
     payment_method,
@@ -33,7 +34,7 @@ const payment_post = defineEventHandler(async (event) => {
     nagad: "Mobile Banking",
     bank: "Bank Transfer"
   };
-  const mappedMethod = (_c = methodMap[payment_method != null ? payment_method : ""]) != null ? _c : "Cash";
+  const mappedMethod = (_e = methodMap[payment_method != null ? payment_method : ""]) != null ? _e : "Cash";
   const db = getDb();
   const conn = await db.getConnection();
   try {
@@ -44,13 +45,13 @@ const payment_post = defineEventHandler(async (event) => {
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
     const pmtAmount = Number(amount);
-    const newPaid = Number((_d = order.amount_paid) != null ? _d : 0) + pmtAmount;
-    const newBalance = Math.max(0, Number((_e = order.balance_due) != null ? _e : 0) - pmtAmount);
+    const newPaid = Number((_f = order.amount_paid) != null ? _f : 0) + pmtAmount;
+    const newBalance = Math.max(0, Number((_g = order.balance_due) != null ? _g : 0) - pmtAmount);
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_f = cnt.n) != null ? _f : 0) + 1).padStart(4, "0");
+    const seq = String(((_h = cnt.n) != null ? _h : 0) + 1).padStart(4, "0");
     const payNo = `PAY-${today}-${seq}`;
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
@@ -90,7 +91,7 @@ const payment_post = defineEventHandler(async (event) => {
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
     );
-    const prevBal = Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0);
+    const prevBal = Number((_i = lastLedger == null ? void 0 : lastLedger.bal) != null ? _i : 0);
     const newBal = Math.max(0, prevBal - pmtAmount);
     await conn.query(
       `INSERT INTO customer_ledger
@@ -118,6 +119,17 @@ const payment_post = defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
       [id, order.status, wfToStatus, wfAction, userId, wfComments]
     );
+    await auditLog(conn, {
+      userId,
+      action: isNowComplete ? "order_completed" : "payment_received",
+      module: "credit_sales",
+      recordType: "credit_order",
+      referenceNumber: payNo,
+      description: isNowComplete ? `Order ${order.id} fully paid & completed \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod}` : `Payment received \u2014 ${payNo} \xB7 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()} remaining`,
+      severity: "info",
+      status: isNowComplete ? "completed" : "partial",
+      ipAddress
+    });
     await conn.commit();
     return {
       ok: true,
