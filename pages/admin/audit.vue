@@ -23,8 +23,14 @@
           <option value="">All Users</option>
           <option v-for="u in userNames" :key="u.id" :value="u.id">{{ u.display_name }}</option>
         </select>
+        <select v-model="moduleFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
+          <option value="">All Modules</option>
+          <option value="credit_sales">Credit Sales</option>
+          <option value="expenses">Expenses</option>
+          <option value="purchase">Purchase</option>
+        </select>
         <input type="date" v-model="dateFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()" />
-        <button @click="severityFilter=''; userFilter=''; dateFilter=''; page=1; refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
+        <button @click="severityFilter=''; userFilter=''; moduleFilter=''; dateFilter=''; page=1; refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
         <span class="text-xs text-gray-600 ml-auto">{{ data?.total ?? 0 }} events</span>
       </div>
     </div>
@@ -53,6 +59,18 @@
                 <span v-if="log.module" class="badge bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">
                   {{ log.module }}
                 </span>
+                <span v-if="log.record_type" class="badge bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">
+                  {{ log.record_type }}
+                </span>
+                <span v-if="log.reference_number" class="text-[11px] text-gold-400/70 font-mono">
+                  {{ log.reference_number }}
+                </span>
+                <span v-if="log.status" :class="['text-[10px] font-medium px-1.5 py-0.5 rounded',
+                  log.status === 'deleted'   ? 'bg-red-500/10 text-red-400' :
+                  log.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400' :
+                  'bg-gray-500/10 text-gray-400']">
+                  {{ log.status }}
+                </span>
                 <span v-if="log.ip_address" class="text-[11px] text-gray-700 font-mono">{{ log.ip_address }}</span>
               </div>
             </div>
@@ -80,6 +98,7 @@ definePageMeta({ layout: 'default' })
 const severities     = ['All', 'info', 'warning', 'error']
 const severityFilter = ref('')
 const userFilter     = ref('')
+const moduleFilter   = ref('')
 const dateFilter     = ref('')
 const page           = ref(1)
 const perPage        = 50
@@ -88,6 +107,7 @@ const { data, pending, error, refresh } = await useFetch('/api/admin/audit-logs'
   query: computed(() => ({
     severity: severityFilter.value || undefined,
     user:     userFilter.value     || undefined,
+    module:   moduleFilter.value   || undefined,
     date:     dateFilter.value     || undefined,
     page:     page.value,
     per:      perPage,

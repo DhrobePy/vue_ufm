@@ -186,7 +186,7 @@ export default defineEventHandler(async () => {
       text:  `🗑️ Order ${d.order_number} deleted${byLine} — ${d.customer_name} · ৳${amt}${wasComplete ? ' (was completed)' : ''}`,
       type:  'error',
       time:  timeAgo(new Date(d.deleted_at)),
-      route: '/credit-sales/all',   // order is gone — link to the list
+      route: '/admin/audit',   // order is gone — link to audit trail
       read:  false,
     })
   }

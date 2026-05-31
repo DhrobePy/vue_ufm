@@ -623,7 +623,7 @@ const _routes = [
     name: "admin-audit",
     path: "/admin/audit",
     meta: __nuxt_page_meta$1_ || {},
-    component: () => import('./audit-D96XM8jV.mjs')
+    component: () => import('./audit-D1GE_alZ.mjs')
   },
   {
     name: "admin",

@@ -180,8 +180,8 @@ const notifications_get = defineEventHandler(async () => {
       text: `\u{1F5D1}\uFE0F Order ${d.order_number} deleted${byLine} \u2014 ${d.customer_name} \xB7 \u09F3${amt}${wasComplete ? " (was completed)" : ""}`,
       type: "error",
       time: timeAgo(new Date(d.deleted_at)),
-      route: "/credit-sales/all",
-      // order is gone — link to the list
+      route: "/admin/audit",
+      // order is gone — link to audit trail
       read: false
     });
   }

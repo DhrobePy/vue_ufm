@@ -37,7 +37,7 @@ const _id__delete = defineEventHandler(async (event) => {
         order_status       VARCHAR(50),
         deleted_by_user_id INT,
         deleted_by_name    VARCHAR(200),
-        deleted_at         TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        deleted_at         DATETIME,   -- set explicitly to UTC_TIMESTAMP() on insert
         INDEX idx_deleted_at (deleted_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
@@ -71,8 +71,8 @@ const _id__delete = defineEventHandler(async (event) => {
       `INSERT INTO order_deletion_log
          (order_id, order_number, customer_id, customer_name,
           total_amount, amount_paid, balance_due, order_status,
-          deleted_by_user_id, deleted_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          deleted_by_user_id, deleted_by_name, deleted_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())`,
       [
         id,
         order.order_number,
