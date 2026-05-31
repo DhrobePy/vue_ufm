@@ -14,7 +14,7 @@ async function safeQuery<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 }
 
 export default defineEventHandler(async () => {
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions] = await Promise.all([
+  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions, recentReversals, recentReturnDeletions] = await Promise.all([
 
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -95,6 +95,35 @@ export default defineEventHandler(async () => {
        FROM order_deletion_log
        WHERE deleted_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
        ORDER BY deleted_at DESC
+       LIMIT 6`,
+    ), []),
+
+    // Payment reversals in the last 24 h — from audit log
+    safeQuery(() => query(
+      `SELECT l.id, l.description, l.reference_number, l.record_id, l.created_at,
+              u.display_name AS user_name
+       FROM system_audit_log l
+       LEFT JOIN users u ON u.id = l.user_id
+       WHERE l.module = 'credit_sales'
+         AND l.record_type = 'customer_payment'
+         AND l.action = 'other'
+         AND l.reference_number LIKE 'REV-%'
+         AND l.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY l.created_at DESC
+       LIMIT 6`,
+    ), []),
+
+    // Return deletions in the last 48 h — from audit log
+    safeQuery(() => query(
+      `SELECT l.id, l.description, l.reference_number, l.record_id, l.severity, l.created_at,
+              u.display_name AS user_name
+       FROM system_audit_log l
+       LEFT JOIN users u ON u.id = l.user_id
+       WHERE l.module = 'credit_sales'
+         AND l.record_type = 'credit_order_return'
+         AND l.action = 'deleted'
+         AND l.created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY l.created_at DESC
        LIMIT 6`,
     ), []),
   ])
@@ -189,6 +218,33 @@ export default defineEventHandler(async () => {
       type:  'error',
       time:  timeAgo(new Date(d.deleted_at)),
       route: '/admin/audit',
+      read:  false,
+    })
+  }
+
+  for (const r of recentReversals as any[]) {
+    const byLine = r.user_name ? ` by ${r.user_name}` : ''
+    notifications.push({
+      id:    `rev-${r.id}`,
+      text:  `↩️ Payment ${r.reference_number} reversed${byLine}`,
+      type:  'warning',
+      time:  timeAgo(new Date(r.created_at)),
+      route: '/credit-sales/payments',
+      read:  false,
+    })
+  }
+
+  for (const r of recentReturnDeletions as any[]) {
+    const byLine  = r.user_name ? ` by ${r.user_name}` : ''
+    const wasApproved = r.severity === 'warning'   // approved returns log as 'warning'
+    notifications.push({
+      id:    `rdel-${r.id}`,
+      text:  wasApproved
+        ? `🗑️ Return ${r.reference_number} deleted & reversed${byLine}`
+        : `🗑️ Return ${r.reference_number} deleted${byLine}`,
+      type:  wasApproved ? 'warning' : 'info',
+      time:  timeAgo(new Date(r.created_at)),
+      route: r.record_id ? `/credit-sales/${r.record_id}` : '/credit-sales/all',
       read:  false,
     })
   }
