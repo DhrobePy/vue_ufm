@@ -17,7 +17,17 @@ export default defineNitroPlugin(async () => {
          COMMENT 'credit_orders.id this payment was collected for'`,
     )
   } catch (e) {
-    // Never crash the server over a migration — log and continue.
     console.warn('[db-migrate] customer_payments.order_id patch failed:', e)
+  }
+
+  try {
+    const db2 = getDb()
+    await db2.query(
+      `ALTER TABLE credit_orders
+       ADD COLUMN IF NOT EXISTS production_seq INT NOT NULL DEFAULT 0
+         COMMENT 'Manual production priority rank set by admin (0 = unset)'`,
+    )
+  } catch (e) {
+    console.warn('[db-migrate] credit_orders.production_seq patch failed:', e)
   }
 })
