@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, H as queryOne, n as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, H as queryOne, n as getDb, a as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -65,8 +65,20 @@ const adjustments_post = defineEventHandler(async (event) => {
         userId
       ]
     );
+    const noteId = result.insertId;
+    const typeLabel = note_type === "debit" ? "Debit Adj. Note (DAN)" : "Credit Adj. Note (CAN)";
+    await auditLog(conn, {
+      userId,
+      action: "adj_created",
+      module: "purchase",
+      recordType: "adjustment_note",
+      recordId: noteId,
+      referenceNumber: noteNum,
+      description: `${typeLabel} ${noteNum} created for PO ${po.po_number} \xB7 ${po.supplier_name} \xB7 \u09F3${Number(amount).toLocaleString()} \xB7 Reason: ${reason_type}`,
+      severity: "info"
+    });
     await conn.commit();
-    return { ok: true, id: result.insertId, note_number: noteNum };
+    return { ok: true, id: noteId, note_number: noteNum };
   } catch (e) {
     await conn.rollback();
     throw e;

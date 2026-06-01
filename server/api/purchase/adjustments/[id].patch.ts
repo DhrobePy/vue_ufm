@@ -1,4 +1,5 @@
 import { getDb, queryOne } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 /**
  * Handles approve / post / cancel actions on an adjustment note.
@@ -31,12 +32,24 @@ export default defineEventHandler(async (event) => {
     if (action === 'approve') {
       if (note.status !== 'draft')
         throw createError({ statusCode: 400, statusMessage: 'Only draft notes can be approved' })
+
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status = 'approved', approved_by_user_id = ?, approved_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
         [userId, id],
       )
+      await auditLog(conn, {
+        userId,
+        action:          'adj_approved',
+        module:          'purchase',
+        recordType:      'adjustment_note',
+        recordId:        id,
+        referenceNumber: note.note_number,
+        description:     `Adjustment Note ${note.note_number} approved · ৳${Number(note.amount).toLocaleString()} · PO ${note.po_number}`,
+        severity:        'info',
+      })
+
     } else if (action === 'post') {
       if (note.status !== 'approved')
         throw createError({ statusCode: 400, statusMessage: 'Only approved notes can be posted' })
@@ -50,13 +63,24 @@ export default defineEventHandler(async (event) => {
          WHERE id = ?`,
         [delta, note.purchase_order_id],
       )
-
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status = 'posted', posted_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
         [id],
       )
+      const effectLabel = note.note_type === 'debit' ? 'increases payable by' : 'reduces payable by'
+      await auditLog(conn, {
+        userId,
+        action:          'adj_posted',
+        module:          'purchase',
+        recordType:      'adjustment_note',
+        recordId:        id,
+        referenceNumber: note.note_number,
+        description:     `Adjustment Note ${note.note_number} posted — ${effectLabel} ৳${Number(note.amount).toLocaleString()} · PO ${note.po_number}`,
+        severity:        'warning',
+      })
+
     } else if (action === 'cancel') {
       if (note.status === 'posted')
         throw createError({ statusCode: 400, statusMessage: 'Cannot cancel a posted note' })
@@ -72,6 +96,16 @@ export default defineEventHandler(async (event) => {
          WHERE id = ?`,
         [cancelReason, id],
       )
+      await auditLog(conn, {
+        userId,
+        action:          'adj_cancelled',
+        module:          'purchase',
+        recordType:      'adjustment_note',
+        recordId:        id,
+        referenceNumber: note.note_number,
+        description:     `Adjustment Note ${note.note_number} cancelled · Reason: ${cancelReason}`,
+        severity:        'warning',
+      })
     }
 
     await conn.commit()

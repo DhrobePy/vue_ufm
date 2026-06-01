@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb, L as recalcPO } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb, L as recalcPO, a as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -89,6 +89,17 @@ const index_post = defineEventHandler(async (event) => {
     );
     const grnId = result.insertId;
     await recalcPO(conn, Number(po_id));
+    const varianceNote = expectedKg > 0 ? ` \xB7 Expected: ${expectedKg.toLocaleString()} KG \xB7 Variance: ${Number(varPct) >= 0 ? "+" : ""}${Number(varPct).toFixed(2)}%` : "";
+    await auditLog(conn, {
+      userId,
+      action: "grn_created",
+      module: "purchase",
+      recordType: "grn",
+      recordId: grnId,
+      referenceNumber: grnNo,
+      description: `GRN ${grnNo} recorded: ${po.supplier_name} \xB7 PO ${po.po_number} \xB7 Received ${receivedKg.toLocaleString()} KG \xB7 \u09F3${totalValue.toLocaleString()}${varianceNote}`,
+      severity: Math.abs(Number(varPct)) > 1 ? "warning" : "info"
+    });
     if (over_delivery_action === "accept_with_dan" && Number(excess_qty) > 0) {
       try {
         const excessKg = Number(excess_qty);
@@ -103,7 +114,7 @@ const index_post = defineEventHandler(async (event) => {
           );
           const danSeq = String(((_e = danCnt.n) != null ? _e : 0) + 1).padStart(4, "0");
           const danNo = `DAN-${today}-${danSeq}`;
-          await conn.query(
+          const [danResult] = await conn.query(
             `INSERT INTO purchase_adjustment_notes
                (note_number, note_type, reason_type, purchase_order_id,
                 quantity_kg, unit_price_per_kg, amount,
@@ -120,6 +131,16 @@ const index_post = defineEventHandler(async (event) => {
               `Auto-generated: Over-delivery on ${grnNo}. Excess qty: ${excessKg.toFixed(2)} KG.`
             ]
           );
+          await auditLog(conn, {
+            userId,
+            action: "adj_created",
+            module: "purchase",
+            recordType: "adjustment_note",
+            recordId: danResult.insertId,
+            referenceNumber: danNo,
+            description: `Auto-draft DAN ${danNo} created for over-delivery on GRN ${grnNo} \xB7 Excess ${excessKg.toFixed(2)} KG \xB7 \u09F3${danAmt.toLocaleString()}`,
+            severity: "warning"
+          });
         }
       } catch (danErr) {
         console.error("Auto-DAN creation error:", danErr);

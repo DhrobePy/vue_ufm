@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -41,9 +42,9 @@ export default defineEventHandler(async (event) => {
     const poNo   = `PO-${today}-${seq}`
 
     // Convert MT → kg  (1 MT = 1000 kg)
-    const quantity_kg     = Number(quantity_mt) * 1000
-    const unit_price_per_kg = Number(unit_price_per_mt) / 1000
-    const total_order_value = quantity_kg * unit_price_per_kg
+    const quantity_kg        = Number(quantity_mt) * 1000
+    const unit_price_per_kg  = Number(unit_price_per_mt) / 1000
+    const total_order_value  = quantity_kg * unit_price_per_kg
 
     const [result] = await conn.query<any>(
       `INSERT INTO purchase_orders_adnan
@@ -61,16 +62,28 @@ export default defineEventHandler(async (event) => {
                NOW(), NOW())`,
       [
         poNo, po_date, Number(supplier_id), supplierName,
-        wheat_origin || 'Other',                // NOT NULL in production — fall back to 'Other'
+        wheat_origin || 'Other',
         expected_delivery_date ?? null, quantity_kg, unit_price_per_kg,
         total_order_value, total_order_value,
-        // qty_yet_to_receive is GENERATED ALWAYS — do NOT include in INSERT
         branch_id ? Number(branch_id) : null, userId, remarks ?? null,
       ],
     )
 
+    const poId = result.insertId
+
+    await auditLog(conn, {
+      userId,
+      action:          'po_created',
+      module:          'purchase',
+      recordType:      'purchase_order',
+      recordId:        poId,
+      referenceNumber: poNo,
+      description:     `Purchase Order ${poNo} created for ${supplierName} · ${quantity_kg.toLocaleString()} KG @ ৳${unit_price_per_kg.toLocaleString()}/kg · Total ৳${total_order_value.toLocaleString()}`,
+      severity:        'info',
+    })
+
     await conn.commit()
-    return { ok: true, id: result.insertId, po_number: poNo }
+    return { ok: true, id: poId, po_number: poNo }
   } catch (e) {
     await conn.rollback()
     throw e

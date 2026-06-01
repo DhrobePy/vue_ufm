@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb, a as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -75,6 +75,7 @@ const payments_post = defineEventHandler(async (event) => {
         userId
       ]
     );
+    const paymentId = result.insertId;
     await conn.query(
       `UPDATE purchase_orders_adnan
        SET total_paid      = COALESCE(total_paid, 0) + ?,
@@ -87,8 +88,20 @@ const payments_post = defineEventHandler(async (event) => {
        WHERE id = ?`,
       [Number(amount_paid), Number(amount_paid), Number(amount_paid), purchase_order_id]
     );
+    const bankNote = bankName ? ` via ${bankName}` : "";
+    const refNote = reference_number ? ` \xB7 Ref: ${reference_number}` : "";
+    await auditLog(conn, {
+      userId,
+      action: "payment_made",
+      module: "purchase",
+      recordType: "purchase_payment",
+      recordId: paymentId,
+      referenceNumber: voucherNo,
+      description: `Payment ${voucherNo} recorded: \u09F3${Number(amount_paid).toLocaleString()} to ${po.supplier_name} for PO ${po.po_number} \xB7 ${payment_method}${bankNote}${refNote}`,
+      severity: "info"
+    });
     await conn.commit();
-    return { ok: true, id: result.insertId, voucher_number: voucherNo };
+    return { ok: true, id: paymentId, voucher_number: voucherNo };
   } catch (e) {
     await conn.rollback();
     throw e;

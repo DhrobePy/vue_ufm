@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, e as createError, w as getUserSession, n as getDb, L as recalcPO } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, w as getUserSession, n as getDb, L as recalcPO, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,17 +10,19 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid payment ID" });
   const session = await getUserSession(event);
-  const userName = (_d = (_c = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.name) != null ? _c : (_b = session == null ? void 0 : session.user) == null ? void 0 : _b.email) != null ? _d : "System";
+  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  const userName = (_f = (_e = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.name) != null ? _e : (_d = session == null ? void 0 : session.user) == null ? void 0 : _d.email) != null ? _f : "System";
   const db = getDb();
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [[pmt]] = await conn.query(
-      `SELECT id, payment_voucher_number, purchase_order_id, is_posted, remarks
+      `SELECT id, payment_voucher_number, purchase_order_id, is_posted,
+              amount_paid, supplier_name, remarks
        FROM purchase_payments_adnan WHERE id = ?`,
       [id]
     );
@@ -41,6 +43,17 @@ const _id__delete = defineEventHandler(async (event) => {
       await conn.query(`DELETE FROM purchase_payments_adnan WHERE id = ?`, [id]);
     }
     await recalcPO(conn, pmt.purchase_order_id);
+    const typeNote = pmt.is_posted ? " (was posted \u2014 soft deleted)" : " (hard deleted)";
+    await auditLog(conn, {
+      userId,
+      action: "payment_deleted",
+      module: "purchase",
+      recordType: "purchase_payment",
+      recordId: id,
+      referenceNumber: pmt.payment_voucher_number,
+      description: `Payment ${pmt.payment_voucher_number} deleted by ${userName} \xB7 \u09F3${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote}`,
+      severity: "warning"
+    });
     await conn.commit();
     return { ok: true, message: `Payment ${pmt.payment_voucher_number} deleted` };
   } catch (e) {

@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, n as getDb, L as recalcPO } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, n as getDb, L as recalcPO, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,9 +10,12 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
+  var _a, _b;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid GRN ID" });
   const body = await readBody(event);
+  const session = await getUserSession(event);
+  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const {
     grn_date,
     truck_number,
@@ -29,7 +32,8 @@ const _id__patch = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[grn]] = await conn.query(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg,
+              quantity_received_kg AS old_qty
        FROM goods_received_adnan WHERE id = ?`,
       [id]
     );
@@ -37,12 +41,11 @@ const _id__patch = defineEventHandler(async (event) => {
     if (grn.grn_status === "cancelled") {
       throw createError({ statusCode: 400, statusMessage: "Cannot edit a cancelled GRN" });
     }
-    const newQtyKg = Number(quantity_received_kg != null ? quantity_received_kg : grn.quantity_received_kg);
+    const newQtyKg = Number(quantity_received_kg != null ? quantity_received_kg : grn.old_qty);
     const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(grn.unit_price_per_kg);
     const totalValue = newQtyKg * unitPrice;
-    const baseQty = expectedKg > 0 ? expectedKg : newQtyKg;
-    const varPct = baseQty > 0 && expectedKg > 0 ? ((newQtyKg - expectedKg) / expectedKg * 100).toFixed(4) : "0";
+    const varPct = expectedKg > 0 ? ((newQtyKg - expectedKg) / expectedKg * 100).toFixed(4) : "0";
     await conn.query(
       `UPDATE goods_received_adnan
        SET grn_date               = ?,
@@ -72,6 +75,17 @@ const _id__patch = defineEventHandler(async (event) => {
       ]
     );
     await recalcPO(conn, grn.purchase_order_id);
+    const changeNote = newQtyKg !== Number(grn.old_qty) ? ` \xB7 Qty changed: ${Number(grn.old_qty).toLocaleString()} \u2192 ${newQtyKg.toLocaleString()} KG` : "";
+    await auditLog(conn, {
+      userId,
+      action: "grn_updated",
+      module: "purchase",
+      recordType: "grn",
+      recordId: id,
+      referenceNumber: grn.grn_number,
+      description: `GRN ${grn.grn_number} updated${changeNote} \xB7 Total Value: \u09F3${totalValue.toLocaleString()}`,
+      severity: newQtyKg !== Number(grn.old_qty) ? "warning" : "info"
+    });
     await conn.commit();
     return { ok: true, message: `GRN ${grn.grn_number} updated` };
   } catch (e) {

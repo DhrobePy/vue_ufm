@@ -1,4 +1,5 @@
 import { getDb, queryOne } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -28,7 +29,6 @@ export default defineEventHandler(async (event) => {
   ) as any
   if (!po) throw createError({ statusCode: 404, statusMessage: 'Purchase order not found' })
 
-  // Generate note number: DAN-YYYY-NNNN or CAN-YYYY-NNNN
   const db   = getDb()
   const conn = await db.getConnection()
   try {
@@ -52,7 +52,7 @@ export default defineEventHandler(async (event) => {
       [
         noteNum, note_type, reason_type, Number(purchase_order_id), po.po_number,
         po.supplier_id, po.supplier_name,
-        quantity_kg     ? Number(quantity_kg)     : null,
+        quantity_kg       ? Number(quantity_kg)       : null,
         unit_price_per_kg ? Number(unit_price_per_kg) : null,
         Number(amount),
         description,
@@ -60,8 +60,21 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
+    const noteId   = result.insertId
+    const typeLabel = note_type === 'debit' ? 'Debit Adj. Note (DAN)' : 'Credit Adj. Note (CAN)'
+    await auditLog(conn, {
+      userId,
+      action:          'adj_created',
+      module:          'purchase',
+      recordType:      'adjustment_note',
+      recordId:        noteId,
+      referenceNumber: noteNum,
+      description:     `${typeLabel} ${noteNum} created for PO ${po.po_number} · ${po.supplier_name} · ৳${Number(amount).toLocaleString()} · Reason: ${reason_type}`,
+      severity:        'info',
+    })
+
     await conn.commit()
-    return { ok: true, id: result.insertId, note_number: noteNum }
+    return { ok: true, id: noteId, note_number: noteNum }
   } catch (e) {
     await conn.rollback()
     throw e

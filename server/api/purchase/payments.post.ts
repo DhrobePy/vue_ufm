@@ -1,4 +1,5 @@
-import { getDb, query } from '~/server/utils/db'
+import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -48,7 +49,7 @@ export default defineEventHandler(async (event) => {
     const [[cnt]] = await conn.query<any>(
       `SELECT COUNT(*) AS n FROM purchase_payments_adnan WHERE DATE(payment_date) = CURDATE()`,
     )
-    const seq     = String((cnt.n ?? 0) + 1).padStart(4, '0')
+    const seq      = String((cnt.n ?? 0) + 1).padStart(4, '0')
     const voucherNo = `PV-${today}-${seq}`
 
     const [result] = await conn.query<any>(
@@ -76,6 +77,8 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
+    const paymentId = result.insertId
+
     // Update total_paid on the PO
     await conn.query(
       `UPDATE purchase_orders_adnan
@@ -90,8 +93,21 @@ export default defineEventHandler(async (event) => {
       [Number(amount_paid), Number(amount_paid), Number(amount_paid), purchase_order_id],
     )
 
+    const bankNote = bankName ? ` via ${bankName}` : ''
+    const refNote  = reference_number ? ` · Ref: ${reference_number}` : ''
+    await auditLog(conn, {
+      userId,
+      action:          'payment_made',
+      module:          'purchase',
+      recordType:      'purchase_payment',
+      recordId:        paymentId,
+      referenceNumber: voucherNo,
+      description:     `Payment ${voucherNo} recorded: ৳${Number(amount_paid).toLocaleString()} to ${po.supplier_name} for PO ${po.po_number} · ${payment_method}${bankNote}${refNote}`,
+      severity:        'info',
+    })
+
     await conn.commit()
-    return { ok: true, id: result.insertId, voucher_number: voucherNo }
+    return { ok: true, id: paymentId, voucher_number: voucherNo }
   } catch (e) {
     await conn.rollback()
     throw e

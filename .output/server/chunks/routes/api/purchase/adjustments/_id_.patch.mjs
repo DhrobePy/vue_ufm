@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, H as queryOne, n as getDb } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, H as queryOne, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -37,6 +37,16 @@ const _id__patch = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [userId, id]
       );
+      await auditLog(conn, {
+        userId,
+        action: "adj_approved",
+        module: "purchase",
+        recordType: "adjustment_note",
+        recordId: id,
+        referenceNumber: note.note_number,
+        description: `Adjustment Note ${note.note_number} approved \xB7 \u09F3${Number(note.amount).toLocaleString()} \xB7 PO ${note.po_number}`,
+        severity: "info"
+      });
     } else if (action === "post") {
       if (note.status !== "approved")
         throw createError({ statusCode: 400, statusMessage: "Only approved notes can be posted" });
@@ -54,6 +64,17 @@ const _id__patch = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [id]
       );
+      const effectLabel = note.note_type === "debit" ? "increases payable by" : "reduces payable by";
+      await auditLog(conn, {
+        userId,
+        action: "adj_posted",
+        module: "purchase",
+        recordType: "adjustment_note",
+        recordId: id,
+        referenceNumber: note.note_number,
+        description: `Adjustment Note ${note.note_number} posted \u2014 ${effectLabel} \u09F3${Number(note.amount).toLocaleString()} \xB7 PO ${note.po_number}`,
+        severity: "warning"
+      });
     } else if (action === "cancel") {
       if (note.status === "posted")
         throw createError({ statusCode: 400, statusMessage: "Cannot cancel a posted note" });
@@ -69,6 +90,16 @@ const _id__patch = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [cancelReason, id]
       );
+      await auditLog(conn, {
+        userId,
+        action: "adj_cancelled",
+        module: "purchase",
+        recordType: "adjustment_note",
+        recordId: id,
+        referenceNumber: note.note_number,
+        description: `Adjustment Note ${note.note_number} cancelled \xB7 Reason: ${cancelReason}`,
+        severity: "warning"
+      });
     }
     await conn.commit();
     return { ok: true, action };

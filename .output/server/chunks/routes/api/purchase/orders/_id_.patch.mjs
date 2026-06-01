@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, n as getDb, H as queryOne } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, e as createError, I as readBody, w as getUserSession, n as getDb, a as auditLog, H as queryOne } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -33,6 +33,11 @@ const _id__patch = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    const [[current]] = await conn.query(
+      `SELECT po_number, supplier_name FROM purchase_orders_adnan WHERE id = ?`,
+      [id]
+    );
+    if (!current) throw createError({ statusCode: 404, statusMessage: "Purchase order not found" });
     let supplierName = null;
     if (supplier_id) {
       const [[sup]] = await conn.query(
@@ -84,12 +89,18 @@ const _id__patch = defineEventHandler(async (event) => {
       setParts.push("remarks = ?");
       setParams.push(remarks != null ? remarks : null);
     }
+    let auditAction = "po_updated";
+    let auditDesc = `Purchase Order ${current.po_number} updated`;
     if (lock_action === "lock") {
       setParts.push("is_delivery_locked = 1", "delivery_lock_reason = ?", "delivery_locked_by_user_id = ?", "delivery_locked_at = NOW()");
       setParams.push(lock_reason != null ? lock_reason : "", userId);
+      auditAction = "po_locked";
+      auditDesc = `PO ${current.po_number} delivery locked: ${lock_reason}`;
     } else if (lock_action === "unlock") {
       setParts.push("is_delivery_locked = 0", "delivery_lock_reason = ?", "delivery_locked_by_user_id = ?", "delivery_locked_at = NULL");
       setParams.push(`Unlocked: ${lock_reason}`, userId);
+      auditAction = "po_unlocked";
+      auditDesc = `PO ${current.po_number} delivery unlocked: ${lock_reason}`;
     }
     setParts.push("updated_at = NOW()");
     if (setParts.length > 1) {
@@ -98,6 +109,16 @@ const _id__patch = defineEventHandler(async (event) => {
         [...setParams, id]
       );
     }
+    await auditLog(conn, {
+      userId,
+      action: auditAction,
+      module: "purchase",
+      recordType: "purchase_order",
+      recordId: id,
+      referenceNumber: current.po_number,
+      description: auditDesc,
+      severity: lock_action ? "warning" : "info"
+    });
     await conn.commit();
     const updated = await queryOne(
       `SELECT * FROM purchase_orders_adnan WHERE id = ?`,

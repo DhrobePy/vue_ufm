@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb, a as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -66,20 +66,29 @@ const index_post = defineEventHandler(async (event) => {
         Number(supplier_id),
         supplierName,
         wheat_origin || "Other",
-        // NOT NULL in production — fall back to 'Other'
         expected_delivery_date != null ? expected_delivery_date : null,
         quantity_kg,
         unit_price_per_kg,
         total_order_value,
         total_order_value,
-        // qty_yet_to_receive is GENERATED ALWAYS — do NOT include in INSERT
         branch_id ? Number(branch_id) : null,
         userId,
         remarks != null ? remarks : null
       ]
     );
+    const poId = result.insertId;
+    await auditLog(conn, {
+      userId,
+      action: "po_created",
+      module: "purchase",
+      recordType: "purchase_order",
+      recordId: poId,
+      referenceNumber: poNo,
+      description: `Purchase Order ${poNo} created for ${supplierName} \xB7 ${quantity_kg.toLocaleString()} KG @ \u09F3${unit_price_per_kg.toLocaleString()}/kg \xB7 Total \u09F3${total_order_value.toLocaleString()}`,
+      severity: "info"
+    });
     await conn.commit();
-    return { ok: true, id: result.insertId, po_number: poNo };
+    return { ok: true, id: poId, po_number: poNo };
   } catch (e) {
     await conn.rollback();
     throw e;

@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -86,6 +87,21 @@ export default defineEventHandler(async (event) => {
     // Recalculate PO totals
     await recalcPO(conn, Number(po_id))
 
+    // Audit log
+    const varianceNote = expectedKg > 0
+      ? ` · Expected: ${expectedKg.toLocaleString()} KG · Variance: ${Number(varPct) >= 0 ? '+' : ''}${Number(varPct).toFixed(2)}%`
+      : ''
+    await auditLog(conn, {
+      userId,
+      action:          'grn_created',
+      module:          'purchase',
+      recordType:      'grn',
+      recordId:        grnId,
+      referenceNumber: grnNo,
+      description:     `GRN ${grnNo} recorded: ${po.supplier_name} · PO ${po.po_number} · Received ${receivedKg.toLocaleString()} KG · ৳${totalValue.toLocaleString()}${varianceNote}`,
+      severity:        Math.abs(Number(varPct)) > 1 ? 'warning' : 'info',
+    })
+
     // Auto-create draft Debit Adjustment Note if over-delivery
     if (over_delivery_action === 'accept_with_dan' && Number(excess_qty) > 0) {
       try {
@@ -98,14 +114,13 @@ export default defineEventHandler(async (event) => {
            WHERE table_schema = DATABASE() AND table_name = 'purchase_adjustment_notes'`,
         )
         if (adjCheck.n > 0) {
-          // Generate DAN number
           const [[danCnt]] = await conn.query<any>(
             `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE DATE(created_at) = CURDATE()`,
           )
           const danSeq = String((danCnt.n ?? 0) + 1).padStart(4, '0')
           const danNo  = `DAN-${today}-${danSeq}`
 
-          await conn.query(
+          const [danResult] = await conn.query<any>(
             `INSERT INTO purchase_adjustment_notes
                (note_number, note_type, reason_type, purchase_order_id,
                 quantity_kg, unit_price_per_kg, amount,
@@ -119,9 +134,18 @@ export default defineEventHandler(async (event) => {
               `Auto-generated: Over-delivery on ${grnNo}. Excess qty: ${excessKg.toFixed(2)} KG.`,
             ],
           )
+          await auditLog(conn, {
+            userId,
+            action:          'adj_created',
+            module:          'purchase',
+            recordType:      'adjustment_note',
+            recordId:        danResult.insertId,
+            referenceNumber: danNo,
+            description:     `Auto-draft DAN ${danNo} created for over-delivery on GRN ${grnNo} · Excess ${excessKg.toFixed(2)} KG · ৳${danAmt.toLocaleString()}`,
+            severity:        'warning',
+          })
         }
       } catch (danErr) {
-        // DAN creation failure is non-fatal — log but continue
         console.error('Auto-DAN creation error:', danErr)
       }
     }

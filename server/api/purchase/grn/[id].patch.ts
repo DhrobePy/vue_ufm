@@ -1,11 +1,15 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid GRN ID' })
 
   const body = await readBody(event)
+  const session = await getUserSession(event)
+  const userId  = session?.user?.id ?? 1
+
   const {
     grn_date,
     truck_number,
@@ -25,7 +29,8 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[grn]] = await conn.query<any>(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg,
+              quantity_received_kg AS old_qty
        FROM goods_received_adnan WHERE id = ?`,
       [id],
     )
@@ -34,14 +39,13 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: 'Cannot edit a cancelled GRN' })
     }
 
-    const newQtyKg    = Number(quantity_received_kg ?? grn.quantity_received_kg)
+    const newQtyKg    = Number(quantity_received_kg ?? grn.old_qty)
     const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(grn.unit_price_per_kg)
     const totalValue  = newQtyKg * unitPrice
 
     // Variance vs expected_quantity (if provided)
-    const baseQty  = expectedKg > 0 ? expectedKg : newQtyKg
-    const varPct   = baseQty > 0 && expectedKg > 0
+    const varPct = expectedKg > 0
       ? (((newQtyKg - expectedKg) / expectedKg) * 100).toFixed(4)
       : '0'
 
@@ -75,6 +79,20 @@ export default defineEventHandler(async (event) => {
     )
 
     await recalcPO(conn, grn.purchase_order_id)
+
+    const changeNote = newQtyKg !== Number(grn.old_qty)
+      ? ` · Qty changed: ${Number(grn.old_qty).toLocaleString()} → ${newQtyKg.toLocaleString()} KG`
+      : ''
+    await auditLog(conn, {
+      userId,
+      action:          'grn_updated',
+      module:          'purchase',
+      recordType:      'grn',
+      recordId:        id,
+      referenceNumber: grn.grn_number,
+      description:     `GRN ${grn.grn_number} updated${changeNote} · Total Value: ৳${totalValue.toLocaleString()}`,
+      severity:        newQtyKg !== Number(grn.old_qty) ? 'warning' : 'info',
+    })
 
     await conn.commit()
     return { ok: true, message: `GRN ${grn.grn_number} updated` }

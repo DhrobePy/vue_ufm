@@ -16,6 +16,7 @@ import type mysql from 'mysql2/promise'
 
 // Map our internal action names → valid DB ENUM values
 const ACTION_MAP: Record<string, string> = {
+  // ── Credit sales ──────────────────────────────────────────────────────────
   order_deleted:    'deleted',
   order_completed:  'status_changed',
   payment_received: 'paid',
@@ -24,6 +25,26 @@ const ACTION_MAP: Record<string, string> = {
   return_submitted: 'other',
   return_approved:  'approved',
   return_rejected:  'rejected',
+
+  // ── Purchase module ───────────────────────────────────────────────────────
+  po_created:       'created',
+  po_updated:       'updated',
+  po_cancelled:     'cancelled',
+  po_closed:        'status_changed',
+  po_reopened:      'status_changed',
+  po_locked:        'other',
+  po_unlocked:      'other',
+  grn_created:      'received',
+  grn_updated:      'updated',
+  grn_cancelled:    'cancelled',
+  grn_deleted:      'deleted',
+  payment_made:     'paid',
+  payment_updated:  'updated',
+  payment_deleted:  'deleted',
+  adj_created:      'created',
+  adj_approved:     'approved',
+  adj_posted:       'status_changed',
+  adj_cancelled:    'cancelled',
 }
 
 // Map severity → valid DB ENUM  ('error' is not in the ENUM; use 'critical')

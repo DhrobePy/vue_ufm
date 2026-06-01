@@ -1,12 +1,14 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid payment ID' })
 
-  const session = await getUserSession(event)
-  const userName = session?.user?.name ?? session?.user?.email ?? 'System'
+  const session   = await getUserSession(event)
+  const userId    = session?.user?.id ?? 1
+  const userName  = session?.user?.name ?? session?.user?.email ?? 'System'
 
   const db   = getDb()
   const conn = await db.getConnection()
@@ -14,7 +16,8 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[pmt]] = await conn.query<any>(
-      `SELECT id, payment_voucher_number, purchase_order_id, is_posted, remarks
+      `SELECT id, payment_voucher_number, purchase_order_id, is_posted,
+              amount_paid, supplier_name, remarks
        FROM purchase_payments_adnan WHERE id = ?`,
       [id],
     )
@@ -38,6 +41,18 @@ export default defineEventHandler(async (event) => {
     }
 
     await recalcPO(conn, pmt.purchase_order_id)
+
+    const typeNote = pmt.is_posted ? ' (was posted — soft deleted)' : ' (hard deleted)'
+    await auditLog(conn, {
+      userId,
+      action:          'payment_deleted',
+      module:          'purchase',
+      recordType:      'purchase_payment',
+      recordId:        id,
+      referenceNumber: pmt.payment_voucher_number,
+      description:     `Payment ${pmt.payment_voucher_number} deleted by ${userName} · ৳${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote}`,
+      severity:        'warning',
+    })
 
     await conn.commit()
     return { ok: true, message: `Payment ${pmt.payment_voucher_number} deleted` }

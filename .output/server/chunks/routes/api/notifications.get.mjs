@@ -25,7 +25,24 @@ async function safeQuery(fn, fallback) {
 }
 const notifications_get = defineEventHandler(async () => {
   var _a;
-  const [pendingOrders, pendingExpenses, recentPayments, pendingReturns, recentCompletions, recentReturnApprovals, recentDeletions, recentReversals, recentReturnDeletions, recentOrdersCreated] = await Promise.all([
+  const [
+    pendingOrders,
+    pendingExpenses,
+    recentPayments,
+    pendingReturns,
+    recentCompletions,
+    recentReturnApprovals,
+    recentDeletions,
+    recentReversals,
+    recentReturnDeletions,
+    recentOrdersCreated,
+    // ── Purchase module ────────────────────────────────────────────────────
+    purchaseDraftGRNs,
+    purchaseNewPOs,
+    purchaseRecentPayments,
+    purchasePendingAdj,
+    purchaseCancellations
+  ] = await Promise.all([
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
       `SELECT o.id, o.order_number, o.status, o.total_amount,
@@ -141,6 +158,54 @@ const notifications_get = defineEventHandler(async () => {
          AND o.status NOT IN ('pending_approval','escalated','cancelled','rejected')
        ORDER BY o.created_at DESC
        LIMIT 6`
+    ), []),
+    // ── Purchase: Draft GRNs pending verification ───────────────────────────
+    safeQuery(() => query(
+      `SELECT g.id, g.grn_number, g.grn_date, g.supplier_name,
+              g.quantity_received_kg, g.total_value, g.created_at
+       FROM goods_received_adnan g
+       WHERE g.grn_status = 'draft'
+       ORDER BY g.created_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Purchase: New POs created in last 4 h ─────────────────────────────
+    safeQuery(() => query(
+      `SELECT id, po_number, supplier_name, quantity_kg, total_order_value, created_at
+       FROM purchase_orders_adnan
+       WHERE po_status != 'cancelled'
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 4 HOUR)
+       ORDER BY created_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Purchase: Payments recorded in last 24 h ───────────────────────────
+    safeQuery(() => query(
+      `SELECT id, payment_voucher_number, supplier_name, amount_paid,
+              payment_method, payment_date, created_at
+       FROM purchase_payments_adnan
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY created_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Purchase: Adjustment notes pending approval or posting ─────────────
+    safeQuery(() => query(
+      `SELECT id, note_number, note_type, status, supplier_name, amount, po_number, created_at
+       FROM purchase_adjustment_notes
+       WHERE status IN ('draft', 'approved')
+       ORDER BY created_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Purchase: Cancellations (PO or GRN) in last 48 h from audit log ───
+    safeQuery(() => query(
+      `SELECT l.id, l.description, l.reference_number, l.record_type,
+              l.record_id, l.severity, l.created_at,
+              u.display_name AS user_name
+       FROM system_audit_log l
+       LEFT JOIN users u ON u.id = l.user_id
+       WHERE l.module = 'purchase'
+         AND l.action = 'cancelled'
+         AND l.created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY l.created_at DESC
+       LIMIT 8`
     ), [])
   ]);
   const notifications = [];
@@ -259,6 +324,67 @@ const notifications_get = defineEventHandler(async () => {
       type: wasApproved ? "warning" : "info",
       time: timeAgo(new Date(r.created_at)),
       route: r.record_id ? `/credit-sales/${r.record_id}` : "/credit-sales/all",
+      read: false
+    });
+  }
+  for (const g of purchaseDraftGRNs) {
+    const qty = Number(g.quantity_received_kg).toLocaleString();
+    const val = Number(g.total_value).toLocaleString();
+    notifications.push({
+      id: `pgrn-${g.id}`,
+      text: `\u{1F4E6} GRN ${g.grn_number} needs verification \u2014 ${g.supplier_name} \xB7 ${qty} KG \xB7 \u09F3${val}`,
+      type: "warning",
+      time: timeAgo(new Date(g.created_at)),
+      route: `/purchase/grn/${g.id}`,
+      read: false
+    });
+  }
+  for (const po of purchaseNewPOs) {
+    const qty = (Number(po.quantity_kg) / 1e3).toFixed(2);
+    const val = Number(po.total_order_value).toLocaleString();
+    notifications.push({
+      id: `npo-${po.id}`,
+      text: `\u{1F195} PO ${po.po_number} created \u2014 ${po.supplier_name} \xB7 ${qty} MT \xB7 \u09F3${val}`,
+      type: "info",
+      time: timeAgo(new Date(po.created_at)),
+      route: `/purchase/orders/${po.id}`,
+      read: false
+    });
+  }
+  for (const p of purchaseRecentPayments) {
+    const amt = Number(p.amount_paid).toLocaleString();
+    notifications.push({
+      id: `ppay-${p.id}`,
+      text: `\u{1F4B3} Payment ${p.payment_voucher_number} \u2014 \u09F3${amt} to ${p.supplier_name} \xB7 ${p.payment_method}`,
+      type: "success",
+      time: timeAgo(new Date(p.created_at)),
+      route: "/purchase/payments",
+      read: false
+    });
+  }
+  for (const a of purchasePendingAdj) {
+    const amt = Number(a.amount).toLocaleString();
+    const typeLabel = a.note_type === "debit" ? "DAN" : "CAN";
+    const statusLabel = a.status === "draft" ? "needs approval" : "needs posting";
+    notifications.push({
+      id: `padj-${a.id}`,
+      text: `\u2696 ${typeLabel} ${a.note_number} ${statusLabel} \u2014 ${a.supplier_name} \xB7 \u09F3${amt}`,
+      type: a.status === "draft" ? "warning" : "info",
+      time: timeAgo(new Date(a.created_at)),
+      route: `/purchase/adjustments/${a.id}`,
+      read: false
+    });
+  }
+  for (const c of purchaseCancellations) {
+    const byLine = c.user_name ? ` by ${c.user_name}` : "";
+    const isGRN = c.record_type === "grn";
+    const icon = isGRN ? "\u{1F4E6}" : "\u{1F4CB}";
+    notifications.push({
+      id: `pcan-${c.id}`,
+      text: `\u{1F5D1}\uFE0F ${icon} ${c.reference_number} cancelled${byLine}`,
+      type: "error",
+      time: timeAgo(new Date(c.created_at)),
+      route: isGRN ? `/purchase/grn/${c.record_id}` : `/purchase/orders/${c.record_id}`,
       read: false
     });
   }
