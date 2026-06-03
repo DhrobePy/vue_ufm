@@ -149,15 +149,36 @@ export default defineNitroPlugin(async () => {
     }
   }
 
-  // ── 6. customer_payments.order_id ─────────────────────────────────────────
+  // ── 6. customer_payments column extensions ───────────────────────────────
+  const cpCols: [string, string][] = [
+    ['order_id',                'INT NULL DEFAULT NULL COMMENT \'credit_orders.id this payment was collected for\''],
+    ['payment_number',          'VARCHAR(30) NULL DEFAULT NULL'],
+    ['payment_type',            "VARCHAR(30) NULL DEFAULT 'invoice_payment'"],
+    ['cash_account_id',         'INT UNSIGNED NULL DEFAULT NULL'],
+    ['cheque_number',           'VARCHAR(50) NULL DEFAULT NULL'],
+    ['cheque_date',             'DATE NULL DEFAULT NULL'],
+    ['bank_transaction_type',   'VARCHAR(50) NULL DEFAULT NULL'],
+    ['journal_entry_id',        'INT UNSIGNED NULL DEFAULT NULL'],
+    ['collected_by_employee_id','INT UNSIGNED NULL DEFAULT NULL'],
+    ['allocated_amount',        'DECIMAL(15,2) NULL DEFAULT NULL'],
+  ]
+  for (const [col, def] of cpCols) {
+    try {
+      await db.query(
+        `ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS ${col} ${def}`,
+      )
+    } catch (e) {
+      console.warn(`[db-migrate] customer_payments.${col} patch failed:`, e)
+    }
+  }
+
+  // Widen payment_method from old ENUM to VARCHAR(50) so new values fit
   try {
     await db.query(
-      `ALTER TABLE customer_payments
-       ADD COLUMN IF NOT EXISTS order_id INT NULL DEFAULT NULL
-         COMMENT 'credit_orders.id this payment was collected for'`,
+      `ALTER TABLE customer_payments MODIFY COLUMN payment_method VARCHAR(50) NULL DEFAULT NULL`,
     )
   } catch (e) {
-    console.warn('[db-migrate] customer_payments.order_id patch failed:', e)
+    console.warn('[db-migrate] customer_payments.payment_method widen failed:', e)
   }
 
   // ── 7. credit_orders.production_seq ──────────────────────────────────────
