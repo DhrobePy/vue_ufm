@@ -44,6 +44,18 @@
                 <p class="text-xs text-gray-600">Total</p>
                 <p class="font-mono font-bold text-gold-400">৳{{ Number(entry.total ?? 0).toLocaleString() }}</p>
               </div>
+              <!-- Admin actions (non-reversed entries only) -->
+              <div v-if="!entry.is_reversed" class="flex items-center gap-2 mr-3" @click.stop>
+                <button @click="openReverse(entry)"
+                  class="text-[11px] px-2.5 py-1 rounded-lg border border-blue-500/20 text-blue-400 hover:bg-blue-500/10 transition-all">
+                  ↩ Reverse
+                </button>
+                <button @click="confirmDelete(entry)"
+                  class="text-[11px] px-2.5 py-1 rounded-lg border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-all">
+                  🗑 Delete
+                </button>
+              </div>
+              <span v-if="entry.is_reversed" class="mr-3 text-[10px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">REVERSED</span>
               <svg class="w-4 h-4 text-gray-600 transition-transform" :class="expanded.has(entry.id) ? 'rotate-180' : ''" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
               </svg>
@@ -89,6 +101,59 @@
       </div>
     </div>
   </div>
+
+  <!-- ── REVERSE MODAL ─────────────────────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="reverseModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+           style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)"
+           @click.self="reverseModal = false">
+        <div class="w-full max-w-md glass-card p-6 space-y-4" @click.stop>
+          <h3 class="section-title text-blue-400">Reverse Journal Entry</h3>
+          <p class="text-sm text-gray-400">Creating a reversal for <strong class="text-gold-400">JE-{{ selectedEntry?.id }}</strong>:<br/>
+            <span class="text-gray-500 text-xs">{{ selectedEntry?.description }}</span>
+          </p>
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason (optional)</label>
+            <textarea v-model="reverseReason" rows="2" class="field-input w-full resize-none text-sm"
+                      placeholder="Reason for reversal…" />
+          </div>
+          <div class="flex gap-3 justify-end">
+            <button @click="reverseModal = false" class="btn-ghost text-xs">Cancel</button>
+            <button @click="doReverse" :disabled="acting"
+                    class="px-4 py-2 rounded-xl text-xs font-semibold text-blue-400 border border-blue-500/25 hover:bg-blue-500/10 transition-all disabled:opacity-40">
+              {{ acting ? '…' : '↩ Confirm Reversal' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- ── DELETE MODAL ──────────────────────────────────────────────────── -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="deleteModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+           style="background:rgba(0,0,0,0.6);backdrop-filter:blur(4px)"
+           @click.self="deleteModal = false">
+        <div class="w-full max-w-md glass-card p-6 space-y-4" @click.stop>
+          <h3 class="section-title text-red-400">Delete Journal Entry</h3>
+          <p class="text-sm text-gray-400">
+            Permanently delete <strong class="text-gold-400">JE-{{ selectedEntry?.id }}</strong>?
+            This cannot be undone.
+          </p>
+          <div class="flex gap-3 justify-end">
+            <button @click="deleteModal = false" class="btn-ghost text-xs">Cancel</button>
+            <button @click="doDelete" :disabled="acting"
+                    class="px-4 py-2 rounded-xl text-xs font-semibold text-red-400 border border-red-500/25 hover:bg-red-500/10 transition-all disabled:opacity-40">
+              {{ acting ? '…' : 'Delete Permanently' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
 </template>
 
 <script setup lang="ts">
@@ -117,4 +182,60 @@ const { data, pending } = await useFetch('/api/accounts/journal', {
 
 const entries = computed(() => (data.value as any)?.entries ?? [])
 const total   = computed(() => (data.value as any)?.total   ?? 0)
+
+const { success, error: toastError } = useToast()
+const acting = ref(false)
+const reverseModal = ref(false)
+const deleteModal  = ref(false)
+const reverseReason = ref('')
+const selectedEntry = ref<any>(null)
+
+function openReverse(entry: any) {
+  selectedEntry.value = entry
+  reverseReason.value = ''
+  reverseModal.value = true
+}
+
+function confirmDelete(entry: any) {
+  selectedEntry.value = entry
+  deleteModal.value = true
+}
+
+async function doReverse() {
+  if (!selectedEntry.value) return
+  acting.value = true
+  try {
+    await $fetch(`/api/accounts/journal/${selectedEntry.value.id}/reverse`, {
+      method: 'POST',
+      body: { reason: reverseReason.value || undefined },
+    })
+    success(`JE-${selectedEntry.value.id} reversed successfully`)
+    reverseModal.value = false
+    await refreshNuxtData()  // refresh the list
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to reverse entry')
+  } finally {
+    acting.value = false
+  }
+}
+
+async function doDelete() {
+  if (!selectedEntry.value) return
+  acting.value = true
+  try {
+    await $fetch(`/api/accounts/journal/${selectedEntry.value.id}`, { method: 'DELETE' })
+    success(`JE-${selectedEntry.value.id} deleted`)
+    deleteModal.value = false
+    await refreshNuxtData()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to delete entry')
+  } finally {
+    acting.value = false
+  }
+}
 </script>
+
+<style scoped>
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.15s; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+</style>

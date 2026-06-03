@@ -143,7 +143,7 @@
                style="border:1px solid rgba(249,115,22,0.15)">
             <h3 class="section-title text-orange-400">Reverse / Cancel</h3>
             <p class="text-xs text-gray-500">
-              This will mark the voucher as <strong class="text-orange-300">Cancelled</strong> and log a reversal in the audit trail.
+              This will mark the voucher as <strong class="text-orange-300">Cancelled</strong> and create a reversal journal entry to undo the accounting entries.
               Use this if the payment was made in error or needs to be undone.
             </p>
             <button @click="openCancel" :disabled="acting"
@@ -188,6 +188,12 @@
               <span class="text-gray-300 font-mono">
                 {{ exp.gl_account_code ? `${exp.gl_account_code} — ${exp.gl_account_name}` : '—' }}
               </span>
+            </div>
+            <div v-if="exp.journal_entry_id" class="flex justify-between text-xs text-gray-500">
+              <span>Journal Entry</span>
+              <NuxtLink :to="`/accounts/journal`" class="text-blue-400 hover:text-blue-300 font-mono transition-colors">
+                JE-{{ exp.journal_entry_id }}
+              </NuxtLink>
             </div>
             <div class="flex justify-between text-xs text-gray-500">
               <span>Cost Centre</span>

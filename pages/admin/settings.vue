@@ -234,6 +234,47 @@
           </div>
         </div>
 
+        <!-- ── Maintenance ───────────────────────────────────────────────── -->
+        <div v-if="activeTab === 'maintenance'" class="space-y-5">
+
+          <!-- Backfill expense journals -->
+          <div class="glass-card p-6 space-y-4">
+            <h3 class="section-title">Data Migrations</h3>
+            <p class="text-xs text-gray-500">One-time tasks to backfill historical data into new accounting tables. Safe to run multiple times — already-linked records are skipped automatically.</p>
+
+            <div class="border border-white/[0.06] rounded-xl p-5 space-y-4">
+              <div>
+                <p class="text-sm font-semibold text-gray-200">Backfill Expense Journal Entries</p>
+                <p class="text-xs text-gray-500 mt-1">
+                  Creates <strong class="text-gray-300">journal_entries</strong> and <strong class="text-gray-300">transaction_lines</strong> for every approved / cancelled-after-approval expense voucher that currently has no GL entry. Cancelled expenses also get a matching reversal entry.
+                </p>
+              </div>
+
+              <div v-if="seedReport" class="rounded-xl p-4 text-xs space-y-1"
+                   :style="seedReport.errors.length ? 'background:rgba(239,68,68,0.05);border:1px solid rgba(239,68,68,0.2)' : 'background:rgba(34,197,94,0.05);border:1px solid rgba(34,197,94,0.2)'">
+                <p :class="seedReport.errors.length ? 'text-red-300 font-semibold' : 'text-emerald-300 font-semibold'">{{ seedSummary }}</p>
+                <p class="text-gray-400">✅ Created: {{ seedReport.created }} &nbsp;·&nbsp; ⏭ Skipped: {{ seedReport.skipped }} &nbsp;·&nbsp; ❌ Errors: {{ seedReport.errors.length }}</p>
+                <div v-if="seedReport.errors.length" class="mt-2 space-y-1">
+                  <p class="text-red-400 font-semibold">Errors (missing GL account config):</p>
+                  <div v-for="e in seedReport.errors" :key="e.id" class="text-red-300 font-mono">
+                    {{ e.voucher }}: {{ e.reason }}
+                  </div>
+                </div>
+              </div>
+
+              <button @click="runSeedExpenseJournals" :disabled="seeding"
+                class="btn-gold text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100">
+                <svg v-if="seeding" class="w-3.5 h-3.5 animate-spin inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke-opacity=".25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                </svg>
+                {{ seeding ? 'Running backfill…' : '▶ Run Backfill Now' }}
+              </button>
+            </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   </div>
@@ -241,7 +282,27 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-const { success } = useToast()
+const { success, error: toastError } = useToast()
+
+// Seed state
+const seeding    = ref(false)
+const seedReport = ref<any>(null)
+const seedSummary = ref('')
+
+async function runSeedExpenseJournals() {
+  seeding.value = true
+  seedReport.value = null
+  try {
+    const res = await $fetch('/api/admin/seed-expense-journals', { method: 'POST' }) as any
+    seedReport.value = res.report
+    seedSummary.value = res.summary
+    success(res.summary)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Backfill failed')
+  } finally {
+    seeding.value = false
+  }
+}
 
 const activeTab = ref('company')
 
@@ -252,6 +313,7 @@ const tabs = [
   { id: 'orders',        icon: '📋', label: 'Orders' },
   { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'security',      icon: '🔒', label: 'Security' },
+  { id: 'maintenance',   icon: '🔧', label: 'Maintenance' },
 ]
 
 const company = reactive({
