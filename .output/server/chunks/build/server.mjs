@@ -1000,7 +1000,7 @@ const _routes = [
     name: "expenses-id",
     path: "/expenses/:id()",
     meta: __nuxt_page_meta$1c || {},
-    component: () => import('./index-Cnb0dvv7.mjs')
+    component: () => import('./index-FjjiHN7p.mjs')
   },
   {
     name: "expenses-categories",

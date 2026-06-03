@@ -21,6 +21,8 @@ export default defineEventHandler(async () => {
     // ── Purchase module ────────────────────────────────────────────────────
     purchaseDraftGRNs, purchaseNewPOs, purchaseRecentPayments,
     purchasePendingAdj, purchaseCancellations,
+    // ── Expense module ─────────────────────────────────────────────────────
+    expenseApproved, expenseCancelled,
     // ── Admin module ───────────────────────────────────────────────────────
     adminNewUsers, adminUserActions, adminLoginFailures,
   ] = await Promise.all([
@@ -38,11 +40,14 @@ export default defineEventHandler(async () => {
 
     // Pending expense vouchers
     safeQuery(() => query(
-      `SELECT id, expense_date, total_amount, description, status, created_at
-       FROM expense_vouchers
-       WHERE status = 'pending'
-       ORDER BY created_at DESC
-       LIMIT 4`,
+      `SELECT e.id, e.voucher_number, e.expense_date, e.total_amount,
+              e.remarks, e.status, e.created_at,
+              cat.category_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       WHERE e.status = 'pending'
+       ORDER BY e.created_at DESC
+       LIMIT 6`,
     ), []),
 
     // Payments received in last 24 h — exclude advance payments (captured via order notification)
@@ -204,6 +209,32 @@ export default defineEventHandler(async () => {
        LIMIT 8`,
     ), []),
 
+    // ── Expenses: Recently approved in last 24 h ──────────────────────────
+    safeQuery(() => query(
+      `SELECT e.id, e.voucher_number, e.total_amount, e.approved_at,
+              cat.category_name, ap.display_name AS approved_by_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       LEFT JOIN users ap ON ap.id = e.approved_by_user_id
+       WHERE e.status = 'approved'
+         AND e.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY e.approved_at DESC
+       LIMIT 6`,
+    ), []),
+
+    // ── Expenses: Recently cancelled or rejected in last 24 h ─────────────
+    safeQuery(() => query(
+      `SELECT e.id, e.voucher_number, e.total_amount, e.status,
+              e.rejection_reason, e.updated_at,
+              cat.category_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       WHERE e.status IN ('cancelled', 'rejected')
+         AND e.updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY e.updated_at DESC
+       LIMIT 6`,
+    ), []),
+
     // ── Admin: New users created in last 4 h ──────────────────────────────
     safeQuery(() => query(
       `SELECT id, display_name, email, role, status, created_at
@@ -261,13 +292,14 @@ export default defineEventHandler(async () => {
   }
 
   for (const e of pendingExpenses as any[]) {
-    const amt = Number(e.total_amount).toLocaleString()
+    const amt   = Number(e.total_amount).toLocaleString()
+    const label = e.category_name || e.remarks?.slice(0, 30) || 'Voucher'
     notifications.push({
       id:    `exp-${e.id}`,
-      text:  `💸 Expense pending — ${e.description || 'Voucher'} · ৳${amt}`,
-      type:  'info',
+      text:  `💸 ${e.voucher_number} pending approval — ${label} · ৳${amt}`,
+      type:  'warning',
       time:  timeAgo(new Date(e.created_at)),
-      route: '/expenses/approve',
+      route: `/expenses/${e.id}`,
       read:  false,
     })
   }
@@ -441,6 +473,36 @@ export default defineEventHandler(async () => {
       route: isGRN
         ? `/purchase/grn/${c.record_id}`
         : `/purchase/orders/${c.record_id}`,
+      read:  false,
+    })
+  }
+
+  // ── Expense notifications ─────────────────────────────────────────────────
+
+  for (const e of expenseApproved as any[]) {
+    const amt = Number(e.total_amount).toLocaleString()
+    const by  = e.approved_by_name ? ` by ${e.approved_by_name}` : ''
+    notifications.push({
+      id:    `expapv-${e.id}`,
+      text:  `✅ ${e.voucher_number} approved${by} — ${e.category_name || ''} · ৳${amt}`,
+      type:  'success',
+      time:  timeAgo(new Date(e.approved_at)),
+      route: `/expenses/${e.id}`,
+      read:  false,
+    })
+  }
+
+  for (const e of expenseCancelled as any[]) {
+    const amt    = Number(e.total_amount).toLocaleString()
+    const isRej  = e.status === 'rejected'
+    const icon   = isRej ? '✗' : '↩️'
+    const label  = isRej ? 'rejected' : 'cancelled'
+    notifications.push({
+      id:    `expcan-${e.id}`,
+      text:  `${icon} ${e.voucher_number} ${label} — ${e.category_name || ''} · ৳${amt}`,
+      type:  isRej ? 'error' : 'warning',
+      time:  timeAgo(new Date(e.updated_at)),
+      route: `/expenses/${e.id}`,
       read:  false,
     })
   }

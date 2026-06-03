@@ -24,7 +24,7 @@ async function safeQuery(fn, fallback) {
   }
 }
 const notifications_get = defineEventHandler(async () => {
-  var _a, _b, _c;
+  var _a, _b, _c, _d;
   const [
     pendingOrders,
     pendingExpenses,
@@ -42,6 +42,9 @@ const notifications_get = defineEventHandler(async () => {
     purchaseRecentPayments,
     purchasePendingAdj,
     purchaseCancellations,
+    // ── Expense module ─────────────────────────────────────────────────────
+    expenseApproved,
+    expenseCancelled,
     // ── Admin module ───────────────────────────────────────────────────────
     adminNewUsers,
     adminUserActions,
@@ -59,11 +62,14 @@ const notifications_get = defineEventHandler(async () => {
     ), []),
     // Pending expense vouchers
     safeQuery(() => query(
-      `SELECT id, expense_date, total_amount, description, status, created_at
-       FROM expense_vouchers
-       WHERE status = 'pending'
-       ORDER BY created_at DESC
-       LIMIT 4`
+      `SELECT e.id, e.voucher_number, e.expense_date, e.total_amount,
+              e.remarks, e.status, e.created_at,
+              cat.category_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       WHERE e.status = 'pending'
+       ORDER BY e.created_at DESC
+       LIMIT 6`
     ), []),
     // Payments received in last 24 h — exclude advance payments (captured via order notification)
     safeQuery(() => query(
@@ -211,6 +217,30 @@ const notifications_get = defineEventHandler(async () => {
        ORDER BY l.created_at DESC
        LIMIT 8`
     ), []),
+    // ── Expenses: Recently approved in last 24 h ──────────────────────────
+    safeQuery(() => query(
+      `SELECT e.id, e.voucher_number, e.total_amount, e.approved_at,
+              cat.category_name, ap.display_name AS approved_by_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       LEFT JOIN users ap ON ap.id = e.approved_by_user_id
+       WHERE e.status = 'approved'
+         AND e.approved_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY e.approved_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Expenses: Recently cancelled or rejected in last 24 h ─────────────
+    safeQuery(() => query(
+      `SELECT e.id, e.voucher_number, e.total_amount, e.status,
+              e.rejection_reason, e.updated_at,
+              cat.category_name
+       FROM expense_vouchers e
+       LEFT JOIN expense_categories cat ON cat.id = e.category_id
+       WHERE e.status IN ('cancelled', 'rejected')
+         AND e.updated_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY e.updated_at DESC
+       LIMIT 6`
+    ), []),
     // ── Admin: New users created in last 4 h ──────────────────────────────
     safeQuery(() => query(
       `SELECT id, display_name, email, role, status, created_at
@@ -260,12 +290,13 @@ const notifications_get = defineEventHandler(async () => {
   }
   for (const e of pendingExpenses) {
     const amt = Number(e.total_amount).toLocaleString();
+    const label = e.category_name || ((_a = e.remarks) == null ? void 0 : _a.slice(0, 30)) || "Voucher";
     notifications.push({
       id: `exp-${e.id}`,
-      text: `\u{1F4B8} Expense pending \u2014 ${e.description || "Voucher"} \xB7 \u09F3${amt}`,
-      type: "info",
+      text: `\u{1F4B8} ${e.voucher_number} pending approval \u2014 ${label} \xB7 \u09F3${amt}`,
+      type: "warning",
       time: timeAgo(new Date(e.created_at)),
-      route: "/expenses/approve",
+      route: `/expenses/${e.id}`,
       read: false
     });
   }
@@ -340,7 +371,7 @@ const notifications_get = defineEventHandler(async () => {
   }
   for (const o of recentOrdersCreated) {
     const total = Number(o.total_amount).toLocaleString();
-    const advance = Number((_a = o.amount_paid) != null ? _a : 0);
+    const advance = Number((_b = o.amount_paid) != null ? _b : 0);
     const advStr = advance > 0 ? ` \xB7 advance \u09F3${advance.toLocaleString()} paid` : "";
     notifications.push({
       id: `nco-${o.id}`,
@@ -424,6 +455,32 @@ const notifications_get = defineEventHandler(async () => {
       read: false
     });
   }
+  for (const e of expenseApproved) {
+    const amt = Number(e.total_amount).toLocaleString();
+    const by = e.approved_by_name ? ` by ${e.approved_by_name}` : "";
+    notifications.push({
+      id: `expapv-${e.id}`,
+      text: `\u2705 ${e.voucher_number} approved${by} \u2014 ${e.category_name || ""} \xB7 \u09F3${amt}`,
+      type: "success",
+      time: timeAgo(new Date(e.approved_at)),
+      route: `/expenses/${e.id}`,
+      read: false
+    });
+  }
+  for (const e of expenseCancelled) {
+    const amt = Number(e.total_amount).toLocaleString();
+    const isRej = e.status === "rejected";
+    const icon = isRej ? "\u2717" : "\u21A9\uFE0F";
+    const label = isRej ? "rejected" : "cancelled";
+    notifications.push({
+      id: `expcan-${e.id}`,
+      text: `${icon} ${e.voucher_number} ${label} \u2014 ${e.category_name || ""} \xB7 \u09F3${amt}`,
+      type: isRej ? "error" : "warning",
+      time: timeAgo(new Date(e.updated_at)),
+      route: `/expenses/${e.id}`,
+      read: false
+    });
+  }
   for (const u of adminNewUsers) {
     notifications.push({
       id: `nuser-${u.id}`,
@@ -435,9 +492,9 @@ const notifications_get = defineEventHandler(async () => {
     });
   }
   for (const l of adminUserActions) {
-    const isSuspend = l.action === "status_changed" && ((_b = l.description) == null ? void 0 : _b.includes("suspended"));
+    const isSuspend = l.action === "status_changed" && ((_c = l.description) == null ? void 0 : _c.includes("suspended"));
     const isDelete = l.action === "deleted";
-    const isRole = (_c = l.description) == null ? void 0 : _c.includes("role:");
+    const isRole = (_d = l.description) == null ? void 0 : _d.includes("role:");
     const icon = isDelete ? "\u{1F5D1}\uFE0F" : isSuspend ? "\u{1F512}" : isRole ? "\u{1F511}" : "\u270F\uFE0F";
     const label = isDelete ? "deleted" : isSuspend ? "suspended" : isRole ? "role changed" : "updated";
     notifications.push({
