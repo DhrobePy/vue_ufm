@@ -14,15 +14,25 @@ const subcategories_get = defineEventHandler(async (event) => {
   const categoryId = Number(q.category_id);
   if (!categoryId)
     throw createError({ statusCode: 400, statusMessage: "category_id is required" });
-  const subcategories = await query(
-    `SELECT id, subcategory_name AS name,
-            COALESCE(unit_of_measurement, '') AS unit_of_measurement,
-            description
-     FROM expense_subcategories
-     WHERE category_id = ? AND is_active = 1
-     ORDER BY subcategory_name`,
-    [categoryId]
-  );
+  let subcategories = [];
+  try {
+    subcategories = await query(
+      `SELECT id, subcategory_name AS name,
+              COALESCE(unit_of_measurement, '') AS unit_of_measurement
+       FROM expense_subcategories
+       WHERE category_id = ? AND is_active = 1
+       ORDER BY subcategory_name`,
+      [categoryId]
+    );
+  } catch {
+    subcategories = await query(
+      `SELECT id, subcategory_name AS name, '' AS unit_of_measurement
+       FROM expense_subcategories
+       WHERE category_id = ? AND is_active = 1
+       ORDER BY subcategory_name`,
+      [categoryId]
+    );
+  }
   return { subcategories };
 });
 
