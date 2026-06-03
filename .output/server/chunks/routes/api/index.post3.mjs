@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -23,7 +23,11 @@ const index_post = defineEventHandler(async (event) => {
     per_unit_cost,
     total_amount,
     payment_method,
+    // 'bank' | 'cash'
     bank_account_id,
+    // required when payment_method = 'bank'
+    cash_account_id,
+    // required when payment_method = 'cash'
     payment_account_name,
     payment_reference,
     employee_id,
@@ -35,7 +39,16 @@ const index_post = defineEventHandler(async (event) => {
   if (!expense_date || !category_id || !remarks) {
     throw createError({ statusCode: 400, statusMessage: "expense_date, category_id and remarks are required" });
   }
-  const method = payment_method != null ? payment_method : "Cash";
+  if (!subcategory_id) {
+    throw createError({ statusCode: 400, statusMessage: "subcategory_id is required" });
+  }
+  const method = String(payment_method != null ? payment_method : "cash").toLowerCase() === "bank" ? "bank" : "cash";
+  if (method === "bank" && !bank_account_id) {
+    throw createError({ statusCode: 400, statusMessage: "bank_account_id is required for bank payments" });
+  }
+  if (method === "cash" && !cash_account_id) {
+    throw createError({ statusCode: 400, statusMessage: "cash_account_id is required for cash payments" });
+  }
   const db = getDb();
   const conn = await db.getConnection();
   try {
@@ -47,82 +60,75 @@ const index_post = defineEventHandler(async (event) => {
     const seq = String(((_g = cnt.n) != null ? _g : 0) + 1).padStart(4, "0");
     const voucherNo = `EXP-${today}-${seq}`;
     const computed_total = total_amount != null ? total_amount : (unit_quantity != null ? unit_quantity : 1) * (per_unit_cost != null ? per_unit_cost : 0);
+    let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null;
+    if (!resolvedExpenseAccountId) {
+      const sub = await queryOne(
+        `SELECT chart_of_account_id FROM expense_subcategories WHERE id = ?`,
+        [Number(subcategory_id)]
+      );
+      resolvedExpenseAccountId = (_h = sub == null ? void 0 : sub.chart_of_account_id) != null ? _h : null;
+    }
+    if (!resolvedExpenseAccountId) {
+      const cat = await queryOne(
+        `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`,
+        [Number(category_id)]
+      );
+      resolvedExpenseAccountId = (_i = cat == null ? void 0 : cat.chart_of_account_id) != null ? _i : null;
+    }
+    let resolvedPaymentAccountName = payment_account_name != null ? payment_account_name : null;
+    if (!resolvedPaymentAccountName) {
+      if (method === "bank" && bank_account_id) {
+        const ba = await queryOne(
+          `SELECT bank_name, account_name, account_number FROM bank_accounts WHERE id = ?`,
+          [Number(bank_account_id)]
+        );
+        if (ba) resolvedPaymentAccountName = `${ba.bank_name} \u2013 ${ba.account_name} (${ba.account_number})`;
+      } else if (method === "cash" && cash_account_id) {
+        const ca = await queryOne(
+          `SELECT account_name FROM branch_petty_cash_accounts WHERE id = ?`,
+          [Number(cash_account_id)]
+        );
+        if (ca) resolvedPaymentAccountName = ca.account_name;
+      }
+    }
     const [result] = await conn.query(
       `INSERT INTO expense_vouchers
          (voucher_number, expense_date, category_id, subcategory_id,
           unit_quantity, per_unit_cost, total_amount,
-          payment_method, bank_account_id, handled_by_person, remarks,
+          payment_method, bank_account_id, cash_account_id,
+          payment_account_name, payment_reference,
+          employee_id, handled_by_person,
+          expense_account_id, remarks,
           status, branch_id, created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?, ?,
-               ?, ?, ?, ?,
+               ?, ?, ?,
+               ?, ?,
+               ?, ?,
+               ?, ?,
                'pending', ?, ?, NOW(), NOW())`,
       [
         voucherNo,
         expense_date,
         Number(category_id),
-        subcategory_id ? Number(subcategory_id) : null,
+        Number(subcategory_id),
         unit_quantity != null ? unit_quantity : null,
         per_unit_cost != null ? per_unit_cost : null,
         computed_total,
         method,
-        bank_account_id ? Number(bank_account_id) : null,
+        method === "bank" ? Number(bank_account_id) : null,
+        method === "cash" ? Number(cash_account_id) : null,
+        resolvedPaymentAccountName,
+        payment_reference != null ? payment_reference : null,
+        employee_id ? Number(employee_id) : null,
         handled_by_person != null ? handled_by_person : null,
+        resolvedExpenseAccountId,
         remarks,
         branch_id ? Number(branch_id) : null,
         userId
       ]
     );
     const newId = result.insertId;
-    let resolvedPaymentAccountName = payment_account_name != null ? payment_account_name : null;
-    if (!resolvedPaymentAccountName && bank_account_id) {
-      try {
-        const ba = await queryOne(
-          `SELECT bank_name, account_number, account_name FROM bank_accounts WHERE id = ?`,
-          [Number(bank_account_id)]
-        );
-        if (ba) resolvedPaymentAccountName = `${ba.bank_name} \u2013 ${ba.account_name} (${ba.account_number})`;
-      } catch {
-      }
-    }
-    let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null;
-    if (!resolvedExpenseAccountId && category_id) {
-      try {
-        const cat = await queryOne(
-          `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`,
-          [Number(category_id)]
-        );
-        resolvedExpenseAccountId = (_h = cat == null ? void 0 : cat.chart_of_account_id) != null ? _h : null;
-      } catch {
-      }
-    }
-    if (payment_reference || resolvedPaymentAccountName) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET payment_reference = ?, payment_account_name = ? WHERE id = ?`,
-          [payment_reference != null ? payment_reference : null, resolvedPaymentAccountName, newId]
-        );
-      } catch {
-      }
-    }
-    if (employee_id) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET employee_id = ? WHERE id = ?`,
-          [Number(employee_id), newId]
-        );
-      } catch {
-      }
-    }
-    if (resolvedExpenseAccountId) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET expense_account_id = ? WHERE id = ?`,
-          [resolvedExpenseAccountId, newId]
-        );
-      } catch {
-      }
-    }
     await auditLog(conn, {
       userId,
       action: "created",

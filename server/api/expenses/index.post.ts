@@ -14,8 +14,9 @@ export default defineEventHandler(async (event) => {
     unit_quantity,
     per_unit_cost,
     total_amount,
-    payment_method,
-    bank_account_id,
+    payment_method,        // 'bank' | 'cash'
+    bank_account_id,       // required when payment_method = 'bank'
+    cash_account_id,       // required when payment_method = 'cash'
     payment_account_name,
     payment_reference,
     employee_id,
@@ -25,11 +26,23 @@ export default defineEventHandler(async (event) => {
     remarks,
   } = body ?? {}
 
+  // ── Validation ──────────────────────────────────────────────────────────
   if (!expense_date || !category_id || !remarks) {
     throw createError({ statusCode: 400, statusMessage: 'expense_date, category_id and remarks are required' })
   }
+  if (!subcategory_id) {
+    throw createError({ statusCode: 400, statusMessage: 'subcategory_id is required' })
+  }
 
-  const method = payment_method ?? 'Cash'
+  // DB ENUM is 'bank' | 'cash' only
+  const method = String(payment_method ?? 'cash').toLowerCase() === 'bank' ? 'bank' : 'cash'
+
+  if (method === 'bank' && !bank_account_id) {
+    throw createError({ statusCode: 400, statusMessage: 'bank_account_id is required for bank payments' })
+  }
+  if (method === 'cash' && !cash_account_id) {
+    throw createError({ statusCode: 400, statusMessage: 'cash_account_id is required for cash payments' })
+  }
 
   const db   = getDb()
   const conn = await db.getConnection()
@@ -47,87 +60,78 @@ export default defineEventHandler(async (event) => {
 
     const computed_total = total_amount ?? ((unit_quantity ?? 1) * (per_unit_cost ?? 0))
 
-    // ── Base INSERT — only confirmed-existing columns ──────────────────────
+    // Auto-derive expense_account_id from subcategory (more specific) then category
+    let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null
+    if (!resolvedExpenseAccountId) {
+      const sub = await queryOne<any>(
+        `SELECT chart_of_account_id FROM expense_subcategories WHERE id = ?`, [Number(subcategory_id)],
+      )
+      resolvedExpenseAccountId = sub?.chart_of_account_id ?? null
+    }
+    if (!resolvedExpenseAccountId) {
+      const cat = await queryOne<any>(
+        `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`, [Number(category_id)],
+      )
+      resolvedExpenseAccountId = cat?.chart_of_account_id ?? null
+    }
+
+    // Build payment_account_name from whichever account is selected
+    let resolvedPaymentAccountName = payment_account_name ?? null
+    if (!resolvedPaymentAccountName) {
+      if (method === 'bank' && bank_account_id) {
+        const ba = await queryOne<any>(
+          `SELECT bank_name, account_name, account_number FROM bank_accounts WHERE id = ?`,
+          [Number(bank_account_id)],
+        )
+        if (ba) resolvedPaymentAccountName = `${ba.bank_name} – ${ba.account_name} (${ba.account_number})`
+      } else if (method === 'cash' && cash_account_id) {
+        const ca = await queryOne<any>(
+          `SELECT account_name FROM branch_petty_cash_accounts WHERE id = ?`,
+          [Number(cash_account_id)],
+        )
+        if (ca) resolvedPaymentAccountName = ca.account_name
+      }
+    }
+
     const [result] = await conn.query<any>(
       `INSERT INTO expense_vouchers
          (voucher_number, expense_date, category_id, subcategory_id,
           unit_quantity, per_unit_cost, total_amount,
-          payment_method, bank_account_id, handled_by_person, remarks,
+          payment_method, bank_account_id, cash_account_id,
+          payment_account_name, payment_reference,
+          employee_id, handled_by_person,
+          expense_account_id, remarks,
           status, branch_id, created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?, ?,
-               ?, ?, ?, ?,
+               ?, ?, ?,
+               ?, ?,
+               ?, ?,
+               ?, ?,
                'pending', ?, ?, NOW(), NOW())`,
       [
         voucherNo,
         expense_date,
         Number(category_id),
-        subcategory_id ? Number(subcategory_id) : null,
+        Number(subcategory_id),
         unit_quantity  ?? null,
         per_unit_cost  ?? null,
         computed_total,
         method,
-        bank_account_id ? Number(bank_account_id) : null,
-        handled_by_person ?? null,
+        method === 'bank' ? Number(bank_account_id) : null,
+        method === 'cash' ? Number(cash_account_id) : null,
+        resolvedPaymentAccountName,
+        payment_reference  ?? null,
+        employee_id        ? Number(employee_id)  : null,
+        handled_by_person  ?? null,
+        resolvedExpenseAccountId,
         remarks,
-        branch_id ? Number(branch_id) : null,
+        branch_id          ? Number(branch_id)    : null,
         userId,
       ],
     )
 
     const newId = result.insertId
-
-    // ── Try to set newer columns that may not exist yet ────────────────────
-    // Build payment_account_name from bank account if not supplied
-    let resolvedPaymentAccountName = payment_account_name ?? null
-    if (!resolvedPaymentAccountName && bank_account_id) {
-      try {
-        const ba = await queryOne<any>(
-          `SELECT bank_name, account_number, account_name FROM bank_accounts WHERE id = ?`,
-          [Number(bank_account_id)],
-        )
-        if (ba) resolvedPaymentAccountName = `${ba.bank_name} – ${ba.account_name} (${ba.account_number})`
-      } catch { /* ignore */ }
-    }
-
-    // Auto-derive expense_account_id from category if not provided
-    let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null
-    if (!resolvedExpenseAccountId && category_id) {
-      try {
-        const cat = await queryOne<any>(
-          `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`, [Number(category_id)],
-        )
-        resolvedExpenseAccountId = cat?.chart_of_account_id ?? null
-      } catch { /* ignore */ }
-    }
-
-    // Attempt UPDATE for columns that might not exist — one group at a time
-    if (payment_reference || resolvedPaymentAccountName) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET payment_reference = ?, payment_account_name = ? WHERE id = ?`,
-          [payment_reference ?? null, resolvedPaymentAccountName, newId],
-        )
-      } catch { /* column doesn't exist yet — skip */ }
-    }
-
-    if (employee_id) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET employee_id = ? WHERE id = ?`,
-          [Number(employee_id), newId],
-        )
-      } catch { /* column doesn't exist yet — skip */ }
-    }
-
-    if (resolvedExpenseAccountId) {
-      try {
-        await conn.query(
-          `UPDATE expense_vouchers SET expense_account_id = ? WHERE id = ?`,
-          [resolvedExpenseAccountId, newId],
-        )
-      } catch { /* column doesn't exist yet — skip */ }
-    }
 
     await auditLog(conn, {
       userId:          userId,

@@ -30,25 +30,34 @@
             </select>
           </div>
 
-          <div v-if="selectedCategory?.subcategories?.length" class="space-y-1.5">
-            <label class="field-label">Sub-category</label>
-            <select v-model="form.subcategoryId" class="input-glass" @change="onSubcategoryChange">
-              <option value="">None</option>
-              <option v-for="s in selectedCategory.subcategories" :key="s.id" :value="s.id">{{ s.name }}</option>
-            </select>
-          </div>
-
           <div class="space-y-1.5">
-            <label class="field-label">Unit Quantity</label>
-            <input v-model.number="form.qty" type="number" min="0" step="0.01" class="input-glass" placeholder="e.g. litres, kg, units" />
+            <label class="field-label">Sub-category *</label>
+            <select v-model="form.subcategoryId" class="input-glass"
+                    :disabled="!selectedCategory?.subcategories?.length">
+              <option value="">— Select sub-category —</option>
+              <option v-for="s in selectedCategory?.subcategories ?? []" :key="s.id" :value="s.id">
+                {{ s.name }}
+              </option>
+            </select>
+            <p v-if="form.categoryId && !selectedCategory?.subcategories?.length"
+               class="text-xs text-yellow-500/70 mt-1">No sub-categories for this category</p>
           </div>
 
           <div class="space-y-1.5">
             <label class="field-label">
-              Per Unit Cost (৳)
-              <span v-if="selectedUnit" class="ml-1 text-gold-400/70 normal-case font-normal">per {{ selectedUnit }}</span>
+              Unit Quantity
+              <span v-if="selectedUnit" class="ml-1 text-gold-400/70 normal-case font-normal">
+                ({{ selectedUnit }})
+              </span>
             </label>
-            <input v-model.number="form.unitCost" type="number" min="0" step="0.01" class="input-glass" placeholder="0.00" />
+            <input v-model.number="form.qty" type="number" min="0" step="0.01" class="input-glass"
+                   placeholder="e.g. litres, kg, units" />
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="field-label">Per Unit Cost (৳)</label>
+            <input v-model.number="form.unitCost" type="number" min="0" step="0.01" class="input-glass"
+                   placeholder="0.00" />
           </div>
 
           <!-- Total hero -->
@@ -58,7 +67,7 @@
             <span class="font-bold text-gold-400 text-2xl font-mono">৳{{ totalAmount.toLocaleString() }}</span>
           </div>
 
-          <!-- Handled By / Employee -->
+          <!-- Employee -->
           <div class="space-y-1.5">
             <label class="field-label">Handled By (Employee)</label>
             <select v-model="form.employeeId" class="input-glass" @change="onEmployeeChange">
@@ -70,13 +79,14 @@
           </div>
 
           <div class="space-y-1.5">
-            <label class="field-label">Handled By (Name / Other)</label>
-            <input v-model="form.handledBy" class="input-glass" placeholder="Free-form name if not in list" />
+            <label class="field-label">Handled By (Free text)</label>
+            <input v-model="form.handledBy" class="input-glass" placeholder="Name if not in list" />
           </div>
 
           <div class="md:col-span-2 space-y-1.5">
             <label class="field-label">Remarks *</label>
-            <textarea v-model="form.remarks" rows="3" class="input-glass resize-none" placeholder="Describe the expense clearly…" />
+            <textarea v-model="form.remarks" rows="3" class="input-glass resize-none"
+                      placeholder="Describe the expense clearly…" />
           </div>
 
         </div>
@@ -87,58 +97,69 @@
         <h3 class="section-title mb-4">Payment Details</h3>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-          <!-- Payment method toggle -->
+          <!-- Bank / Cash toggle -->
           <div class="md:col-span-2 space-y-1.5">
             <label class="field-label">Payment Method *</label>
-            <div class="flex flex-wrap gap-2">
-              <button v-for="m in methods" :key="m.value"
-                type="button"
-                @click="form.method = m.value; form.bankAccountId = ''; form.paymentReference = ''"
-                :class="['px-4 py-2 rounded-lg text-xs font-semibold border transition-all',
-                  form.method === m.value
-                    ? 'bg-gold-500/20 border-gold-500/60 text-gold-300'
-                    : 'border-white/10 text-gray-400 hover:border-white/20 hover:text-gray-300']">
-                {{ m.label }}
+            <div class="flex gap-3">
+              <button type="button"
+                @click="form.method = 'cash'; form.bankAccountId = ''"
+                :class="['flex-1 py-3 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2',
+                  form.method === 'cash'
+                    ? 'bg-green-500/15 border-green-500/50 text-green-300'
+                    : 'border-white/10 text-gray-500 hover:border-white/20']">
+                💵 Cash / Petty Cash
+              </button>
+              <button type="button"
+                @click="form.method = 'bank'; form.cashAccountId = ''"
+                :class="['flex-1 py-3 rounded-xl border text-sm font-semibold transition-all flex items-center justify-center gap-2',
+                  form.method === 'bank'
+                    ? 'bg-blue-500/15 border-blue-500/50 text-blue-300'
+                    : 'border-white/10 text-gray-500 hover:border-white/20']">
+                🏦 Bank / Cheque
               </button>
             </div>
           </div>
 
-          <!-- Bank account panel (Bank Transfer / Cheque) -->
-          <template v-if="needsBankAccount">
+          <!-- CASH panel -->
+          <template v-if="form.method === 'cash'">
+            <div class="md:col-span-2 space-y-1.5">
+              <label class="field-label">Petty Cash Account *</label>
+              <select v-model="form.cashAccountId" class="input-glass">
+                <option value="">— Select petty cash account —</option>
+                <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">
+                  {{ a.account_name }}
+                  <span v-if="a.current_balance !== undefined">
+                    (Balance: ৳{{ Number(a.current_balance).toLocaleString() }})
+                  </span>
+                </option>
+              </select>
+              <p v-if="selectedPettyCash && Number(selectedPettyCash.current_balance) < totalAmount"
+                 class="text-xs text-yellow-400 mt-1">
+                ⚠ Petty cash balance (৳{{ Number(selectedPettyCash.current_balance).toLocaleString() }}) is less than this expense amount.
+              </p>
+            </div>
+            <div class="space-y-1.5">
+              <label class="field-label">Reference / Receipt No.</label>
+              <input v-model="form.paymentReference" class="input-glass" placeholder="e.g. receipt #, mobile TXN" />
+            </div>
+          </template>
+
+          <!-- BANK panel -->
+          <template v-if="form.method === 'bank'">
             <div class="space-y-1.5">
               <label class="field-label">Bank Account *</label>
               <select v-model="form.bankAccountId" class="input-glass">
-                <option value="">— Select account —</option>
-                <optgroup label="Bank Accounts">
-                  <option v-for="a in bankAccounts.filter(a => a.account_type !== 'Cash')" :key="a.id" :value="a.id">
-                    {{ a.bank_name }} – {{ a.account_name }} ({{ a.account_number }})
-                  </option>
-                </optgroup>
+                <option value="">— Select bank account —</option>
+                <option v-for="a in bankAccounts" :key="a.id" :value="a.id">
+                  {{ a.bank_name }} – {{ a.account_name }} ({{ a.account_number }})
+                </option>
               </select>
             </div>
             <div class="space-y-1.5">
-              <label class="field-label">
-                {{ form.method === 'Cheque' ? 'Cheque Number' : 'Transaction / Reference No.' }}
-              </label>
-              <input v-model="form.paymentReference" class="input-glass"
-                :placeholder="form.method === 'Cheque' ? 'Cheque #' : 'TXN-XXXXXXXX'" />
+              <label class="field-label">Cheque / Transaction Ref.</label>
+              <input v-model="form.paymentReference" class="input-glass" placeholder="Cheque # or TXN ID" />
             </div>
           </template>
-
-          <!-- Mobile Banking panel -->
-          <template v-else-if="form.method === 'Mobile Banking'">
-            <div class="space-y-1.5">
-              <label class="field-label">Mobile TXN / Reference No.</label>
-              <input v-model="form.paymentReference" class="input-glass" placeholder="e.g. bKash/Nagad TXN ID" />
-            </div>
-          </template>
-
-          <!-- Cash info box -->
-          <div v-if="form.method === 'Cash'" class="md:col-span-2 flex items-center gap-3 p-3 rounded-lg"
-               style="background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.18);">
-            <span class="text-green-400">💵</span>
-            <span class="text-xs text-green-300/80">Cash payment — will be disbursed from branch petty cash on approval.</span>
-          </div>
 
         </div>
       </div>
@@ -168,10 +189,11 @@ const form = reactive({
   date:             new Date().toISOString().split('T')[0],
   categoryId:       '' as string | number,
   subcategoryId:    '' as string | number,
-  qty:              1,
-  unitCost:         0,
-  method:           'Cash',
+  qty:              null as number | null,
+  unitCost:         null as number | null,
+  method:           'cash' as 'cash' | 'bank',
   bankAccountId:    '' as string | number,
+  cashAccountId:    '' as string | number,
   paymentReference: '',
   employeeId:       '' as string | number,
   handledBy:        '',
@@ -181,44 +203,51 @@ const form = reactive({
 
 const submitting = ref(false)
 
-const methods = [
-  { value: 'Cash',           label: '💵 Cash'           },
-  { value: 'Bank Transfer',  label: '🏦 Bank Transfer'  },
-  { value: 'Cheque',         label: '🧾 Cheque'         },
-  { value: 'Mobile Banking', label: '📱 Mobile Banking' },
-]
-
-const needsBankAccount = computed(() =>
-  form.method === 'Bank Transfer' || form.method === 'Cheque'
-)
-
-// ── Remote data ──────────────────────────────────────────────────
-const [{ data: catData }, { data: branchData }, { data: bankData }, { data: empData }] = await Promise.all([
+// ── Remote data ─────────────────────────────────────────────────────────────
+const [
+  { data: catData },
+  { data: branchData },
+  { data: bankData },
+  { data: empData },
+  { data: pettyData },
+] = await Promise.all([
   useFetch('/api/expenses/categories', { query: { spend: false } }),
   useFetch('/api/branches'),
   useFetch('/api/bank-accounts'),
   useFetch('/api/hr/employees'),
+  useFetch('/api/expenses/petty-cash-accounts'),
 ])
 
-const categories   = computed(() => (catData.value?.categories   ?? []) as any[])
-const branches     = computed(() => (branchData.value?.branches  ?? []) as any[])
-const bankAccounts = computed(() => (bankData.value?.accounts    ?? []) as any[])
-const employees    = computed(() => (empData.value?.employees    ?? []) as any[])
+const categories       = computed(() => (catData.value?.categories        ?? []) as any[])
+const branches         = computed(() => (branchData.value?.branches       ?? []) as any[])
+const bankAccounts     = computed(() => (bankData.value?.accounts         ?? []) as any[])
+const employees        = computed(() => (empData.value?.employees         ?? []) as any[])
+const pettyCashAccounts = computed(() => (pettyData.value?.accounts       ?? []) as any[])
 
 const selectedCategory = computed(() =>
   categories.value.find((c: any) => c.id === form.categoryId) ?? null
 )
-
 const selectedUnit = computed(() => {
   if (!form.subcategoryId) return ''
   const sub = selectedCategory.value?.subcategories?.find((s: any) => s.id === form.subcategoryId)
   return sub?.unit ?? ''
 })
+const selectedPettyCash = computed(() =>
+  pettyCashAccounts.value.find((a: any) => a.id === form.cashAccountId) ?? null
+)
 
-const totalAmount = computed(() => (form.qty || 1) * (form.unitCost || 0))
+const totalAmount = computed(() => {
+  const qty  = form.qty  ?? 0
+  const cost = form.unitCost ?? 0
+  if (qty && cost) return qty * cost
+  return 0
+})
+
 const isValid = computed(() => {
-  if (!form.date || !form.categoryId || !form.remarks.trim()) return false
-  if (needsBankAccount.value && !form.bankAccountId) return false
+  if (!form.date || !form.categoryId || !form.subcategoryId || !form.remarks.trim()) return false
+  if (form.method === 'bank'  && !form.bankAccountId)  return false
+  if (form.method === 'cash'  && !form.cashAccountId)  return false
+  if (totalAmount.value <= 0) return false
   return true
 })
 
@@ -226,12 +255,7 @@ function onCategoryChange() {
   form.subcategoryId = ''
 }
 
-function onSubcategoryChange() {
-  // Auto-fill unit from subcategory if qty label needed
-}
-
 function onEmployeeChange() {
-  if (!form.employeeId) return
   const emp = employees.value.find((e: any) => e.id === form.employeeId)
   if (emp) form.handledBy = `${emp.first_name} ${emp.last_name}`.trim()
 }
@@ -245,16 +269,17 @@ async function submit() {
       body: {
         expense_date:      form.date,
         category_id:       form.categoryId,
-        subcategory_id:    form.subcategoryId  || null,
-        unit_quantity:     form.qty,
-        per_unit_cost:     form.unitCost,
+        subcategory_id:    form.subcategoryId,
+        unit_quantity:     form.qty     || null,
+        per_unit_cost:     form.unitCost || null,
         total_amount:      totalAmount.value,
-        payment_method:    form.method,
-        bank_account_id:   form.bankAccountId  || null,
+        payment_method:    form.method,            // 'bank' or 'cash'
+        bank_account_id:   form.method === 'bank' ? form.bankAccountId : null,
+        cash_account_id:   form.method === 'cash' ? form.cashAccountId : null,
         payment_reference: form.paymentReference || null,
-        employee_id:       form.employeeId     || null,
-        handled_by_person: form.handledBy      || null,
-        branch_id:         form.branchId       || null,
+        employee_id:       form.employeeId   || null,
+        handled_by_person: form.handledBy    || null,
+        branch_id:         form.branchId     || null,
         remarks:           form.remarks,
       },
     }) as any

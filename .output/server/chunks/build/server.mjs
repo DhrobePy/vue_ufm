@@ -778,7 +778,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-BGkJreQK.mjs')
+    component: () => import('./create-Bo9WFryM.mjs')
   },
   {
     name: "hr-payslip-id",
