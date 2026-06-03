@@ -193,22 +193,120 @@
       <h3 class="section-title">Payment & Notes</h3>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Advance Paid</label>
-          <input v-model.number="form.advancePaid" type="number" class="input-glass" placeholder="0" />
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Advance Paid (৳)</label>
+          <input v-model.number="form.advancePaid" type="number" min="0" class="input-glass" placeholder="0" />
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Overall Discount</label>
           <input v-model.number="form.overallDiscount" type="number" class="input-glass" placeholder="0" />
         </div>
-        <div class="md:col-span-2 space-y-1.5">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Special Instructions</label>
-          <textarea v-model="form.notes" rows="3" class="input-glass resize-none" placeholder="Any special instructions for this order…" />
-        </div>
       </div>
+
+      <!-- Advance payment details — shown only when advance > 0 -->
+      <template v-if="(form.advancePaid || 0) > 0">
+        <div class="rounded-xl p-4 space-y-4" style="background:rgba(16,185,129,0.04);border:1px solid rgba(16,185,129,0.15)">
+          <p class="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Advance Payment Details</p>
+
+          <!-- Payment method selector -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Method *</label>
+            <div class="flex flex-wrap gap-2">
+              <button v-for="m in paymentMethods" :key="m.value" type="button"
+                @click="form.advanceMethod = m.value; form.advanceBankAccountId = ''; form.advanceCashAccountId = ''"
+                :class="['px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all',
+                  form.advanceMethod === m.value
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                    : 'border-white/10 text-gray-500 hover:border-white/20']">
+                {{ m.icon }} {{ m.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Cash: petty cash account -->
+            <template v-if="form.advanceMethod === 'Cash'">
+              <div class="md:col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Petty Cash Account *</label>
+                <select v-model="form.advanceCashAccountId" class="input-glass">
+                  <option value="">— Select account —</option>
+                  <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">
+                    {{ a.account_name }} (Balance: ৳{{ Number(a.current_balance).toLocaleString() }})
+                  </option>
+                </select>
+              </div>
+            </template>
+
+            <!-- Bank Transfer / Cheque / Card: bank account -->
+            <template v-if="['Bank Transfer','Cheque','Card'].includes(form.advanceMethod)">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Bank Account *</label>
+                <select v-model="form.advanceBankAccountId" class="input-glass">
+                  <option value="">— Select account —</option>
+                  <option v-for="a in bankAccounts" :key="a.id" :value="a.id">
+                    {{ a.bank_name }} – {{ a.account_name }}
+                  </option>
+                </select>
+              </div>
+              <div v-if="form.advanceMethod === 'Bank Transfer'" class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Transfer Type</label>
+                <select v-model="form.advanceBankTxType" class="input-glass">
+                  <option value="">— Select —</option>
+                  <option v-for="t in ['RTGS','BEFTN','NPSB','Online','Deposit']" :key="t" :value="t">{{ t }}</option>
+                </select>
+              </div>
+              <template v-if="form.advanceMethod === 'Cheque'">
+                <div class="space-y-1.5">
+                  <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cheque Number</label>
+                  <input v-model="form.advanceChequeNumber" class="input-glass font-mono" placeholder="e.g. 001234" />
+                </div>
+                <div class="space-y-1.5">
+                  <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cheque Date</label>
+                  <input v-model="form.advanceChequeDate" type="date" class="input-glass" />
+                </div>
+              </template>
+            </template>
+
+            <!-- Mobile Banking: reference only -->
+            <template v-if="form.advanceMethod === 'Mobile Banking'">
+              <div class="md:col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction Reference *</label>
+                <input v-model="form.advanceReference" class="input-glass font-mono" placeholder="e.g. bKash TXN ID" />
+              </div>
+            </template>
+
+            <!-- Reference (all methods except Mobile Banking which has its own) -->
+            <div v-if="form.advanceMethod !== 'Mobile Banking'" class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Reference / Receipt No.</label>
+              <input v-model="form.advanceReference" class="input-glass font-mono" placeholder="Optional receipt #" />
+            </div>
+
+            <!-- Collected by employee -->
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Collected By</label>
+              <select v-model="form.advanceCollectedBy" class="input-glass">
+                <option value="">— Select employee —</option>
+                <option v-for="e in employees" :key="e.id" :value="e.id">
+                  {{ e.first_name }} {{ e.last_name }}
+                </option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Special instructions -->
+      <div class="space-y-1.5">
+        <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Special Instructions</label>
+        <textarea v-model="form.notes" rows="3" class="input-glass resize-none" placeholder="Any special instructions for this order…" />
+      </div>
+
       <!-- Order summary -->
       <div class="rounded-xl p-4 space-y-2" style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.12);">
         <div class="flex justify-between text-xs text-gray-500"><span>Order Total</span><span class="text-gray-300 font-medium">৳{{ (subtotal - totalDiscount).toLocaleString() }}</span></div>
-        <div class="flex justify-between text-xs text-gray-500"><span>Advance</span><span class="text-emerald-400 font-medium">-৳{{ (form.advancePaid || 0).toLocaleString() }}</span></div>
+        <div class="flex justify-between text-xs text-gray-500">
+          <span>Advance <span v-if="form.advanceMethod && (form.advancePaid||0)>0" class="text-emerald-500/70">({{ form.advanceMethod }})</span></span>
+          <span class="text-emerald-400 font-medium">-৳{{ (form.advancePaid || 0).toLocaleString() }}</span>
+        </div>
         <div class="flex justify-between text-sm font-bold text-white border-t border-white/[0.08] pt-2 mt-1"><span>Balance Due</span><span class="text-gold-400">৳{{ Math.max(0, subtotal - totalDiscount - (form.advancePaid || 0)).toLocaleString() }}</span></div>
       </div>
     </div>
@@ -249,6 +347,15 @@ const form = reactive({
   requiredDate: '', branchId: '', priority: 'normal',
   shippingAddress: '', advancePaid: 0, overallDiscount: 0, notes: '',
   items: [{ variantId: '', productId: '', quantity: 1, unitPrice: 0, discount: 0 }],
+  // advance payment details
+  advanceMethod:          'Cash' as string,
+  advanceBankAccountId:   '' as string | number,
+  advanceCashAccountId:   '' as string | number,
+  advanceReference:       '',
+  advanceChequeNumber:    '',
+  advanceChequeDate:      '',
+  advanceBankTxType:      '',
+  advanceCollectedBy:     '' as string | number,
 })
 
 // ── Searchable customer combobox ─────────────────────────
@@ -256,10 +363,21 @@ const customerQuery        = ref('')
 const customerDropdownOpen = ref(false)
 const customerComboRef     = ref<HTMLElement | null>(null)
 
-// Load customers and products from real API in parallel
-const [{ data: custData }, { data: prodData }] = await Promise.all([
+const paymentMethods = [
+  { value: 'Cash',           icon: '💵', label: 'Cash' },
+  { value: 'Bank Transfer',  icon: '🏦', label: 'Bank Transfer' },
+  { value: 'Cheque',         icon: '📄', label: 'Cheque' },
+  { value: 'Mobile Banking', icon: '📱', label: 'Mobile Banking' },
+  { value: 'Card',           icon: '💳', label: 'Card' },
+]
+
+// Load customers, products, bank accounts, petty cash, employees in parallel
+const [{ data: custData }, { data: prodData }, { data: bankData }, { data: pettyData }, { data: empData }] = await Promise.all([
   useFetch('/api/customers', { query: { per: 200 } }),
   useFetch('/api/products'),
+  useFetch('/api/bank-accounts'),
+  useFetch('/api/expenses/petty-cash-accounts'),
+  useFetch('/api/hr/employees'),
 ])
 
 const customers = computed(() =>
@@ -271,6 +389,9 @@ const customers = computed(() =>
     current_balance:  c.current_balance,
   }))
 )
+const bankAccounts     = computed(() => (bankData.value?.accounts  ?? []) as any[])
+const pettyCashAccounts = computed(() => (pettyData.value?.accounts ?? []) as any[])
+const employees        = computed(() => (empData.value?.employees   ?? []) as any[])
 
 const selectedCustomer = computed(() =>
   customers.value.find(c => c.id === form.customerId) ?? null
@@ -422,6 +543,14 @@ async function submitOrder() {
         delivery_address: form.shippingAddress || null,
         special_notes:    form.notes || null,
         amount_paid:      form.advancePaid || 0,
+        advance_payment_method:          (form.advancePaid || 0) > 0 ? form.advanceMethod : undefined,
+        advance_bank_account_id:         form.advanceBankAccountId  || undefined,
+        advance_cash_account_id:         form.advanceCashAccountId  || undefined,
+        advance_reference:               form.advanceReference       || undefined,
+        advance_cheque_number:           form.advanceChequeNumber    || undefined,
+        advance_cheque_date:             form.advanceChequeDate      || undefined,
+        advance_bank_tx_type:            form.advanceBankTxType      || undefined,
+        advance_collected_by_employee_id: form.advanceCollectedBy   || undefined,
         items: form.items
           .filter(i => i.variantId)
           .map(i => ({

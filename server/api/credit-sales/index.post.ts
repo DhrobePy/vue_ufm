@@ -17,7 +17,16 @@ export default defineEventHandler(async (event) => {
     priority,
     delivery_address, // maps to shipping_address in DB
     special_notes,    // maps to special_instructions in DB
-    amount_paid,      // advance payment
+    amount_paid,      // advance payment amount
+    // ── advance payment details ───────────────────────────────────────────
+    advance_payment_method,      // 'Cash'|'Bank Transfer'|'Cheque'|'Mobile Banking'|'Card'
+    advance_bank_account_id,     // when method = Bank Transfer | Cheque
+    advance_cash_account_id,     // when method = Cash
+    advance_reference,           // transaction/mobile ref
+    advance_cheque_number,       // when method = Cheque
+    advance_cheque_date,         // when method = Cheque
+    advance_bank_tx_type,        // RTGS|BEFTN|NPSB|Online|Deposit
+    advance_collected_by_employee_id,
     items,            // [{ product_id, variant_id, qty_bags→quantity, unit_price, discount_amount }]
   } = body ?? {}
 
@@ -165,10 +174,14 @@ export default defineEventHandler(async (event) => {
       [orderId, orderStatus, wfAction, userId, wfComment],
     )
 
-    // ── Advance payment → customer_payments + ledger ────────────────────────
-    // If the customer paid an advance at order creation, record it properly so
-    // it appears in the payment history and reduces the customer's ledger balance.
+    // ── Advance payment → customer_payments + ledger + GL journal ──────────
     if (advancePaid > 0) {
+      // Normalise payment method to DB ENUM values
+      const validMethods = ['Cash', 'Bank Transfer', 'Cheque', 'Mobile Banking', 'Card']
+      const payMethod = validMethods.includes(advance_payment_method)
+        ? advance_payment_method
+        : 'Cash'
+
       const advDay = new Date().toISOString().slice(0, 10).replace(/-/g, '')
       const [[acnt]] = await conn.query<any>(
         `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
@@ -176,20 +189,40 @@ export default defineEventHandler(async (event) => {
       const advSeq = String((acnt.n ?? 0) + 1).padStart(4, '0')
       const advNo  = `PAY-${advDay}-${advSeq}`
 
-      // 1. Insert payment record (order_id links it to this order)
+      // 1. Insert payment record with full details
       const [advResult] = await conn.query<any>(
         `INSERT INTO customer_payments
-           (order_id, payment_number, customer_id, payment_date, amount, payment_method,
-            payment_type, reference_number,
-            allocation_status, allocated_amount, notes, created_by_user_id)
-         VALUES (?, ?, ?, ?, ?, 'Cash',
-                 'invoice_payment', ?,
-                 'allocated', ?, 'Advance payment at order creation', ?)`,
-        [orderId, advNo, customer_id, order_date, advancePaid, advNo, advancePaid, userId],
+           (order_id, payment_number, customer_id, payment_date, amount,
+            payment_method, payment_type,
+            bank_account_id, cash_account_id,
+            cheque_number, cheque_date, bank_transaction_type,
+            reference_number, allocation_status, allocated_amount,
+            notes, collected_by_employee_id, branch_id, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?,
+                 ?, 'advance',
+                 ?, ?,
+                 ?, ?, ?,
+                 ?, 'allocated', ?,
+                 ?, ?, ?, ?)`,
+        [
+          orderId, advNo, customer_id, order_date, advancePaid,
+          payMethod,
+          advance_bank_account_id  ? Number(advance_bank_account_id)  : null,
+          advance_cash_account_id  ? Number(advance_cash_account_id)  : null,
+          advance_cheque_number    || null,
+          advance_cheque_date      || null,
+          advance_bank_tx_type     || null,
+          advance_reference        || advNo,
+          advancePaid,
+          `Advance payment at order creation (${payMethod})`,
+          advance_collected_by_employee_id ? Number(advance_collected_by_employee_id) : null,
+          branch_id ? Number(branch_id) : null,
+          userId,
+        ],
       )
       const advPaymentId = advResult.insertId
 
-      // 2. Get current running ledger balance for this customer
+      // 2. Get current running ledger balance
       const [[lastLedger]] = await conn.query<any>(
         `SELECT COALESCE(balance_after, 0) AS bal
          FROM customer_ledger WHERE customer_id = ?
@@ -199,21 +232,110 @@ export default defineEventHandler(async (event) => {
       const prevBal = Number(lastLedger?.bal ?? 0)
       const newBal  = Math.max(0, prevBal - advancePaid)
 
-      // 3. Credit the ledger — reduces what the customer owes
+      // 3. GL journal entry for the advance
+      let advJeId: number | null = null
+      try {
+        // DR: cash or bank GL account
+        let drAccountId: number | null = null
+        if (payMethod === 'Cash' && advance_cash_account_id) {
+          const [[ca]] = await conn.query<any>(
+            `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
+            [Number(advance_cash_account_id)],
+          )
+          drAccountId = ca?.chart_of_account_id ?? null
+        } else if (['Bank Transfer', 'Cheque', 'Card'].includes(payMethod) && advance_bank_account_id) {
+          const [[ba]] = await conn.query<any>(
+            `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
+            [Number(advance_bank_account_id)],
+          )
+          drAccountId = ba?.chart_of_account_id ?? null
+        }
+
+        // CR: Accounts Receivable / Trade Debtors
+        let crAccountId: number | null = null
+        const [[ar]] = await conn.query<any>(
+          `SELECT id FROM chart_of_accounts
+           WHERE account_type IN ('accounts_receivable','current_assets')
+             AND (LOWER(name) LIKE '%receivable%' OR LOWER(name) LIKE '%debtor%')
+           ORDER BY id ASC LIMIT 1`,
+        )
+        crAccountId = ar?.id ?? null
+
+        if (drAccountId && crAccountId) {
+          const jeDesc = `Advance received — ${advNo} (Order ${orderNo}, ${customer_id})`
+          const [jeRes] = await conn.query<any>(
+            `INSERT INTO journal_entries
+               (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
+             VALUES (?, ?, 'CustomerPayment', ?, ?)`,
+            [order_date, jeDesc.slice(0, 255), advPaymentId, userId],
+          )
+          advJeId = jeRes.insertId
+
+          await conn.query(
+            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+             VALUES (?, ?, ?, 0.00, ?)`,
+            [advJeId, drAccountId, advancePaid, advNo],
+          )
+          await conn.query(
+            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+             VALUES (?, ?, 0.00, ?, ?)`,
+            [advJeId, crAccountId, advancePaid, advNo],
+          )
+
+          // Link JE back to payment record
+          await conn.query(
+            `UPDATE customer_payments SET journal_entry_id = ? WHERE id = ?`,
+            [advJeId, advPaymentId],
+          )
+
+          // If cash, update petty cash ledger
+          if (payMethod === 'Cash' && advance_cash_account_id) {
+            const [[pcAcc]] = await conn.query<any>(
+              `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
+              [Number(advance_cash_account_id)],
+            )
+            const pcBal = Number(pcAcc?.current_balance ?? 0)
+            await conn.query(
+              `INSERT INTO branch_petty_cash_transactions
+                 (account_id, branch_id, transaction_type, amount, balance_after,
+                  reference_type, reference_id, description, created_by_user_id, transaction_date)
+               VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
+              [
+                Number(advance_cash_account_id), pcAcc?.branch_id ?? null,
+                advancePaid, pcBal + advancePaid,
+                advPaymentId, `Advance from order ${orderNo}`, userId, order_date,
+              ],
+            )
+            await conn.query(
+              `UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`,
+              [advancePaid, Number(advance_cash_account_id)],
+            )
+          }
+        } else {
+          console.warn(`[advance-payment] Skipping JE for ${advNo}: drAccountId=${drAccountId}, crAccountId=${crAccountId}`)
+        }
+      } catch (jeErr) {
+        console.warn(`[advance-payment] JE creation failed for ${advNo}:`, jeErr)
+      }
+
+      // 4. Credit the customer ledger (with JE link)
       await conn.query(
         `INSERT INTO customer_ledger
            (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'payment', 'customer_payment', ?,
-                 ?, ?, 0, ?, ?, ?)`,
+            invoice_number, description, debit_amount, credit_amount, balance_after,
+            journal_entry_id, created_by_user_id)
+         VALUES (?, ?, 'advance_payment', 'customer_payment', ?,
+                 ?, ?, 0, ?, ?,
+                 ?, ?)`,
         [
           customer_id, order_date, advPaymentId,
-          advNo, `Advance payment — ${advNo} (Order ${orderNo})`,
-          advancePaid, newBal, userId,
+          advNo, `Advance payment — ${advNo} (Order ${orderNo}) via ${payMethod}`,
+          advancePaid, newBal,
+          advJeId, userId,
         ],
       )
 
-      // 4. Reduce customer running balance
+      // 5. Reduce customer running balance
       await conn.query(
         `UPDATE customers
          SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()

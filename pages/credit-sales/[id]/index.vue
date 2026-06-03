@@ -229,41 +229,64 @@
 
             <div v-if="payments.length" class="space-y-0 divide-y divide-white/[0.04]">
               <div v-for="p in payments" :key="p.id"
-                   class="flex items-center gap-4 py-3"
+                   class="py-3 space-y-2"
                    :class="isReversed(p) ? 'opacity-40' : ''">
-                <!-- Method icon -->
-                <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10 text-emerald-400 text-xs font-bold">
-                  {{ methodIcon(p.payment_method) }}
-                </div>
-                <!-- Details -->
-                <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
-                    <span v-if="isReversed(p)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">REVERSED</span>
+                <!-- Row 1: icon + number + badges + amount + reverse -->
+                <div class="flex items-start gap-3">
+                  <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-emerald-500/10 text-emerald-400 text-xs font-bold mt-0.5">
+                    {{ methodIcon(p.payment_method) }}
                   </div>
-                  <p class="text-[11px] text-gray-500 mt-0.5">
-                    {{ p.payment_method }}
-                    <span v-if="p.reference_number && p.reference_number !== p.payment_number">
-                      · Ref: {{ p.reference_number }}
-                    </span>
-                    <span v-if="p.collected_by"> · {{ p.collected_by }}</span>
-                  </p>
-                  <p v-if="p.notes" class="text-[10px] text-gray-600 mt-0.5 italic">{{ p.notes }}</p>
-                </div>
-                <!-- Date + Amount + Reverse button -->
-                <div class="flex items-center gap-3 shrink-0">
-                  <div class="text-right">
-                    <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
-                    <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
+                      <span v-if="p.payment_type === 'advance'" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20">ADVANCE</span>
+                      <span v-if="isReversed(p)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">REVERSED</span>
+                    </div>
+                    <!-- Method + account info -->
+                    <p class="text-[11px] text-gray-500 mt-0.5">
+                      <span class="font-medium text-gray-400">{{ p.payment_method }}</span>
+                      <template v-if="p.bank_name"> · {{ p.bank_name }}<span v-if="p.bank_account_number" class="font-mono"> ({{ p.bank_account_number }})</span></template>
+                      <template v-else-if="p.cash_account_name"> · {{ p.cash_account_name }}</template>
+                      <template v-if="p.bank_transaction_type"> · {{ p.bank_transaction_type }}</template>
+                    </p>
+                    <!-- Cheque info -->
+                    <p v-if="p.cheque_number" class="text-[11px] text-gray-600 mt-0.5">
+                      Cheque #<span class="font-mono text-gray-400">{{ p.cheque_number }}</span>
+                      <span v-if="p.cheque_date"> dated {{ String(p.cheque_date).slice(0,10) }}</span>
+                    </p>
+                    <!-- Reference -->
+                    <p v-if="p.reference_number && p.reference_number !== p.payment_number" class="text-[11px] text-gray-600 mt-0.5">
+                      Ref: <span class="font-mono text-gray-400">{{ p.reference_number }}</span>
+                    </p>
+                    <!-- Collector info -->
+                    <p class="text-[11px] text-gray-600 mt-0.5">
+                      Collected by:
+                      <span class="text-gray-400">
+                        <template v-if="p.collector_first_name">{{ p.collector_first_name }} {{ p.collector_last_name }}</template>
+                        <template v-else-if="p.collected_by">{{ p.collected_by }}</template>
+                        <template v-else>—</template>
+                      </span>
+                      <span v-if="p.journal_entry_id" class="ml-2">
+                        · <NuxtLink to="/accounts/journal" class="text-blue-400 hover:text-blue-300 font-mono transition-colors">JE-{{ p.journal_entry_id }}</NuxtLink>
+                      </span>
+                    </p>
+                    <p v-if="p.notes" class="text-[10px] text-gray-600 mt-0.5 italic">{{ p.notes }}</p>
                   </div>
-                  <button v-if="isAdmin && !isReversed(p)"
-                    @click="openReversePayment(p)"
-                    class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
-                    title="Reverse this payment">
-                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
-                    </svg>
-                  </button>
+                  <!-- Date + Amount + Reverse -->
+                  <div class="flex items-center gap-3 shrink-0">
+                    <div class="text-right">
+                      <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
+                      <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
+                    </div>
+                    <button v-if="isAdmin && !isReversed(p)"
+                      @click="openReversePayment(p)"
+                      class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-red-400 hover:bg-red-500/10 transition-all duration-150"
+                      title="Reverse this payment">
+                      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
