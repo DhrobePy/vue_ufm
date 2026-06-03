@@ -45,6 +45,15 @@ const ACTION_MAP: Record<string, string> = {
   adj_approved:     'approved',
   adj_posted:       'status_changed',
   adj_cancelled:    'cancelled',
+
+  // ── Admin / user management ───────────────────────────────────────────────
+  user_created:     'created',
+  user_updated:     'updated',
+  user_deleted:     'deleted',
+  user_suspended:   'status_changed',
+  user_activated:   'status_changed',
+  user_pwd_changed: 'updated',
+  user_role_changed:'updated',
 }
 
 // Map severity → valid DB ENUM  ('error' is not in the ENUM; use 'critical')

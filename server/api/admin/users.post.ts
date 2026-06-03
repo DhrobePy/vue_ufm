@@ -1,7 +1,11 @@
 import { getDb, queryOne } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
+  const body    = await readBody(event)
+  const session = await getUserSession(event)
+  const actorId   = session?.user?.id   ?? 1
+  const actorName = session?.user?.name ?? session?.user?.email ?? 'System'
 
   const {
     display_name,
@@ -9,7 +13,6 @@ export default defineEventHandler(async (event) => {
     password,
     role,
     status = 'active',
-    telegram_chat_id,
   } = body ?? {}
 
   if (!display_name || !email || !password || !role)
@@ -21,39 +24,43 @@ export default defineEventHandler(async (event) => {
   const db = getDb()
 
   // Check email uniqueness
-  const existing = await queryOne<any>(
-    'SELECT id FROM users WHERE email = ?',
-    [email.toLowerCase().trim()],
-  )
+  const existing = await queryOne<any>('SELECT id FROM users WHERE email = ?', [email.toLowerCase().trim()])
   if (existing)
     throw createError({ statusCode: 409, statusMessage: 'A user with this email already exists' })
 
   const conn = await db.getConnection()
-
   try {
     await conn.beginTransaction()
 
-    // Store plain password for dev mode; password_hash stores same for now
-    // (production would use bcrypt — no bcrypt package installed in this project)
     const [result] = await conn.query<any>(
       `INSERT INTO users
-         (display_name, email, password_hash, plain_password, role, status)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+         (display_name, email, password_hash, plain_password, role, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         display_name.trim(),
         email.toLowerCase().trim(),
-        password,   // password_hash (plain for dev)
-        password,   // plain_password for dev convenience
+        password,
+        password,
         role,
         status,
       ],
     )
 
-    // Optionally store telegram_chat_id in user preferences or a profile table
-    // (The users table doesn't have a telegram_chat_id column — skip for now)
+    const newId = result.insertId
+
+    await auditLog(conn, {
+      userId:      actorId,
+      action:      'user_created',
+      module:      'admin',
+      recordType:  'user',
+      recordId:    newId,
+      referenceNumber: email.toLowerCase().trim(),
+      description: `User "${display_name.trim()}" (${email.toLowerCase().trim()}) created with role [${role}] · status: ${status} · by ${actorName}`,
+      severity:    'info',
+    })
 
     await conn.commit()
-    return { ok: true, id: result.insertId }
+    return { ok: true, id: newId }
   } catch (e) {
     await conn.rollback()
     throw e

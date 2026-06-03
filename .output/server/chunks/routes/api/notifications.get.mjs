@@ -24,7 +24,7 @@ async function safeQuery(fn, fallback) {
   }
 }
 const notifications_get = defineEventHandler(async () => {
-  var _a;
+  var _a, _b, _c;
   const [
     pendingOrders,
     pendingExpenses,
@@ -41,7 +41,11 @@ const notifications_get = defineEventHandler(async () => {
     purchaseNewPOs,
     purchaseRecentPayments,
     purchasePendingAdj,
-    purchaseCancellations
+    purchaseCancellations,
+    // ── Admin module ───────────────────────────────────────────────────────
+    adminNewUsers,
+    adminUserActions,
+    adminLoginFailures
   ] = await Promise.all([
     // Pending / escalated credit orders — needs admin/superadmin attention
     safeQuery(() => query(
@@ -204,6 +208,38 @@ const notifications_get = defineEventHandler(async () => {
        WHERE l.module = 'purchase'
          AND l.action = 'cancelled'
          AND l.created_at >= DATE_SUB(NOW(), INTERVAL 48 HOUR)
+       ORDER BY l.created_at DESC
+       LIMIT 8`
+    ), []),
+    // ── Admin: New users created in last 4 h ──────────────────────────────
+    safeQuery(() => query(
+      `SELECT id, display_name, email, role, status, created_at
+       FROM users
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL 4 HOUR)
+         AND status != 'deleted'
+       ORDER BY created_at DESC
+       LIMIT 6`
+    ), []),
+    // ── Admin: User suspensions / deletions / role changes in last 24 h ───
+    safeQuery(() => query(
+      `SELECT l.id, l.action, l.description, l.reference_number,
+              l.record_id, l.severity, l.created_at,
+              u.display_name AS actor_name
+       FROM system_audit_log l
+       LEFT JOIN users u ON u.id = l.user_id
+       WHERE l.module = 'admin'
+         AND l.record_type = 'user'
+         AND l.action IN ('status_changed', 'deleted', 'updated')
+         AND l.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+       ORDER BY l.created_at DESC
+       LIMIT 8`
+    ), []),
+    // ── Admin: Login failures in last 1 h ─────────────────────────────────
+    safeQuery(() => query(
+      `SELECT l.id, l.description, l.reference_number, l.created_at
+       FROM system_audit_log l
+       WHERE l.action = 'login_failed'
+         AND l.created_at >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
        ORDER BY l.created_at DESC
        LIMIT 8`
     ), [])
@@ -385,6 +421,41 @@ const notifications_get = defineEventHandler(async () => {
       type: "error",
       time: timeAgo(new Date(c.created_at)),
       route: isGRN ? `/purchase/grn/${c.record_id}` : `/purchase/orders/${c.record_id}`,
+      read: false
+    });
+  }
+  for (const u of adminNewUsers) {
+    notifications.push({
+      id: `nuser-${u.id}`,
+      text: `\u{1F464} New user "${u.display_name}" created \u2014 [${u.role}] \xB7 ${u.email}`,
+      type: "info",
+      time: timeAgo(new Date(u.created_at)),
+      route: `/admin/users/${u.id}/edit`,
+      read: false
+    });
+  }
+  for (const l of adminUserActions) {
+    const isSuspend = l.action === "status_changed" && ((_b = l.description) == null ? void 0 : _b.includes("suspended"));
+    const isDelete = l.action === "deleted";
+    const isRole = (_c = l.description) == null ? void 0 : _c.includes("role:");
+    const icon = isDelete ? "\u{1F5D1}\uFE0F" : isSuspend ? "\u{1F512}" : isRole ? "\u{1F511}" : "\u270F\uFE0F";
+    const label = isDelete ? "deleted" : isSuspend ? "suspended" : isRole ? "role changed" : "updated";
+    notifications.push({
+      id: `uact-${l.id}`,
+      text: `${icon} User ${l.reference_number} ${label}`,
+      type: isDelete ? "error" : isSuspend ? "warning" : "info",
+      time: timeAgo(new Date(l.created_at)),
+      route: isDelete || !l.record_id ? "/admin/users" : `/admin/users/${l.record_id}/edit`,
+      read: false
+    });
+  }
+  for (const l of adminLoginFailures) {
+    notifications.push({
+      id: `lfail-${l.id}`,
+      text: `\u{1F6A8} Login failure: ${l.description || l.reference_number || "unknown"}`,
+      type: "error",
+      time: timeAgo(new Date(l.created_at)),
+      route: "/admin/audit",
       read: false
     });
   }

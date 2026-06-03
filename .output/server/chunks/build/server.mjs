@@ -1078,7 +1078,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-5Bm2v4r5.mjs')
+    component: () => import('./edit-MKnoeV-r.mjs')
   },
   {
     name: "credit-sales-dispatch",
