@@ -61,7 +61,7 @@
         <div style="background:linear-gradient(135deg,#fffbf0,#fef9ee);border-bottom:1px solid #f0ede8;padding:28px 40px;text-align:center;">
           <div style="font-size:10px;font-weight:800;color:#9ca3af;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:10px;">Total Amount</div>
           <div style="font-size:48px;font-weight:900;color:#b45309;font-family:monospace;letter-spacing:-1px;">৳{{ Number(expense?.amount ?? 0).toLocaleString() }}</div>
-          <div style="font-size:12px;color:#92400e;margin-top:8px;font-weight:600;">{{ expense?.category }}</div>
+          <div style="font-size:12px;color:#92400e;margin-top:8px;font-weight:600;">{{ expense?.amountInWords }}</div>
         </div>
 
         <!-- ═══ EXPENSE DETAILS ════════════════════════ -->
@@ -77,6 +77,10 @@
               <div style="font-size:13px;font-weight:700;color:#111;">{{ expense?.category }}</div>
             </div>
             <div>
+              <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Sub-category</div>
+              <div style="font-size:13px;font-weight:700;color:#374151;">{{ expense?.subcategory || '—' }}</div>
+            </div>
+            <div>
               <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Payment Method</div>
               <div style="font-size:13px;font-weight:700;color:#111;">{{ expense?.method }}</div>
             </div>
@@ -85,13 +89,22 @@
               <div style="font-size:13px;font-weight:700;color:#111;">{{ expense?.submittedBy }}</div>
             </div>
             <div>
-              <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Priority</div>
-              <div :style="`font-size:13px;font-weight:700;color:${expense?.priority==='urgent'?'#dc2626':expense?.priority==='high'?'#ea580c':'#374151'};text-transform:uppercase;`">{{ expense?.priority }}</div>
-            </div>
-            <div>
               <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">GL Account</div>
-              <div style="font-size:12px;font-weight:600;color:#374151;font-family:monospace;">5050 — Fuel & Vehicle</div>
+              <div style="font-size:12px;font-weight:600;color:#374151;font-family:monospace;">{{ expense?.glAccount }}</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Payment account info (if bank) -->
+        <div v-if="expense?.bankInfo || expense?.paymentRef"
+             style="padding:16px 40px;border-bottom:1px solid #f0ede8;background:#fffdf8;display:flex;gap:32px;flex-wrap:wrap;">
+          <div v-if="expense?.bankInfo">
+            <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Payment Account</div>
+            <div style="font-size:12px;font-weight:600;color:#374151;">{{ expense.bankInfo }}</div>
+          </div>
+          <div v-if="expense?.paymentRef">
+            <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Reference / Cheque No.</div>
+            <div style="font-size:12px;font-weight:700;color:#374151;font-family:monospace;">{{ expense.paymentRef }}</div>
           </div>
         </div>
 
@@ -110,7 +123,7 @@
             </thead>
             <tbody>
               <tr>
-                <td style="padding:10px 10px;font-size:13px;color:#111;font-weight:600;">{{ expense?.category }}</td>
+                <td style="padding:10px 10px;font-size:13px;color:#111;font-weight:600;">{{ expense?.subcategory || expense?.category }}</td>
                 <td style="padding:10px 10px;text-align:right;font-size:13px;color:#374151;font-family:monospace;">{{ expense?.qty }}</td>
                 <td style="padding:10px 10px;text-align:right;font-size:13px;color:#374151;">{{ expense?.unit }}</td>
                 <td style="padding:10px 10px;text-align:right;font-size:13px;color:#374151;font-family:monospace;">৳{{ (expense?.unitCost ?? 0).toLocaleString() }}</td>
@@ -127,7 +140,7 @@
         </div>
 
         <!-- ═══ ACCOUNTING INFO ════════════════════════ -->
-        <div style="padding:20px 40px;border-bottom:1px solid #f0ede8;background:#faf8f5;display:flex;gap:32px;">
+        <div style="padding:20px 40px;border-bottom:1px solid #f0ede8;background:#faf8f5;display:flex;gap:32px;align-items:center;">
           <div>
             <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Cost Centre</div>
             <div style="font-size:12px;font-weight:700;color:#374151;">{{ expense?.branch ?? '—' }}</div>
@@ -135,8 +148,12 @@
           <div>
             <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">Journal Entry</div>
             <div style="font-size:12px;font-weight:700;color:#374151;font-family:monospace;">
-              {{ expense?.status === 'approved' ? `JE-${2100 + expenseId}` : 'Pending' }}
+              {{ expense?.status === 'approved' ? `JE-${expense.expNo}` : 'Pending Approval' }}
             </div>
+          </div>
+          <div>
+            <div style="font-size:9px;color:#9ca3af;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px;">GL Account</div>
+            <div style="font-size:12px;font-weight:700;color:#374151;font-family:monospace;">{{ expense?.glAccount }}</div>
           </div>
           <div style="margin-left:auto;text-align:right;">
             <div style="font-size:22px;font-weight:900;color:#b45309;font-family:monospace;">৳{{ (expense?.amount ?? 0).toLocaleString() }}</div>
@@ -146,9 +163,26 @@
 
         <!-- ═══ SIGNATURE STRIP ════════════════════════ -->
         <div style="padding:28px 40px 0;display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;">
-          <div v-for="sig in ['Submitted By', 'Approved By', 'Accounts & Finance']" :key="sig" style="text-align:center;">
+          <!-- Submitted By -->
+          <div style="text-align:center;">
             <div style="height:48px;border-bottom:1.5px solid #d1d5db;margin-bottom:8px;"></div>
-            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">{{ sig }}</div>
+            <div style="font-size:11px;font-weight:700;color:#374151;">{{ expense?.submittedBy }}</div>
+            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;margin-top:2px;">Submitted By</div>
+            <div style="font-size:9px;color:#9ca3af;margin-top:3px;">Signature &amp; Stamp</div>
+          </div>
+          <!-- Approved By -->
+          <div style="text-align:center;">
+            <div style="height:48px;border-bottom:1.5px solid #d1d5db;margin-bottom:8px;"></div>
+            <div v-if="expense?.approvedBy" style="font-size:11px;font-weight:700;color:#374151;">{{ expense.approvedBy }}</div>
+            <div v-else style="font-size:11px;color:#9ca3af;font-style:italic;">Pending</div>
+            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;margin-top:2px;">Approved By</div>
+            <div v-if="expense?.approvedAt" style="font-size:9px;color:#9ca3af;margin-top:3px;">{{ expense.approvedAt }}</div>
+            <div v-else style="font-size:9px;color:#9ca3af;margin-top:3px;">Signature &amp; Stamp</div>
+          </div>
+          <!-- Accounts -->
+          <div style="text-align:center;">
+            <div style="height:48px;border-bottom:1.5px solid #d1d5db;margin-bottom:8px;"></div>
+            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">Accounts &amp; Finance</div>
             <div style="font-size:9px;color:#9ca3af;margin-top:3px;">Signature &amp; Stamp</div>
           </div>
         </div>
@@ -196,30 +230,69 @@ const { data } = await useFetch(() => `/api/expenses/${expenseId.value}`)
 
 const raw = computed(() => data.value?.expense as any)
 
+// Convert number to words (Bengali Taka)
+function amountInWords(n: number): string {
+  if (!n || n === 0) return 'Zero Taka Only'
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+                 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen',
+                 'Seventeen', 'Eighteen', 'Nineteen']
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety']
+  function toWords(num: number): string {
+    if (num === 0) return ''
+    if (num < 20) return ones[num] + ' '
+    if (num < 100) return tens[Math.floor(num / 10)] + ' ' + ones[num % 10] + ' '
+    if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred ' + toWords(num % 100)
+    if (num < 100000) return toWords(Math.floor(num / 1000)) + 'Thousand ' + toWords(num % 1000)
+    if (num < 10000000) return toWords(Math.floor(num / 100000)) + 'Lakh ' + toWords(num % 100000)
+    return toWords(Math.floor(num / 10000000)) + 'Crore ' + toWords(num % 10000000)
+  }
+  const integer = Math.floor(n)
+  const decimal = Math.round((n - integer) * 100)
+  let result = toWords(integer).trim() + ' Taka'
+  if (decimal > 0) result += ' and ' + toWords(decimal).trim() + ' Paisa'
+  return result + ' Only'
+}
+
 // Map API fields to template-expected field names
 const expense = computed(() => {
   const e = raw.value
   if (!e) return null
+
+  // GL Account: use joined chart_of_accounts data, or derive from category code
+  const glCode = e.gl_account_code ?? e.category_code ?? ''
+  const glName = e.gl_account_name ?? e.category_name ?? ''
+  const glAccount = glCode ? `${glCode} — ${glName}` : (glName || '—')
+
+  // Bank info
+  let bankInfo = ''
+  if (e.bank_name) {
+    bankInfo = `${e.bank_name} · ${e.bank_account_name ?? ''} (${e.account_number ?? ''})`
+  } else if (e.payment_account_name) {
+    bankInfo = e.payment_account_name
+  }
+
   return {
-    expNo:       e.voucher_number,
-    date:        String(e.expense_date).slice(0, 10),
-    category:    e.category_name    ?? '—',
-    amount:      Number(e.total_amount  ?? 0),
-    branch:      e.branch_name      ?? '—',
-    method:      e.payment_method   ?? '—',
-    submittedBy: e.created_by_name  ?? e.handled_by_person ?? '—',
-    qty:         Number(e.unit_quantity ?? 0),
-    unit:        e.unit_type        ?? '',
-    unitCost:    Number(e.per_unit_cost ?? 0),
-    priority:    e.priority         ?? 'normal',
-    status:      e.status           ?? 'pending',
-    remarks:     e.remarks          ?? '',
-    approvedBy:  e.approved_by_name ?? '',
-    bankInfo:    e.bank_name        ? `${e.bank_name} · ${e.account_number ?? ''}` : '',
+    expNo:        e.voucher_number,
+    date:         String(e.expense_date).slice(0, 10),
+    category:     e.category_name     ?? '—',
+    subcategory:  e.subcategory_name  ?? '',
+    amount:       Number(e.total_amount ?? 0),
+    amountInWords: amountInWords(Number(e.total_amount ?? 0)),
+    branch:       e.branch_name       ?? '—',
+    method:       e.payment_method    ?? '—',
+    submittedBy:  e.created_by_name   ?? e.handled_by_person ?? '—',
+    qty:          Number(e.unit_quantity ?? 0),
+    unit:         e.unit_type         ?? '',
+    unitCost:     Number(e.per_unit_cost ?? 0),
+    status:       e.status            ?? 'pending',
+    remarks:      e.remarks           ?? '',
+    approvedBy:   e.approved_by_name  ?? '',
+    approvedAt:   e.approved_at ? String(e.approved_at).slice(0, 10) : '',
+    glAccount,
+    bankInfo,
+    paymentRef:   e.payment_reference ?? '',
   }
 })
-
-const idNum = expenseId
 
 const statusStyle = computed(() => {
   const s = expense.value?.status ?? ''

@@ -778,7 +778,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-D0JRVlVj.mjs')
+    component: () => import('./create-BGkJreQK.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -856,7 +856,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./vouchers-Dq9px7un.mjs')
+    component: () => import('./vouchers-PlN28HYR.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1096,7 +1096,7 @@ const _routes = [
     name: "expenses-id-voucher",
     path: "/expenses/:id()/voucher",
     meta: __nuxt_page_meta$Y || {},
-    component: () => import('./voucher-1UhL7jpM.mjs')
+    component: () => import('./voucher-M8236cv7.mjs')
   },
   {
     name: "fleet-fuel-efficiency",

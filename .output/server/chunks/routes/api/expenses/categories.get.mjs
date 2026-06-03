@@ -28,7 +28,8 @@ const categories_get = defineEventHandler(async (event) => {
           AND dv.status = 'approved'
          THEN dv.amount ELSE 0 END), 0) AS monthly_spend,` : "0 AS monthly_spend,"}
        JSON_ARRAYAGG(
-         JSON_OBJECT('id', s.id, 'name', s.subcategory_name)
+         JSON_OBJECT('id', s.id, 'name', s.subcategory_name,
+                     'unit', COALESCE(s.unit_of_measurement, ''))
        ) AS subcategories_raw
      FROM expense_categories c
      ${includeSpend ? `LEFT JOIN debit_vouchers dv ON dv.expense_account_id = c.chart_of_account_id` : ""}
@@ -56,7 +57,14 @@ const categories_get = defineEventHandler(async (event) => {
       monthlySpend: Number(c.monthly_spend) || 0,
       budget: 0,
       // Not in DB schema — UI display only
-      subcategories: subs
+      subcategories: subs.map((s) => {
+        var _a2;
+        return {
+          id: s.id,
+          name: s.name,
+          unit: (_a2 = s.unit) != null ? _a2 : ""
+        };
+      })
     };
   });
   return { categories: parsed };
