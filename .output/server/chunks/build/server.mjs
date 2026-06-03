@@ -718,7 +718,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$1X || {},
-    component: () => import('./settings-DGQahWR5.mjs')
+    component: () => import('./settings-DXTBpLRj.mjs')
   },
   {
     name: "bank-statement",
@@ -1000,7 +1000,7 @@ const _routes = [
     name: "expenses-id",
     path: "/expenses/:id()",
     meta: __nuxt_page_meta$1c || {},
-    component: () => import('./index-FjjiHN7p.mjs')
+    component: () => import('./index-Cp8RDgad.mjs')
   },
   {
     name: "expenses-categories",
@@ -1156,7 +1156,7 @@ const _routes = [
     name: "accounts-journal",
     path: "/accounts/journal",
     meta: __nuxt_page_meta$O || {},
-    component: () => import('./index-By8AKwAT.mjs')
+    component: () => import('./index-THni2pbP.mjs')
   },
   {
     name: "accounts-voucher",
