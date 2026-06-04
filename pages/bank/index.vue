@@ -51,8 +51,29 @@
           </p>
           <div class="flex gap-2 pt-1">
             <NuxtLink to="/bank/transaction/create" class="btn-ghost text-[11px] py-1 px-2.5 flex-1 justify-center">+ Transaction</NuxtLink>
-            <NuxtLink :to="`/bank/statement?account=${acc.id}`" class="btn-ghost text-[11px] py-1 px-2.5">Statement</NuxtLink>
           </div>
+        </div>
+      </div>
+
+      <!-- ── GL Account Statements quick-access ───────────────────────────── -->
+      <div v-if="glAccounts.length" class="glass-card p-4">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-gray-300">📒 GL Account Statements</h3>
+          <NuxtLink to="/bank/statement" class="text-xs text-blue-400/70 hover:text-blue-300">Open Statement →</NuxtLink>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <NuxtLink
+            v-for="acc in glAccounts" :key="acc.id"
+            :to="`/bank/statement?account=${acc.id}`"
+            class="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.07]
+                   hover:bg-white/[0.08] hover:border-white/[0.12] transition-all text-xs group">
+            <span class="text-base">🏦</span>
+            <div>
+              <p class="font-semibold text-gray-200 group-hover:text-white transition-colors">{{ acc.bank_name }}</p>
+              <p class="text-gray-600 font-mono text-[10px]">{{ acc.account_name }}</p>
+            </div>
+            <span class="ml-2 text-blue-400/50 group-hover:text-blue-400 transition-colors text-[11px]">→</span>
+          </NuxtLink>
         </div>
       </div>
 
@@ -108,6 +129,12 @@ const { data, pending, error, refresh } = await useFetch('/api/bank/dashboard')
 const accounts    = computed(() => (data.value?.accounts    ?? []) as any[])
 const stats       = computed(() => (data.value?.stats       ?? {}) as any)
 const pendingRows = computed(() => (data.value?.pendingTxns ?? []) as any[])
+
+// GL-linked bank accounts — for the unified statement routing
+const { data: glAcctData } = await useFetch('/api/bank-accounts')
+const glAccounts = computed(() =>
+  ((glAcctData.value as any)?.accounts ?? []).filter((a: any) => a.chart_of_account_id),
+)
 
 function fmtLakh(n: number) {
   if (n >= 10_000_000) return (n / 10_000_000).toFixed(2) + 'Cr'

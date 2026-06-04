@@ -265,12 +265,16 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
+const route      = useRoute()
 const today      = new Date().toISOString().slice(0, 10)
 const monthStart = today.slice(0, 7) + '-01'
 
+// Pre-select account from ?account= query param (when arriving from dashboard/accounts)
+const initialAccount = route.query.account ? Number(route.query.account) : ('' as any)
+
 // ── Filter state ─────────────────────────────────────────────────────────────
 const filters = reactive({
-  account: '' as any,
+  account: initialAccount,
   from:    monthStart,
   to:      today,
   type:    '',

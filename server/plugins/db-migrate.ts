@@ -3,11 +3,30 @@
  * Applies safe, idempotent schema patches so they don't need a manual
  * migration step on the production server.
  *
+ * MySQL 5.7 compatibility:
+ *   Use plain  ADD COLUMN (not ADD COLUMN IF NOT EXISTS — MySQL 8.0+ only).
+ *   The catch block silently swallows error 1060 "Duplicate column name",
+ *   which means the column already exists — that is the expected outcome on
+ *   every restart after the first.  Any other error is still logged.
+ *
  * Order matters:
  *   1. CREATE TABLE IF NOT EXISTS (parent tables first)
- *   2. ADD COLUMN IF NOT EXISTS patches on existing tables
+ *   2. ADD COLUMN patches on existing tables
+ *   3. MODIFY COLUMN patches (widen ENUMs → VARCHAR)
  */
 import { getDb } from '~/server/utils/db'
+
+/** Add a column; silently skip if it already exists (MySQL 5.7-safe). */
+async function addCol(db: any, table: string, col: string, def: string) {
+  try {
+    await db.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${col}\` ${def}`)
+  } catch (e: any) {
+    // 1060 = Duplicate column name — column already present, nothing to do
+    if (e?.errno !== 1060 && !String(e?.message ?? '').includes('Duplicate column')) {
+      console.warn(`[db-migrate] ${table}.${col} ADD COLUMN failed:`, e)
+    }
+  }
+}
 
 export default defineNitroPlugin(async () => {
   const db = getDb()
@@ -104,8 +123,6 @@ export default defineNitroPlugin(async () => {
   }
 
   // ── 4. Ensure supplier_ledger exists ──────────────────────────────────────
-  //   (ledger API falls back to synthesising from orders+payments if missing,
-  //    but creating it upfront avoids the fallback path entirely)
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS supplier_ledger (
@@ -126,9 +143,6 @@ export default defineNitroPlugin(async () => {
   }
 
   // ── 5. purchase_payments_adnan column extensions ──────────────────────────
-  //   The original schema used minimal columns.  The payment API now stores
-  //   richer denormalised data.  Each ADD COLUMN IF NOT EXISTS is a no-op when
-  //   the column already exists.
   const paymentCols: [string, string][] = [
     ['payment_voucher_number', 'VARCHAR(30)  NULL DEFAULT NULL'],
     ['po_number',              'VARCHAR(30)  NULL DEFAULT NULL'],
@@ -140,13 +154,7 @@ export default defineNitroPlugin(async () => {
     ['remarks',                'TEXT         NULL DEFAULT NULL'],
   ]
   for (const [col, def] of paymentCols) {
-    try {
-      await db.query(
-        `ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS ${col} ${def}`,
-      )
-    } catch (e) {
-      console.warn(`[db-migrate] purchase_payments_adnan.${col} patch failed:`, e)
-    }
+    await addCol(db, 'purchase_payments_adnan', col, def)
   }
 
   // ── 6. customer_payments column extensions ───────────────────────────────
@@ -161,15 +169,10 @@ export default defineNitroPlugin(async () => {
     ['journal_entry_id',        'INT UNSIGNED NULL DEFAULT NULL'],
     ['collected_by_employee_id','INT UNSIGNED NULL DEFAULT NULL'],
     ['allocated_amount',        'DECIMAL(15,2) NULL DEFAULT NULL'],
+    ['allocation_status',       "VARCHAR(30) NULL DEFAULT NULL COMMENT 'allocated | partial | unallocated'"],
   ]
   for (const [col, def] of cpCols) {
-    try {
-      await db.query(
-        `ALTER TABLE customer_payments ADD COLUMN IF NOT EXISTS ${col} ${def}`,
-      )
-    } catch (e) {
-      console.warn(`[db-migrate] customer_payments.${col} patch failed:`, e)
-    }
+    await addCol(db, 'customer_payments', col, def)
   }
 
   // Widen payment_method from old ENUM to VARCHAR(50) so new values fit
@@ -182,26 +185,38 @@ export default defineNitroPlugin(async () => {
   }
 
   // ── 7. credit_orders.production_seq ──────────────────────────────────────
-  try {
-    await db.query(
-      `ALTER TABLE credit_orders
-       ADD COLUMN IF NOT EXISTS production_seq INT NOT NULL DEFAULT 0
-         COMMENT 'Manual production priority rank set by admin (0 = unset)'`,
-    )
-  } catch (e) {
-    console.warn('[db-migrate] credit_orders.production_seq patch failed:', e)
-  }
+  await addCol(
+    db, 'credit_orders', 'production_seq',
+    "INT NOT NULL DEFAULT 0 COMMENT 'Manual production priority rank set by admin (0 = unset)'",
+  )
 
   // ── 8. bank_accounts.opening_balance ─────────────────────────────────────
-  //   Used by unified-ledger endpoint to calculate the pre-GL seed balance
-  //   for a bank account's running balance statement.
+  //   Used by unified-ledger endpoint to calculate the pre-GL seed balance.
+  await addCol(
+    db, 'bank_accounts', 'opening_balance',
+    "DECIMAL(15,2) NOT NULL DEFAULT 0 COMMENT 'Pre-GL seed balance — balance at the time this account was first connected to GL'",
+  )
+
+  // ── 9. Widen customer_ledger.transaction_type → VARCHAR(50) ──────────────
+  //   Original column may be a narrow ENUM that doesn't include all values
+  //   used by the application ('payment', 'invoice', 'advance_payment',
+  //   'debit_note', 'credit_note', 'credit_note_applied').
+  //   MODIFY COLUMN to VARCHAR(50) makes it accept any value.
   try {
     await db.query(
-      `ALTER TABLE bank_accounts
-       ADD COLUMN IF NOT EXISTS opening_balance DECIMAL(15,2) NOT NULL DEFAULT 0
-         COMMENT 'Pre-GL seed balance — balance at the time this account was first connected to GL'`,
+      `ALTER TABLE customer_ledger MODIFY COLUMN transaction_type VARCHAR(50) NULL DEFAULT NULL`,
     )
   } catch (e) {
-    console.warn('[db-migrate] bank_accounts.opening_balance patch failed:', e)
+    console.warn('[db-migrate] customer_ledger.transaction_type widen failed:', e)
+  }
+
+  // ── 10. Widen customer_ledger.reference_type → VARCHAR(50) ───────────────
+  //   Guard against a narrow ENUM here too.
+  try {
+    await db.query(
+      `ALTER TABLE customer_ledger MODIFY COLUMN reference_type VARCHAR(50) NULL DEFAULT NULL`,
+    )
+  } catch (e) {
+    console.warn('[db-migrate] customer_ledger.reference_type widen failed:', e)
   }
 })

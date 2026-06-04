@@ -42,8 +42,40 @@
         </div>
 
         <div class="flex gap-2">
-          <NuxtLink to="/bank/statement" class="btn-ghost text-xs flex-1 justify-center">Statement</NuxtLink>
           <NuxtLink to="/bank/transaction/create" class="btn-ghost text-xs flex-1 justify-center">Transact</NuxtLink>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── GL-Linked Accounts ────────────────────────────────────────────── -->
+    <div v-if="glAccounts.length" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h2 class="section-title">GL-Linked Accounts</h2>
+        <p class="text-xs text-gray-600">Accounts with journal-entry history — click Statement to see full passbook</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div v-for="(acc, idx) in glAccounts" :key="acc.id"
+             class="glass-card p-4 space-y-3">
+          <div class="flex items-start justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-base"
+                   :style="`background: ${cardColor(idx)}15; border: 1px solid ${cardColor(idx)}30`">
+                🏦
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-gray-200">{{ acc.bank_name }}</p>
+                <p class="text-xs text-gray-500">{{ acc.account_name }}</p>
+              </div>
+            </div>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium">GL</span>
+          </div>
+          <p class="text-xs text-gray-600 font-mono">{{ acc.account_number || '—' }}</p>
+          <div class="flex gap-2 pt-1">
+            <NuxtLink :to="`/bank/statement?account=${acc.id}`"
+                      class="btn-gold text-[11px] py-1.5 px-3 flex-1 text-center">
+              📒 View Statement
+            </NuxtLink>
+          </div>
         </div>
       </div>
     </div>
@@ -124,11 +156,16 @@ const saving       = ref(false)
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
 const cardColor = (idx: number) => COLORS[idx % COLORS.length]
 
-// Fetch bank accounts from dashboard endpoint
+// Bank Module accounts (bank_tx_accounts) — manual entry system
 const { data, pending, refresh } = await useFetch('/api/bank/dashboard')
-
 const accounts     = computed(() => (data.value as any)?.accounts ?? [])
 const totalBalance = computed(() => (data.value as any)?.stats?.total_balance ?? 0)
+
+// GL-linked accounts (bank_accounts) — connected to journal entries / unified statement
+const { data: glData } = await useFetch('/api/bank-accounts')
+const glAccounts = computed(() =>
+  ((glData.value as any)?.accounts ?? []).filter((a: any) => a.chart_of_account_id),
+)
 
 const newAccount = reactive({
   bank_name: '',
