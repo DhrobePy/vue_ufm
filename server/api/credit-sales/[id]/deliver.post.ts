@@ -118,6 +118,59 @@ export default defineEventHandler(async (event) => {
       [totalAmount, order.customer_id],
     )
 
+    // ── GL Journal Entry: DR Accounts Receivable / CR Sales Revenue ──────────
+    // Revenue is recognised at delivery (matching principle).
+    // Failure here must never block the delivery from saving.
+    try {
+      const [[arAccount]] = await conn.query<any>(
+        `SELECT id FROM chart_of_accounts
+         WHERE account_type = 'Accounts Receivable'
+         ORDER BY id ASC LIMIT 1`,
+      )
+      const [[revenueAccount]] = await conn.query<any>(
+        `SELECT id FROM chart_of_accounts
+         WHERE account_type = 'Revenue'
+         ORDER BY id ASC LIMIT 1`,
+      )
+
+      if (arAccount?.id && revenueAccount?.id) {
+        const jeDesc = `Sales — ${delNo} (Order ${order.order_number}, ${is_final ? 'Final' : 'Partial'} Delivery)`
+        const [jeRes] = await conn.query<any>(
+          `INSERT INTO journal_entries
+             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
+           VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
+          [delivDate, jeDesc.slice(0, 255), deliveryId, userId],
+        )
+        const jeId = jeRes.insertId
+
+        // DR Accounts Receivable (customer owes us)
+        await conn.query(
+          `INSERT INTO transaction_lines
+             (journal_entry_id, account_id, debit_amount, credit_amount, description)
+           VALUES (?, ?, ?, 0.00, ?)`,
+          [jeId, arAccount.id, totalAmount, delNo],
+        )
+        // CR Sales Revenue (revenue recognised)
+        await conn.query(
+          `INSERT INTO transaction_lines
+             (journal_entry_id, account_id, debit_amount, credit_amount, description)
+           VALUES (?, ?, 0.00, ?, ?)`,
+          [jeId, revenueAccount.id, totalAmount, delNo],
+        )
+
+        // Backlink journal_entry_id onto the customer_ledger row we just inserted
+        await conn.query(
+          `UPDATE customer_ledger SET journal_entry_id = ?
+           WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
+          [jeId, deliveryId],
+        )
+      } else {
+        console.warn(`[deliver] Skipping JE for ${delNo}: AR=${arAccount?.id}, Rev=${revenueAccount?.id}`)
+      }
+    } catch (jeErr) {
+      console.warn(`[deliver] JE creation failed for ${delNo}:`, jeErr)
+    }
+
     // Update order status + write workflow timeline entry
     const wfToStatus = is_final ? 'delivered' : order.status
     const wfAction   = is_final ? 'delivered' : 'partial_delivery'

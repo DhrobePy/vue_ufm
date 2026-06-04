@@ -158,8 +158,7 @@ export default defineEventHandler(async (event) => {
       // Accounts Receivable / Trade Debtors
       const [[ar]] = await conn.query<any>(
         `SELECT id FROM chart_of_accounts
-         WHERE account_type IN ('accounts_receivable','current_assets')
-           AND (LOWER(name) LIKE '%receivable%' OR LOWER(name) LIKE '%debtor%')
+         WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`,
       )
       const crAccountId: number | null = ar?.id ?? null
