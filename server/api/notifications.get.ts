@@ -471,8 +471,8 @@ export default defineEventHandler(async () => {
       type:  'error',
       time:  timeAgo(new Date(c.created_at)),
       route: isGRN
-        ? `/purchase/grn/${c.record_id}`
-        : `/purchase/orders/${c.record_id}`,
+        ? (c.record_id ? `/purchase/grn/${c.record_id}`     : '/purchase/grn')
+        : (c.record_id ? `/purchase/orders/${c.record_id}`  : '/purchase/orders'),
       read:  false,
     })
   }

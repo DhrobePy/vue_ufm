@@ -52,7 +52,7 @@
     </button>
 
     <!-- Notification bell -->
-    <div class="relative">
+    <div class="relative" ref="notifAreaRef">
       <button
         @click="notifOpen = !notifOpen"
         class="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/[0.07] transition-all duration-150"
@@ -73,7 +73,7 @@
 
       <!-- Notification dropdown -->
       <Transition name="dropdown">
-        <div v-if="notifOpen" v-click-outside="() => notifOpen = false"
+        <div v-if="notifOpen"
              class="absolute right-0 top-full mt-2 w-84 rounded-2xl overflow-hidden z-50"
              style="background: rgba(22,22,22,0.97); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 16px 48px rgba(0,0,0,0.6); width:340px">
           <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
@@ -131,7 +131,7 @@
     </div>
 
     <!-- User avatar + dropdown -->
-    <div class="relative">
+    <div class="relative" ref="userAreaRef">
       <button
         @click="dropdownOpen = !dropdownOpen"
         class="flex items-center gap-2.5 pl-1 pr-2 py-1 rounded-xl hover:bg-white/[0.07] transition-all duration-150 shrink-0"
@@ -151,7 +151,7 @@
 
       <!-- User dropdown -->
       <Transition name="dropdown">
-        <div v-if="dropdownOpen" v-click-outside="() => dropdownOpen = false"
+        <div v-if="dropdownOpen"
              class="absolute right-0 top-full mt-2 w-56 rounded-2xl overflow-hidden z-50"
              style="background: rgba(22,22,22,0.97); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); box-shadow: 0 16px 48px rgba(0,0,0,0.6);">
           <div class="p-3 border-b border-white/[0.06]">
@@ -206,7 +206,6 @@ defineProps<{ collapsed: boolean }>()
 defineEmits(['toggle-sidebar'])
 
 const route  = useRoute()
-const router = useRouter()
 const { user: sessionUser, clear } = useUserSession()
 const searchStore = useGlobalSearch()
 const themeStore  = useTheme()
@@ -215,8 +214,17 @@ const { success, warning: toastWarning } = useToast()
 const dropdownOpen = ref(false)
 const notifOpen    = ref(false)
 
-// Initialise theme on mount
-onMounted(() => themeStore.init())
+// Click-outside refs — VueUse onClickOutside is auto-imported via @vueuse/nuxt
+// Wrapping both the trigger button AND the dropdown in the same ref means
+// clicking the trigger button does NOT fire onClickOutside (correct toggle behaviour).
+const notifAreaRef = ref<HTMLElement | null>(null)
+const userAreaRef  = ref<HTMLElement | null>(null)
+
+onMounted(() => {
+  themeStore.init()
+  onClickOutside(notifAreaRef, () => { notifOpen.value = false })
+  onClickOutside(userAreaRef,  () => { dropdownOpen.value = false })
+})
 
 // User display
 const userInitials = computed(() => {
@@ -333,7 +341,7 @@ function goNotif(n: Notification) {
   readSet.add(n.id)
   saveReadSet(readSet)
   notifOpen.value = false
-  router.push(n.route)
+  navigateTo(n.route)
 }
 
 function markAllRead() {
@@ -353,18 +361,6 @@ function clearAll() {
   _prevUnread = 0
 }
 
-// Click-outside directive
-const vClickOutside = {
-  mounted(el: HTMLElement, binding: any) {
-    el._clickOutside = (e: MouseEvent) => {
-      if (!el.contains(e.target as Node)) binding.value(e)
-    }
-    document.addEventListener('click', el._clickOutside, true)
-  },
-  unmounted(el: HTMLElement) {
-    document.removeEventListener('click', (el as any)._clickOutside, true)
-  },
-}
 </script>
 
 <style scoped>
