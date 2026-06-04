@@ -63,7 +63,7 @@
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
               {{ form.method === 'bkash' || form.method === 'nagad' ? 'Transaction ID *' : 'Reference / Cheque No. *' }}
             </label>
-            <input v-model="form.reference" type="text" class="input-glass font-mono"
+            <input v-model="form.reference" type="text" class="input-glass font-mono" maxlength="50"
                    :placeholder="form.method === 'bank' ? 'Cheque # or BEFTN reference' : 'e.g. 8A3K2JG9P1'" />
           </div>
 

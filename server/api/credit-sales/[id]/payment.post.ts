@@ -51,12 +51,20 @@ export default defineEventHandler(async (event) => {
     const newBalance = Math.max(0, Number(order.balance_due ?? 0) - pmtAmount)
 
     // Generate payment number (PAY-YYYYMMDD-XXXX)
-    const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
+    // IMPORTANT: derive today from CURDATE() — NOT from new Date().toISOString() (UTC).
+    // The server is Bangladesh (UTC+6); after 18:00 UTC the JS date is still "yesterday"
+    // while CURDATE() is already "today".  Using them inconsistently makes the COUNT
+    // return 0 (no payments "today") while the generated number duplicates yesterday's
+    // already-committed payment → UNIQUE KEY violation → 500 error.
+    const [[seq_row]] = await conn.query<any>(
+      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
+              COUNT(*) AS n
+       FROM   customer_payments
+       WHERE  DATE(created_at) = CURDATE()`,
     )
-    const seq      = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const payNo    = `PAY-${today}-${seq}`
+    const today = seq_row.d as string
+    const seq   = String((seq_row.n ?? 0) + 1).padStart(4, '0')
+    const payNo = `PAY-${today}-${seq}`
     const autoRef  = reference_number || payNo
 
     // Insert into customer_payments — order_id links this payment back to the order
@@ -120,7 +128,7 @@ export default defineEventHandler(async (event) => {
         order.customer_id,
         pmtDate,
         paymentId,
-        autoRef,
+        autoRef.slice(0, 50),   // invoice_number VARCHAR(50) — truncate long refs
         `Payment received — ${payNo} (${mappedMethod})`,
         pmtAmount,
         newBal,
@@ -258,9 +266,14 @@ export default defineEventHandler(async (event) => {
       new_balance: newBalance,
       completed: isNowComplete,
     }
-  } catch (e) {
+  } catch (e: any) {
     await conn.rollback()
-    throw e
+    console.error('[payment] Transaction failed:', e?.message, '| errno:', e?.errno, '| code:', e?.code)
+    // Surface the actual DB error so the client toast shows a useful message
+    throw createError({
+      statusCode: 500,
+      statusMessage: e?.sqlMessage ?? e?.message ?? 'Payment transaction failed',
+    })
   } finally {
     conn.release()
   }
