@@ -34,9 +34,8 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
     };
   }
   const bankAccount = await queryOne(
-    `SELECT id, bank_name, account_name, account_number,
-            COALESCE(opening_balance, 0) AS opening_balance,
-            chart_of_account_id, currency
+    `SELECT id, bank_name, account_name, account_number, account_type,
+            chart_of_account_id
      FROM bank_accounts WHERE id = ?`,
     [accountId]
   );
@@ -55,7 +54,15 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
       note: "This bank account has no GL account linked (chart_of_account_id is null)"
     };
   }
-  const seedBalance = Number((_a = bankAccount.opening_balance) != null ? _a : 0);
+  let seedBalance = 0;
+  try {
+    const ob = await queryOne(
+      `SELECT COALESCE(opening_balance, 0) AS ob FROM bank_accounts WHERE id = ?`,
+      [accountId]
+    );
+    seedBalance = Number((_a = ob == null ? void 0 : ob.ob) != null ? _a : 0);
+  } catch {
+  }
   let openingBalance = seedBalance;
   if (from) {
     const beforeRow = await queryOne(

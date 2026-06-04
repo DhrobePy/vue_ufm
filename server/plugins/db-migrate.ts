@@ -191,4 +191,17 @@ export default defineNitroPlugin(async () => {
   } catch (e) {
     console.warn('[db-migrate] credit_orders.production_seq patch failed:', e)
   }
+
+  // ── 8. bank_accounts.opening_balance ─────────────────────────────────────
+  //   Used by unified-ledger endpoint to calculate the pre-GL seed balance
+  //   for a bank account's running balance statement.
+  try {
+    await db.query(
+      `ALTER TABLE bank_accounts
+       ADD COLUMN IF NOT EXISTS opening_balance DECIMAL(15,2) NOT NULL DEFAULT 0
+         COMMENT 'Pre-GL seed balance — balance at the time this account was first connected to GL'`,
+    )
+  } catch (e) {
+    console.warn('[db-migrate] bank_accounts.opening_balance patch failed:', e)
+  }
 })

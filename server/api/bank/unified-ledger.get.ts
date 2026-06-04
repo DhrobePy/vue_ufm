@@ -42,11 +42,10 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Fetch bank account + GL link
+  // Fetch bank account + GL link — only columns guaranteed to exist
   const bankAccount = await queryOne<any>(
-    `SELECT id, bank_name, account_name, account_number,
-            COALESCE(opening_balance, 0) AS opening_balance,
-            chart_of_account_id, currency
+    `SELECT id, bank_name, account_name, account_number, account_type,
+            chart_of_account_id
      FROM bank_accounts WHERE id = ?`,
     [accountId],
   )
@@ -62,7 +61,15 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const seedBalance = Number(bankAccount.opening_balance ?? 0)
+  // opening_balance column is added by db-migrate; fall back to 0 if not yet present
+  let seedBalance = 0
+  try {
+    const ob = await queryOne<any>(
+      `SELECT COALESCE(opening_balance, 0) AS ob FROM bank_accounts WHERE id = ?`,
+      [accountId],
+    )
+    seedBalance = Number(ob?.ob ?? 0)
+  } catch { /* column not yet migrated — treat as 0 */ }
 
   // ── Opening balance = seed + all GL net movements BEFORE 'from' date ────────
   let openingBalance = seedBalance
