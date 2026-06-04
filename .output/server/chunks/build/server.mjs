@@ -724,7 +724,7 @@ const _routes = [
     name: "bank-statement",
     path: "/bank/statement",
     meta: __nuxt_page_meta$1W || {},
-    component: () => import('./statement-Bb4qsmDj.mjs')
+    component: () => import('./statement-I69DibsP.mjs')
   },
   {
     name: "dispatch",

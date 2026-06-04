@@ -1,329 +1,364 @@
 <template>
   <div class="space-y-6">
-    <UiPageHeader title="Bank Statement" subtitle="View and export transaction history per account"
+    <UiPageHeader title="Bank Account Statement"
+                  subtitle="Complete passbook — every GL-posted transaction with running balance"
                   :breadcrumb="['Bank', 'Statement']">
       <template #actions>
         <button @click="printStatement" class="btn-ghost text-xs">🖨 Print</button>
-        <button @click="exportCsv" class="btn-gold text-xs">⬇ Export CSV</button>
+        <button @click="exportCsv"      class="btn-gold  text-xs">⬇ Export CSV</button>
       </template>
     </UiPageHeader>
 
-    <!-- Source toggle + Account selector + filters -->
+    <!-- ── Filter bar ────────────────────────────────────────────────────────── -->
     <div class="glass-card p-4 flex flex-wrap gap-3 items-center">
 
-      <!-- Source tabs: Bank Module ↔ GL Ledger -->
-      <div class="flex rounded-xl overflow-hidden border border-white/[0.08]">
-        <button @click="setSource('bank')"
-          :class="['px-3 py-1.5 text-xs font-semibold transition-all',
-            source === 'bank' ? 'bg-gold-500/15 text-gold-300' : 'text-gray-500 hover:text-gray-300']">
-          🏦 Bank Module
-        </button>
-        <button @click="setSource('gl')"
-          :class="['px-3 py-1.5 text-xs font-semibold transition-all border-l border-white/[0.08]',
-            source === 'gl' ? 'bg-blue-500/15 text-blue-300' : 'text-gray-500 hover:text-gray-300']">
-          📒 GL Ledger
-        </button>
-      </div>
-
-      <!-- Account selector changes based on source -->
-      <select v-model="filters.account" class="field-input text-xs py-1.5 min-w-[240px]" @change="applyFilters">
-        <option value="">— {{ source === 'bank' ? 'All Bank Accounts' : 'Select GL Account' }} —</option>
-        <template v-if="source === 'bank'">
-          <option v-for="a in bankModuleAccounts" :key="a.id" :value="a.id">
-            {{ a.bank_name }} — {{ a.account_name }}
-          </option>
-        </template>
-        <template v-else>
-          <option v-for="a in glBankAccounts" :key="a.id" :value="a.id">
-            {{ a.bank_name }} — {{ a.account_name }} ({{ a.account_number }})
-          </option>
-        </template>
+      <select v-model="filters.account" class="field-input text-xs py-1.5 min-w-[260px]">
+        <option value="">— Select Bank Account —</option>
+        <option v-for="a in accounts" :key="a.id" :value="a.id">
+          {{ a.bank_name }} — {{ a.account_name }}
+          <template v-if="a.account_number"> ({{ a.account_number }})</template>
+        </option>
       </select>
 
-      <input v-model="filters.from" type="date" class="field-input text-xs py-1.5" @change="applyFilters" />
+      <input v-model="filters.from" type="date" class="field-input text-xs py-1.5" />
       <span class="text-gray-600">→</span>
-      <input v-model="filters.to" type="date" class="field-input text-xs py-1.5" @change="applyFilters" />
-      <select v-model="filters.type" class="field-input text-xs py-1.5" @change="applyFilters">
-        <option value="">All Types</option>
-        <option value="credit">Credits (In)</option>
-        <option value="debit">Debits (Out)</option>
+      <input v-model="filters.to"   type="date" class="field-input text-xs py-1.5" />
+
+      <select v-model="filters.type" class="field-input text-xs py-1.5">
+        <option value="">All Transactions</option>
+        <option value="credit">Credits (Money In)</option>
+        <option value="debit">Debits (Money Out)</option>
       </select>
-      <button @click="resetFilters" class="btn-ghost text-xs py-1.5">Reset</button>
+
+      <button @click="applyFilters"  class="btn-gold  text-xs py-1.5 px-4">Apply</button>
+      <button @click="resetFilters"  class="btn-ghost text-xs py-1.5">Reset</button>
     </div>
 
-    <!-- GL source info pill -->
-    <div v-if="source === 'gl' && appliedFilters.account" class="text-xs text-blue-400/70 px-1 -mt-2">
-      📒 Showing all journal-entry lines posted to this account's GL ledger — includes expense payments, customer payment receipts, transfers, and manual entries.
+    <!-- ── No account placeholder ───────────────────────────────────────────── -->
+    <div v-if="!applied.account"
+         class="glass-card p-14 text-center text-gray-500 text-sm space-y-2">
+      <div class="text-4xl">🏦</div>
+      <p>Select a bank account above to view its complete statement</p>
+      <p class="text-xs text-gray-600">All GL-posted transactions with running balance</p>
     </div>
 
-    <!-- GL with no account selected -->
-    <div v-if="source === 'gl' && !appliedFilters.account"
-         class="glass-card p-8 text-center text-blue-400/60 text-sm">
-      📒 Select a GL-linked bank account above to view its journal ledger.
+    <!-- ── Loading / Error ──────────────────────────────────────────────────── -->
+    <div v-else-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
+    <div v-else-if="fetchError" class="glass-card p-6 text-center text-red-400 text-sm">
+      ⚠ {{ fetchError.message }}
     </div>
 
-    <template v-if="!(source === 'gl' && !appliedFilters.account)">
-    <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
-    <div v-else-if="fetchError" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ fetchError.message }}</div>
-
+    <!-- ── Statement body ───────────────────────────────────────────────────── -->
     <template v-else>
-      <!-- KPIs -->
+
+      <!-- KPI cards -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="glass-card p-4">
           <p class="text-xs text-gray-500 mb-1">Opening Balance</p>
-          <p class="text-xl font-bold text-gray-100">
-            ৳{{ Number(selectedAccountBalance).toLocaleString() }}
+          <p class="text-xl font-bold" :class="openingBalance >= 0 ? 'text-gray-100' : 'text-red-400'">
+            ৳{{ openingBalance.toLocaleString() }}
           </p>
+          <p class="text-[10px] text-gray-600 mt-0.5">as of {{ applied.from || 'account start' }}</p>
         </div>
         <div class="glass-card p-4">
           <p class="text-xs text-gray-500 mb-1">Total Credits (In)</p>
-          <p class="text-xl font-bold text-emerald-400">৳{{ Number(txData?.totalCredits || 0).toLocaleString() }}</p>
+          <p class="text-xl font-bold text-emerald-400">৳{{ totalCredits.toLocaleString() }}</p>
+          <p class="text-[10px] text-gray-600 mt-0.5">money received</p>
         </div>
         <div class="glass-card p-4">
           <p class="text-xs text-gray-500 mb-1">Total Debits (Out)</p>
-          <p class="text-xl font-bold text-red-400">৳{{ Number(txData?.totalDebits || 0).toLocaleString() }}</p>
+          <p class="text-xl font-bold text-red-400">৳{{ totalDebits.toLocaleString() }}</p>
+          <p class="text-[10px] text-gray-600 mt-0.5">money paid out</p>
         </div>
         <div class="glass-card p-4">
-          <p class="text-xs text-gray-500 mb-1">Net Movement</p>
-          <p class="text-xl font-bold text-gold-400">
-            ৳{{ (Number(txData?.totalCredits || 0) - Number(txData?.totalDebits || 0)).toLocaleString() }}
+          <p class="text-xs text-gray-500 mb-1">Closing Balance</p>
+          <p class="text-xl font-bold" :class="closingBalance >= 0 ? 'text-gold-400' : 'text-red-400'">
+            ৳{{ closingBalance.toLocaleString() }}
           </p>
+          <p class="text-[10px] text-gray-600 mt-0.5">as of {{ applied.to || 'today' }}</p>
         </div>
       </div>
 
       <!-- Statement table -->
       <div id="statement-print" class="glass-card p-5">
-        <div class="flex items-center justify-between mb-4">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-5">
           <div>
             <h3 class="section-title">{{ accountLabel }}</h3>
-            <p v-if="accountSubtitle" class="text-xs text-gray-500 mt-0.5">{{ accountSubtitle }}</p>
+            <p v-if="data?.bankAccount?.account_number" class="text-xs text-gray-500 mt-0.5">
+              Account No: {{ data.bankAccount.account_number }}
+            </p>
           </div>
-          <div class="text-right text-xs text-gray-500">
-            <p>{{ appliedFilters.from || 'All dates' }} → {{ appliedFilters.to || 'present' }}</p>
-            <p class="font-mono">{{ (txData?.total || 0) }} entries</p>
+          <div class="text-right text-xs text-gray-500 space-y-0.5">
+            <p>{{ applied.from || 'All dates' }} → {{ applied.to || 'present' }}</p>
+            <p class="font-mono">{{ filteredTxns.length }} entries</p>
           </div>
         </div>
 
-        <table class="w-full text-xs">
-          <thead>
-            <tr class="border-b border-white/[0.06]">
-              <th class="pb-2 px-3 text-left text-gray-600 font-semibold uppercase tracking-wider">Date</th>
-              <th class="pb-2 px-3 text-left text-gray-600 font-semibold uppercase tracking-wider">Description</th>
-              <th class="pb-2 px-3 text-left text-gray-600 font-semibold uppercase tracking-wider">Ref / JE</th>
-              <th v-if="source === 'gl'" class="pb-2 px-3 text-left text-gray-600 font-semibold uppercase tracking-wider">Source</th>
-              <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Credit (In)</th>
-              <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Debit (Out)</th>
-              <th class="pb-2 px-3 text-center text-gray-600 font-semibold uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-white/[0.04]">
-            <tr v-if="!transactions.length">
-              <td :colspan="source === 'gl' ? 7 : 6" class="py-6 text-center text-gray-600">No transactions found</td>
-            </tr>
-            <tr v-for="tx in transactions" :key="tx.id"
-                class="hover:bg-white/[0.02]"
-                :class="tx.is_reversed ? 'opacity-40' : ''">
-              <td class="py-2.5 px-3 text-gray-500 font-mono whitespace-nowrap">{{ String(tx.transaction_date).slice(0, 10) }}</td>
-              <td class="py-2.5 px-3 text-gray-300">
-                {{ tx.description }}
-                <span v-if="tx.line_description && tx.line_description !== tx.description"
-                      class="text-gray-600 text-[10px] block">{{ tx.line_description }}</span>
-              </td>
-              <td class="py-2.5 px-3 font-mono text-[11px]">
-                <template v-if="source === 'gl'">
-                  <NuxtLink to="/accounts/journal" class="text-blue-400 hover:text-blue-300 transition-colors">
+        <div class="overflow-x-auto">
+          <table class="w-full text-xs min-w-[680px]">
+            <thead>
+              <tr class="border-b border-white/[0.08]">
+                <th class="pb-2.5 px-3 text-left   text-gray-600 font-semibold uppercase tracking-wider w-[100px]">Date</th>
+                <th class="pb-2.5 px-3 text-left   text-gray-600 font-semibold uppercase tracking-wider">Description</th>
+                <th class="pb-2.5 px-3 text-center text-gray-600 font-semibold uppercase tracking-wider w-[90px]">Source</th>
+                <th class="pb-2.5 px-3 text-left   text-gray-600 font-semibold uppercase tracking-wider w-[72px]">Ref</th>
+                <th class="pb-2.5 px-3 text-right  text-red-400/70 font-semibold uppercase tracking-wider w-[120px]">Debit (Out)</th>
+                <th class="pb-2.5 px-3 text-right  text-emerald-400/70 font-semibold uppercase tracking-wider w-[120px]">Credit (In)</th>
+                <th class="pb-2.5 px-3 text-right  text-gray-400/70 font-semibold uppercase tracking-wider w-[130px]">Balance</th>
+              </tr>
+            </thead>
+
+            <tbody class="divide-y divide-white/[0.03]">
+
+              <!-- Closing balance sentinel row (newest row in newest-first order) -->
+              <tr class="bg-gold-500/[0.04] border-b border-gold-500/10">
+                <td class="py-2 px-3 text-gold-400/60 font-mono text-[11px] whitespace-nowrap">
+                  {{ applied.to || today }}
+                </td>
+                <td colspan="5" class="py-2 px-3 text-gold-400/70 font-medium">
+                  ✦ Closing Balance
+                </td>
+                <td class="py-2 px-3 text-right font-bold text-gold-300 font-mono">
+                  ৳{{ closingBalance.toLocaleString() }}
+                </td>
+              </tr>
+
+              <!-- No transactions -->
+              <tr v-if="!filteredTxns.length">
+                <td colspan="7" class="py-10 text-center text-gray-600">
+                  No GL transactions found for this period
+                </td>
+              </tr>
+
+              <!-- Transaction rows — newest first ─────────────────────────── -->
+              <tr v-for="tx in filteredTxns" :key="tx.id"
+                  class="hover:bg-white/[0.025] transition-colors"
+                  :class="tx.is_reversed ? 'opacity-35' : ''">
+
+                <td class="py-2.5 px-3 text-gray-500 font-mono whitespace-nowrap">
+                  {{ String(tx.transaction_date).slice(0, 10) }}
+                </td>
+
+                <td class="py-2.5 px-3 text-gray-300 max-w-[300px]">
+                  <span class="leading-snug">{{ tx.description }}</span>
+                  <span v-if="tx.line_description"
+                        class="text-gray-600 text-[10px] block leading-tight mt-0.5">
+                    {{ tx.line_description }}
+                  </span>
+                  <span v-if="tx.is_reversed"
+                        class="text-red-400/70 text-[10px] block mt-0.5">⟲ Reversed</span>
+                </td>
+
+                <td class="py-2.5 px-3 text-center">
+                  <span :class="['px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap', sourceColor(tx.source)]">
+                    {{ sourceLabel(tx.source) }}
+                  </span>
+                </td>
+
+                <td class="py-2.5 px-3 font-mono text-[11px]">
+                  <NuxtLink to="/accounts/journal"
+                            class="text-blue-400/60 hover:text-blue-300 transition-colors">
                     JE-{{ tx.journal_entry_id }}
                   </NuxtLink>
-                </template>
-                <template v-else>
-                  <span class="text-gray-600">{{ tx.reference_number || '—' }}</span>
-                </template>
-              </td>
-              <td v-if="source === 'gl'" class="py-2.5 px-3 text-[11px]">
-                <span :class="sourceColor(tx.source)" class="px-1.5 py-0.5 rounded text-[10px] font-medium">
-                  {{ sourceLabel(tx.source) }}
-                </span>
-              </td>
-              <td class="py-2.5 px-3 text-right text-emerald-400 font-mono">
-                {{ tx.entry_type === 'credit' ? `৳${Number(tx.amount).toLocaleString()}` : '—' }}
-              </td>
-              <td class="py-2.5 px-3 text-right text-red-400 font-mono">
-                {{ tx.entry_type === 'debit' ? `৳${Number(tx.amount).toLocaleString()}` : '—' }}
-              </td>
-              <td class="py-2.5 px-3 text-center">
-                <UiStatusBadge :status="tx.status" />
-              </td>
-            </tr>
-          </tbody>
-          <tfoot v-if="transactions.length" class="border-t-2 border-white/10">
-            <tr>
-              <td :colspan="source === 'gl' ? 4 : 4" class="pt-3 px-3 text-gray-600 font-semibold">Totals</td>
-              <td class="pt-3 px-3 text-right font-bold text-emerald-400 font-mono">
-                ৳{{ Number(txData?.totalCredits || 0).toLocaleString() }}
-              </td>
-              <td class="pt-3 px-3 text-right font-bold text-red-400 font-mono">
-                ৳{{ Number(txData?.totalDebits || 0).toLocaleString() }}
-              </td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+                </td>
 
-        <!-- Pagination -->
-        <div v-if="(txData?.total || 0) > perPage" class="flex items-center justify-between mt-4 text-xs text-gray-500">
-          <span>Page {{ page }} of {{ Math.ceil((txData?.total || 0) / perPage) }}</span>
-          <div class="flex gap-2">
-            <button :disabled="page <= 1" @click="page--; refresh()" class="btn-ghost text-xs py-1 px-3" :class="page<=1?'opacity-40':''">← Prev</button>
-            <button :disabled="page >= Math.ceil((txData?.total||0)/perPage)" @click="page++; refresh()" class="btn-ghost text-xs py-1 px-3">Next →</button>
-          </div>
+                <td class="py-2.5 px-3 text-right font-mono">
+                  <span v-if="tx.debit_out > 0" class="text-red-400">
+                    ৳{{ Number(tx.debit_out).toLocaleString() }}
+                  </span>
+                  <span v-else class="text-gray-700">—</span>
+                </td>
+
+                <td class="py-2.5 px-3 text-right font-mono">
+                  <span v-if="tx.credit_in > 0" class="text-emerald-400">
+                    ৳{{ Number(tx.credit_in).toLocaleString() }}
+                  </span>
+                  <span v-else class="text-gray-700">—</span>
+                </td>
+
+                <td class="py-2.5 px-3 text-right font-mono font-semibold"
+                    :class="Number(tx.balance) >= 0 ? 'text-gray-200' : 'text-red-400'">
+                  ৳{{ Number(tx.balance).toLocaleString() }}
+                </td>
+              </tr>
+
+              <!-- Opening balance sentinel row (bottom = chronologically first) -->
+              <tr class="bg-blue-500/[0.04] border-t border-blue-500/10">
+                <td class="py-2 px-3 text-blue-400/60 font-mono text-[11px] whitespace-nowrap">
+                  {{ applied.from || 'Account Start' }}
+                </td>
+                <td colspan="5" class="py-2 px-3 text-blue-400/70 font-medium">
+                  ◆ Opening Balance
+                </td>
+                <td class="py-2 px-3 text-right font-bold text-blue-300 font-mono">
+                  ৳{{ openingBalance.toLocaleString() }}
+                </td>
+              </tr>
+
+            </tbody>
+
+            <!-- Totals footer -->
+            <tfoot v-if="filteredTxns.length" class="border-t-2 border-white/10">
+              <tr>
+                <td colspan="4" class="pt-3 pb-1 px-3 text-gray-600 font-semibold text-[10px] uppercase tracking-wider">
+                  Period Totals
+                </td>
+                <td class="pt-3 pb-1 px-3 text-right font-bold text-red-400 font-mono">
+                  ৳{{ totalDebits.toLocaleString() }}
+                </td>
+                <td class="pt-3 pb-1 px-3 text-right font-bold text-emerald-400 font-mono">
+                  ৳{{ totalCredits.toLocaleString() }}
+                </td>
+                <td class="pt-3 pb-1 px-3 text-right font-semibold font-mono"
+                    :class="netMovement >= 0 ? 'text-emerald-400' : 'text-red-400'">
+                  {{ netMovement >= 0 ? '+' : '' }}৳{{ Math.abs(netMovement).toLocaleString() }}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
+
+        <!-- Limit note -->
+        <p v-if="(data?.transactions ?? []).length >= 2000"
+           class="mt-3 text-center text-[11px] text-yellow-500/70">
+          ⚠ Showing first 2000 entries — narrow the date range to see more
+        </p>
       </div>
     </template>
-    </template><!-- /v-if GL no-account guard -->
   </div>
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const route   = useRoute()
-const page    = ref(1)
-const perPage = 50
-
 const today      = new Date().toISOString().slice(0, 10)
 const monthStart = today.slice(0, 7) + '-01'
 
-// ── Source: 'bank' = bank_transactions table, 'gl' = journal transaction_lines ──
-const source = ref<'bank' | 'gl'>('bank')
-
-function setSource(s: 'bank' | 'gl') {
-  source.value = s
-  filters.account = ''
-  Object.assign(appliedFilters, { account: '', from: monthStart, to: today, type: '' })
-  Object.assign(filters, appliedFilters)
-  page.value = 1
-}
-
-// Applied filters
-const appliedFilters = reactive({
-  account: route.query.account ? Number(route.query.account) : ('' as any),
+// ── Filter state ─────────────────────────────────────────────────────────────
+const filters = reactive({
+  account: '' as any,
   from:    monthStart,
   to:      today,
   type:    '',
 })
-const filters = reactive({ ...appliedFilters })
+
+// Applied = what the current fetch is based on (set on Apply click)
+const applied = reactive({ ...filters })
 
 function applyFilters() {
-  Object.assign(appliedFilters, filters)
-  page.value = 1
+  Object.assign(applied, filters)
   refresh()
 }
 function resetFilters() {
-  Object.assign(filters, { account: '', from: monthStart, to: today, type: '' })
-  applyFilters()
+  Object.assign(filters,  { account: '', from: monthStart, to: today, type: '' })
+  Object.assign(applied, filters)
+  refresh()
 }
 
-// ── Account lists ────────────────────────────────────────────────────────────
-// Bank module accounts (bank_tx_accounts)
-const { data: acctData } = await useFetch('/api/bank/dashboard')
-const bankModuleAccounts = computed(() => (acctData.value?.accounts ?? []) as any[])
-
-// GL-linked bank accounts (bank_accounts with chart_of_account_id)
-const { data: glAcctData } = await useFetch('/api/bank-accounts')
-const glBankAccounts = computed(() =>
-  ((glAcctData.value?.accounts ?? []) as any[]).filter((a: any) => a.chart_of_account_id),
-)
-
-// Selected account metadata for display
-const selectedBankAccount = computed(() =>
-  appliedFilters.account
-    ? bankModuleAccounts.value.find((a: any) => a.id === Number(appliedFilters.account)) ?? null
-    : null,
-)
-const selectedGlAccount = computed(() =>
-  appliedFilters.account
-    ? glBankAccounts.value.find((a: any) => a.id === Number(appliedFilters.account)) ?? null
-    : null,
-)
-const selectedAccountBalance = computed(() => {
-  if (source.value === 'bank') return selectedBankAccount.value?.balance ?? 0
-  return 0 // GL doesn't have a running balance concept here
-})
-const accountLabel = computed(() => {
-  if (source.value === 'bank') {
-    const a = selectedBankAccount.value
-    return a ? `${a.bank_name} — ${a.account_name}` : 'All Bank Accounts'
-  }
-  const a = selectedGlAccount.value
-  return a ? `${a.bank_name} — ${a.account_name}` : 'GL Ledger — Select an account'
-})
-const accountSubtitle = computed(() => {
-  if (source.value === 'bank') return selectedBankAccount.value?.account_number ?? ''
-  const a = selectedGlAccount.value
-  return a ? `A/C: ${a.account_number}` : ''
-})
-
-// ── Fetch transactions (switches endpoint based on source) ───────────────────
-const apiUrl = computed(() =>
-  source.value === 'gl' ? '/api/bank/gl-ledger' : '/api/bank/transactions',
-)
+// ── Fetch ─────────────────────────────────────────────────────────────────────
 const apiQuery = computed(() => ({
-  account: appliedFilters.account || undefined,
-  from:    appliedFilters.from    || undefined,
-  to:      appliedFilters.to      || undefined,
-  type:    appliedFilters.type    || undefined,
-  page:    page.value,
-  per:     perPage,
+  account: applied.account || undefined,
+  from:    applied.from    || undefined,
+  to:      applied.to      || undefined,
 }))
 
-const { data: txData, pending, error: fetchError, refresh } = await useFetch(apiUrl, {
+const { data, pending, error: fetchError, refresh } = await useFetch('/api/bank/unified-ledger', {
   query: apiQuery,
 })
 
-const transactions = computed(() => (txData.value?.transactions ?? []) as any[])
+// Account list — always returned by the endpoint (even on no-account initial load)
+const accounts = computed(() => (data.value?.accounts ?? []) as any[])
 
-// ── Source badge helpers ─────────────────────────────────────────────────────
+// ── Derived data ──────────────────────────────────────────────────────────────
+const openingBalance = computed(() => Number(data.value?.opening_balance ?? 0))
+const closingBalance = computed(() => Number(data.value?.closing_balance ?? 0))
+const totalCredits   = computed(() => Number(data.value?.totalCredits    ?? 0))
+const totalDebits    = computed(() => Number(data.value?.totalDebits     ?? 0))
+const netMovement    = computed(() => totalCredits.value - totalDebits.value)
+
+// Client-side type filter (avoids round-trip)
+const filteredTxns = computed(() => {
+  const all = (data.value?.transactions ?? []) as any[]
+  if (applied.type === 'credit') return all.filter(t => Number(t.credit_in) > 0)
+  if (applied.type === 'debit')  return all.filter(t => Number(t.debit_out) > 0)
+  return all
+})
+
+const accountLabel = computed(() => {
+  const a = data.value?.bankAccount
+  return a ? `${a.bank_name} — ${a.account_name}` : 'Bank Statement'
+})
+
+// ── Source badge helpers ──────────────────────────────────────────────────────
 function sourceLabel(s: string) {
   const map: Record<string, string> = {
-    ExpenseVoucher:   'Expense',
-    CustomerPayment:  'Payment',
-    GeneralTransaction: 'General',
-    ManualReversal:   'Reversal',
+    CustomerPayment:     'Payment',
+    ExpenseVoucher:      'Expense',
+    CreditOrderDelivery: 'Delivery',
+    BankTransfer:        'Transfer',
+    Manual:              'Manual',
+    GeneralTransaction:  'General',
+    ManualReversal:      'Reversal',
   }
-  return map[s] ?? s ?? 'Journal'
+  return map[s] ?? (s ? s.replace(/([A-Z])/g, ' $1').trim() : 'Entry')
 }
 function sourceColor(s: string) {
   const map: Record<string, string> = {
-    ExpenseVoucher:   'bg-orange-500/10 text-orange-400',
-    CustomerPayment:  'bg-emerald-500/10 text-emerald-400',
-    ManualReversal:   'bg-red-500/10 text-red-400',
-    GeneralTransaction: 'bg-gray-500/10 text-gray-400',
+    CustomerPayment:     'bg-emerald-500/10 text-emerald-400',
+    ExpenseVoucher:      'bg-orange-500/10  text-orange-400',
+    CreditOrderDelivery: 'bg-blue-500/10    text-blue-400',
+    BankTransfer:        'bg-purple-500/10  text-purple-400',
+    ManualReversal:      'bg-red-500/10     text-red-400',
+    Manual:              'bg-gray-500/10    text-gray-400',
+    GeneralTransaction:  'bg-gray-500/10    text-gray-400',
   }
   return map[s] ?? 'bg-gray-500/10 text-gray-400'
 }
 
-// ── Export ───────────────────────────────────────────────────────────────────
+// ── Print ─────────────────────────────────────────────────────────────────────
 function printStatement() { window.print() }
 
+// ── Export CSV ────────────────────────────────────────────────────────────────
 function exportCsv() {
-  const rows = transactions.value
-  if (!rows.length) return
-  const headers = ['Date', 'Description', 'Reference', 'Source', 'Credit', 'Debit', 'Status']
-  const lines = rows.map((tx: any) => [
-    String(tx.transaction_date).slice(0, 10),
-    `"${(tx.description ?? '').replace(/"/g, '""')}"`,
-    tx.reference_number || (tx.journal_entry_id ? `JE-${tx.journal_entry_id}` : ''),
-    tx.source ?? tx.bank_name ?? '',
-    tx.entry_type === 'credit' ? tx.amount : '',
-    tx.entry_type === 'debit'  ? tx.amount : '',
-    tx.status,
+  const ba   = data.value?.bankAccount
+  const name = ba ? `${ba.bank_name}-${ba.account_name}` : 'bank-statement'
+
+  const headers = ['Date', 'Description', 'Source', 'JE Ref', 'Debit Out', 'Credit In', 'Balance', 'Reversed']
+  const csvRows: string[] = []
+
+  // Opening balance
+  csvRows.push([
+    applied.from || '', '"Opening Balance"', '', '', '', '', openingBalance.value, '',
   ].join(','))
-  const csv  = [headers.join(','), ...lines].join('\n')
-  const blob = new Blob([csv], { type: 'text/csv' })
+
+  // Transactions in chronological order (oldest first in CSV)
+  const chrono = [...filteredTxns.value].reverse()
+  for (const tx of chrono) {
+    csvRows.push([
+      String(tx.transaction_date).slice(0, 10),
+      `"${String(tx.description ?? '').replace(/"/g, '""')}"`,
+      tx.source ?? '',
+      `JE-${tx.journal_entry_id}`,
+      Number(tx.debit_out)  > 0 ? tx.debit_out  : '',
+      Number(tx.credit_in) > 0 ? tx.credit_in : '',
+      tx.balance,
+      tx.is_reversed ? 'YES' : '',
+    ].join(','))
+  }
+
+  // Closing balance
+  csvRows.push([
+    applied.to || today, '"Closing Balance"', '', '',
+    totalDebits.value, totalCredits.value, closingBalance.value, '',
+  ].join(','))
+
+  const csv  = [headers.join(','), ...csvRows].join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
   const url  = URL.createObjectURL(blob)
   const a    = document.createElement('a')
   a.href     = url
-  a.download = `bank-statement-${source.value}-${today}.csv`
+  a.download = `${name.replace(/[^a-z0-9]/gi, '-')}-${applied.from ?? today}-${applied.to ?? today}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
