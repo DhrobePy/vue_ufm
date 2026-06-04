@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -50,11 +50,14 @@ const payment_post = defineEventHandler(async (event) => {
     const pmtAmount = Number(amount);
     const newPaid = Number((_g = order.amount_paid) != null ? _g : 0) + pmtAmount;
     const newBalance = Math.max(0, Number((_h = order.balance_due) != null ? _h : 0) - pmtAmount);
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`
+    const [[seq_row]] = await conn.query(
+      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
+              COUNT(*) AS n
+       FROM   customer_payments
+       WHERE  DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_i = cnt.n) != null ? _i : 0) + 1).padStart(4, "0");
+    const today = seq_row.d;
+    const seq = String(((_i = seq_row.n) != null ? _i : 0) + 1).padStart(4, "0");
     const payNo = `PAY-${today}-${seq}`;
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
@@ -110,7 +113,8 @@ const payment_post = defineEventHandler(async (event) => {
         order.customer_id,
         pmtDate,
         paymentId,
-        autoRef,
+        autoRef.slice(0, 50),
+        // invoice_number VARCHAR(50) — truncate long refs
         `Payment received \u2014 ${payNo} (${mappedMethod})`,
         pmtAmount,
         newBal,
@@ -230,7 +234,11 @@ const payment_post = defineEventHandler(async (event) => {
     };
   } catch (e) {
     await conn.rollback();
-    throw e;
+    console.error("[payment] Transaction failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno, "| code:", e == null ? void 0 : e.code);
+    throw createError({
+      statusCode: 500,
+      statusMessage: (_r = (_q = e == null ? void 0 : e.sqlMessage) != null ? _q : e == null ? void 0 : e.message) != null ? _r : "Payment transaction failed"
+    });
   } finally {
     conn.release();
   }
