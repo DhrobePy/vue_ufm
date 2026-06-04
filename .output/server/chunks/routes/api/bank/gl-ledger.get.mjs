@@ -1,4 +1,4 @@
-import { h as defineEventHandler, p as getQuery, e as createError, H as queryOne, G as query } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, p as getQuery, H as queryOne, e as createError, G as query } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -19,7 +19,7 @@ const glLedger_get = defineEventHandler(async (event) => {
   const per = Math.min(200, Number(q.per || 50));
   const offset = (page - 1) * per;
   if (!accountId)
-    throw createError({ statusCode: 400, statusMessage: "account is required" });
+    return { transactions: [], total: 0, page, per, totalCredits: 0, totalDebits: 0, bankAccount: null };
   const bankAccount = await queryOne(
     `SELECT id, bank_name, account_name, account_number, chart_of_account_id
      FROM bank_accounts WHERE id = ?`,
@@ -50,10 +50,10 @@ const glLedger_get = defineEventHandler(async (event) => {
     params.push(to);
   }
   if (type === "credit") {
-    conditions.push("tl.credit_amount > 0");
+    conditions.push("tl.debit_amount  > 0");
   }
   if (type === "debit") {
-    conditions.push("tl.debit_amount  > 0");
+    conditions.push("tl.credit_amount > 0");
   }
   const where = `WHERE ${conditions.join(" AND ")}`;
   const [rows, totRow, sumRow] = await Promise.all([
@@ -87,8 +87,10 @@ const glLedger_get = defineEventHandler(async (event) => {
     ),
     queryOne(
       `SELECT
-         COALESCE(SUM(CASE WHEN tl.credit_amount > 0 AND je.is_reversed = 0 THEN tl.credit_amount ELSE 0 END), 0) AS total_credits,
-         COALESCE(SUM(CASE WHEN tl.debit_amount  > 0 AND je.is_reversed = 0 THEN tl.debit_amount  ELSE 0 END), 0) AS total_debits
+         -- Money IN  = bank account was debited (DR)
+         COALESCE(SUM(CASE WHEN tl.debit_amount  > 0 AND je.is_reversed = 0 THEN tl.debit_amount  ELSE 0 END), 0) AS total_credits,
+         -- Money OUT = bank account was credited (CR)
+         COALESCE(SUM(CASE WHEN tl.credit_amount > 0 AND je.is_reversed = 0 THEN tl.credit_amount ELSE 0 END), 0) AS total_debits
        FROM transaction_lines tl
        JOIN journal_entries je ON je.id = tl.journal_entry_id
        ${where}`,
@@ -106,9 +108,9 @@ const glLedger_get = defineEventHandler(async (event) => {
       source: (_a = r.related_document_type) != null ? _a : "General",
       source_id: r.related_document_id,
       is_reversed: Boolean(r.is_reversed),
-      // For display consistency with bank_transactions: credit = money in, debit = money out
-      entry_type: Number(r.credit_amount) > 0 ? "credit" : "debit",
-      amount: Number(r.credit_amount) > 0 ? Number(r.credit_amount) : Number(r.debit_amount),
+      // Bank-statement perspective: DR to bank = money in (credit), CR from bank = money out (debit)
+      entry_type: Number(r.debit_amount) > 0 ? "credit" : "debit",
+      amount: Number(r.debit_amount) > 0 ? Number(r.debit_amount) : Number(r.credit_amount),
       debit_amount: Number(r.debit_amount),
       credit_amount: Number(r.credit_amount),
       reference_number: `JE-${r.journal_entry_id}`,

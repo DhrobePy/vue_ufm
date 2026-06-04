@@ -724,7 +724,7 @@ const _routes = [
     name: "bank-statement",
     path: "/bank/statement",
     meta: __nuxt_page_meta$1W || {},
-    component: () => import('./statement-5jTlxWGy.mjs')
+    component: () => import('./statement-Bb4qsmDj.mjs')
   },
   {
     name: "dispatch",
@@ -1354,7 +1354,7 @@ const _routes = [
     name: "credit-sales-id-payment",
     path: "/credit-sales/:id()/payment",
     meta: __nuxt_page_meta$h || {},
-    component: () => import('./payment-C8U31DKZ.mjs')
+    component: () => import('./payment-CgSEGwGq.mjs')
   },
   {
     name: "fleet-reports-maintenance",
