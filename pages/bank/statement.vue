@@ -52,10 +52,17 @@
     </div>
 
     <!-- GL source info pill -->
-    <div v-if="source === 'gl'" class="text-xs text-blue-400/70 px-1 -mt-2">
-      📒 Showing all journal-entry lines posted to this account's GL ledger — includes expense payments, customer advance receipts, transfers, and manual entries.
+    <div v-if="source === 'gl' && appliedFilters.account" class="text-xs text-blue-400/70 px-1 -mt-2">
+      📒 Showing all journal-entry lines posted to this account's GL ledger — includes expense payments, customer payment receipts, transfers, and manual entries.
     </div>
 
+    <!-- GL with no account selected -->
+    <div v-if="source === 'gl' && !appliedFilters.account"
+         class="glass-card p-8 text-center text-blue-400/60 text-sm">
+      📒 Select a GL-linked bank account above to view its journal ledger.
+    </div>
+
+    <template v-if="!(source === 'gl' && !appliedFilters.account)">
     <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
     <div v-else-if="fetchError" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ fetchError.message }}</div>
 
@@ -172,6 +179,7 @@
         </div>
       </div>
     </template>
+    </template><!-- /v-if GL no-account guard -->
   </div>
 </template>
 

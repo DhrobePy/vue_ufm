@@ -67,13 +67,26 @@
                    :placeholder="form.method === 'bank' ? 'Cheque # or BEFTN reference' : 'e.g. 8A3K2JG9P1'" />
           </div>
 
-          <!-- Bank account -->
-          <div v-if="form.method === 'bank'" class="space-y-1.5">
-            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Company Bank Account *</label>
+          <!-- Bank account (bank transfer / mobile banking) -->
+          <div v-if="['bank','bkash','nagad'].includes(form.method)" class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              {{ form.method === 'bank' ? 'Company Bank Account *' : 'Receiving Bank Account (optional)' }}
+            </label>
             <select v-model="form.bankAccountId" class="input-glass">
               <option value="">— Select account —</option>
               <option v-for="a in bankAccounts" :key="a.id" :value="a.id">
                 {{ a.bank_name }} — {{ a.branch_name || '' }} — AC: {{ a.account_number }}
+              </option>
+            </select>
+          </div>
+
+          <!-- Petty cash account (cash payments) -->
+          <div v-if="form.method === 'cash'" class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Petty Cash Account *</label>
+            <select v-model="form.cashAccountId" class="input-glass">
+              <option value="">— Select cash box / account —</option>
+              <option v-for="a in pettyAccounts" :key="a.id" :value="a.id">
+                {{ a.account_name }} ({{ a.branch_name || 'Head Office' }})
               </option>
             </select>
           </div>
@@ -156,15 +169,17 @@ const { success, error: toastError } = useToast()
 
 const orderId = Number(route.params.id)
 
-// Load order + bank accounts in parallel
-const [{ data: orderData, pending, error: fetchError }, { data: bankData }] = await Promise.all([
+// Load order, bank accounts and petty cash accounts in parallel
+const [{ data: orderData, pending, error: fetchError }, { data: bankData }, { data: pettyData }] = await Promise.all([
   useFetch(() => `/api/credit-sales/${orderId}`),
   useFetch('/api/bank-accounts'),
+  useFetch('/api/expenses/petty-cash-accounts'),
 ])
 
-const order         = computed(() => (orderData.value?.order          ?? {}) as any)
+const order          = computed(() => (orderData.value?.order          ?? {}) as any)
 const recentPayments = computed(() => (orderData.value?.recentPayments ?? orderData.value?.payments ?? []) as any[])
-const bankAccounts  = computed(() => (bankData.value?.accounts         ?? []) as any[])
+const bankAccounts   = computed(() => (bankData.value?.accounts  ?? []) as any[])
+const pettyAccounts  = computed(() => (pettyData.value?.accounts ?? []) as any[])
 
 const outstanding = computed(() => Number(order.value.balance_due ?? 0))
 const paidPct     = computed(() => {
@@ -185,7 +200,8 @@ const form = reactive({
   amount: null as number | null,
   method: 'cash',
   reference: '',
-  bankAccountId: '' as string | number,
+  bankAccountId:  '' as string | number,
+  cashAccountId:  '' as string | number,
   date: new Date().toISOString().slice(0, 10),
   collectedBy: '',
   notes: '',
@@ -198,6 +214,7 @@ const isValid = computed(() => {
   if (!form.collectedBy.trim()) return false
   if (form.method !== 'cash' && !form.reference) return false
   if (form.method === 'bank' && !form.bankAccountId) return false
+  if (form.method === 'cash' && !form.cashAccountId) return false
   return true
 })
 
@@ -208,13 +225,15 @@ async function submit() {
     const res: any = await $fetch(`/api/credit-sales/${orderId}/payment`, {
       method: 'POST',
       body: {
-        amount:               form.amount,
-        payment_method:       form.method,
-        reference_number:     form.reference   || null,
-        bank_account_id:      form.bankAccountId ? Number(form.bankAccountId) : null,
-        payment_date:         form.date,
-        collected_by_user_id: null,  // server uses session user; name stored in notes
-        notes:                form.collectedBy ? `Collected by: ${form.collectedBy}${form.notes ? '. ' + form.notes : ''}` : form.notes || null,
+        amount:          form.amount,
+        payment_method:  form.method,
+        reference_number: form.reference || null,
+        bank_account_id:  form.bankAccountId ? Number(form.bankAccountId) : null,
+        cash_account_id:  form.cashAccountId  ? Number(form.cashAccountId)  : null,
+        payment_date:    form.date,
+        notes: form.collectedBy
+          ? `Collected by: ${form.collectedBy}${form.notes ? '. ' + form.notes : ''}`
+          : form.notes || null,
       },
     })
     if (res?.completed) {
