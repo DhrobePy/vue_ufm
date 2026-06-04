@@ -140,8 +140,7 @@ const payment_post = defineEventHandler(async (event) => {
       }
       const [[ar]] = await conn.query(
         `SELECT id FROM chart_of_accounts
-         WHERE account_type IN ('accounts_receivable','current_assets')
-           AND (LOWER(name) LIKE '%receivable%' OR LOWER(name) LIKE '%debtor%')
+         WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`
       );
       const crAccountId = (_n = ar == null ? void 0 : ar.id) != null ? _n : null;

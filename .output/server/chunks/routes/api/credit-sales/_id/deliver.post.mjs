@@ -116,6 +116,49 @@ const deliver_post = defineEventHandler(async (event) => {
       `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
       [totalAmount, order.customer_id]
     );
+    try {
+      const [[arAccount]] = await conn.query(
+        `SELECT id FROM chart_of_accounts
+         WHERE account_type = 'Accounts Receivable'
+         ORDER BY id ASC LIMIT 1`
+      );
+      const [[revenueAccount]] = await conn.query(
+        `SELECT id FROM chart_of_accounts
+         WHERE account_type = 'Revenue'
+         ORDER BY id ASC LIMIT 1`
+      );
+      if ((arAccount == null ? void 0 : arAccount.id) && (revenueAccount == null ? void 0 : revenueAccount.id)) {
+        const jeDesc = `Sales \u2014 ${delNo} (Order ${order.order_number}, ${is_final ? "Final" : "Partial"} Delivery)`;
+        const [jeRes] = await conn.query(
+          `INSERT INTO journal_entries
+             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
+           VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
+          [delivDate, jeDesc.slice(0, 255), deliveryId, userId]
+        );
+        const jeId = jeRes.insertId;
+        await conn.query(
+          `INSERT INTO transaction_lines
+             (journal_entry_id, account_id, debit_amount, credit_amount, description)
+           VALUES (?, ?, ?, 0.00, ?)`,
+          [jeId, arAccount.id, totalAmount, delNo]
+        );
+        await conn.query(
+          `INSERT INTO transaction_lines
+             (journal_entry_id, account_id, debit_amount, credit_amount, description)
+           VALUES (?, ?, 0.00, ?, ?)`,
+          [jeId, revenueAccount.id, totalAmount, delNo]
+        );
+        await conn.query(
+          `UPDATE customer_ledger SET journal_entry_id = ?
+           WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
+          [jeId, deliveryId]
+        );
+      } else {
+        console.warn(`[deliver] Skipping JE for ${delNo}: AR=${arAccount == null ? void 0 : arAccount.id}, Rev=${revenueAccount == null ? void 0 : revenueAccount.id}`);
+      }
+    } catch (jeErr) {
+      console.warn(`[deliver] JE creation failed for ${delNo}:`, jeErr);
+    }
     const wfToStatus = is_final ? "delivered" : order.status;
     const wfAction = is_final ? "delivered" : "partial_delivery";
     const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}`;

@@ -238,8 +238,7 @@ const index_post = defineEventHandler(async (event) => {
         let crAccountId = null;
         const [[ar]] = await conn.query(
           `SELECT id FROM chart_of_accounts
-           WHERE account_type IN ('accounts_receivable','current_assets')
-             AND (LOWER(name) LIKE '%receivable%' OR LOWER(name) LIKE '%debtor%')
+           WHERE account_type = 'Accounts Receivable'
            ORDER BY id ASC LIMIT 1`
         );
         crAccountId = (_x = ar == null ? void 0 : ar.id) != null ? _x : null;

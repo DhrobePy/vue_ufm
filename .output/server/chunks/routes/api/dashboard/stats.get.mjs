@@ -37,15 +37,23 @@ const stats_get = defineEventHandler(async () => {
        WHERE order_date >= ?`,
       [monthStart]
     ),
-    // Revenue this month
+    // Revenue this month: based on DELIVERY date (not order_date)
+    // so orders placed in a prior month but delivered today appear correctly.
+    // Collected:    payments received this month (payment_date)
+    // Outstanding:  ALL active balance_due regardless of when ordered
     queryOne(
       `SELECT
-         COALESCE(SUM(total_amount),0) AS total_revenue,
-         COALESCE(SUM(amount_paid),0)  AS total_collected,
-         COALESCE(SUM(balance_due),0)  AS total_outstanding
-       FROM credit_orders
-       WHERE order_date >= ? AND status NOT IN ('cancelled','rejected')`,
-      [monthStart]
+         COALESCE((SELECT SUM(d.total_amount_delivered)
+                   FROM credit_order_deliveries d
+                   WHERE d.delivery_date >= ?), 0)            AS total_revenue,
+         COALESCE((SELECT SUM(p.amount)
+                   FROM customer_payments p
+                   WHERE p.payment_date >= ?), 0)             AS total_collected,
+         COALESCE((SELECT SUM(o.balance_due)
+                   FROM credit_orders o
+                   WHERE o.balance_due > 0
+                     AND o.status NOT IN ('cancelled','rejected')), 0) AS total_outstanding`,
+      [monthStart, monthStart]
     ),
     // Pending approvals count
     queryOne(
