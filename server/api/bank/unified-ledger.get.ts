@@ -80,13 +80,14 @@ export default defineEventHandler(async (event) => {
   const openingBalanceConfigured = seedBalance > 0
   let openingBalance = seedBalance
   if (from && openingBalanceConfigured) {
+    // Count ALL lines (no is_reversed filter) — reversed originals and their
+    // reversal JEs naturally cancel each other in the sum.
     const beforeRow = await queryOne<any>(
       `SELECT COALESCE(SUM(tl.debit_amount - tl.credit_amount), 0) AS net
        FROM transaction_lines tl
        JOIN journal_entries je ON je.id = tl.journal_entry_id
        WHERE tl.account_id = ?
-         AND je.transaction_date < ?
-         AND COALESCE(je.is_reversed, 0) = 0`,
+         AND je.transaction_date < ?`,
       [glAccountId, from],
     )
     openingBalance = seedBalance + Number(beforeRow?.net ?? 0)
@@ -124,22 +125,24 @@ export default defineEventHandler(async (event) => {
   ) as any[]
 
   // ── Build transactions with running balance (oldest → newest) ───────────────
+  // KEY RULE: count EVERY line including reversed originals.
+  // A reversed expense (is_reversed=1) and its paired reversal JE (is_reversed=0)
+  // have opposite DR/CR entries — they cancel each other out in the running balance
+  // automatically.  Skipping is_reversed=1 while counting its reversal partner
+  // double-counts the reversal and corrupts the balance.
   let running      = openingBalance
   let totalCredits = 0
   let totalDebits  = 0
 
-  const txnsAsc = rows.map((r: any) => {
+  const transactions = rows.map((r: any) => {
     const dr         = Number(r.debit_amount  ?? 0)
     const cr         = Number(r.credit_amount ?? 0)
     const isReversed = Number(r.is_reversed)  === 1
 
-    // Bank-asset perspective: DR to bank = money IN (+); CR from bank = money OUT (-)
-    if (!isReversed) {
-      running      += dr - cr
-      totalCredits += dr   // money coming IN
-      totalDebits  += cr   // money going OUT
-    }
-    // Reversed entries still appear (greyed) but don't move the balance
+    // All entries move the running balance — pairs cancel each other
+    running      += dr - cr
+    totalCredits += dr   // money coming IN  (bank DR'd)
+    totalDebits  += cr   // money going OUT  (bank CR'd)
 
     const description = r.je_description || r.line_description || ''
     const lineDiff    = r.line_description && r.line_description !== description
@@ -155,16 +158,14 @@ export default defineEventHandler(async (event) => {
       source:           r.related_document_type ?? 'Manual',
       source_id:        r.related_document_id,
       is_reversed:      isReversed,
-      credit_in:        dr,          // money INTO the bank account (bank was DR'd)
-      debit_out:        cr,          // money OUT of the bank account (bank was CR'd)
+      credit_in:        dr,     // money INTO the bank account (bank was DR'd)
+      debit_out:        cr,     // money OUT of the bank account (bank was CR'd)
       balance:          running,
     }
   })
+  // transactions is already oldest-first (chronological passbook order)
 
   const closingBalance = running
-
-  // Reverse for newest-first display (standard online banking order)
-  const transactions = [...txnsAsc].reverse()
 
   return {
     transactions,

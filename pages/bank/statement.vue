@@ -137,16 +137,17 @@
 
             <tbody class="divide-y divide-white/[0.03]">
 
-              <!-- Closing balance sentinel row (newest row in newest-first order) -->
-              <tr class="bg-gold-500/[0.04] border-b border-gold-500/10">
-                <td class="py-2 px-3 text-gold-400/60 font-mono text-[11px] whitespace-nowrap">
-                  {{ applied.to || today }}
+              <!-- Opening balance row — top (chronologically first) -->
+              <tr class="bg-blue-500/[0.04] border-b border-blue-500/10">
+                <td class="py-2 px-3 text-blue-400/60 font-mono text-[11px] whitespace-nowrap">
+                  {{ applied.from || 'Account Start' }}
                 </td>
-                <td colspan="5" class="py-2 px-3 text-gold-400/70 font-medium">
-                  ✦ Closing Balance
+                <td colspan="4" class="py-2 px-3 text-blue-400/70 font-medium">
+                  ◆ Opening Balance
                 </td>
-                <td class="py-2 px-3 text-right font-bold text-gold-300 font-mono">
-                  ৳{{ closingBalance.toLocaleString() }}
+                <td class="py-2 px-3" />
+                <td class="py-2 px-3 text-right font-bold text-blue-300 font-mono">
+                  ৳{{ openingBalance.toLocaleString() }}
                 </td>
               </tr>
 
@@ -157,10 +158,10 @@
                 </td>
               </tr>
 
-              <!-- Transaction rows — newest first ─────────────────────────── -->
+              <!-- Transaction rows — oldest first (chronological passbook order) -->
               <tr v-for="tx in filteredTxns" :key="tx.id"
                   class="hover:bg-white/[0.025] transition-colors"
-                  :class="tx.is_reversed ? 'opacity-35' : ''">
+                  :class="tx.is_reversed ? 'opacity-40' : ''">
 
                 <td class="py-2.5 px-3 text-gray-500 font-mono whitespace-nowrap">
                   {{ String(tx.transaction_date).slice(0, 10) }}
@@ -173,7 +174,7 @@
                     {{ tx.line_description }}
                   </span>
                   <span v-if="tx.is_reversed"
-                        class="text-red-400/70 text-[10px] block mt-0.5">⟲ Reversed</span>
+                        class="text-orange-400/60 text-[10px] block mt-0.5">⟲ Reversed — cancelled by paired entry</span>
                 </td>
 
                 <td class="py-2.5 px-3 text-center">
@@ -189,38 +190,42 @@
                   </NuxtLink>
                 </td>
 
+                <!-- Debit (Out) — show even for reversed entries so the pair is visible -->
                 <td class="py-2.5 px-3 text-right font-mono">
-                  <span v-if="!tx.is_reversed && tx.debit_out > 0" class="text-red-400">
+                  <span v-if="tx.debit_out > 0"
+                        :class="tx.is_reversed ? 'text-red-400/30 line-through' : 'text-red-400'">
                     ৳{{ Number(tx.debit_out).toLocaleString() }}
                   </span>
                   <span v-else class="text-gray-700">—</span>
                 </td>
 
+                <!-- Credit (In) — show even for reversed entries -->
                 <td class="py-2.5 px-3 text-right font-mono">
-                  <span v-if="!tx.is_reversed && tx.credit_in > 0" class="text-emerald-400">
+                  <span v-if="tx.credit_in > 0"
+                        :class="tx.is_reversed ? 'text-emerald-400/30 line-through' : 'text-emerald-400'">
                     ৳{{ Number(tx.credit_in).toLocaleString() }}
                   </span>
                   <span v-else class="text-gray-700">—</span>
                 </td>
 
-                <td class="py-2.5 px-3 text-right font-mono font-semibold">
-                  <span v-if="tx.is_reversed" class="text-gray-700 text-[11px] italic">reversed</span>
-                  <span v-else :class="Number(tx.balance) >= 0 ? 'text-gray-200' : 'text-red-400'">
-                    ৳{{ Number(tx.balance).toLocaleString() }}
-                  </span>
+                <!-- Balance after this entry -->
+                <td class="py-2.5 px-3 text-right font-mono font-semibold"
+                    :class="Number(tx.balance) >= 0 ? 'text-gray-200' : 'text-red-400'">
+                  ৳{{ Number(tx.balance).toLocaleString() }}
                 </td>
               </tr>
 
-              <!-- Opening balance sentinel row (bottom = chronologically first) -->
-              <tr class="bg-blue-500/[0.04] border-t border-blue-500/10">
-                <td class="py-2 px-3 text-blue-400/60 font-mono text-[11px] whitespace-nowrap">
-                  {{ applied.from || 'Account Start' }}
+              <!-- Closing balance row — bottom (chronologically last) -->
+              <tr class="bg-gold-500/[0.04] border-t border-gold-500/10">
+                <td class="py-2 px-3 text-gold-400/60 font-mono text-[11px] whitespace-nowrap">
+                  {{ applied.to || today }}
                 </td>
-                <td colspan="5" class="py-2 px-3 text-blue-400/70 font-medium">
-                  ◆ Opening Balance
+                <td colspan="4" class="py-2 px-3 text-gold-400/70 font-medium">
+                  ✦ Closing Balance
                 </td>
-                <td class="py-2 px-3 text-right font-bold text-blue-300 font-mono">
-                  ৳{{ openingBalance.toLocaleString() }}
+                <td class="py-2 px-3" />
+                <td class="py-2 px-3 text-right font-bold text-gold-300 font-mono">
+                  ৳{{ closingBalance.toLocaleString() }}
                 </td>
               </tr>
 
@@ -369,8 +374,8 @@ function exportCsv() {
     applied.from || '', '"Opening Balance"', '', '', '', '', openingBalance.value, '',
   ].join(','))
 
-  // Transactions in chronological order (oldest first in CSV)
-  const chrono = [...filteredTxns.value].reverse()
+  // filteredTxns is already oldest-first (chronological)
+  const chrono = filteredTxns.value
   for (const tx of chrono) {
     csvRows.push([
       String(tx.transaction_date).slice(0, 10),

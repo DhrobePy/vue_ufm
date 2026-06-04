@@ -71,8 +71,7 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
        FROM transaction_lines tl
        JOIN journal_entries je ON je.id = tl.journal_entry_id
        WHERE tl.account_id = ?
-         AND je.transaction_date < ?
-         AND COALESCE(je.is_reversed, 0) = 0`,
+         AND je.transaction_date < ?`,
       [glAccountId, from]
     );
     openingBalance = seedBalance + Number((_b = beforeRow == null ? void 0 : beforeRow.net) != null ? _b : 0);
@@ -112,16 +111,14 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
   let running = openingBalance;
   let totalCredits = 0;
   let totalDebits = 0;
-  const txnsAsc = rows.map((r) => {
+  const transactions = rows.map((r) => {
     var _a2, _b2, _c;
     const dr = Number((_a2 = r.debit_amount) != null ? _a2 : 0);
     const cr = Number((_b2 = r.credit_amount) != null ? _b2 : 0);
     const isReversed = Number(r.is_reversed) === 1;
-    if (!isReversed) {
-      running += dr - cr;
-      totalCredits += dr;
-      totalDebits += cr;
-    }
+    running += dr - cr;
+    totalCredits += dr;
+    totalDebits += cr;
     const description = r.je_description || r.line_description || "";
     const lineDiff = r.line_description && r.line_description !== description ? r.line_description : null;
     return {
@@ -141,7 +138,6 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
     };
   });
   const closingBalance = running;
-  const transactions = [...txnsAsc].reverse();
   return {
     transactions,
     opening_balance: openingBalance,
