@@ -51,14 +51,35 @@
     <!-- ── Statement body ───────────────────────────────────────────────────── -->
     <template v-else>
 
+      <!-- ── Opening balance not configured warning ──────────────────────────── -->
+      <div v-if="!data?.opening_balance_configured"
+           class="glass-card border border-yellow-500/20 bg-yellow-500/[0.04] p-4 flex items-start gap-3">
+        <span class="text-yellow-400 text-lg mt-0.5">⚠</span>
+        <div class="flex-1 text-xs">
+          <p class="text-yellow-300 font-semibold mb-0.5">Opening balance not configured for this account</p>
+          <p class="text-yellow-400/70">
+            Balances shown are net GL movement within this period only (starting from ৳0).
+            To see accurate running balances, set the opening balance — the real-world bank balance
+            at the point when GL tracking began for this account.
+          </p>
+        </div>
+      </div>
+
       <!-- KPI cards -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="glass-card p-4">
-          <p class="text-xs text-gray-500 mb-1">Opening Balance</p>
+          <p class="text-xs text-gray-500 mb-1">
+            {{ data?.opening_balance_configured ? 'Opening Balance' : 'Opening Balance' }}
+          </p>
           <p class="text-xl font-bold" :class="openingBalance >= 0 ? 'text-gray-100' : 'text-red-400'">
             ৳{{ openingBalance.toLocaleString() }}
           </p>
-          <p class="text-[10px] text-gray-600 mt-0.5">as of {{ applied.from || 'account start' }}</p>
+          <p class="text-[10px] mt-0.5"
+             :class="data?.opening_balance_configured ? 'text-gray-600' : 'text-yellow-600'">
+            {{ data?.opening_balance_configured
+                ? `as of ${applied.from || 'account start'}`
+                : '⚠ not configured — set to calibrate' }}
+          </p>
         </div>
         <div class="glass-card p-4">
           <p class="text-xs text-gray-500 mb-1">Total Credits (In)</p>
@@ -75,7 +96,12 @@
           <p class="text-xl font-bold" :class="closingBalance >= 0 ? 'text-gold-400' : 'text-red-400'">
             ৳{{ closingBalance.toLocaleString() }}
           </p>
-          <p class="text-[10px] text-gray-600 mt-0.5">as of {{ applied.to || 'today' }}</p>
+          <p class="text-[10px] mt-0.5"
+             :class="data?.opening_balance_configured ? 'text-gray-600' : 'text-yellow-600'">
+            {{ data?.opening_balance_configured
+                ? `as of ${applied.to || 'today'}`
+                : '⚠ net movement only' }}
+          </p>
         </div>
       </div>
 
@@ -164,22 +190,24 @@
                 </td>
 
                 <td class="py-2.5 px-3 text-right font-mono">
-                  <span v-if="tx.debit_out > 0" class="text-red-400">
+                  <span v-if="!tx.is_reversed && tx.debit_out > 0" class="text-red-400">
                     ৳{{ Number(tx.debit_out).toLocaleString() }}
                   </span>
                   <span v-else class="text-gray-700">—</span>
                 </td>
 
                 <td class="py-2.5 px-3 text-right font-mono">
-                  <span v-if="tx.credit_in > 0" class="text-emerald-400">
+                  <span v-if="!tx.is_reversed && tx.credit_in > 0" class="text-emerald-400">
                     ৳{{ Number(tx.credit_in).toLocaleString() }}
                   </span>
                   <span v-else class="text-gray-700">—</span>
                 </td>
 
-                <td class="py-2.5 px-3 text-right font-mono font-semibold"
-                    :class="Number(tx.balance) >= 0 ? 'text-gray-200' : 'text-red-400'">
-                  ৳{{ Number(tx.balance).toLocaleString() }}
+                <td class="py-2.5 px-3 text-right font-mono font-semibold">
+                  <span v-if="tx.is_reversed" class="text-gray-700 text-[11px] italic">reversed</span>
+                  <span v-else :class="Number(tx.balance) >= 0 ? 'text-gray-200' : 'text-red-400'">
+                    ৳{{ Number(tx.balance).toLocaleString() }}
+                  </span>
                 </td>
               </tr>
 
@@ -293,25 +321,34 @@ const accountLabel = computed(() => {
 // ── Source badge helpers ──────────────────────────────────────────────────────
 function sourceLabel(s: string) {
   const map: Record<string, string> = {
-    CustomerPayment:     'Payment',
-    ExpenseVoucher:      'Expense',
-    CreditOrderDelivery: 'Delivery',
-    BankTransfer:        'Transfer',
-    Manual:              'Manual',
-    GeneralTransaction:  'General',
-    ManualReversal:      'Reversal',
+    CustomerPayment:         'Payment',
+    ExpenseVoucher:          'Expense',
+    CreditOrderDelivery:     'Delivery',
+    BankTransfer:            'Transfer',
+    Manual:                  'Manual',
+    GeneralTransaction:      'General',
+    ManualReversal:          'Reversal',
+    purchase_payment_adnan:  'Purchase',
+    PurchasePayment:         'Purchase',
+    SalesCashPayment:        'Sales',
   }
-  return map[s] ?? (s ? s.replace(/([A-Z])/g, ' $1').trim() : 'Entry')
+  if (map[s]) return map[s]
+  // Fallback: convert CamelCase or snake_case to readable label
+  if (!s) return 'Entry'
+  return s.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').replace(/\s+/g, ' ').trim()
 }
 function sourceColor(s: string) {
   const map: Record<string, string> = {
-    CustomerPayment:     'bg-emerald-500/10 text-emerald-400',
-    ExpenseVoucher:      'bg-orange-500/10  text-orange-400',
-    CreditOrderDelivery: 'bg-blue-500/10    text-blue-400',
-    BankTransfer:        'bg-purple-500/10  text-purple-400',
-    ManualReversal:      'bg-red-500/10     text-red-400',
-    Manual:              'bg-gray-500/10    text-gray-400',
-    GeneralTransaction:  'bg-gray-500/10    text-gray-400',
+    CustomerPayment:         'bg-emerald-500/10 text-emerald-400',
+    ExpenseVoucher:          'bg-orange-500/10  text-orange-400',
+    CreditOrderDelivery:     'bg-blue-500/10    text-blue-400',
+    BankTransfer:            'bg-purple-500/10  text-purple-400',
+    ManualReversal:          'bg-red-500/10     text-red-400',
+    Manual:                  'bg-gray-500/10    text-gray-400',
+    GeneralTransaction:      'bg-gray-500/10    text-gray-400',
+    purchase_payment_adnan:  'bg-amber-500/10   text-amber-400',
+    PurchasePayment:         'bg-amber-500/10   text-amber-400',
+    SalesCashPayment:        'bg-emerald-500/10 text-emerald-400',
   }
   return map[s] ?? 'bg-gray-500/10 text-gray-400'
 }

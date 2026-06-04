@@ -63,8 +63,9 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
     seedBalance = Number((_a = ob == null ? void 0 : ob.ob) != null ? _a : 0);
   } catch {
   }
+  const openingBalanceConfigured = seedBalance > 0;
   let openingBalance = seedBalance;
-  if (from) {
+  if (from && openingBalanceConfigured) {
     const beforeRow = await queryOne(
       `SELECT COALESCE(SUM(tl.debit_amount - tl.credit_amount), 0) AS net
        FROM transaction_lines tl
@@ -149,7 +150,8 @@ const unifiedLedger_get = defineEventHandler(async (event) => {
     totalDebits,
     bankAccount,
     glAccountId,
-    accounts
+    accounts,
+    opening_balance_configured: openingBalanceConfigured
   };
 });
 

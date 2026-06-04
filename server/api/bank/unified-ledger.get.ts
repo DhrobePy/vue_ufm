@@ -72,8 +72,14 @@ export default defineEventHandler(async (event) => {
   } catch { /* column not yet migrated — treat as 0 */ }
 
   // ── Opening balance = seed + all GL net movements BEFORE 'from' date ────────
+  // IMPORTANT: if seedBalance = 0 (never configured by user), we skip the historical
+  // GL accumulation entirely — otherwise every account looks deeply negative because
+  // purchase payments / expenses have CR'd the account with no offsetting DR entries
+  // for the initial deposit, making the balance misleadingly negative.
+  // When seedBalance > 0 the user has explicitly calibrated the account: compute fully.
+  const openingBalanceConfigured = seedBalance > 0
   let openingBalance = seedBalance
-  if (from) {
+  if (from && openingBalanceConfigured) {
     const beforeRow = await queryOne<any>(
       `SELECT COALESCE(SUM(tl.debit_amount - tl.credit_amount), 0) AS net
        FROM transaction_lines tl
@@ -162,12 +168,13 @@ export default defineEventHandler(async (event) => {
 
   return {
     transactions,
-    opening_balance: openingBalance,
-    closing_balance: closingBalance,
+    opening_balance:           openingBalance,
+    closing_balance:           closingBalance,
     totalCredits,
     totalDebits,
     bankAccount,
     glAccountId,
     accounts,
+    opening_balance_configured: openingBalanceConfigured,
   }
 })
