@@ -622,7 +622,7 @@ const _routes = [
     name: "bank",
     path: "/bank",
     meta: __nuxt_page_meta$2b || {},
-    component: () => import('./index-Pct3KDsp.mjs')
+    component: () => import('./index-BX3Qe0Rl.mjs')
   },
   {
     name: "hr-bonuses",
@@ -724,7 +724,7 @@ const _routes = [
     name: "bank-statement",
     path: "/bank/statement",
     meta: __nuxt_page_meta$1W || {},
-    component: () => import('./statement-Cgnww42t.mjs')
+    component: () => import('./statement-tI5iIGq1.mjs')
   },
   {
     name: "dispatch",
@@ -964,7 +964,7 @@ const _routes = [
     name: "bank-accounts",
     path: "/bank/accounts",
     meta: __nuxt_page_meta$1i || {},
-    component: () => import('./index-CTht_XOX.mjs')
+    component: () => import('./index-tM0mvgZT.mjs')
   },
   {
     name: "bank-accounts-types",
