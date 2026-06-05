@@ -14,26 +14,10 @@ export default defineEventHandler(async (event) => {
   const userId  = session?.user?.id ?? 0
   if (!userId) return []
 
+  // Table is guaranteed by db-migrate startup plugin — no DDL needed here.
   const db   = getDb()
   const conn = await db.getConnection()
   try {
-    // Ensure table exists (safe repeated calls)
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS notifications (
-        id           INT          AUTO_INCREMENT PRIMARY KEY,
-        stable_id    VARCHAR(150) NOT NULL,
-        user_id      INT          NOT NULL,
-        text         VARCHAR(500) NOT NULL,
-        type         ENUM('info','success','warning','error') NOT NULL DEFAULT 'info',
-        route        VARCHAR(300) NOT NULL DEFAULT '/',
-        module       VARCHAR(50),
-        reference_id INT,
-        created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_stable (stable_id),
-        INDEX  idx_user_time (user_id, created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `).catch(() => {})
-
     const [rows] = await conn.query<any[]>(
       `SELECT stable_id            AS id,
               text,

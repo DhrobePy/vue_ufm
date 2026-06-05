@@ -29,16 +29,7 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Auto-create table if it doesn't exist
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        setting_key   VARCHAR(120) NOT NULL PRIMARY KEY,
-        setting_value MEDIUMTEXT,
-        updated_by    INT          DEFAULT NULL,
-        updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `)
-
+    // system_settings table guaranteed by db-migrate startup plugin.
     const updated: string[] = []
 
     for (const key of ALLOWED_KEYS) {

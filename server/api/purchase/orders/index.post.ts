@@ -28,11 +28,7 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Auto-add po_payment_terms column if missing (safe on first run)
-    await conn.query(`
-      ALTER TABLE purchase_orders_adnan
-        ADD COLUMN IF NOT EXISTS po_payment_terms VARCHAR(50) DEFAULT 'Credit 30'
-    `).catch(() => {/* ignore if DB doesn't support IF NOT EXISTS — silently skip */})
+    // po_payment_terms column guaranteed by db-migrate startup plugin.
 
     // Fetch supplier name for denormalization
     const [[sup]] = await conn.query<any>(

@@ -19,24 +19,7 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Auto-provision deletion audit log (no migration needed — first call creates it)
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS order_deletion_log (
-        id                 INT AUTO_INCREMENT PRIMARY KEY,
-        order_id           INT NOT NULL,
-        order_number       VARCHAR(50) NOT NULL,
-        customer_id        INT,
-        customer_name      VARCHAR(200),
-        total_amount       DECIMAL(15,2),
-        amount_paid        DECIMAL(15,2),
-        balance_due        DECIMAL(15,2),
-        order_status       VARCHAR(50),
-        deleted_by_user_id INT,
-        deleted_by_name    VARCHAR(200),
-        deleted_at         DATETIME,   -- set explicitly to UTC_TIMESTAMP() on insert
-        INDEX idx_deleted_at (deleted_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `)
+    // order_deletion_log table guaranteed by db-migrate startup plugin.
 
     // Load order + customer + deleting user — all the info we want to preserve
     const [[order]] = await conn.query<any>(

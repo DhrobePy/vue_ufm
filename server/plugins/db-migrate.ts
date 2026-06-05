@@ -219,4 +219,82 @@ export default defineNitroPlugin(async () => {
   } catch (e) {
     console.warn('[db-migrate] customer_ledger.reference_type widen failed:', e)
   }
+
+  // ── 11. purchase_payments_adnan — columns added post-launch ──────────────
+  //   Previously these were run via ALTER TABLE inside request handlers
+  //   (every POST /api/purchase/payments).  Moved here so DDL runs once at
+  //   startup and never inside a transaction.
+  await addCol(db, 'purchase_payments_adnan', 'is_posted',       'TINYINT(1) NOT NULL DEFAULT 1')
+  await addCol(db, 'purchase_payments_adnan', 'journal_entry_id','INT DEFAULT NULL')
+
+  // ── 12. purchase_orders_adnan — po_payment_terms ─────────────────────────
+  //   Previously run inside every POST /api/purchase/orders request.
+  await addCol(db, 'purchase_orders_adnan', 'po_payment_terms', "VARCHAR(50) DEFAULT 'Credit 30'")
+
+  // ── 13. notifications table ───────────────────────────────────────────────
+  //   Previously created via CREATE TABLE IF NOT EXISTS inside every
+  //   GET /api/notifications request (polled every 30 s per user — very hot).
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id           INT          AUTO_INCREMENT PRIMARY KEY,
+        stable_id    VARCHAR(150) NOT NULL,
+        user_id      INT          NOT NULL,
+        text         VARCHAR(500) NOT NULL,
+        type         ENUM('info','success','warning','error') NOT NULL DEFAULT 'info',
+        route        VARCHAR(300) NOT NULL DEFAULT '/',
+        module       VARCHAR(50),
+        reference_id INT,
+        created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_stable (stable_id),
+        INDEX  idx_user_time (user_id, created_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] notifications create failed:', e)
+  }
+
+  // ── 14. system_settings table ─────────────────────────────────────────────
+  //   Previously created on every GET/PUT /api/settings/documents request.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        setting_key   VARCHAR(120) NOT NULL PRIMARY KEY,
+        setting_value MEDIUMTEXT,
+        updated_by    INT          DEFAULT NULL,
+        updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] system_settings create failed:', e)
+  }
+
+  // ── 15. order_deletion_log table ─────────────────────────────────────────
+  //   Previously created on every DELETE /api/credit-sales/:id request.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS order_deletion_log (
+        id                 INT AUTO_INCREMENT PRIMARY KEY,
+        order_id           INT NOT NULL,
+        order_number       VARCHAR(50) NOT NULL,
+        customer_id        INT,
+        customer_name      VARCHAR(200),
+        total_amount       DECIMAL(15,2),
+        amount_paid        DECIMAL(15,2),
+        balance_due        DECIMAL(15,2),
+        order_status       VARCHAR(50),
+        deleted_by_user_id INT,
+        deleted_by_name    VARCHAR(200),
+        deletion_reason    TEXT,
+        deleted_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+        ip_address         VARCHAR(45),
+        INDEX idx_order_id (order_id),
+        INDEX idx_deleted_at (deleted_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] order_deletion_log create failed:', e)
+  }
+
+  console.log('[db-migrate] startup migrations complete')
 })

@@ -48,10 +48,9 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // ── Auto-add columns if missing (safe repeated runs) ──────────────────────
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'credit'`).catch(() => {})
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS is_posted TINYINT(1) NOT NULL DEFAULT 1`).catch(() => {})
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS journal_entry_id INT DEFAULT NULL`).catch(() => {})
+    // Columns guaranteed by db-migrate startup plugin — no ALTER TABLE per-request.
+    // (Previously these 3 ALTER TABLEs ran on every request AND caused MySQL
+    //  implicit commits that silently broke transaction atomicity.)
 
     // ── Load the PO ──────────────────────────────────────────────────────────
     const [[po]] = await conn.query<any>(
