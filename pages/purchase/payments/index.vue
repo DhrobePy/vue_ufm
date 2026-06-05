@@ -39,8 +39,15 @@
       <template #cell-amount_paid="{ value }">
         <span class="font-semibold text-emerald-400 font-mono text-xs">৳{{ Number(value).toLocaleString() }}</span>
       </template>
+      <template #cell-payment_type="{ value }">
+        <span :class="`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${typeStyles[value] ?? 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`">
+          {{ typeLabels[value] ?? value ?? '—' }}
+        </span>
+      </template>
       <template #cell-payment_method="{ value }">
-        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">{{ value }}</span>
+        <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-gray-400 border border-white/10">
+          {{ value === 'contra' ? 'Contra Adj.' : value }}
+        </span>
       </template>
     </UiDataTable>
 
@@ -70,7 +77,19 @@ const { data, pending, error, refresh } = await useFetch('/api/purchase/payments
   })),
 })
 
-const rows = computed(() => (data.value?.payments ?? []) as any[])
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const rows = computed(() =>
+  (data.value?.payments ?? []).map((p: any) => ({
+    ...p,
+    payment_date: fmtDate(p.payment_date),
+  })) as any[]
+)
 
 const pageTotalPaid = computed(() =>
   rows.value.reduce((s: number, p: any) => s + Number(p.amount_paid ?? 0), 0)
@@ -82,8 +101,21 @@ const cols = [
   { key: 'supplier_name',          label: 'Supplier',    sortable: true },
   { key: 'po_number',              label: 'PO #' },
   { key: 'amount_paid',            label: 'Amount',      sortable: true },
+  { key: 'payment_type',           label: 'Type' },
   { key: 'payment_method',         label: 'Method' },
-  { key: 'bank_name',              label: 'Bank' },
   { key: 'reference_number',       label: 'Reference' },
 ]
+
+const typeStyles: Record<string, string> = {
+  advance:          'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  credit:           'bg-blue-500/10   text-blue-400   border-blue-500/20',
+  against_delivery: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+  contra:           'bg-rose-500/10   text-rose-400   border-rose-500/20',
+}
+const typeLabels: Record<string, string> = {
+  advance:          'Advance',
+  credit:           'Credit',
+  against_delivery: 'Delivery',
+  contra:           'Contra',
+}
 </script>
