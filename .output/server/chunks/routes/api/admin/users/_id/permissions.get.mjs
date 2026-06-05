@@ -26,27 +26,26 @@ const permissions_get = defineEventHandler(async (event) => {
       [targetId]
     );
     if (!user) throw createError({ statusCode: 404, statusMessage: "User not found" });
-    const [[saved]] = await conn.query(
-      `SELECT data_scope, allowed_branches, permissions FROM user_permissions WHERE user_id = ?`,
-      [targetId]
-    );
-    let data_scope = (_c = saved == null ? void 0 : saved.data_scope) != null ? _c : "branch";
-    let allowed_branches = [];
+    let data_scope = user.role === "superadmin" || user.role === "admin" ? "all" : "branch";
+    let allowed_branches = ["srg"];
     let permissions = {};
-    if (saved) {
-      try {
-        allowed_branches = (_e = JSON.parse((_d = saved.allowed_branches) != null ? _d : "[]")) != null ? _e : [];
-      } catch {
-        allowed_branches = [];
+    try {
+      const [[saved]] = await conn.query(
+        `SELECT data_scope, allowed_branches, permissions FROM user_permissions WHERE user_id = ?`,
+        [targetId]
+      );
+      if (saved) {
+        data_scope = (_c = saved.data_scope) != null ? _c : data_scope;
+        try {
+          allowed_branches = (_e = JSON.parse((_d = saved.allowed_branches) != null ? _d : "[]")) != null ? _e : [];
+        } catch {
+        }
+        try {
+          permissions = (_g = JSON.parse((_f = saved.permissions) != null ? _f : "{}")) != null ? _g : {};
+        } catch {
+        }
       }
-      try {
-        permissions = (_g = JSON.parse((_f = saved.permissions) != null ? _f : "{}")) != null ? _g : {};
-      } catch {
-        permissions = {};
-      }
-    } else {
-      data_scope = user.role === "superadmin" || user.role === "admin" ? "all" : "branch";
-      allowed_branches = ["srg"];
+    } catch {
     }
     return {
       user: {
