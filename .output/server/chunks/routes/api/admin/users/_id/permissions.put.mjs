@@ -42,13 +42,13 @@ const permissions_put = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   await conn.query(`
     CREATE TABLE IF NOT EXISTS user_permissions (
-      user_id        INT UNSIGNED  NOT NULL PRIMARY KEY,
-      data_scope     VARCHAR(20)   NOT NULL DEFAULT 'branch',
-      allowed_branches JSON        NULL,
-      permissions    LONGTEXT      NOT NULL,
-      updated_by     INT UNSIGNED  NULL,
-      updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                       ON UPDATE CURRENT_TIMESTAMP
+      user_id          BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+      data_scope       VARCHAR(20)     NOT NULL DEFAULT 'branch',
+      allowed_branches LONGTEXT        NULL,
+      permissions      LONGTEXT        NOT NULL,
+      updated_by       BIGINT UNSIGNED NULL,
+      updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                         ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `).catch(() => {
   });

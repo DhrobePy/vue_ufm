@@ -22,7 +22,7 @@ const permissions_get = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     const [[user]] = await conn.query(
-      `SELECT id, display_name, email, role, status, last_login_at FROM users WHERE id = ?`,
+      `SELECT id, display_name, email, role, status, last_login FROM users WHERE id = ?`,
       [targetId]
     );
     if (!user) throw createError({ statusCode: 404, statusMessage: "User not found" });
@@ -54,7 +54,7 @@ const permissions_get = defineEventHandler(async (event) => {
         email: user.email,
         role: user.role,
         status: user.status,
-        last_login: user.last_login_at
+        last_login: user.last_login
       },
       data_scope,
       allowed_branches,
