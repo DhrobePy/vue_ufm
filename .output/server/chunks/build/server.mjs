@@ -1426,7 +1426,7 @@ const _routes = [
     name: "admin-users-id-permissions",
     path: "/admin/users/:id()/permissions",
     meta: __nuxt_page_meta$5 || {},
-    component: () => import('./permissions-BTykCW2o.mjs')
+    component: () => import('./permissions-DJWcAk5X.mjs')
   },
   {
     name: "purchase-payments-id",
