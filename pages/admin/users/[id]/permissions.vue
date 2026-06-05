@@ -190,11 +190,16 @@
     <!-- Sticky save bar -->
     <div class="sticky bottom-4 flex justify-end pt-2">
       <div class="glass-card px-4 py-3 flex items-center gap-3 shadow-xl">
-        <span class="text-xs text-gray-500">
-          {{ changesCount === 0 ? 'No unsaved changes' : 'Unsaved changes' }}
+        <!-- Success flash -->
+        <span v-if="saveSuccess" class="text-xs text-green-400 font-medium">✓ Saved successfully</span>
+        <!-- Error -->
+        <span v-else-if="saveError" class="text-xs text-red-400 max-w-xs truncate">⚠ {{ saveError }}</span>
+        <!-- Dirty indicator -->
+        <span v-else class="text-xs" :class="changesCount ? 'text-amber-400' : 'text-gray-500'">
+          {{ changesCount ? 'Unsaved changes' : 'No unsaved changes' }}
         </span>
-        <button class="btn-ghost text-xs" @click="reset" :disabled="saving">Reset</button>
-        <button class="btn-gold text-xs" :disabled="saving || changesCount === 0" @click="save">
+        <button class="btn-ghost text-xs" @click="reset" :disabled="saving || !changesCount">Reset</button>
+        <button class="btn-gold text-xs" :disabled="saving || !changesCount" @click="save">
           <svg v-if="saving" class="w-3.5 h-3.5 animate-spin mr-1 inline" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
@@ -728,14 +733,18 @@ if (error.value) {
   perms.value = mergePerms(d.permissions ?? {})
 }
 
-const original = ref(snapshot())
+// ── Change detection — deep watcher (JSON.stringify on reactive proxy is unreliable) ──
+const isDirty = ref(false)
+const changesCount = computed(() => isDirty.value ? 1 : 0)
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function snapshot() {
-  return JSON.stringify({ scope: globalScope.value, branches: allowedBranches.value, perms: perms.value })
-}
-
-const changesCount = computed(() => snapshot() === original.value ? 0 : 1)
+// Start watching AFTER mount + nextTick so initial data load doesn't trigger dirty
+onMounted(() => {
+  nextTick(() => {
+    watch(globalScope,      () => { isDirty.value = true })
+    watch(allowedBranches,  () => { isDirty.value = true }, { deep: true })
+    watch(perms,            () => { isDirty.value = true }, { deep: true })
+  })
+})
 
 const enabledCount = computed(() =>
   moduleRegistry.filter(m => perms.value[m.key]?.enabled).length
@@ -827,16 +836,19 @@ function reset() {
     allowedBranches.value = ['srg']
     perms.value = buildDefaultPerms()
   }
-  original.value = snapshot()
+  nextTick(() => { isDirty.value = false })
 }
 
 // ── Save ──────────────────────────────────────────────────────────────────────
-const saving    = ref(false)
-const saveError = ref('')
+const saving      = ref(false)
+const saveError   = ref('')
+const saveSuccess = ref(false)
+
 async function save() {
   if (saving.value) return
-  saving.value = true
-  saveError.value = ''
+  saving.value  = true
+  saveError.value   = ''
+  saveSuccess.value = false
   try {
     await $fetch(`/api/admin/users/${userId}/permissions`, {
       method: 'PUT',
@@ -846,10 +858,11 @@ async function save() {
         permissions:      perms.value,
       },
     })
-    original.value = snapshot()
+    isDirty.value     = false
+    saveSuccess.value = true
+    setTimeout(() => { saveSuccess.value = false }, 3000)
   } catch (e: any) {
-    saveError.value = e?.data?.statusMessage ?? e?.message ?? 'Save failed'
-    alert(saveError.value)
+    saveError.value = e?.data?.statusMessage ?? e?.message ?? 'Save failed — check console'
   } finally {
     saving.value = false
   }
