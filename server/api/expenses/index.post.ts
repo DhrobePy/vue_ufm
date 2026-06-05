@@ -1,5 +1,6 @@
 import { getDb, queryOne } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { notifyAdmins } from '~/server/utils/notify'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
@@ -142,6 +143,17 @@ export default defineEventHandler(async (event) => {
       referenceNumber: voucherNo,
       description:     `Expense voucher ${voucherNo} (৳${Number(computed_total).toLocaleString()}) created by ${actorName}`,
       severity:        'info',
+    })
+
+    // Notify all admin/superadmin users that a new expense is pending approval
+    await notifyAdmins({
+      conn,
+      stableId:    `exp-${newId}-submitted`,
+      text:        `💸 Expense ${voucherNo} (৳${Number(computed_total).toLocaleString()}) submitted by ${actorName} — awaiting approval`,
+      type:        'warning',
+      route:       `/expenses/${newId}`,
+      module:      'expenses',
+      referenceId: newId,
     })
 
     await conn.commit()
