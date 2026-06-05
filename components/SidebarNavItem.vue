@@ -12,23 +12,26 @@
     <!-- Active left accent bar -->
     <div v-if="isActive && !sub"
          class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-         style="background: linear-gradient(180deg, #fbbf24, #d97706);" />
+         style="background: linear-gradient(180deg, var(--accent-from), var(--accent-to));" />
 
     <!-- Sub-item connector dot -->
     <div v-if="sub" class="absolute left-3 top-1/2 -translate-y-1/2 flex flex-col items-center">
-      <div :class="['w-1.5 h-1.5 rounded-full transition-all duration-150', isActive ? 'bg-gold-400' : 'bg-white/20 group-hover:bg-white/40']" />
+      <div :class="['w-1.5 h-1.5 rounded-full transition-all duration-150', isActive ? '' : 'bg-white/20 group-hover:bg-white/40']"
+           :style="isActive ? 'background: var(--accent-from)' : ''" />
     </div>
 
     <!-- Icon -->
     <span v-if="!sub || !collapsed"
-          :class="['shrink-0 transition-colors duration-150', isActive ? 'text-gold-400' : 'text-gray-500 group-hover:text-gray-300', collapsed && !sub ? 'mx-auto' : '']">
+          :class="['shrink-0 transition-colors duration-150', isActive ? '' : 'text-gray-500 group-hover:text-gray-300', collapsed && !sub ? 'mx-auto' : '']"
+          :style="isActive ? 'color: var(--accent-from)' : ''">
       <SidebarIcon :type="iconType" class="w-4 h-4" />
     </span>
 
     <!-- Label -->
     <Transition name="label-fade">
       <span v-if="!collapsed"
-            :class="['truncate transition-colors duration-150', isActive ? 'text-gold-300' : 'text-gray-400 group-hover:text-gray-100']">
+            :class="['truncate transition-colors duration-150', isActive ? '' : 'text-gray-400 group-hover:text-gray-100']"
+            :style="isActive ? 'color: var(--accent-from)' : ''">
         {{ label }}
       </span>
     </Transition>

@@ -83,6 +83,9 @@ const KEY_BASE   = 'erp_base_theme'
 const KEY_ACCENT = 'erp_accent'
 const KEY_CUSTOM = 'erp_custom_accent'
 
+// ── Transition class debounce (prevents stacking timeouts on rapid @input) ─
+let _transitionTimer: ReturnType<typeof setTimeout> | null = null
+
 // ── Composable ────────────────────────────────────────────
 export function useTheme() {
   const baseId       = useState<BaseThemeId>('theme_base',   () => 'midnight')
@@ -106,9 +109,13 @@ export function useTheme() {
 
     const root = document.documentElement
 
-    // ── smooth transition flash ──
+    // ── smooth transition flash (debounced so rapid @input calls don't stack) ──
     root.classList.add('theme-transitioning')
-    setTimeout(() => root.classList.remove('theme-transitioning'), 380)
+    if (_transitionTimer) clearTimeout(_transitionTimer)
+    _transitionTimer = setTimeout(() => {
+      root.classList.remove('theme-transitioning')
+      _transitionTimer = null
+    }, 380)
 
     // ── Base atmosphere vars ──
     root.style.setProperty('--bg-from',      b.bgFrom)

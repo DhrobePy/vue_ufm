@@ -10,9 +10,10 @@
           <button v-for="tab in tabs" :key="tab.id"
             @click="activeTab = tab.id"
             :class="['w-full text-left flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all duration-150',
-              activeTab === tab.id
-                ? 'bg-gold-500/10 text-gold-400 border border-gold-500/20'
-                : 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]']"
+              activeTab !== tab.id && 'text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]']"
+            :style="activeTab === tab.id
+              ? 'background:rgb(var(--accent)/0.10);color:var(--accent-from);border:1px solid rgb(var(--accent)/0.20)'
+              : ''"
           >
             <span class="text-base">{{ tab.icon }}</span>
             {{ tab.label }}
@@ -189,6 +190,128 @@
           </div>
         </div>
 
+        <!-- Appearance -->
+        <div v-if="activeTab === 'appearance'" class="space-y-5">
+          <div class="glass-card p-6 space-y-6">
+            <div>
+              <h3 class="section-title">Appearance &amp; Theme</h3>
+              <p class="text-xs text-gray-500 mt-1">Personalise the look of your workspace — background, accent colour, and presets.</p>
+            </div>
+
+            <!-- Background -->
+            <div class="space-y-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Background</p>
+              <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <button
+                  v-for="base in themeStore.BASE_THEMES"
+                  :key="base.id"
+                  @click="themeStore.setBase(base.id)"
+                  class="relative rounded-xl overflow-hidden border-2 transition-all duration-200 text-left"
+                  :style="themeStore.baseId.value === base.id
+                    ? 'border-color:var(--accent-from);box-shadow:0 0 0 3px rgb(var(--accent)/0.18)'
+                    : 'border-color:transparent'"
+                  :class="themeStore.baseId.value !== base.id && 'hover:border-white/20'"
+                  style="height:76px">
+                  <div class="absolute inset-0"
+                       :style="`background: linear-gradient(135deg, ${base.preview[0]} 0%, ${base.bgTo} 100%)`" />
+                  <div class="absolute top-0 left-0 bottom-0 w-[28%]"
+                       :style="`background: linear-gradient(180deg, ${base.sidebarFrom} 0%, ${base.sidebarTo} 100%); opacity: 0.9`" />
+                  <div class="absolute right-3 top-1/2 -translate-y-1/2 w-14 h-9 rounded-lg opacity-80"
+                       :style="`background: ${base.dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.80)'}; border: 1px solid ${base.dark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}`" />
+                  <div class="absolute bottom-2 right-3 text-right">
+                    <p class="text-[11px] font-semibold leading-tight"
+                       :style="`color: ${base.dark ? 'rgba(255,255,255,0.85)' : 'rgba(0,0,0,0.75)'}`">
+                      {{ base.emoji }} {{ base.name }}
+                    </p>
+                  </div>
+                  <div v-if="themeStore.baseId.value === base.id"
+                       class="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center"
+                       style="background:var(--accent-from)">
+                    <svg class="w-3 h-3 text-black" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Accent Color -->
+            <div class="space-y-3">
+              <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-gray-500">Accent Color</p>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  v-for="accent in themeStore.ACCENTS"
+                  :key="accent.id"
+                  @click="themeStore.setAccent(accent.id)"
+                  :title="accent.name"
+                  class="relative w-9 h-9 rounded-full transition-all duration-200"
+                  :style="`background: linear-gradient(135deg, ${accent.from} 0%, ${accent.to} 100%)`"
+                  :class="themeStore.accentId.value === accent.id
+                    ? 'ring-2 ring-offset-2 ring-offset-transparent ring-white/60 scale-110'
+                    : 'opacity-80 hover:opacity-100 hover:scale-105'">
+                  <span v-if="themeStore.accentId.value === accent.id"
+                        class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-4 h-4" :style="`color:${accent.btnText}`" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </span>
+                </button>
+                <!-- Custom color picker -->
+                <div class="relative">
+                  <label :title="`Custom: ${appCustomHex}`"
+                         class="relative w-9 h-9 rounded-full cursor-pointer flex items-center justify-center transition-all"
+                         :class="themeStore.accentId.value === 'custom'
+                           ? 'ring-2 ring-offset-2 ring-offset-transparent ring-white/60 scale-110'
+                           : 'opacity-80 hover:opacity-100 hover:scale-105'"
+                         :style="`background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red)`">
+                    <svg v-if="themeStore.accentId.value !== 'custom'" class="w-4 h-4 text-white drop-shadow" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m0 14v1m8-8h-1M5 12H4m13.657-6.343l-.707.707M7.05 16.95l-.707.707m12.02 0l-.707-.707M7.05 7.05l-.707-.707"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                    <svg v-else class="w-4 h-4 text-white drop-shadow" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <input type="color" v-model="appCustomHex"
+                           @input="applyAppCustom($event)"
+                           @change="applyAppCustom($event)"
+                           class="absolute inset-0 opacity-0 w-full h-full cursor-pointer rounded-full" />
+                  </label>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-500 mt-1">
+                <div class="w-4 h-4 rounded-full shrink-0"
+                     style="background: linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%)" />
+                <span>
+                  {{ themeStore.accentId.value === 'custom'
+                    ? `Custom ${appCustomHex}`
+                    : themeStore.currentAccent.value?.name ?? 'Custom' }}
+                </span>
+              </div>
+            </div>
+
+            <!-- Preview -->
+            <div class="rounded-xl p-4 space-y-3"
+                 style="background:rgb(var(--tint)/0.04);border:1px solid rgb(var(--tint)/0.08)">
+              <p class="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">Preview</p>
+              <div class="flex gap-2 items-center flex-wrap">
+                <button class="btn-gold text-xs px-3 py-1.5">Primary Action</button>
+                <button class="btn-ghost text-xs px-3 py-1.5">Secondary</button>
+                <span class="nav-item nav-item-active text-xs px-2.5 py-1">Active item</span>
+              </div>
+              <div class="flex gap-2 items-center">
+                <div class="h-1.5 flex-1 rounded-full overflow-hidden" style="background:rgb(var(--tint)/0.08)">
+                  <div class="h-full w-[65%] rounded-full" style="background:linear-gradient(90deg,var(--accent-from),var(--accent-to))"/>
+                </div>
+                <span class="text-[10px] text-gray-500">65%</span>
+              </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-2">
+              <button @click="resetAppearance" class="btn-ghost text-xs">↺ Reset to default</button>
+            </div>
+          </div>
+        </div>
+
         <!-- Notifications -->
         <div v-if="activeTab === 'notifications'" class="space-y-5">
           <div class="glass-card p-6 space-y-4">
@@ -322,6 +445,25 @@
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 
+// ── Appearance / Theme ───────────────────────────────────────────────────────
+const themeStore   = useTheme()
+const appCustomHex = ref(themeStore.customHex.value)
+watch(() => themeStore.customHex.value, v => { appCustomHex.value = v })
+
+function applyAppCustom(e?: Event) {
+  const hex = e ? (e.target as HTMLInputElement).value : appCustomHex.value
+  if (hex) {
+    appCustomHex.value = hex
+    themeStore.setAccent('custom', hex)
+  }
+}
+
+function resetAppearance() {
+  themeStore.setBase('midnight')
+  themeStore.setAccent('gold')
+  appCustomHex.value = '#f59e0b'
+}
+
 // ── Document T&C settings ────────────────────────────────────────────────────
 const TC_DEFAULTS = {
   tc_purchase_order: [
@@ -399,6 +541,7 @@ const tabs = [
   { id: 'finance',       icon: '💰', label: 'Finance' },
   { id: 'orders',        icon: '📋', label: 'Orders' },
   { id: 'documents',     icon: '📄', label: 'Documents' },
+  { id: 'appearance',    icon: '🎨', label: 'Appearance' },
   { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'security',      icon: '🔒', label: 'Security' },
   { id: 'maintenance',   icon: '🔧', label: 'Maintenance' },

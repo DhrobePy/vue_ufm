@@ -13,15 +13,17 @@
       <!-- Active accent bar -->
       <div v-if="isModuleActive"
            class="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-           style="background: linear-gradient(180deg, #fbbf24, #d97706);" />
+           style="background: linear-gradient(180deg, var(--accent-from), var(--accent-to));" />
 
       <div class="flex items-center gap-3" :class="collapsed ? 'mx-auto' : ''">
-        <span :class="['shrink-0 transition-colors duration-150', isModuleActive ? 'text-gold-400' : 'text-gray-500 group-hover:text-gray-300']">
+        <span :class="['shrink-0 transition-colors duration-150', isModuleActive ? '' : 'text-gray-500 group-hover:text-gray-300']"
+              :style="isModuleActive ? 'color: var(--accent-from)' : ''">
           <SidebarIcon :type="iconType" class="w-4 h-4" />
         </span>
         <Transition name="label-fade">
           <span v-if="!collapsed"
-                :class="['text-sm font-medium transition-colors duration-150', isModuleActive ? 'text-gold-300' : 'text-gray-400 group-hover:text-gray-100']">
+                :class="['text-sm font-medium transition-colors duration-150', isModuleActive ? '' : 'text-gray-400 group-hover:text-gray-100']"
+                :style="isModuleActive ? 'color: var(--accent-from)' : ''">
             {{ label }}
           </span>
         </Transition>

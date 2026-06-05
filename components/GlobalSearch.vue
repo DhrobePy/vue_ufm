@@ -39,11 +39,14 @@
                 @click="go(item)"
                 @mouseenter="cursor = idx"
                 :class="['flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors duration-75',
-                  cursor === idx ? 'bg-gold-500/10' : 'hover:bg-white/[0.03]']"
+                  cursor !== idx && 'hover:bg-white/[0.03]']"
+                :style="cursor === idx ? 'background:rgb(var(--accent)/0.10)' : ''"
               >
                 <span class="text-lg w-7 text-center shrink-0">{{ item.icon }}</span>
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium truncate" :class="cursor === idx ? 'text-gold-300' : 'text-gray-200'">
+                  <p class="text-sm font-medium truncate"
+                     :class="cursor !== idx && 'text-gray-200'"
+                     :style="cursor === idx ? 'color:var(--accent-from)' : ''">
                     {{ item.label }}
                   </p>
                   <p v-if="item.sublabel" class="text-xs text-gray-600 truncate">{{ item.sublabel }}</p>

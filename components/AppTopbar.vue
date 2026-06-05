@@ -103,7 +103,8 @@
                 <p class="text-[10px] text-gray-600 mt-0.5">{{ n.time }}</p>
               </div>
               <!-- Unread dot -->
-              <div class="w-1.5 h-1.5 rounded-full bg-gold-400 mt-1.5 shrink-0" />
+              <div class="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+                   style="background: var(--accent-from)" />
               <!-- Arrow -->
               <svg class="w-3 h-3 text-gray-700 mt-1.5 shrink-0 group-hover:text-gray-400 transition-colors" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
@@ -115,7 +116,8 @@
           </div>
           <div class="px-4 py-2.5 border-t border-white/[0.06] flex justify-between items-center">
             <NuxtLink to="/admin/audit" @click="notifOpen = false"
-                      class="text-xs text-gold-400 hover:text-gold-300 transition-colors">
+                      class="text-xs transition-colors"
+                      style="color: var(--accent-from)">
               View full audit log →
             </NuxtLink>
             <button v-if="unreadNotifications.length" @click="clearAll" class="text-[10px] text-gray-600 hover:text-gray-400">Clear all</button>

@@ -116,6 +116,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
                   </svg>
                   <input type="color" v-model="customPickerHex"
+                         @input="applyCustom"
                          @change="applyCustom"
                          class="absolute inset-0 opacity-0 w-full h-full cursor-pointer rounded-full" />
                 </label>
@@ -207,8 +208,12 @@ const theme = useTheme()
 
 const customPickerHex = ref(theme.customHex.value)
 
-function applyCustom() {
-  theme.setAccent('custom', customPickerHex.value)
+function applyCustom(e?: Event) {
+  const hex = e ? (e.target as HTMLInputElement).value : customPickerHex.value
+  if (hex) {
+    customPickerHex.value = hex
+    theme.setAccent('custom', hex)
+  }
 }
 
 // ── Quick presets ─────────────────────────────────────────

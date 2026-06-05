@@ -35,8 +35,12 @@
               <span class="flex items-center gap-1.5">
                 {{ col.label }}
                 <span v-if="col.sortable" class="flex flex-col gap-0.5">
-                  <svg :class="['w-2.5 h-2.5 transition-colors', sortKey === col.key && sortDir === 'asc' ? 'text-gold-400' : 'text-gray-700']" viewBox="0 0 10 6" fill="currentColor"><path d="M0 6l5-6 5 6H0z"/></svg>
-                  <svg :class="['w-2.5 h-2.5 transition-colors', sortKey === col.key && sortDir === 'desc' ? 'text-gold-400' : 'text-gray-700']" viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6H0z"/></svg>
+                  <svg :class="['w-2.5 h-2.5 transition-colors', sortKey !== col.key || sortDir !== 'asc' ? 'text-gray-700' : '']"
+                       :style="sortKey === col.key && sortDir === 'asc' ? 'color: var(--accent-from)' : ''"
+                       viewBox="0 0 10 6" fill="currentColor"><path d="M0 6l5-6 5 6H0z"/></svg>
+                  <svg :class="['w-2.5 h-2.5 transition-colors', sortKey !== col.key || sortDir !== 'desc' ? 'text-gray-700' : '']"
+                       :style="sortKey === col.key && sortDir === 'desc' ? 'color: var(--accent-from)' : ''"
+                       viewBox="0 0 10 6" fill="currentColor"><path d="M0 0l5 6 5-6H0z"/></svg>
                 </span>
               </span>
             </th>
@@ -105,7 +109,8 @@
           v-for="p in pageNumbers" :key="p"
           @click="currentPage = p"
           :class="['w-7 h-7 rounded-lg text-xs font-medium transition-all duration-150',
-                   p === currentPage ? 'bg-gold-500/15 text-gold-400 border border-gold-500/25' : 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.07]']"
+                   p !== currentPage && 'text-gray-500 hover:text-gray-200 hover:bg-white/[0.07]']"
+          :style="p === currentPage ? 'background:rgb(var(--accent)/0.15);color:var(--accent-from);border:1px solid rgb(var(--accent)/0.25)' : ''"
         >{{ p }}</button>
         <button @click="currentPage++" :disabled="currentPage === totalPages" class="w-7 h-7 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/[0.07] disabled:opacity-30 disabled:cursor-not-allowed transition-all duration-150">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
