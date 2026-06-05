@@ -298,18 +298,21 @@ export default defineNitroPlugin(async () => {
 
   // ── 16. user_permissions table ───────────────────────────────────────────────
   //   One row per user. Stores the full permission blob as JSON.
+  //   NOTE: users.id is BIGINT UNSIGNED — user_id must match exactly.
+  //   No FK constraint (avoids type-mismatch failures on different MySQL/MariaDB
+  //   versions where the implicit type may differ from the declared schema).
   try {
     await db.query(`
       CREATE TABLE IF NOT EXISTS user_permissions (
-        user_id        INT UNSIGNED  NOT NULL PRIMARY KEY,
-        data_scope     VARCHAR(20)   NOT NULL DEFAULT 'branch'
-                         COMMENT 'all | branch | own',
-        allowed_branches JSON        NULL     COMMENT 'Array of branch slugs when scope=branch',
-        permissions    LONGTEXT      NOT NULL COMMENT 'JSON: {module_key:{enabled,pages:[],actions:{pg:{act:bool}}}}',
-        updated_by     INT UNSIGNED  NULL,
-        updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
-                         ON UPDATE CURRENT_TIMESTAMP,
-        CONSTRAINT fk_up_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        user_id          BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+        data_scope       VARCHAR(20)     NOT NULL DEFAULT 'branch'
+                           COMMENT 'all | branch | own',
+        allowed_branches LONGTEXT        NULL     COMMENT 'JSON array of branch slugs',
+        permissions      LONGTEXT        NOT NULL COMMENT 'JSON: {module_key:{enabled,pages:[],actions:{pg:{act:bool}}}}',
+        updated_by       BIGINT UNSIGNED NULL,
+        updated_at       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP
+                           ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_updated_at (updated_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
   } catch (e) {

@@ -23,8 +23,9 @@ export default defineEventHandler(async (event) => {
   const conn = await db.getConnection()
   try {
     // Load target user (this table always exists)
+    // NOTE: column is `last_login` (not `last_login_at`) per actual schema
     const [[user]] = await conn.query<any>(
-      `SELECT id, display_name, email, role, status, last_login_at FROM users WHERE id = ?`,
+      `SELECT id, display_name, email, role, status, last_login FROM users WHERE id = ?`,
       [targetId],
     )
     if (!user) throw createError({ statusCode: 404, statusMessage: 'User not found' })
@@ -56,7 +57,7 @@ export default defineEventHandler(async (event) => {
         email:      user.email,
         role:       user.role,
         status:     user.status,
-        last_login: user.last_login_at,
+        last_login: user.last_login,
       },
       data_scope,
       allowed_branches,
