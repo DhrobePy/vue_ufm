@@ -92,7 +92,12 @@ const ledger_get = defineEventHandler(async (event) => {
     ), []),
     safeQuery(() => query(
       `SELECT p.id, p.payment_date AS date,
-              CONCAT('Payment \u2014 ', p.payment_method) AS description,
+              CASE
+                WHEN p.payment_type = 'contra'           THEN CONCAT('Contra Offset \u2014 ', COALESCE(p.reference_number, p.payment_voucher_number))
+                WHEN p.payment_type = 'advance'          THEN CONCAT('Advance Payment \u2014 ', p.payment_voucher_number)
+                WHEN p.payment_type = 'against_delivery' THEN CONCAT('Delivery Expense \u2014 ', p.payment_voucher_number)
+                ELSE CONCAT('Payment \u2014 ', p.payment_method)
+              END AS description,
               COALESCE(p.payment_voucher_number, CONCAT('PMT-', p.id)) AS ref,
               0 AS credit,
               COALESCE(p.amount_paid, 0) AS debit

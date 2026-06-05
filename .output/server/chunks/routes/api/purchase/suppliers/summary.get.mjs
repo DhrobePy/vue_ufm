@@ -69,7 +69,7 @@ const summary_get = defineEventHandler(async (event) => {
         FROM purchase_payments_adnan p
         JOIN purchase_orders_adnan po2 ON p.purchase_order_id = po2.id
         WHERE po2.supplier_id = s.id
-          AND p.is_posted = 1
+          AND COALESCE(p.is_posted, 1) = 1   /* NULL = legacy payment (treat as posted); 0 = voided */
       ), 0) AS total_paid,
       ${adjDebitSub} AS total_adj_debit,
       ${adjCreditSub} AS total_adj_credit,
