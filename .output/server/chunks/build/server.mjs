@@ -718,7 +718,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$1X || {},
-    component: () => import('./settings-DXTBpLRj.mjs')
+    component: () => import('./settings-Cm-YgP8o.mjs')
   },
   {
     name: "bank-statement",
@@ -1348,7 +1348,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$i || {},
-    component: () => import('./invoice-2ffpWe8T.mjs')
+    component: () => import('./invoice-B3TRE4cu.mjs')
   },
   {
     name: "credit-sales-id-payment",
@@ -1402,7 +1402,7 @@ const _routes = [
     name: "purchase-orders-id-print",
     path: "/purchase/orders/:id()/print",
     meta: __nuxt_page_meta$9 || {},
-    component: () => import('./print-CaU4nZYQ.mjs')
+    component: () => import('./print-DUgXhBcA.mjs')
   },
   {
     name: "purchase-suppliers-summary",
