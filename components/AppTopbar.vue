@@ -325,8 +325,8 @@ async function loadNotifications() {
 
 onMounted(() => {
   loadNotifications()
-  // Poll every 30 s — fast enough to feel responsive without hammering the DB
-  const timer = setInterval(loadNotifications, 30_000)
+  // Poll every 90 s — reduced from 30 s to ease process pressure on shared hosting
+  const timer = setInterval(loadNotifications, 90_000)
   onUnmounted(() => clearInterval(timer))
 })
 

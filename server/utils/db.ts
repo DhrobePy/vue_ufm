@@ -12,14 +12,14 @@ export function getDb(): mysql.Pool {
       user:     config.dbUser     || 'root',
       password: config.dbPass     || '',
       waitForConnections: true,
-      connectionLimit:    30,         // was 10 — too few under concurrent 30 s polls
-      queueLimit:         100,        // queue up to 100 requests before rejecting (was 0 = unlimited — could stack forever)
+      connectionLimit:    5,          // shared hosting: keep process count low (was 30)
+      queueLimit:         50,         // queue waiting requests instead of spawning more connections
       connectTimeout:     10_000,     // 10 s — fail fast on DB unreachable
       charset:            'utf8mb4',
       timezone:           '+00:00',
       decimalNumbers:     true,
       enableKeepAlive:    true,       // prevents "Connection lost" after idle periods
-      keepAliveInitialDelay: 10_000,
+      keepAliveInitialDelay: 30_000,
     })
   }
   return pool
