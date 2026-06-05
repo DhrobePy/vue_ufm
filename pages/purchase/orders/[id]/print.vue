@@ -194,6 +194,88 @@
           </table>
         </div>
 
+        <!-- ═══ PAYMENT STATUS ══════════════════════════ -->
+        <div style="margin:0 40px 20px;padding:18px 20px;background:#eff6ff;border-radius:10px;border:1px solid #bfdbfe;">
+          <div style="font-size:9px;font-weight:800;color:#1e40af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Payment Status</div>
+
+          <!-- Summary row -->
+          <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;">
+            <div>
+              <div style="font-size:10px;color:#6b7280;">Total Billed</div>
+              <div style="font-size:15px;font-weight:800;color:#111;font-family:monospace;">৳{{ po.totalBilled.toLocaleString() }}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#6b7280;">Paid</div>
+              <div style="font-size:15px;font-weight:800;color:#16a34a;font-family:monospace;">৳{{ po.totalPaid.toLocaleString() }}</div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#6b7280;">Outstanding</div>
+              <div style="font-size:15px;font-weight:800;font-family:monospace;"
+                   :style="po.balanceDue > 0 ? 'color:#dc2626;' : 'color:#16a34a;'">
+                ৳{{ po.balanceDue.toLocaleString() }}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:10px;color:#6b7280;">Paid %</div>
+              <div style="font-size:15px;font-weight:800;color:#374151;font-family:monospace;">{{ paymentPct }}%</div>
+            </div>
+            <div style="margin-left:auto;display:flex;align-items:center;">
+              <span :style="`font-size:10px;font-weight:700;padding:4px 12px;border-radius:20px;` +
+                (po.paymentStatus === 'paid'    ? 'background:#dcfce7;color:#166534;border:1px solid #86efac;' :
+                 po.paymentStatus === 'partial' ? 'background:#fef3c7;color:#92400e;border:1px solid #fcd34d;' :
+                                                  'background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;')">
+                {{ po.paymentStatus.toUpperCase() }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Payment bar -->
+          <div style="height:6px;background:#dbeafe;border-radius:9999px;overflow:hidden;margin-bottom:12px;">
+            <div :style="`width:${paymentPct}%;height:100%;border-radius:9999px;` +
+              (paymentPct >= 100 ? 'background:#16a34a;' : paymentPct > 0 ? 'background:#3b82f6;' : 'background:transparent;')">
+            </div>
+          </div>
+
+          <!-- Payment history table (if any payments) -->
+          <template v-if="po.payments.length > 0">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr style="border-bottom:1px solid #bfdbfe;">
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Voucher</th>
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Date</th>
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Method</th>
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Reference</th>
+                  <th style="padding:4px 8px;text-align:right;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Amount (৳)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="pmt in po.payments" :key="pmt.id" style="border-bottom:1px solid #dbeafe;">
+                  <td style="padding:5px 8px;font-size:11px;font-family:monospace;color:#111;font-weight:600;">{{ pmt.voucherNo }}</td>
+                  <td style="padding:5px 8px;font-size:11px;color:#374151;">{{ pmt.date }}</td>
+                  <td style="padding:5px 8px;font-size:11px;color:#374151;text-transform:capitalize;">
+                    {{ pmt.method }}<span v-if="pmt.bank"> · {{ pmt.bank }}</span>
+                  </td>
+                  <td style="padding:5px 8px;font-size:11px;color:#6b7280;">{{ pmt.ref || '—' }}</td>
+                  <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;color:#16a34a;font-weight:700;">
+                    ৳{{ pmt.amount.toLocaleString() }}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot v-if="po.balanceDue > 0">
+                <tr style="border-top:2px solid #bfdbfe;background:#dbeafe;">
+                  <td colspan="4" style="padding:6px 8px;font-size:11px;font-weight:800;color:#1e40af;text-align:right;">Balance Outstanding</td>
+                  <td style="padding:6px 8px;font-size:13px;text-align:right;font-family:monospace;font-weight:900;color:#dc2626;">
+                    ৳{{ po.balanceDue.toLocaleString() }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </template>
+          <div v-else style="font-size:11px;color:#6b7280;text-align:center;padding:8px 0;">
+            No payments recorded yet.
+          </div>
+        </div>
+
         <!-- ═══ SIGNATURE STRIP ════════════════════════ -->
         <div style="margin:0 40px;padding:24px 0 0;border-top:1px solid #f0ede8;display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;">
           <div v-for="sig in ['Prepared By', 'Authorised By', 'Supplier Acceptance']" :key="sig" style="text-align:center;">
@@ -251,8 +333,9 @@ if (loadError.value || !(apiData.value as any)?.po) {
   throw createError({ statusCode: 404, message: 'Purchase order not found' })
 }
 
-const rawPo   = (apiData.value as any).po
-const rawGrns = ((apiData.value as any).grns ?? []) as any[]
+const rawPo       = (apiData.value as any).po
+const rawGrns     = ((apiData.value as any).grns     ?? []) as any[]
+const rawPayments = ((apiData.value as any).payments ?? []) as any[]
 
 // Map API fields → template-expected shape
 const po = computed(() => {
@@ -291,6 +374,20 @@ const po = computed(() => {
       qty:   +(Number(g.quantity_received_kg || 0) / 1000).toFixed(2),
       grade: g.grn_status === 'verified' || g.grn_status === 'posted' ? 'A' : '—',
     })).filter((g: any) => g.qty > 0),
+    payments: rawPayments.map((p: any) => ({
+      id:        p.id,
+      voucherNo: p.payment_voucher_number,
+      date:      p.payment_date,
+      amount:    Number(p.amount_paid || 0),
+      method:    p.payment_method ?? p.payment_mode ?? '—',
+      bank:      p.bank_name ?? '',
+      ref:       p.reference_number ?? '',
+    })),
+    // Billed = sum of GRN values (expected qty × price), falls back to PO total if no GRNs
+    totalBilled:  Number(rawPo.total_received_value || 0) || Number(rawPo.total_order_value || 0),
+    totalPaid:    Number(rawPo.total_paid || 0),
+    balanceDue:   Number(rawPo.balance_payable || 0),
+    paymentStatus: rawPo.payment_status ?? 'unpaid',
   }
 })
 
@@ -304,6 +401,11 @@ const statusStyle = computed(() => {
 
 const totalOrdered  = computed(() => po.value.items.reduce((s: number, i: any) => s + i.qty, 0))
 const totalReceived = computed(() => po.value.grns.reduce((s: number, g: any) => s + g.qty, 0))
+const paymentPct    = computed(() => {
+  const billed = po.value.totalBilled
+  if (!billed) return 0
+  return Math.min(100, Math.round((po.value.totalPaid / billed) * 100))
+})
 
 // Due date = expectedDelivery + paymentTerms days
 // paymentTerms can be 0 (COD) — in that case no due date applies
