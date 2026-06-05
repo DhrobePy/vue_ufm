@@ -1,0 +1,81 @@
+import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
+
+const ALLOWED_KEYS = ['tc_purchase_order', 'tc_credit_invoice'] as const
+
+/**
+ * PUT /api/settings/documents
+ * Saves T&C text for one or more document types.
+ * Admin / superadmin only.
+ *
+ * Body: { tc_purchase_order?: string, tc_credit_invoice?: string }
+ */
+export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  const userId  = session?.user?.id ?? 1
+  const role    = (session?.user?.role ?? '').toLowerCase()
+
+  if (!['admin', 'superadmin'].includes(role)) {
+    throw createError({ statusCode: 403, statusMessage: 'Only admin/superadmin can update document settings' })
+  }
+
+  const body = await readBody(event)
+  if (!body || typeof body !== 'object') {
+    throw createError({ statusCode: 400, statusMessage: 'Invalid body' })
+  }
+
+  const db   = getDb()
+  const conn = await db.getConnection()
+  try {
+    await conn.beginTransaction()
+
+    // Auto-create table if it doesn't exist
+    await conn.query(`
+      CREATE TABLE IF NOT EXISTS system_settings (
+        setting_key   VARCHAR(120) NOT NULL PRIMARY KEY,
+        setting_value MEDIUMTEXT,
+        updated_by    INT          DEFAULT NULL,
+        updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+
+    const updated: string[] = []
+
+    for (const key of ALLOWED_KEYS) {
+      if (key in body && typeof body[key] === 'string') {
+        await conn.query(
+          `INSERT INTO system_settings (setting_key, setting_value, updated_by)
+           VALUES (?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             setting_value = VALUES(setting_value),
+             updated_by    = VALUES(updated_by),
+             updated_at    = NOW()`,
+          [key, body[key], userId],
+        )
+        updated.push(key)
+      }
+    }
+
+    if (updated.length === 0) {
+      throw createError({ statusCode: 400, statusMessage: 'No valid settings keys provided' })
+    }
+
+    await auditLog(conn, {
+      userId,
+      action:      'settings_updated',
+      module:      'admin',
+      recordType:  'system_settings',
+      recordId:    0,
+      description: `Document T&C updated by ${role}: ${updated.join(', ')}`,
+      severity:    'info',
+    })
+
+    await conn.commit()
+    return { ok: true, updated }
+  } catch (e) {
+    await conn.rollback()
+    throw e
+  } finally {
+    conn.release()
+  }
+})

@@ -151,6 +151,44 @@
           </div>
         </div>
 
+        <!-- Documents -->
+        <div v-if="activeTab === 'documents'" class="space-y-5">
+          <div class="glass-card p-6 space-y-6">
+            <h3 class="section-title">Document Terms &amp; Conditions</h3>
+            <p class="text-xs text-gray-500">Customize the T&amp;C text printed on vouchers. Enter one clause per line — each line becomes a bullet point on the document.</p>
+
+            <!-- Purchase Order T&C -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Purchase Order T&amp;C</label>
+              <p class="text-[11px] text-gray-600">Printed in the Terms &amp; Conditions box of every PO receipt.</p>
+              <textarea v-model="docSettings.tc_purchase_order" rows="7"
+                class="input-glass resize-y font-mono text-xs leading-relaxed"
+                placeholder="One clause per line…" />
+            </div>
+
+            <!-- Credit Invoice T&C -->
+            <div class="space-y-2">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Credit Sales Invoice T&amp;C</label>
+              <p class="text-[11px] text-gray-600">Printed in the Notes &amp; Terms section of every credit sales invoice.</p>
+              <textarea v-model="docSettings.tc_credit_invoice" rows="7"
+                class="input-glass resize-y font-mono text-xs leading-relaxed"
+                placeholder="One clause per line…" />
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+              <button @click="resetDocSettings" class="btn-ghost text-xs">Reset to Defaults</button>
+              <button @click="saveDocSettings" :disabled="docSaving"
+                class="btn-gold text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100">
+                <svg v-if="docSaving" class="w-3.5 h-3.5 animate-spin inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke-opacity=".25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+                </svg>
+                {{ docSaving ? 'Saving…' : 'Save Document Settings' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Notifications -->
         <div v-if="activeTab === 'notifications'" class="space-y-5">
           <div class="glass-card p-6 space-y-4">
@@ -284,7 +322,56 @@
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 
-// Seed state
+// ── Document T&C settings ────────────────────────────────────────────────────
+const TC_DEFAULTS = {
+  tc_purchase_order: [
+    'Goods must conform to specified quality standards upon delivery.',
+    'Moisture content must not exceed 13% for wheat.',
+    'Supplier must provide phytosanitary certificate for imported wheat.',
+    'Payment terms as stated above from GRN acceptance.',
+    'Any short delivery must be notified before unloading.',
+    'Subject to Sirajgonj jurisdiction.',
+  ].join('\n'),
+  tc_credit_invoice: [
+    'Payment due within 30 days of invoice date.',
+    'Goods once sold cannot be returned without prior written approval.',
+    'Interest @ 2% per month charged on overdue balances.',
+    'All disputes subject to Sirajgonj jurisdiction.',
+    'This invoice is valid only with authorised company stamp.',
+  ].join('\n'),
+}
+
+const { data: docData } = await useFetch('/api/settings/documents')
+const docSettings = reactive({
+  tc_purchase_order: (docData.value as any)?.settings?.tc_purchase_order ?? TC_DEFAULTS.tc_purchase_order,
+  tc_credit_invoice: (docData.value as any)?.settings?.tc_credit_invoice ?? TC_DEFAULTS.tc_credit_invoice,
+})
+const docSaving = ref(false)
+
+function resetDocSettings() {
+  docSettings.tc_purchase_order = TC_DEFAULTS.tc_purchase_order
+  docSettings.tc_credit_invoice = TC_DEFAULTS.tc_credit_invoice
+}
+
+async function saveDocSettings() {
+  docSaving.value = true
+  try {
+    await $fetch('/api/settings/documents', {
+      method: 'PUT',
+      body: {
+        tc_purchase_order: docSettings.tc_purchase_order,
+        tc_credit_invoice: docSettings.tc_credit_invoice,
+      },
+    })
+    success('Document T&C settings saved successfully')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save document settings')
+  } finally {
+    docSaving.value = false
+  }
+}
+
+// ── Seed state ───────────────────────────────────────────────────────────────
 const seeding    = ref(false)
 const seedReport = ref<any>(null)
 const seedSummary = ref('')
@@ -311,6 +398,7 @@ const tabs = [
   { id: 'branches',      icon: '📍', label: 'Branches' },
   { id: 'finance',       icon: '💰', label: 'Finance' },
   { id: 'orders',        icon: '📋', label: 'Orders' },
+  { id: 'documents',     icon: '📄', label: 'Documents' },
   { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'security',      icon: '🔒', label: 'Security' },
   { id: 'maintenance',   icon: '🔧', label: 'Maintenance' },

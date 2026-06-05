@@ -13,10 +13,46 @@
         <span style="font-size:13px;color:#d1d5db;font-weight:600;">{{ po.poNo }}</span>
         <span style="font-size:11px;color:#6b7280;margin-left:8px;">Purchase Order Preview</span>
       </div>
+      <!-- Admin: edit T&C toggle -->
+      <button v-if="isAdmin" @click="tcEditorOpen = !tcEditorOpen"
+        :style="`display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:10px;font-size:12px;font-weight:600;border:none;cursor:pointer;transition:all .15s;${tcEditorOpen?'background:rgba(245,158,11,0.15);color:#f59e0b;':'background:rgba(255,255,255,0.07);color:#9ca3af;'}`">
+        ✏️ Edit T&amp;C
+      </button>
       <button onclick="window.print()"
         style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:10px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-size:12px;font-weight:700;border:none;cursor:pointer;">
         🖨️ Print / Save PDF
       </button>
+    </div>
+
+    <!-- ── T&C Editor panel (admin only, screen only) ────── -->
+    <div v-if="isAdmin && tcEditorOpen" class="no-print"
+         style="background:rgba(20,16,10,0.97);border-bottom:1px solid rgba(245,158,11,0.2);padding:16px 24px;">
+      <div style="max-width:794px;margin:0 auto;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div>
+            <span style="font-size:13px;font-weight:700;color:#f59e0b;">Purchase Order — Terms &amp; Conditions</span>
+            <span style="font-size:11px;color:#6b7280;margin-left:8px;">One clause per line · changes apply to all future prints</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button @click="resetTC"
+              style="padding:6px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:#9ca3af;font-size:11px;cursor:pointer;">
+              Reset to Default
+            </button>
+            <button @click="saveTC" :disabled="tcSaving"
+              style="padding:6px 14px;border-radius:8px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;font-size:11px;font-weight:700;border:none;cursor:pointer;">
+              {{ tcSaving ? 'Saving…' : '✓ Save T&C' }}
+            </button>
+          </div>
+        </div>
+        <textarea v-model="tcDraft" rows="7"
+          style="width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(245,158,11,0.2);border-radius:10px;color:#e5e7eb;font-size:12px;line-height:1.7;padding:12px 14px;resize:vertical;font-family:'Inter',sans-serif;outline:none;"
+          placeholder="One clause per line…"
+        />
+        <p v-if="tcSaveMsg" style="font-size:11px;margin-top:6px;"
+           :style="tcSaveMsg.startsWith('✓') ? 'color:#4ade80;' : 'color:#f87171;'">
+          {{ tcSaveMsg }}
+        </p>
+      </div>
     </div>
 
     <!-- ── A4 Paper ──────────────────────────────────────── -->
@@ -127,12 +163,7 @@
               <div v-if="po.notes" style="margin-bottom:8px;font-style:italic;color:#374151;padding:8px 10px;background:#faf8f5;border-radius:6px;border-left:3px solid #f59e0b;">
                 📝 {{ po.notes }}
               </div>
-              <div>• Goods must conform to specified quality standards upon delivery.</div>
-              <div>• Moisture content must not exceed 13% for wheat.</div>
-              <div>• Supplier must provide phytosanitary certificate for imported wheat.</div>
-              <div>• Payment terms: {{ po.paymentTermsLabel }} from GRN acceptance.</div>
-              <div>• Any short delivery must be notified before unloading.</div>
-              <div>• Subject to Sirajgonj jurisdiction.</div>
+              <div v-for="(clause, ci) in tcClauses" :key="ci">• {{ clause }}</div>
             </div>
           </div>
           <!-- Totals block -->
@@ -326,8 +357,11 @@ const route = useRoute()
 
 const id = Number(route.params.id)
 
-// Load from real API
-const { data: apiData, error: loadError } = await useFetch(`/api/purchase/orders/${id}`)
+// Load PO data and document settings in parallel
+const [{ data: apiData, error: loadError }, { data: settingsData }] = await Promise.all([
+  useFetch(`/api/purchase/orders/${id}`),
+  useFetch('/api/settings/documents'),
+])
 
 if (loadError.value || !(apiData.value as any)?.po) {
   throw createError({ statusCode: 404, message: 'Purchase order not found' })
@@ -423,7 +457,54 @@ const generatedAt = new Date().toLocaleString('en-BD', {
   hour: '2-digit', minute: '2-digit',
 })
 
+// ── Role & T&C editor ────────────────────────────────────────────────────────
+const { user: sessionUser } = useUserSession()
+const isAdmin = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
+
+const TC_DEFAULT = [
+  'Goods must conform to specified quality standards upon delivery.',
+  'Moisture content must not exceed 13% for wheat.',
+  'Supplier must provide phytosanitary certificate for imported wheat.',
+  'Payment terms as stated above from GRN acceptance.',
+  'Any short delivery must be notified before unloading.',
+  'Subject to Sirajgonj jurisdiction.',
+].join('\n')
+
+// Stored T&C from API (falls back to default)
+const storedTC  = computed(() => (settingsData.value as any)?.settings?.tc_purchase_order ?? TC_DEFAULT)
+const tcDraft   = ref('')        // editor draft (populated on mount)
+const tcLive    = ref('')        // what's actually rendered in the document
+const tcEditorOpen = ref(false)
+const tcSaving  = ref(false)
+const tcSaveMsg = ref('')
+
+// Clauses rendered in the document = one line per bullet
+const tcClauses = computed(() => tcLive.value.split('\n').map(l => l.trim()).filter(Boolean))
+
+function resetTC() {
+  tcDraft.value = TC_DEFAULT
+}
+
+async function saveTC() {
+  tcSaving.value = true
+  tcSaveMsg.value = ''
+  try {
+    await $fetch('/api/settings/documents', {
+      method: 'PUT',
+      body: { tc_purchase_order: tcDraft.value },
+    })
+    tcLive.value   = tcDraft.value
+    tcSaveMsg.value = '✓ Saved — changes will appear in all future prints'
+  } catch (e: any) {
+    tcSaveMsg.value = '✗ ' + (e?.data?.statusMessage ?? 'Failed to save')
+  } finally {
+    tcSaving.value = false
+  }
+}
+
 onMounted(() => {
+  tcLive.value  = storedTC.value
+  tcDraft.value = storedTC.value
   if (useRoute().query.print === '1') setTimeout(() => window.print(), 600)
 })
 </script>
