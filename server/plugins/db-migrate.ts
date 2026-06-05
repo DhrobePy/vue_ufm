@@ -296,5 +296,25 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] order_deletion_log create failed:', e)
   }
 
+  // ── 16. user_permissions table ───────────────────────────────────────────────
+  //   One row per user. Stores the full permission blob as JSON.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_permissions (
+        user_id        INT UNSIGNED  NOT NULL PRIMARY KEY,
+        data_scope     VARCHAR(20)   NOT NULL DEFAULT 'branch'
+                         COMMENT 'all | branch | own',
+        allowed_branches JSON        NULL     COMMENT 'Array of branch slugs when scope=branch',
+        permissions    LONGTEXT      NOT NULL COMMENT 'JSON: {module_key:{enabled,pages:[],actions:{pg:{act:bool}}}}',
+        updated_by     INT UNSIGNED  NULL,
+        updated_at     DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP
+                         ON UPDATE CURRENT_TIMESTAMP,
+        CONSTRAINT fk_up_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] user_permissions create failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })
