@@ -2,6 +2,9 @@
  * GET /api/admin/users/:id/permissions
  * Returns saved permission config for a user, or role-based defaults if none saved yet.
  * Admin / superadmin only.
+ *
+ * Gracefully handles the case where user_permissions table doesn't exist yet
+ * (returns empty defaults) so the page never shows a hard error on first deploy.
  */
 import { getDb } from '~/server/utils/db'
 
@@ -19,30 +22,31 @@ export default defineEventHandler(async (event) => {
   const db   = getDb()
   const conn = await db.getConnection()
   try {
-    // Load target user
+    // Load target user (this table always exists)
     const [[user]] = await conn.query<any>(
       `SELECT id, display_name, email, role, status, last_login_at FROM users WHERE id = ?`,
       [targetId],
     )
     if (!user) throw createError({ statusCode: 404, statusMessage: 'User not found' })
 
-    // Load saved permissions (if any)
-    const [[saved]] = await conn.query<any>(
-      `SELECT data_scope, allowed_branches, permissions FROM user_permissions WHERE user_id = ?`,
-      [targetId],
-    )
-
-    let data_scope       = saved?.data_scope       ?? 'branch'
-    let allowed_branches: string[] = []
+    // Load saved permissions — wrapped in try/catch so a missing table
+    // (before first server restart after db-migrate) returns clean defaults.
+    let data_scope       = user.role === 'superadmin' || user.role === 'admin' ? 'all' : 'branch'
+    let allowed_branches: string[] = ['srg']
     let permissions: Record<string, any> = {}
 
-    if (saved) {
-      try { allowed_branches = JSON.parse(saved.allowed_branches ?? '[]') ?? [] } catch { allowed_branches = [] }
-      try { permissions      = JSON.parse(saved.permissions      ?? '{}') ?? {} } catch { permissions = {} }
-    } else {
-      // Role-based defaults: give managers a sensible starting set
-      data_scope = user.role === 'superadmin' || user.role === 'admin' ? 'all' : 'branch'
-      allowed_branches = ['srg']
+    try {
+      const [[saved]] = await conn.query<any>(
+        `SELECT data_scope, allowed_branches, permissions FROM user_permissions WHERE user_id = ?`,
+        [targetId],
+      )
+      if (saved) {
+        data_scope = saved.data_scope ?? data_scope
+        try { allowed_branches = JSON.parse(saved.allowed_branches ?? '[]') ?? [] } catch { /* keep default */ }
+        try { permissions      = JSON.parse(saved.permissions      ?? '{}') ?? {} } catch { /* keep default */ }
+      }
+    } catch {
+      // Table may not exist yet on first deploy — return defaults silently
     }
 
     return {
