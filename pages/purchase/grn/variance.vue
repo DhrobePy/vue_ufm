@@ -115,6 +115,14 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
+const { user: sessionUser } = useUserSession()
+const isAdmin = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
+
+// Redirect non-admin users
+onMounted(() => {
+  if (!isAdmin.value) navigateTo('/purchase/grn')
+})
+
 const search     = ref('')
 const typeFilter = ref('')
 

@@ -83,7 +83,7 @@
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
               <div>{{ po.supplierAddress }}</div>
               <div>📞 {{ po.supplierPhone }}</div>
-              <div style="margin-top:6px;">Payment Terms: <span style="font-weight:700;color:#374151;">Net {{ po.paymentTerms }} days</span></div>
+              <div style="margin-top:6px;">Payment Terms: <span style="font-weight:700;color:#374151;">{{ po.paymentTermsLabel }}</span></div>
             </div>
           </div>
         </div>
@@ -130,7 +130,7 @@
               <div>• Goods must conform to specified quality standards upon delivery.</div>
               <div>• Moisture content must not exceed 13% for wheat.</div>
               <div>• Supplier must provide phytosanitary certificate for imported wheat.</div>
-              <div>• Payment within {{ po.paymentTerms }} days of GRN acceptance.</div>
+              <div>• Payment terms: {{ po.paymentTermsLabel }} from GRN acceptance.</div>
               <div>• Any short delivery must be notified before unloading.</div>
               <div>• Subject to Sirajgonj jurisdiction.</div>
             </div>
@@ -153,8 +153,8 @@
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:linear-gradient(135deg,#fef3c7,#fef9ee);border-radius:8px;border:1px solid #fcd34d;">
               <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">PAYMENT TERMS</div>
-              <div style="font-size:12px;font-weight:700;color:#b45309;">Net {{ po.paymentTerms }} days after delivery</div>
-              <div style="font-size:10px;color:#b45309;opacity:0.8;margin-top:2px;">Due by: {{ dueDate }}</div>
+              <div style="font-size:12px;font-weight:700;color:#b45309;">{{ po.paymentTermsLabel }} after delivery</div>
+              <div v-if="dueDate !== '—'" style="font-size:10px;color:#b45309;opacity:0.8;margin-top:2px;">Due by: {{ dueDate }}</div>
             </div>
           </div>
         </div>
@@ -258,7 +258,11 @@ const rawGrns = ((apiData.value as any).grns ?? []) as any[]
 const po = computed(() => {
   const qtyMT        = Number(rawPo.quantity_kg || 0) / 1000
   const pricePerMT   = Number(rawPo.unit_price_per_kg || 0) * 1000
-  const paymentTerms = Number(rawPo.supplier_payment_terms ?? rawPo.payment_terms ?? 30)
+  // payment_terms may be a non-numeric string like 'COD' or 'Net 30' — guard carefully
+  const rawTermsStr      = String(rawPo.supplier_payment_terms ?? rawPo.payment_terms ?? '')
+  const termsParsed      = parseInt(rawTermsStr, 10)
+  const paymentTerms     = Number.isNaN(termsParsed) ? 0 : termsParsed
+  const paymentTermsLabel = paymentTerms > 0 ? `Net ${paymentTerms} days` : (rawTermsStr || 'COD')
   return {
     poNo:             rawPo.po_number ?? `PO-${id}`,
     poDate:           rawPo.po_date   ?? '',
@@ -270,6 +274,7 @@ const po = computed(() => {
     expectedDelivery: rawPo.expected_delivery_date ?? '—',
     deliveryTo:       rawPo.branch_name ?? rawPo.unload_point_name ?? 'Sirajgonj Mill',
     paymentTerms,
+    paymentTermsLabel,
     origin:           rawPo.wheat_origin ?? '—',
     notes:            rawPo.remarks ?? '',
     totalAmount:      Number(rawPo.total_order_value || 0),
@@ -301,10 +306,13 @@ const totalOrdered  = computed(() => po.value.items.reduce((s: number, i: any) =
 const totalReceived = computed(() => po.value.grns.reduce((s: number, g: any) => s + g.qty, 0))
 
 // Due date = expectedDelivery + paymentTerms days
+// paymentTerms can be 0 (COD) — in that case no due date applies
 const dueDate = computed(() => {
+  if (!po.value.paymentTerms) return '—'
   const d = new Date(po.value.expectedDelivery)
   if (isNaN(d.getTime())) return '—'
   d.setDate(d.getDate() + po.value.paymentTerms)
+  if (isNaN(d.getTime())) return '—'
   return d.toISOString().split('T')[0]
 })
 

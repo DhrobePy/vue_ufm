@@ -6,9 +6,11 @@ export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid GRN ID' })
 
-  const body = await readBody(event)
+  const body    = await readBody(event)
   const session = await getUserSession(event)
   const userId  = session?.user?.id ?? 1
+  const role    = (session?.user?.role ?? '').toLowerCase()
+  const isAdmin = ['admin', 'superadmin'].includes(role)
 
   const {
     grn_date,
@@ -35,14 +37,16 @@ export default defineEventHandler(async (event) => {
       [id],
     )
     if (!grn) throw createError({ statusCode: 404, statusMessage: 'GRN not found' })
-    if (grn.grn_status === 'cancelled') {
+    if (grn.grn_status === 'cancelled' && !isAdmin) {
       throw createError({ statusCode: 400, statusMessage: 'Cannot edit a cancelled GRN' })
     }
 
     const newQtyKg    = Number(quantity_received_kg ?? grn.old_qty)
     const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(grn.unit_price_per_kg)
-    const totalValue  = newQtyKg * unitPrice
+    // Payment is based on EXPECTED (billed) quantity, not actual weighed quantity.
+    const billedQty   = expectedKg > 0 ? expectedKg : newQtyKg
+    const totalValue  = billedQty * unitPrice
 
     // Variance vs expected_quantity (if provided)
     const varPct = expectedKg > 0

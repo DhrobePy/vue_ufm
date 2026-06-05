@@ -17,7 +17,10 @@
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Wheat Origin</label>
-          <input v-model="form.origin" class="input-glass" placeholder="e.g. Ukraine, Australia…" />
+          <select v-model="form.origin" class="input-glass">
+            <option value="">Select origin…</option>
+            <option v-for="o in wheatOrigins" :key="o" :value="o">{{ o }}</option>
+          </select>
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Expected Delivery</label>
@@ -65,6 +68,8 @@ const form = reactive({
 })
 
 const submitting = ref(false)
+
+const wheatOrigins = ['কানাডা', 'রাশিয়া', 'Australia', 'Ukraine', 'India', 'Local', 'Brazil', 'Other']
 
 // Load real suppliers
 const { data: supData } = await useFetch('/api/suppliers', { query: { per: 200 } })

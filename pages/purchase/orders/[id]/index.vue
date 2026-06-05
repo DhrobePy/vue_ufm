@@ -172,22 +172,37 @@
             <NuxtLink :to="`/purchase/adjustments/create?po_id=${route.params.id}`" class="btn-ghost text-xs w-full justify-start gap-2">
               📋 Adjustment Note (DAN/CAN)
             </NuxtLink>
-            <button v-if="po.delivery_status !== 'closed' && po.po_status !== 'cancelled'"
-              @click="closePO" :disabled="actionBusy"
+            <!-- Close / Reopen — always visible for admin; status-gated for others -->
+            <button v-if="isAdmin || (po.delivery_status !== 'closed' && po.po_status !== 'cancelled')"
+              @click="closePO" :disabled="!!actionBusy"
               class="btn-ghost text-xs w-full justify-start gap-2 text-yellow-400 hover:border-yellow-500/30">
               🔒 {{ actionBusy === 'close' ? 'Closing…' : 'Close Delivery' }}
             </button>
-            <button v-if="po.delivery_status === 'closed'"
-              @click="reopenPO" :disabled="actionBusy"
+            <button v-if="isAdmin || po.delivery_status === 'closed'"
+              @click="reopenPO" :disabled="!!actionBusy"
               class="btn-ghost text-xs w-full justify-start gap-2 text-emerald-400 hover:border-emerald-500/30">
               🔓 {{ actionBusy === 'reopen' ? 'Reopening…' : 'Reopen Delivery' }}
             </button>
-            <button v-if="po.po_status !== 'cancelled'"
-              @click="cancelPO" :disabled="actionBusy"
+            <button v-if="po.po_status !== 'cancelled' || isAdmin"
+              @click="cancelPO" :disabled="!!actionBusy"
               class="btn-ghost text-xs w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:border-red-500/30">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 5.636l-12.728 12.728"/><path stroke-linecap="round" stroke-linejoin="round" d="M5.636 5.636l12.728 12.728"/></svg>
               {{ actionBusy === 'cancel' ? 'Cancelling…' : 'Cancel PO' }}
             </button>
+
+            <!-- Admin-only: Reverse PO (cancels all GRNs + voids all payments) -->
+            <template v-if="isAdmin">
+              <div class="h-px bg-white/[0.06] my-1" />
+              <p class="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-1">Admin Override</p>
+              <button @click="reversePO" :disabled="!!actionBusy"
+                class="btn-ghost text-xs w-full justify-start gap-2 text-orange-400 hover:text-orange-300 hover:border-orange-500/30">
+                ↩ {{ actionBusy === 'reverse' ? 'Reversing…' : 'Reverse PO (Cancel all GRNs & Payments)' }}
+              </button>
+              <button @click="hardDeletePO" :disabled="!!actionBusy"
+                class="btn-ghost text-xs w-full justify-start gap-2 text-red-500 hover:text-red-400 hover:border-red-600/30">
+                🗑 {{ actionBusy === 'hardDelete' ? 'Deleting…' : 'Permanently Delete PO' }}
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -201,6 +216,9 @@ const route  = useRoute()
 const { success, error: toastError } = useToast()
 const actionBusy = ref<string | false>(false)
 
+const { user: sessionUser } = useUserSession()
+const isAdmin = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
+
 const { data, pending, error, refresh } = await useFetch(
   () => `/api/purchase/orders/${route.params.id}`,
 )
@@ -209,9 +227,11 @@ const po       = computed(() => (data.value?.po       ?? {}) as any)
 const grns     = computed(() => (data.value?.grns     ?? []) as any[])
 const payments = computed(() => (data.value?.payments ?? []) as any[])
 
-const outstanding   = computed(() => Math.max(0, Number(po.value.total_order_value ?? 0) - Number(po.value.total_paid ?? 0)))
+// Use balance_payable (recalculated on expected-received qty) — not PO face value minus paid
+const outstanding   = computed(() => Math.max(0, Number(po.value.balance_payable ?? 0)))
 const paidPct       = computed(() => {
-  const total = Number(po.value.total_order_value ?? 0)
+  // Use total_received_value (expected-based) for the payment percentage bar
+  const total = Number(po.value.total_received_value || po.value.total_order_value || 0)
   if (!total) return 0
   return Math.min(100, Math.round((Number(po.value.total_paid ?? 0) / total) * 100))
 })
@@ -254,5 +274,26 @@ async function cancelPO() {
     success('PO cancelled')
     await refresh()
   } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
+}
+
+async function reversePO() {
+  if (!confirm(`REVERSE PO ${po.value.po_number}?\n\nThis will:\n• Cancel ALL GRNs\n• Void ALL payments\n• Reset PO to cancelled state\n\nThis cannot be undone easily. Proceed?`)) return
+  actionBusy.value = 'reverse'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'reverse' } })
+    success('PO fully reversed — all GRNs cancelled and payments voided')
+    await refresh()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed to reverse PO') } finally { actionBusy.value = false }
+}
+
+async function hardDeletePO() {
+  if (!confirm(`PERMANENTLY DELETE PO ${po.value.po_number}?\n\nThis will remove:\n• All GRN records\n• All payment records\n• The purchase order itself\n\nThis is IRREVERSIBLE. Are you absolutely sure?`)) return
+  if (!confirm(`Final confirmation: permanently delete PO ${po.value.po_number} and all its data?`)) return
+  actionBusy.value = 'hardDelete'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}`, { method: 'DELETE', body: { force: true } })
+    success('PO permanently deleted')
+    navigateTo('/purchase/orders')
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed to delete PO') } finally { actionBusy.value = false }
 }
 </script>

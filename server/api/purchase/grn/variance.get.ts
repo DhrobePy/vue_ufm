@@ -1,6 +1,12 @@
 import { query } from '~/server/utils/db'
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  const role    = (session?.user?.role ?? '').toLowerCase()
+  if (!['admin', 'superadmin'].includes(role)) {
+    throw createError({ statusCode: 403, statusMessage: 'Access denied — admin/superadmin only' })
+  }
+
   const rows = await query(
     `SELECT
        g.id,

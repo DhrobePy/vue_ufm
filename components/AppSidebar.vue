@@ -103,7 +103,7 @@
         <SidebarNavItem label="All POs"         route="/purchase/orders"            :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
         <SidebarNavItem label="Goods Received"  route="/purchase/grn"               :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Variance Report" route="/purchase/grn/variance"      :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="isAdminUser" label="Variance Report" route="/purchase/grn/variance" :collapsed="collapsed" icon-type="chart" sub />
         <SidebarNavItem label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
@@ -266,6 +266,9 @@ const initials = computed(() => {
   const name = sessionUser.value?.name || 'U'
   return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
 })
+const isAdminUser = computed(() =>
+  ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase())
+)
 </script>
 
 <style scoped>

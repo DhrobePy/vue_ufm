@@ -40,7 +40,10 @@ export default defineEventHandler(async (event) => {
     const receivedKg  = Number(quantity_received_kg)
     const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(po.unit_price_per_kg)
-    const totalValue  = receivedKg * unitPrice
+    // Payment is based on EXPECTED (billed) quantity, not actual weighed quantity.
+    // If no expected_quantity is provided, fall back to actual received.
+    const billedQty   = expectedKg > 0 ? expectedKg : receivedKg
+    const totalValue  = billedQty * unitPrice
 
     // Variance vs expected_quantity (if provided) else vs PO ordered qty
     const baseQty     = expectedKg > 0 ? expectedKg : Number(po.quantity_kg)
@@ -98,7 +101,7 @@ export default defineEventHandler(async (event) => {
       recordType:      'grn',
       recordId:        grnId,
       referenceNumber: grnNo,
-      description:     `GRN ${grnNo} recorded: ${po.supplier_name} · PO ${po.po_number} · Received ${receivedKg.toLocaleString()} KG · ৳${totalValue.toLocaleString()}${varianceNote}`,
+      description:     `GRN ${grnNo} recorded: ${po.supplier_name} · PO ${po.po_number} · Received ${receivedKg.toLocaleString()} KG · Billed ${billedQty.toLocaleString()} KG · ৳${totalValue.toLocaleString()}${varianceNote}`,
       severity:        Math.abs(Number(varPct)) > 1 ? 'warning' : 'info',
     })
 

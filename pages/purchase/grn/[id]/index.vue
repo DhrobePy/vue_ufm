@@ -76,21 +76,21 @@
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-white/[0.05]">
-                  <!-- Expected Quantity row -->
-                  <tr v-if="Number(grn.expected_quantity) > 0">
-                    <td class="px-4 py-3 text-gray-400">Expected Quantity</td>
+                  <!-- Expected Quantity row — admin only (variance tracking) -->
+                  <tr v-if="isAdmin && Number(grn.expected_quantity) > 0">
+                    <td class="px-4 py-3 text-gray-400">Expected (Billed) Quantity</td>
                     <td class="px-4 py-3 text-right font-mono text-purple-400">{{ Number(grn.expected_quantity).toLocaleString() }}</td>
                     <td class="px-4 py-3 text-right font-mono text-purple-400">৳{{ expectedValue.toLocaleString(undefined, { maximumFractionDigits: 0 }) }}</td>
                   </tr>
                   <!-- Actual Received -->
                   <tr>
-                    <td class="px-4 py-3 text-gray-200 font-semibold">Actual Quantity Received</td>
+                    <td class="px-4 py-3 text-gray-200 font-semibold">Quantity Received</td>
                     <td class="px-4 py-3 text-right font-mono text-emerald-400 font-semibold">{{ Number(grn.quantity_received_kg).toLocaleString() }}</td>
                     <td class="px-4 py-3 text-right font-mono text-emerald-400 font-semibold">৳{{ Number(grn.total_value).toLocaleString(undefined, { maximumFractionDigits: 0 }) }}</td>
                   </tr>
-                  <!-- Variance -->
-                  <tr v-if="Number(grn.expected_quantity) > 0">
-                    <td class="px-4 py-3 font-semibold" :class="varianceColor">Variance (Quantity)</td>
+                  <!-- Variance — admin only -->
+                  <tr v-if="isAdmin && Number(grn.expected_quantity) > 0">
+                    <td class="px-4 py-3 font-semibold" :class="varianceColor">Variance (Billed vs Received)</td>
                     <td class="px-4 py-3 text-right font-mono font-semibold" :class="varianceColor">
                       {{ varianceKg > 0 ? '+' : '' }}{{ varianceKg.toLocaleString(undefined, { maximumFractionDigits: 2 }) }}
                       <span class="text-[10px] ml-1">({{ varianceKg > 0 ? '+' : '' }}{{ variancePct.toFixed(2) }}%)</span>
@@ -99,18 +99,18 @@
                       {{ varianceKg > 0 ? '+' : '' }}৳{{ (varianceKg * Number(grn.unit_price_per_kg || grn.po_unit_price || 0)).toLocaleString(undefined, { maximumFractionDigits: 0 }) }}
                     </td>
                   </tr>
-                  <!-- Expected Payable -->
-                  <tr v-if="Number(grn.expected_quantity) > 0" class="bg-purple-500/[0.06] border-t-2 border-purple-500/20">
-                    <td class="px-4 py-3 font-bold text-gray-200 uppercase text-xs tracking-wider">EXPECTED PAYABLE</td>
-                    <td class="px-4 py-3 text-right font-mono font-semibold text-gray-300">{{ Number(grn.expected_quantity).toLocaleString() }} KG</td>
-                    <td class="px-4 py-3 text-right font-mono font-bold text-purple-400">৳{{ expectedValue.toLocaleString(undefined, { maximumFractionDigits: 0 }) }}</td>
+                  <!-- Billed Amount row (for everyone) -->
+                  <tr class="bg-gold-500/[0.04] border-t-2 border-gold-500/20">
+                    <td class="px-4 py-3 font-bold text-gray-200 uppercase text-xs tracking-wider">BILLED AMOUNT</td>
+                    <td class="px-4 py-3 text-right font-mono font-semibold text-gray-300">{{ Number(grn.expected_quantity || grn.quantity_received_kg).toLocaleString() }} KG</td>
+                    <td class="px-4 py-3 text-right font-mono font-bold text-gold-400">৳{{ expectedValue.toLocaleString(undefined, { maximumFractionDigits: 0 }) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
 
-            <!-- Variance remarks -->
-            <div v-if="grn.variance_remarks" class="text-xs border-t border-white/[0.06] pt-3">
+            <!-- Variance remarks — admin only -->
+            <div v-if="isAdmin && grn.variance_remarks" class="text-xs border-t border-white/[0.06] pt-3">
               <span class="font-semibold text-gray-500">Variance Remarks: </span>
               <span class="text-gray-400">{{ grn.variance_remarks }}</span>
             </div>
@@ -123,20 +123,20 @@
 
         <!-- Right Panel -->
         <div class="space-y-5">
-          <!-- EXPECTED PAYABLE box -->
+          <!-- BILLED AMOUNT box -->
           <div class="glass-card p-5 border border-gold-500/20 bg-gold-500/[0.03]">
-            <p class="text-xs text-gray-500 mb-1">EXPECTED PAYABLE (Amount Due)</p>
+            <p class="text-xs text-gray-500 mb-1">BILLED AMOUNT (Amount Due)</p>
             <p class="text-2xl font-bold text-gold-400 font-mono">
-              ৳{{ (Number(grn.expected_quantity) > 0 ? expectedValue : Number(grn.total_value)).toLocaleString(undefined, { maximumFractionDigits: 0 }) }}
+              ৳{{ expectedValue.toLocaleString(undefined, { maximumFractionDigits: 0 }) }}
             </p>
-            <p v-if="Number(grn.expected_quantity) > 0" class="text-[10px] text-gray-600 mt-1">
-              Expected Qty × Unit Price
+            <p class="text-[10px] text-gray-600 mt-1">
+              Billed Qty × Unit Price
             </p>
           </div>
 
-          <!-- Actual value (reference) -->
-          <div v-if="Number(grn.expected_quantity) > 0" class="glass-card p-4 border border-white/[0.06]">
-            <p class="text-xs text-gray-500 mb-0.5">Actual Received Value (for reference)</p>
+          <!-- Actual value — admin only (reveals the variance) -->
+          <div v-if="isAdmin && Number(grn.expected_quantity) > 0" class="glass-card p-4 border border-white/[0.06]">
+            <p class="text-xs text-gray-500 mb-0.5">Actual Weighed Value (admin reference)</p>
             <p class="text-lg font-semibold text-gray-400 font-mono">৳{{ Number(grn.total_value).toLocaleString(undefined, { maximumFractionDigits: 0 }) }}</p>
           </div>
 
@@ -161,6 +161,9 @@ definePageMeta({ layout: 'default' })
 const route = useRoute()
 const { success, error: toastError } = useToast()
 const cancelling = ref(false)
+
+const { user: sessionUser } = useUserSession()
+const isAdmin = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
 
 const { data, pending, error, refresh } = await useFetch(
   () => `/api/purchase/grn/${route.params.id}`,
