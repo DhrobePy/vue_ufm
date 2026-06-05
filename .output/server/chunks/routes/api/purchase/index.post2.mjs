@@ -19,6 +19,7 @@ const index_post = defineEventHandler(async (event) => {
     po_date,
     wheat_origin,
     expected_delivery_date,
+    payment_terms = "Credit 30",
     quantity_mt,
     // metric tonnes
     unit_price_per_mt,
@@ -32,6 +33,11 @@ const index_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
+    await conn.query(`
+      ALTER TABLE purchase_orders_adnan
+        ADD COLUMN IF NOT EXISTS po_payment_terms VARCHAR(50) DEFAULT 'Credit 30'
+    `).catch(() => {
+    });
     const [[sup]] = await conn.query(
       `SELECT company_name FROM suppliers WHERE id = ?`,
       [supplier_id]
@@ -49,13 +55,13 @@ const index_post = defineEventHandler(async (event) => {
     const [result] = await conn.query(
       `INSERT INTO purchase_orders_adnan
          (po_number, po_date, supplier_id, supplier_name, wheat_origin,
-          expected_delivery_date, quantity_kg, unit_price_per_kg,
+          expected_delivery_date, po_payment_terms, quantity_kg, unit_price_per_kg,
           total_order_value, balance_payable,
           po_status, delivery_status, payment_status,
           branch_id, created_by_user_id, remarks,
           created_at, updated_at)
        VALUES (?, ?, ?, ?, ?,
-               ?, ?, ?,
+               ?, ?, ?, ?,
                ?, ?,
                'approved', 'pending', 'unpaid',
                ?, ?, ?,
@@ -67,6 +73,7 @@ const index_post = defineEventHandler(async (event) => {
         supplierName,
         wheat_origin || "Other",
         expected_delivery_date != null ? expected_delivery_date : null,
+        payment_terms || "Credit 30",
         quantity_kg,
         unit_price_per_kg,
         total_order_value,

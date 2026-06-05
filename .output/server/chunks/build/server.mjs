@@ -778,7 +778,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-Bo9WFryM.mjs')
+    component: () => import('./create-CM6m3Xp8.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -856,7 +856,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./vouchers-PlN28HYR.mjs')
+    component: () => import('./vouchers-h-Tn0lU8.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -922,13 +922,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./create-ClwmkP_H.mjs')
+    component: () => import('./create-kWvzcAy0.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1o || {},
-    component: () => import('./index-DLG-nDxG.mjs')
+    component: () => import('./index-YPboTiwT.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -958,7 +958,7 @@ const _routes = [
     name: "purchase-grn",
     path: "/purchase/grn",
     meta: __nuxt_page_meta$1j || {},
-    component: () => import('./index-ACzbxkEL.mjs')
+    component: () => import('./index-BQIPcklC.mjs')
   },
   {
     name: "bank-accounts",
@@ -1078,7 +1078,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-MKnoeV-r.mjs')
+    component: () => import('./edit-99sgPyqM.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1150,7 +1150,7 @@ const _routes = [
     name: "purchase-orders",
     path: "/purchase/orders",
     meta: __nuxt_page_meta$P || {},
-    component: () => import('./index-D6Tuhx7A.mjs')
+    component: () => import('./index-BYwaBwPq.mjs')
   },
   {
     name: "accounts-journal",
@@ -1216,7 +1216,7 @@ const _routes = [
     name: "purchase-orders-create",
     path: "/purchase/orders/create",
     meta: __nuxt_page_meta$E || {},
-    component: () => import('./create-CK_BEUCw.mjs')
+    component: () => import('./create-CP00BT-B.mjs')
   },
   {
     name: "accounts-journal-create",
@@ -1276,7 +1276,7 @@ const _routes = [
     name: "purchase-grn-id",
     path: "/purchase/grn/:id()",
     meta: __nuxt_page_meta$u || {},
-    component: () => import('./index-rBM0EHx0.mjs')
+    component: () => import('./index-CcNNb5QW.mjs')
   },
   {
     name: "purchase-grn-id-print",
@@ -1330,7 +1330,7 @@ const _routes = [
     name: "purchase-payments-record",
     path: "/purchase/payments/record",
     meta: __nuxt_page_meta$l || {},
-    component: () => import('./record-CPZYRh_h.mjs')
+    component: () => import('./record-B4L8Bh6M.mjs')
   },
   {
     name: "purchase-suppliers",
@@ -1396,13 +1396,13 @@ const _routes = [
     name: "purchase-orders-id",
     path: "/purchase/orders/:id()",
     meta: __nuxt_page_meta$a || {},
-    component: () => import('./index-CARndl_1.mjs')
+    component: () => import('./index-CEv_43vH.mjs')
   },
   {
     name: "purchase-orders-id-print",
     path: "/purchase/orders/:id()/print",
     meta: __nuxt_page_meta$9 || {},
-    component: () => import('./print-DUgXhBcA.mjs')
+    component: () => import('./print-D--DZc9h.mjs')
   },
   {
     name: "purchase-suppliers-summary",
