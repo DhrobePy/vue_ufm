@@ -131,7 +131,7 @@
                 class="font-mono text-gold-400/80 font-semibold hover:underline">{{ g.grn_number }}</NuxtLink>
             </td>
             <!-- Date -->
-            <td class="px-3 py-3 text-gray-400 whitespace-nowrap">{{ g.grn_date }}</td>
+            <td class="px-3 py-3 text-gray-400 whitespace-nowrap">{{ fmtDate(g.grn_date) }}</td>
             <!-- PO # -->
             <td class="px-3 py-3">
               <NuxtLink :to="`/purchase/orders/${g.purchase_order_id}`"
@@ -278,6 +278,13 @@ const { data, pending, error, refresh } = await useFetch('/api/purchase/grn', {
     per:   perPage.value,
   })),
 })
+
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 const rows    = computed(() => (data.value?.grns ?? []) as any[])
 const stats   = computed(() => (data.value?.stats ?? {}) as any)

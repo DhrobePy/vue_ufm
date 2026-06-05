@@ -22,7 +22,7 @@
             <div class="flex items-start justify-between flex-wrap gap-4">
               <div>
                 <h2 class="text-xl font-bold font-mono text-gold-400">{{ po.po_number }}</h2>
-                <p class="text-xs text-gray-500 mt-0.5">Date: {{ po.po_date }} · By: {{ po.created_by_name || '—' }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">Date: {{ fmtDate(po.po_date) }} · By: {{ po.created_by_name || '—' }}</p>
               </div>
               <div class="flex items-center gap-2">
                 <UiStatusBadge :status="po.po_status" />
@@ -40,9 +40,9 @@
               </div>
               <div class="space-y-2">
                 <h3 class="text-[10px] font-bold text-gray-600 uppercase tracking-wider">Delivery</h3>
-                <p class="text-gray-300">Expected: <span class="text-gray-200 font-semibold">{{ po.expected_delivery_date || '—' }}</span></p>
+                <p class="text-gray-300">Expected: <span class="text-gray-200 font-semibold">{{ fmtDate(po.expected_delivery_date) }}</span></p>
                 <p class="text-gray-300">To: <span class="text-gray-200">{{ po.branch_name || '—' }}</span></p>
-                <p v-if="po.supplier_payment_terms" class="text-gray-300">Payment Terms: <span class="text-gray-200">{{ po.supplier_payment_terms }} days</span></p>
+                <p class="text-gray-300">Payment Terms: <span class="text-gray-200 font-semibold">{{ ptLabel(po.po_payment_terms || po.supplier_payment_terms || '') }}</span></p>
                 <p class="text-gray-300">Wheat Origin: <span class="text-gray-200">{{ po.wheat_origin || '—' }}</span></p>
               </div>
             </div>
@@ -106,7 +106,7 @@
               <div>
                 <p class="font-semibold text-gray-200">৳{{ Number(pmt.amount_paid ?? 0).toLocaleString() }}</p>
                 <p class="text-gray-500 mt-0.5">
-                  {{ pmt.payment_date }} · {{ pmt.payment_mode || pmt.payment_method || '—' }}
+                  {{ fmtDate(pmt.payment_date) }} · {{ pmt.payment_mode || pmt.payment_method || '—' }}
                   <span v-if="pmt.bank_name"> · {{ pmt.bank_name }}</span>
                   <span v-if="pmt.reference_number"> · Ref: {{ pmt.reference_number }}</span>
                 </p>
@@ -226,6 +226,22 @@ const { data, pending, error, refresh } = await useFetch(
 const po       = computed(() => (data.value?.po       ?? {}) as any)
 const grns     = computed(() => (data.value?.grns     ?? []) as any[])
 const payments = computed(() => (data.value?.payments ?? []) as any[])
+
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function ptLabel(raw: string): string {
+  if (!raw) return '—'
+  const r = raw.trim().toLowerCase()
+  if (r === 'advance') return 'Advance Payment'
+  const m = r.match(/^credit[- _]?(\d+)$/)
+  if (m) return `Credit — ${m[1]} Days`
+  return raw
+}
 
 // Use balance_payable (recalculated on expected-received qty) — not PO face value minus paid
 const outstanding   = computed(() => Math.max(0, Number(po.value.balance_payable ?? 0)))

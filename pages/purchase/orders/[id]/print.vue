@@ -184,7 +184,7 @@
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:linear-gradient(135deg,#fef3c7,#fef9ee);border-radius:8px;border:1px solid #fcd34d;">
               <div style="font-size:10px;color:#92400e;font-weight:700;margin-bottom:4px;">PAYMENT TERMS</div>
-              <div style="font-size:12px;font-weight:700;color:#b45309;">{{ po.paymentTermsLabel }} after delivery</div>
+              <div style="font-size:12px;font-weight:700;color:#b45309;">{{ po.paymentTermsLabel }}</div>
               <div v-if="dueDate !== '—'" style="font-size:10px;color:#b45309;opacity:0.8;margin-top:2px;">Due by: {{ dueDate }}</div>
             </div>
           </div>
@@ -274,8 +274,8 @@
                 <tr style="border-bottom:1px solid #bfdbfe;">
                   <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Voucher</th>
                   <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Date</th>
-                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Method</th>
-                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Reference</th>
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Type</th>
+                  <th style="padding:4px 8px;text-align:left;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Method / Ref</th>
                   <th style="padding:4px 8px;text-align:right;font-size:9px;color:#1e40af;font-weight:700;text-transform:uppercase;">Amount (৳)</th>
                 </tr>
               </thead>
@@ -284,9 +284,13 @@
                   <td style="padding:5px 8px;font-size:11px;font-family:monospace;color:#111;font-weight:600;">{{ pmt.voucherNo }}</td>
                   <td style="padding:5px 8px;font-size:11px;color:#374151;">{{ pmt.date }}</td>
                   <td style="padding:5px 8px;font-size:11px;color:#374151;text-transform:capitalize;">
-                    {{ pmt.method }}<span v-if="pmt.bank"> · {{ pmt.bank }}</span>
+                    {{ pmt.payType === 'advance' ? 'Advance' : pmt.payType === 'against_delivery' ? 'Against Delivery' : pmt.payType === 'contra' ? 'Contra' : 'Credit' }}
                   </td>
-                  <td style="padding:5px 8px;font-size:11px;color:#6b7280;">{{ pmt.ref || '—' }}</td>
+                  <td style="padding:5px 8px;font-size:11px;color:#374151;">
+                    <span style="text-transform:capitalize;">{{ pmt.method === 'contra' ? 'Contra Adj.' : pmt.method }}</span>
+                    <span v-if="pmt.bank"> · {{ pmt.bank }}</span>
+                    <span v-if="pmt.ref" style="color:#6b7280;"> · {{ pmt.ref }}</span>
+                  </td>
                   <td style="padding:5px 8px;font-size:11px;text-align:right;font-family:monospace;color:#16a34a;font-weight:700;">
                     ৳{{ pmt.amount.toLocaleString() }}
                   </td>
@@ -371,24 +375,44 @@ const rawPo       = (apiData.value as any).po
 const rawGrns     = ((apiData.value as any).grns     ?? []) as any[]
 const rawPayments = ((apiData.value as any).payments ?? []) as any[]
 
+// ── Date formatter ───────────────────────────────────────────────────────────
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+// ── Payment terms helpers ─────────────────────────────────────────────────────
+function ptLabel(raw: string): string {
+  if (!raw) return '—'
+  const r = raw.trim().toLowerCase()
+  if (r === 'advance') return 'Advance Payment'
+  const m = r.match(/^credit[- _]?(\d+)$/)
+  if (m) return `Credit — ${m[1]} Days`
+  return raw  // pass through anything custom
+}
+
 // Map API fields → template-expected shape
 const po = computed(() => {
-  const qtyMT        = Number(rawPo.quantity_kg || 0) / 1000
-  const pricePerMT   = Number(rawPo.unit_price_per_kg || 0) * 1000
-  // payment_terms may be a non-numeric string like 'COD' or 'Net 30' — guard carefully
-  const rawTermsStr      = String(rawPo.supplier_payment_terms ?? rawPo.payment_terms ?? '')
-  const termsParsed      = parseInt(rawTermsStr, 10)
-  const paymentTerms     = Number.isNaN(termsParsed) ? 0 : termsParsed
-  const paymentTermsLabel = paymentTerms > 0 ? `Net ${paymentTerms} days` : (rawTermsStr || 'COD')
+  const qtyMT      = Number(rawPo.quantity_kg || 0) / 1000
+  const pricePerMT = Number(rawPo.unit_price_per_kg || 0) * 1000
+  // po_payment_terms (per-PO) takes priority; fall back to supplier default
+  const rawTermsStr      = String(rawPo.po_payment_terms ?? rawPo.supplier_payment_terms ?? rawPo.payment_terms ?? '')
+  const paymentTermsLabel = ptLabel(rawTermsStr) || '—'
+  // Credit days for due-date calculation
+  const creditMatch  = rawTermsStr.toLowerCase().match(/credit[- _]?(\d+)/)
+  const paymentTerms = creditMatch ? parseInt(creditMatch[1], 10) : 0
   return {
     poNo:             rawPo.po_number ?? `PO-${id}`,
-    poDate:           rawPo.po_date   ?? '',
+    poDate:           fmtDate(rawPo.po_date),
     supplier:         rawPo.company_name  ?? rawPo.supplier_name ?? '—',
     supplierAddress:  rawPo.supplier_address ?? rawPo.address ?? '—',
     supplierPhone:    rawPo.phone ?? '—',
     status:           rawPo.po_status ?? 'draft',
     createdBy:        rawPo.created_by_name ?? '—',
-    expectedDelivery: rawPo.expected_delivery_date ?? '—',
+    expectedDelivery: fmtDate(rawPo.expected_delivery_date),
+    rawExpectedDelivery: rawPo.expected_delivery_date,  // keep raw for due-date calc
     deliveryTo:       rawPo.branch_name ?? rawPo.unload_point_name ?? 'Sirajgonj Mill',
     paymentTerms,
     paymentTermsLabel,
@@ -404,16 +428,17 @@ const po = computed(() => {
     grns: rawGrns.map((g: any) => ({
       id:    g.id,
       grnNo: g.grn_number,
-      date:  g.grn_date,
+      date:  fmtDate(g.grn_date),
       qty:   +(Number(g.quantity_received_kg || 0) / 1000).toFixed(2),
       grade: g.grn_status === 'verified' || g.grn_status === 'posted' ? 'A' : '—',
     })).filter((g: any) => g.qty > 0),
     payments: rawPayments.map((p: any) => ({
       id:        p.id,
       voucherNo: p.payment_voucher_number,
-      date:      p.payment_date,
+      date:      fmtDate(p.payment_date),
       amount:    Number(p.amount_paid || 0),
       method:    p.payment_method ?? p.payment_mode ?? '—',
+      payType:   p.payment_type ?? '',
       bank:      p.bank_name ?? '',
       ref:       p.reference_number ?? '',
     })),
@@ -441,15 +466,14 @@ const paymentPct    = computed(() => {
   return Math.min(100, Math.round((po.value.totalPaid / billed) * 100))
 })
 
-// Due date = expectedDelivery + paymentTerms days
-// paymentTerms can be 0 (COD) — in that case no due date applies
+// Due date = expectedDelivery + credit days (only for Credit terms)
 const dueDate = computed(() => {
   if (!po.value.paymentTerms) return '—'
-  const d = new Date(po.value.expectedDelivery)
+  const d = new Date(po.value.rawExpectedDelivery)
   if (isNaN(d.getTime())) return '—'
   d.setDate(d.getDate() + po.value.paymentTerms)
   if (isNaN(d.getTime())) return '—'
-  return d.toISOString().split('T')[0]
+  return fmtDate(d)
 })
 
 const generatedAt = new Date().toLocaleString('en-BD', {

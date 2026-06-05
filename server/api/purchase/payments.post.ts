@@ -27,6 +27,12 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
+    // Auto-add payment_type column if missing
+    await conn.query(`
+      ALTER TABLE purchase_payments_adnan
+        ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'credit'
+    `).catch(() => {/* silently skip if already exists or DB doesn't support IF NOT EXISTS */})
+
     // Load the PO to get supplier info
     const [[po]] = await conn.query<any>(
       `SELECT id, po_number, supplier_id, supplier_name, balance_payable

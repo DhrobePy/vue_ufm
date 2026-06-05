@@ -27,6 +27,16 @@
           <input v-model="form.expectedDelivery" type="date" class="input-glass" />
         </div>
         <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Terms *</label>
+          <select v-model="form.paymentTerms" class="input-glass">
+            <option value="Advance">Advance (Pay Before Delivery)</option>
+            <option value="Credit 30">Credit — 30 Days</option>
+            <option value="Credit 60">Credit — 60 Days</option>
+            <option value="Credit 90">Credit — 90 Days</option>
+            <option value="Credit 120">Credit — 120 Days</option>
+          </select>
+        </div>
+        <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity (MT) *</label>
           <input v-model.number="form.qty" type="number" min="0" step="0.5" class="input-glass" placeholder="0.000" />
         </div>
@@ -64,6 +74,7 @@ const form = reactive({
   supplierId: '' as string | number,
   poDate: new Date().toISOString().split('T')[0],
   origin: '', expectedDelivery: '',
+  paymentTerms: 'Credit 30',
   qty: 0, unitPrice: 0, remarks: '',
 })
 
@@ -90,6 +101,7 @@ async function submit() {
         po_date:                form.poDate,
         wheat_origin:           form.origin || null,
         expected_delivery_date: form.expectedDelivery || null,
+        payment_terms:          form.paymentTerms,
         quantity_mt:            form.qty,
         unit_price_per_mt:      form.unitPrice,
         remarks:                form.remarks || null,

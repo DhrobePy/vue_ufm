@@ -73,7 +73,20 @@ const { data, pending, error, refresh } = await useFetch('/api/purchase/orders',
   })),
 })
 
-const rows = computed(() => data.value?.orders ?? [])
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const rows = computed(() =>
+  (data.value?.orders ?? []).map((o: any) => ({
+    ...o,
+    po_date:                fmtDate(o.po_date),
+    expected_delivery_date: fmtDate(o.expected_delivery_date),
+  }))
+)
 
 const cols = [
   { key: 'po_number',         label: 'PO #',         sortable: true },

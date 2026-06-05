@@ -31,17 +31,40 @@
           </select>
         </div>
 
+        <!-- Payment type (when was it paid?) -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Type *</label>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button v-for="pt in paymentTypes" :key="pt.value"
+              type="button"
+              @click="form.payType = pt.value"
+              :class="['px-3 py-2 rounded-xl text-xs font-semibold border transition-all text-center',
+                form.payType === pt.value
+                  ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                  : 'bg-white/[0.03] border-white/10 text-gray-400 hover:border-white/20']">
+              <div>{{ pt.label }}</div>
+              <div class="text-[10px] font-normal opacity-70 mt-0.5">{{ pt.hint }}</div>
+            </button>
+          </div>
+        </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div class="space-y-1.5">
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Date *</label>
             <input v-model="form.date" type="date" class="input-glass" />
           </div>
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Payment Method *</label>
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              {{ form.payType === 'contra' ? 'Contra Method' : 'Payment Method *' }}
+            </label>
             <select v-model="form.method" class="input-glass">
-              <option value="cash">Cash</option>
-              <option value="bank">Bank Transfer / BEFTN</option>
-              <option value="cheque">Cheque</option>
+              <option v-if="form.payType === 'contra'" value="contra">Contra / Sales Offset</option>
+              <template v-else>
+                <option value="cash">Cash</option>
+                <option value="bank">Bank Transfer / BEFTN</option>
+                <option value="cheque">Cheque</option>
+                <option value="mobile_banking">Mobile Banking (bKash/Nagad)</option>
+              </template>
             </select>
           </div>
         </div>
@@ -61,14 +84,20 @@
           </div>
         </div>
 
-        <!-- Reference (for bank/cheque) -->
-        <div v-if="form.method !== 'cash'" class="space-y-1.5">
+        <!-- Reference: sales invoice for contra; cheque/BEFTN ref for others -->
+        <div v-if="form.payType === 'contra'" class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Sales Invoice / Reference *</label>
+          <input v-model="form.reference" type="text" class="input-glass font-mono"
+            placeholder="Credit invoice no. or reference being offset…" />
+          <p class="text-[11px] text-gray-500">Enter the sales invoice number that offsets this payment amount.</p>
+        </div>
+        <div v-else-if="form.method !== 'cash'" class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reference / Cheque No. *</label>
-          <input v-model="form.reference" type="text" class="input-glass font-mono" placeholder="BEFTN ref, cheque no., or TxID" />
+          <input v-model="form.reference" type="text" class="input-glass font-mono" placeholder="BEFTN ref, cheque no., TxID, or bKash TrxID" />
         </div>
 
-        <!-- Company bank account -->
-        <div class="space-y-1.5">
+        <!-- Company bank account — hide for contra and cash -->
+        <div v-if="form.payType !== 'contra' && form.method !== 'cash'" class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Company Bank Account *</label>
           <select v-model="form.bankAccountId" class="input-glass">
             <option value="">— Paid from —</option>
@@ -139,15 +168,29 @@ const openPOs       = computed(() => (poData.value  as any)?.orders        ?? []
 const bankAccounts  = computed(() => (baData.value  as any)?.accounts      ?? [])
 const recentPayments = computed(() => (pmtData.value as any)?.payments     ?? [])
 
+const paymentTypes = [
+  { value: 'advance',          label: 'Advance',          hint: 'Before delivery' },
+  { value: 'credit',           label: 'Credit',           hint: 'After delivery' },
+  { value: 'against_delivery', label: 'Against Delivery', hint: 'Delivery expenses' },
+  { value: 'contra',           label: 'Contra / Offset',  hint: 'Sales invoice set-off' },
+]
+
 const form = reactive({
   supplierId:    '' as number | string,
   poId:          '' as number | string,
   date:          new Date().toISOString().slice(0, 10),
+  payType:       'credit',
   method:        'bank',
   amount:        null as number | null,
   reference:     '',
   bankAccountId: '' as number | string,
   notes:         '',
+})
+
+// When payType changes to contra, auto-set method; when leaving contra restore bank
+watch(() => form.payType, (val) => {
+  if (val === 'contra') form.method = 'contra'
+  else if (form.method === 'contra') form.method = 'bank'
 })
 
 const saving = ref(false)
@@ -159,11 +202,16 @@ const filteredPOs      = computed(() => openPOs.value.filter((po: any) => {
 }))
 const selectedPO = computed(() => openPOs.value.find((po: any) => po.id === Number(form.poId)))
 
-const isValid = computed(() =>
-  form.supplierId && form.poId && form.date && form.method && form.bankAccountId &&
-  form.amount && form.amount > 0 &&
-  (form.method === 'cash' || form.reference)
-)
+const isValid = computed(() => {
+  if (!form.supplierId || !form.poId || !form.date || !form.method) return false
+  if (!form.amount || form.amount <= 0) return false
+  // Contra: need reference (invoice no.), no bank account needed
+  if (form.payType === 'contra') return !!form.reference
+  // Cash/mobile: no bank account or ref needed
+  if (form.method === 'cash' || form.method === 'mobile_banking') return true
+  // Bank/cheque: need reference and bank account
+  return !!form.reference && !!form.bankAccountId
+})
 
 async function submit() {
   if (!isValid.value) return
@@ -176,6 +224,7 @@ async function submit() {
         payment_date:      form.date,
         amount_paid:       form.amount,
         payment_method:    form.method,
+        payment_type:      form.payType,
         bank_account_id:   form.bankAccountId ? Number(form.bankAccountId) : null,
         reference_number:  form.reference || null,
         remarks:           form.notes || null,

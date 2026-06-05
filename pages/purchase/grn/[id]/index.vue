@@ -5,7 +5,7 @@
 
     <template v-else>
       <UiPageHeader :title="`GRN — ${grn.grn_number}`"
-                    :subtitle="`${grn.supplier_name} · ${grn.grn_date}`"
+                    :subtitle="`${grn.supplier_name} · ${fmtDate(grn.grn_date)}`"
                     :breadcrumb="['Purchase','GRNs', grn.grn_number]">
         <template #actions>
           <NuxtLink :to="`/purchase/grn/${route.params.id}/print`" target="_blank" class="btn-ghost text-xs">🖨 Print</NuxtLink>
@@ -21,7 +21,7 @@
             <div class="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h2 class="text-xl font-bold font-mono text-gold-400">{{ grn.grn_number }}</h2>
-                <p class="text-xs text-gray-500 mt-0.5">Date: {{ grn.grn_date }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">Date: {{ fmtDate(grn.grn_date) }}</p>
               </div>
               <UiStatusBadge :status="grn.grn_status" />
             </div>
@@ -169,6 +169,13 @@ const { data, pending, error, refresh } = await useFetch(
   () => `/api/purchase/grn/${route.params.id}`,
 )
 const grn = computed(() => (data.value?.grn ?? {}) as any)
+
+function fmtDate(val: any): string {
+  if (!val) return '—'
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return String(val)
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 const unitPrice   = computed(() => Number(grn.value?.unit_price_per_kg || grn.value?.po_unit_price || 0))
 const expectedValue = computed(() => Number(grn.value?.expected_quantity || 0) * unitPrice.value)
