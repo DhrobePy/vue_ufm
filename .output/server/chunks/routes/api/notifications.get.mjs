@@ -451,7 +451,7 @@ const notifications_get = defineEventHandler(async () => {
       text: `\u{1F5D1}\uFE0F ${icon} ${c.reference_number} cancelled${byLine}`,
       type: "error",
       time: timeAgo(new Date(c.created_at)),
-      route: isGRN ? `/purchase/grn/${c.record_id}` : `/purchase/orders/${c.record_id}`,
+      route: isGRN ? c.record_id ? `/purchase/grn/${c.record_id}` : "/purchase/grn" : c.record_id ? `/purchase/orders/${c.record_id}` : "/purchase/orders",
       read: false
     });
   }
