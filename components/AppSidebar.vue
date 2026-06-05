@@ -57,13 +57,15 @@
 
       <!-- Dashboard -->
       <SidebarNavItem
+        v-if="perms.canAccessModule('dashboard')"
         label="Dashboard"
         route="/dashboard"
         :collapsed="collapsed"
         icon-type="dashboard"
       />
 
-      <div class="py-1">
+      <!-- Operations section ─────────────────────────── -->
+      <div v-if="showOperations" class="py-1">
         <div v-if="!collapsed" class="px-3 mb-1">
           <span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">Operations</span>
         </div>
@@ -71,7 +73,7 @@
       </div>
 
       <!-- Credit Sales -->
-      <SidebarGroup label="Credit Sales" route="/credit-sales" :collapsed="collapsed" icon-type="sales" color="blue">
+      <SidebarGroup v-if="perms.canAccessModule('credit_sales')" label="Credit Sales" route="/credit-sales" :collapsed="collapsed" icon-type="sales" color="blue">
         <SidebarNavItem label="Dashboard"         route="/credit-sales"              :collapsed="collapsed" icon-type="dashboard" sub />
         <SidebarNavItem label="All Sales"         route="/credit-sales/all"          :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem label="Create Order"      route="/credit-sales/create"       :collapsed="collapsed" icon-type="plus"      sub />
@@ -83,7 +85,7 @@
       </SidebarGroup>
 
       <!-- Fleet Management -->
-      <SidebarGroup label="Fleet" route="/fleet" :collapsed="collapsed" icon-type="truck" color="teal">
+      <SidebarGroup v-if="perms.canAccessModule('fleet')" label="Fleet" route="/fleet" :collapsed="collapsed" icon-type="truck" color="teal">
         <SidebarNavItem label="Dashboard"    route="/fleet"                       :collapsed="collapsed" icon-type="dashboard" sub />
         <SidebarNavItem label="Vehicles"     route="/fleet/vehicles"              :collapsed="collapsed" icon-type="truck"     sub />
         <SidebarNavItem label="Drivers"      route="/fleet/drivers"               :collapsed="collapsed" icon-type="users"     sub />
@@ -98,7 +100,7 @@
       </SidebarGroup>
 
       <!-- Purchase -->
-      <SidebarGroup label="Purchase" route="/purchase" :collapsed="collapsed" icon-type="cart" color="orange">
+      <SidebarGroup v-if="perms.canAccessModule('purchase')" label="Purchase" route="/purchase" :collapsed="collapsed" icon-type="cart" color="orange">
         <SidebarNavItem label="Dashboard"       route="/purchase"                   :collapsed="collapsed" icon-type="dashboard" sub />
         <SidebarNavItem label="All POs"         route="/purchase/orders"            :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
@@ -107,10 +109,11 @@
         <SidebarNavItem label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
-        <SidebarNavItem label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"    sub />
+        <SidebarNavItem label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"   sub />
       </SidebarGroup>
 
-      <div class="py-1">
+      <!-- Finance section ────────────────────────────── -->
+      <div v-if="showFinance" class="py-1">
         <div v-if="!collapsed" class="px-3 mb-1">
           <span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">Finance</span>
         </div>
@@ -118,33 +121,34 @@
       </div>
 
       <!-- Expenses -->
-      <SidebarGroup label="Expenses" route="/expenses" :collapsed="collapsed" icon-type="receipt" color="yellow">
-        <SidebarNavItem label="Dashboard"     route="/expenses"          :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Create Expense" route="/expenses/create"  :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="History"       route="/expenses/history"  :collapsed="collapsed" icon-type="clock"     sub />
-        <SidebarNavItem label="Approve"       route="/expenses/approve"  :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Categories"    route="/expenses/categories" :collapsed="collapsed" icon-type="tag"    sub />
+      <SidebarGroup v-if="perms.canAccessModule('expenses')" label="Expenses" route="/expenses" :collapsed="collapsed" icon-type="receipt" color="yellow">
+        <SidebarNavItem label="Dashboard"      route="/expenses"            :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="Create Expense" route="/expenses/create"     :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem label="History"        route="/expenses/history"    :collapsed="collapsed" icon-type="clock"     sub />
+        <SidebarNavItem label="Approve"        route="/expenses/approve"    :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem label="Categories"     route="/expenses/categories" :collapsed="collapsed" icon-type="tag"       sub />
       </SidebarGroup>
 
       <!-- Bank -->
-      <SidebarGroup label="Bank" route="/bank" :collapsed="collapsed" icon-type="bank" color="indigo">
-        <SidebarNavItem label="Dashboard"    route="/bank"                      :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="New Transaction" route="/bank/transaction/create" :collapsed="collapsed" icon-type="plus"    sub />
-        <SidebarNavItem label="Transfer"     route="/bank/transfer"             :collapsed="collapsed" icon-type="arrows"   sub />
-        <SidebarNavItem label="Statement"    route="/bank/statement"            :collapsed="collapsed" icon-type="file"     sub />
-        <SidebarNavItem label="Accounts"     route="/bank/accounts"             :collapsed="collapsed" icon-type="bank"     sub />
+      <SidebarGroup v-if="perms.canAccessModule('bank')" label="Bank" route="/bank" :collapsed="collapsed" icon-type="bank" color="indigo">
+        <SidebarNavItem label="Dashboard"       route="/bank"                       :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="New Transaction" route="/bank/transaction/create"    :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem label="Transfer"        route="/bank/transfer"              :collapsed="collapsed" icon-type="arrows"    sub />
+        <SidebarNavItem label="Statement"       route="/bank/statement"             :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem label="Accounts"        route="/bank/accounts"              :collapsed="collapsed" icon-type="bank"      sub />
       </SidebarGroup>
 
       <!-- Accounts -->
-      <SidebarGroup label="Accounts" route="/accounts" :collapsed="collapsed" icon-type="book" color="teal">
-        <SidebarNavItem label="Chart of Accounts" route="/accounts/coa"         :collapsed="collapsed" icon-type="chart"    sub />
-        <SidebarNavItem label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus" sub />
-        <SidebarNavItem label="Statement"         route="/accounts/statement"    :collapsed="collapsed" icon-type="file"    sub />
-        <SidebarNavItem label="Debit Voucher"     route="/accounts/voucher"      :collapsed="collapsed" icon-type="receipt" sub />
-        <SidebarNavItem label="Daily Log"         route="/accounts/daily-log"    :collapsed="collapsed" icon-type="clock"   sub />
+      <SidebarGroup v-if="perms.canAccessModule('accounts')" label="Accounts" route="/accounts" :collapsed="collapsed" icon-type="book" color="teal">
+        <SidebarNavItem label="Chart of Accounts" route="/accounts/coa"            :collapsed="collapsed" icon-type="chart"    sub />
+        <SidebarNavItem label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus"     sub />
+        <SidebarNavItem label="Statement"         route="/accounts/statement"      :collapsed="collapsed" icon-type="file"     sub />
+        <SidebarNavItem label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
+        <SidebarNavItem label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
       </SidebarGroup>
 
-      <div class="py-1">
+      <!-- Standalone Modules section ─────────────────── -->
+      <div v-if="showStandalone" class="py-1">
         <div v-if="!collapsed" class="px-3 mb-1">
           <span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">Standalone Modules</span>
         </div>
@@ -152,18 +156,19 @@
       </div>
 
       <!-- Sales Reports -->
-      <SidebarNavItem label="Sales"         route="/sales"        :collapsed="collapsed" icon-type="chart"    />
+      <SidebarNavItem v-if="perms.canAccessModule('sales')"      label="Sales"      route="/sales"      :collapsed="collapsed" icon-type="chart"   />
       <!-- Production -->
-      <SidebarGroup label="Production" route="/production" :collapsed="collapsed" icon-type="factory" color="teal">
-        <SidebarNavItem label="Dashboard"     route="/production"         :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="New Batch"     route="/production/create"  :collapsed="collapsed" icon-type="plus"      sub />
+      <SidebarGroup v-if="perms.canAccessModule('production')" label="Production" route="/production" :collapsed="collapsed" icon-type="factory" color="teal">
+        <SidebarNavItem label="Dashboard" route="/production"        :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="New Batch" route="/production/create" :collapsed="collapsed" icon-type="plus"      sub />
       </SidebarGroup>
       <!-- Dispatch -->
-      <SidebarNavItem label="Dispatch"      route="/dispatch"     :collapsed="collapsed" icon-type="truck"    />
+      <SidebarNavItem v-if="perms.canAccessModule('dispatch')"   label="Dispatch"   route="/dispatch"   :collapsed="collapsed" icon-type="truck"   />
       <!-- Collector -->
-      <SidebarNavItem label="Collector"     route="/collector"    :collapsed="collapsed" icon-type="money"    />
+      <SidebarNavItem v-if="perms.canAccessModule('collector')"  label="Collector"  route="/collector"  :collapsed="collapsed" icon-type="money"   />
 
-      <div class="py-1">
+      <!-- More section ────────────────────────────────── -->
+      <div v-if="showMore" class="py-1">
         <div v-if="!collapsed" class="px-3 mb-1">
           <span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">More</span>
         </div>
@@ -171,22 +176,23 @@
       </div>
 
       <!-- Customers -->
-      <SidebarNavItem label="Customers"  route="/customers"  :collapsed="collapsed" icon-type="users"  />
+      <SidebarNavItem v-if="perms.canAccessModule('customers')" label="Customers"  route="/customers"  :collapsed="collapsed" icon-type="users"    />
       <!-- Products -->
-      <SidebarGroup label="Products" route="/products" :collapsed="collapsed" icon-type="box" color="green">
-        <SidebarNavItem label="Overview"      route="/products"           :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Base Products" route="/products/base"      :collapsed="collapsed" icon-type="box"       sub />
-        <SidebarNavItem label="Variants"      route="/products/variants"  :collapsed="collapsed" icon-type="list"      sub />
+      <SidebarGroup v-if="perms.canAccessModule('products')" label="Products" route="/products" :collapsed="collapsed" icon-type="box" color="green">
+        <SidebarNavItem label="Overview"       route="/products"                :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="Base Products"  route="/products/base"           :collapsed="collapsed" icon-type="box"       sub />
+        <SidebarNavItem label="Variants"       route="/products/variants"       :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem label="Pricing"        route="/products/pricing"        :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem label="Pricing Engine" route="/products/pricing-engine" :collapsed="collapsed" icon-type="cog"       sub />
-        <SidebarNavItem label="Inventory"     route="/products/inventory" :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem label="Inventory"      route="/products/inventory"      :collapsed="collapsed" icon-type="chart"     sub />
       </SidebarGroup>
       <!-- POS -->
-      <SidebarNavItem label="POS"        route="/pos"        :collapsed="collapsed" icon-type="register" />
+      <SidebarNavItem v-if="perms.canAccessModule('pos')"   label="POS"   route="/pos"   :collapsed="collapsed" icon-type="register" />
       <!-- Admin -->
-      <SidebarNavItem label="Admin"      route="/admin"      :collapsed="collapsed" icon-type="cog"    />
+      <SidebarNavItem v-if="perms.canAccessModule('admin')" label="Admin" route="/admin" :collapsed="collapsed" icon-type="cog"      />
 
-      <div class="py-1">
+      <!-- Human Resources section ─────────────────────── -->
+      <div v-if="showHR" class="py-1">
         <div v-if="!collapsed" class="px-3 mb-1">
           <span class="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-600">Human Resources</span>
         </div>
@@ -194,7 +200,7 @@
       </div>
 
       <!-- HR Module -->
-      <SidebarGroup label="HR" route="/hr" :collapsed="collapsed" icon-type="users" color="teal">
+      <SidebarGroup v-if="perms.canAccessModule('hr')" label="HR" route="/hr" :collapsed="collapsed" icon-type="users" color="teal">
         <SidebarNavItem label="Dashboard"        route="/hr"                    :collapsed="collapsed" icon-type="dashboard" sub />
         <SidebarNavItem label="Employees"        route="/hr/employees"          :collapsed="collapsed" icon-type="users"     sub />
         <SidebarNavItem label="Attendance"       route="/hr/attendance"         :collapsed="collapsed" icon-type="clock"     sub />
@@ -269,6 +275,34 @@ const initials = computed(() => {
 const isAdminUser = computed(() =>
   ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase())
 )
+
+// Permissions —————————————————————————————————————————
+const perms = usePermissions()
+
+// Section-level visibility (hide section header when all children are hidden)
+const showOperations = computed(() =>
+  perms.canAccessModule('credit_sales') ||
+  perms.canAccessModule('fleet') ||
+  perms.canAccessModule('purchase'),
+)
+const showFinance = computed(() =>
+  perms.canAccessModule('expenses') ||
+  perms.canAccessModule('bank') ||
+  perms.canAccessModule('accounts'),
+)
+const showStandalone = computed(() =>
+  perms.canAccessModule('sales') ||
+  perms.canAccessModule('production') ||
+  perms.canAccessModule('dispatch') ||
+  perms.canAccessModule('collector'),
+)
+const showMore = computed(() =>
+  perms.canAccessModule('customers') ||
+  perms.canAccessModule('products') ||
+  perms.canAccessModule('pos') ||
+  perms.canAccessModule('admin'),
+)
+const showHR = computed(() => perms.canAccessModule('hr'))
 </script>
 
 <style scoped>
