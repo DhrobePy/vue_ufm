@@ -1,4 +1,4 @@
-import { h as defineEventHandler, G as query } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, I as query } from '../../../nitro/nitro.mjs';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import 'node:http';

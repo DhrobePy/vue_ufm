@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, I as readBody, w as getUserSession, e as createError, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, v as getRouterParam, K as readBody, w as getUserSession, e as createError, n as getDb, a as auditLog, C as notify, D as notifyAdmins } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const approve_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const { action, reason } = body != null ? body : {};
@@ -27,7 +27,7 @@ const approve_post = defineEventHandler(async (event) => {
       `SELECT e.id, e.voucher_number, e.status, e.total_amount,
               e.category_id, e.subcategory_id, e.payment_method,
               e.bank_account_id, e.cash_account_id, e.journal_entry_id,
-              e.expense_date, e.remarks,
+              e.expense_date, e.remarks, e.created_by_user_id,
               cat.category_name
        FROM expense_vouchers e
        LEFT JOIN expense_categories cat ON cat.id = e.category_id
@@ -38,6 +38,48 @@ const approve_post = defineEventHandler(async (event) => {
     if (action === "approve") {
       if (expense.status !== "pending")
         throw createError({ statusCode: 400, statusMessage: `Cannot approve \u2014 current status is "${expense.status}"` });
+      let expenseAccountId = null;
+      if (expense.category_id) {
+        const [[cat]] = await conn.query(
+          `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`,
+          [expense.category_id]
+        );
+        expenseAccountId = (_g = cat == null ? void 0 : cat.chart_of_account_id) != null ? _g : null;
+      }
+      if (expense.subcategory_id) {
+        const [[sub]] = await conn.query(
+          `SELECT chart_of_account_id FROM expense_subcategories WHERE id = ?`,
+          [expense.subcategory_id]
+        );
+        if (sub == null ? void 0 : sub.chart_of_account_id) expenseAccountId = sub.chart_of_account_id;
+      }
+      if (!expenseAccountId) {
+        throw createError({
+          statusCode: 422,
+          statusMessage: `Cannot approve \u2014 expense category "${expense.category_name}" has no GL account mapped. Please link a Chart of Accounts entry to this category before approving.`
+        });
+      }
+      let paymentAccountId = null;
+      if (expense.payment_method === "cash" && expense.cash_account_id) {
+        const [[ca]] = await conn.query(
+          `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
+          [expense.cash_account_id]
+        );
+        paymentAccountId = (_h = ca == null ? void 0 : ca.chart_of_account_id) != null ? _h : null;
+      } else if (expense.payment_method === "bank" && expense.bank_account_id) {
+        const [[ba]] = await conn.query(
+          `SELECT chart_of_account_id, bank_name, account_name FROM bank_accounts WHERE id = ?`,
+          [expense.bank_account_id]
+        );
+        paymentAccountId = (_i = ba == null ? void 0 : ba.chart_of_account_id) != null ? _i : null;
+      }
+      if (!paymentAccountId) {
+        const payLabel = expense.payment_method === "cash" ? `petty-cash account #${expense.cash_account_id}` : `bank account #${expense.bank_account_id}`;
+        throw createError({
+          statusCode: 422,
+          statusMessage: `Cannot approve \u2014 ${payLabel} has no GL account mapped. Please link a Chart of Accounts entry to the payment account before approving.`
+        });
+      }
       await conn.query(
         `UPDATE expense_vouchers
          SET status = 'approved', approved_by_user_id = ?, approved_at = NOW(),
@@ -45,6 +87,64 @@ const approve_post = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [userId, id]
       );
+      const jeDesc = `Expense: ${expense.voucher_number} \u2014 ${(_j = expense.category_name) != null ? _j : ""}${expense.remarks ? " \xB7 " + expense.remarks : ""}`.slice(0, 255);
+      const [jeResult] = await conn.query(
+        `INSERT INTO journal_entries
+           (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
+         VALUES (?, ?, 'ExpenseVoucher', ?, ?)`,
+        [expense.expense_date, jeDesc, expense.id, userId]
+      );
+      const journalEntryId = jeResult.insertId;
+      await conn.query(
+        `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+         VALUES (?, ?, ?, 0.00, ?)`,
+        [journalEntryId, expenseAccountId, Number(expense.total_amount), expense.voucher_number]
+      );
+      await conn.query(
+        `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+         VALUES (?, ?, 0.00, ?, ?)`,
+        [journalEntryId, paymentAccountId, Number(expense.total_amount), expense.voucher_number]
+      );
+      await conn.query(
+        `UPDATE expense_vouchers SET journal_entry_id = ? WHERE id = ?`,
+        [journalEntryId, id]
+      );
+      if (expense.payment_method === "cash" && expense.cash_account_id) {
+        const [[pcAccount]] = await conn.query(
+          `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
+          [expense.cash_account_id]
+        );
+        const balanceAfter = Number((_k = pcAccount == null ? void 0 : pcAccount.current_balance) != null ? _k : 0) - Number(expense.total_amount);
+        await conn.query(
+          `INSERT INTO branch_petty_cash_transactions
+             (account_id, branch_id, transaction_type, amount, balance_after,
+              reference_type, reference_id, description, created_by_user_id, transaction_date)
+           VALUES (?, ?, 'cash_out', ?, ?, 'expenses', ?, ?, ?, ?)`,
+          [
+            expense.cash_account_id,
+            (_l = pcAccount == null ? void 0 : pcAccount.branch_id) != null ? _l : null,
+            Number(expense.total_amount),
+            balanceAfter,
+            expense.id,
+            expense.voucher_number,
+            userId,
+            expense.expense_date
+          ]
+        );
+        await conn.query(
+          `UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ? WHERE id = ?`,
+          [Number(expense.total_amount), expense.cash_account_id]
+        );
+      }
+      if (expense.payment_method === "bank" && expense.bank_account_id) {
+        await conn.query(
+          `UPDATE bank_accounts
+           SET current_balance = GREATEST(0, COALESCE(current_balance, 0) - ?)
+           WHERE id = ?`,
+          [Number(expense.total_amount), expense.bank_account_id]
+        ).catch(() => {
+        });
+      }
       await auditLog(conn, {
         userId,
         action: "approved",
@@ -55,81 +155,17 @@ const approve_post = defineEventHandler(async (event) => {
         description: `Expense ${expense.voucher_number} (\u09F3${Number(expense.total_amount).toLocaleString()}) approved by ${actorName}`,
         severity: "info"
       });
-      let journalEntryId = null;
-      try {
-        let expenseAccountId = null;
-        if (expense.category_id) {
-          const [[cat]] = await conn.query(
-            `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`,
-            [expense.category_id]
-          );
-          expenseAccountId = (_g = cat == null ? void 0 : cat.chart_of_account_id) != null ? _g : null;
-        }
-        if (expense.subcategory_id) {
-          const [[sub]] = await conn.query(
-            `SELECT chart_of_account_id FROM expense_subcategories WHERE id = ?`,
-            [expense.subcategory_id]
-          );
-          if (sub == null ? void 0 : sub.chart_of_account_id) expenseAccountId = sub.chart_of_account_id;
-        }
-        let paymentAccountId = null;
-        if (expense.payment_method === "cash" && expense.cash_account_id) {
-          const [[ca]] = await conn.query(
-            `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
-            [expense.cash_account_id]
-          );
-          paymentAccountId = (_h = ca == null ? void 0 : ca.chart_of_account_id) != null ? _h : null;
-        } else if (expense.payment_method === "bank" && expense.bank_account_id) {
-          const [[ba]] = await conn.query(
-            `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
-            [expense.bank_account_id]
-          );
-          paymentAccountId = (_i = ba == null ? void 0 : ba.chart_of_account_id) != null ? _i : null;
-        }
-        if (expenseAccountId && paymentAccountId) {
-          const description = `Expense: ${expense.voucher_number} \u2014 ${expense.category_name} (${expense.remarks || ""})`.slice(0, 255);
-          const [jeResult] = await conn.query(
-            `INSERT INTO journal_entries (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-             VALUES (?, ?, 'ExpenseVoucher', ?, ?)`,
-            [expense.expense_date, description, expense.id, userId]
-          );
-          journalEntryId = jeResult.insertId;
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, ?, 0.00, ?)`,
-            [journalEntryId, expenseAccountId, Number(expense.total_amount), expense.voucher_number]
-          );
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, 0.00, ?, ?)`,
-            [journalEntryId, paymentAccountId, Number(expense.total_amount), expense.voucher_number]
-          );
-          if (expense.payment_method === "cash" && expense.cash_account_id) {
-            const [[pcAccount]] = await conn.query(
-              `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
-              [expense.cash_account_id]
-            );
-            const currentBalance = Number((_j = pcAccount == null ? void 0 : pcAccount.current_balance) != null ? _j : 0);
-            const balanceAfter = currentBalance - Number(expense.total_amount);
-            await conn.query(
-              `INSERT INTO branch_petty_cash_transactions (account_id, branch_id, transaction_type, amount, balance_after, reference_type, reference_id, description, created_by_user_id, transaction_date)
-               VALUES (?, ?, 'cash_out', ?, ?, 'expenses', ?, ?, ?, ?)`,
-              [expense.cash_account_id, (_k = pcAccount == null ? void 0 : pcAccount.branch_id) != null ? _k : null, Number(expense.total_amount), balanceAfter, expense.id, expense.voucher_number, userId, expense.expense_date]
-            );
-            await conn.query(
-              `UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ? WHERE id = ?`,
-              [Number(expense.total_amount), expense.cash_account_id]
-            );
-          }
-          await conn.query(
-            `UPDATE expense_vouchers SET journal_entry_id = ? WHERE id = ?`,
-            [journalEntryId, id]
-          );
-        } else {
-          console.warn(`[approve] Skipping journal entry for expense ${expense.voucher_number}: expenseAccountId=${expenseAccountId}, paymentAccountId=${paymentAccountId}`);
-        }
-      } catch (jeErr) {
-        console.warn(`[approve] Journal entry creation failed for expense ${expense.voucher_number}:`, jeErr);
+      if (expense.created_by_user_id) {
+        await notify({
+          conn,
+          stableId: `exp-${id}-approved`,
+          userId: expense.created_by_user_id,
+          text: `\u2705 Your expense ${expense.voucher_number} (\u09F3${Number(expense.total_amount).toLocaleString()}) was approved by ${actorName}`,
+          type: "success",
+          route: `/expenses/${id}`,
+          module: "expenses",
+          referenceId: id
+        });
       }
       await conn.commit();
       return { ok: true, newStatus: "approved", journalEntryId };
@@ -154,6 +190,18 @@ const approve_post = defineEventHandler(async (event) => {
         description: `Expense ${expense.voucher_number} rejected by ${actorName}${reason ? `: ${reason}` : ""}`,
         severity: "warning"
       });
+      if (expense.created_by_user_id) {
+        await notify({
+          conn,
+          stableId: `exp-${id}-rejected`,
+          userId: expense.created_by_user_id,
+          text: `\u274C Your expense ${expense.voucher_number} was rejected by ${actorName}${reason ? ` \u2014 ${reason}` : ""}`,
+          type: "error",
+          route: `/expenses/${id}`,
+          module: "expenses",
+          referenceId: id
+        });
+      }
       await conn.commit();
       return { ok: true, newStatus: "rejected" };
     }
@@ -173,24 +221,28 @@ const approve_post = defineEventHandler(async (event) => {
         recordType: "expense_voucher",
         recordId: id,
         referenceNumber: expense.voucher_number,
-        description: `Expense ${expense.voucher_number} (\u09F3${Number(expense.total_amount).toLocaleString()}) cancelled/reversed by ${actorName}${reason ? `: ${reason}` : ""}`,
+        description: `Expense ${expense.voucher_number} (\u09F3${Number(expense.total_amount).toLocaleString()}) cancelled by ${actorName}${reason ? `: ${reason}` : ""}`,
         severity: "warning"
       });
       if (expense.journal_entry_id) {
         const [lines] = await conn.query(
-          `SELECT account_id, debit_amount, credit_amount, description FROM transaction_lines WHERE journal_entry_id = ?`,
+          `SELECT account_id, debit_amount, credit_amount, description
+           FROM transaction_lines WHERE journal_entry_id = ?`,
           [expense.journal_entry_id]
         );
-        const reversalDescription = `REVERSAL: ${expense.voucher_number} \u2014 ${reason || "Cancelled"}`.slice(0, 255);
+        const reversalDesc = `REVERSAL: ${expense.voucher_number} \u2014 ${reason || "Cancelled"}`.slice(0, 255);
         const [revResult] = await conn.query(
-          `INSERT INTO journal_entries (transaction_date, description, related_document_type, related_document_id, reverses_entry_id, created_by_user_id)
+          `INSERT INTO journal_entries
+             (transaction_date, description, related_document_type, related_document_id,
+              reverses_entry_id, created_by_user_id)
            VALUES (CURDATE(), ?, 'ExpenseVoucher', ?, ?, ?)`,
-          [reversalDescription, expense.id, expense.journal_entry_id, userId]
+          [reversalDesc, expense.id, expense.journal_entry_id, userId]
         );
         const reversalEntryId = revResult.insertId;
         for (const line of lines) {
           await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
+            `INSERT INTO transaction_lines
+               (journal_entry_id, account_id, debit_amount, credit_amount, description)
              VALUES (?, ?, ?, ?, ?)`,
             [reversalEntryId, line.account_id, Number(line.credit_amount), Number(line.debit_amount), line.description]
           );
@@ -204,19 +256,58 @@ const approve_post = defineEventHandler(async (event) => {
             `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [expense.cash_account_id]
           );
-          const currentBalance = Number((_l = pcAccount == null ? void 0 : pcAccount.current_balance) != null ? _l : 0);
-          const balanceAfter = currentBalance + Number(expense.total_amount);
+          const balanceAfter = Number((_m = pcAccount == null ? void 0 : pcAccount.current_balance) != null ? _m : 0) + Number(expense.total_amount);
           await conn.query(
-            `INSERT INTO branch_petty_cash_transactions (account_id, branch_id, transaction_type, amount, balance_after, reference_type, reference_id, description, created_by_user_id, transaction_date)
+            `INSERT INTO branch_petty_cash_transactions
+               (account_id, branch_id, transaction_type, amount, balance_after,
+                reference_type, reference_id, description, created_by_user_id, transaction_date)
              VALUES (?, ?, 'cash_in', ?, ?, 'expenses', ?, ?, ?, CURDATE())`,
-            [expense.cash_account_id, (_m = pcAccount == null ? void 0 : pcAccount.branch_id) != null ? _m : null, Number(expense.total_amount), balanceAfter, expense.id, expense.voucher_number, userId]
+            [
+              expense.cash_account_id,
+              (_n = pcAccount == null ? void 0 : pcAccount.branch_id) != null ? _n : null,
+              Number(expense.total_amount),
+              balanceAfter,
+              expense.id,
+              `REVERSAL: ${expense.voucher_number}`,
+              userId
+            ]
           );
           await conn.query(
             `UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`,
             [Number(expense.total_amount), expense.cash_account_id]
           );
         }
+        if (expense.payment_method === "bank" && expense.bank_account_id) {
+          await conn.query(
+            `UPDATE bank_accounts
+             SET current_balance = COALESCE(current_balance, 0) + ?
+             WHERE id = ?`,
+            [Number(expense.total_amount), expense.bank_account_id]
+          ).catch(() => {
+          });
+        }
       }
+      if (expense.created_by_user_id) {
+        await notify({
+          conn,
+          stableId: `exp-${id}-cancelled`,
+          userId: expense.created_by_user_id,
+          text: `\u{1F6AB} Your expense ${expense.voucher_number} (\u09F3${Number(expense.total_amount).toLocaleString()}) was cancelled${reason ? ` \u2014 ${reason}` : ""}`,
+          type: "warning",
+          route: `/expenses/${id}`,
+          module: "expenses",
+          referenceId: id
+        });
+      }
+      await notifyAdmins({
+        conn,
+        stableId: `exp-${id}-cancelled-admin`,
+        text: `\u{1F6AB} Expense ${expense.voucher_number} cancelled by ${actorName}${reason ? ` \u2014 ${reason}` : ""}`,
+        type: "warning",
+        route: `/expenses/${id}`,
+        module: "expenses",
+        referenceId: id
+      });
       await conn.commit();
       return { ok: true, newStatus: "cancelled" };
     }

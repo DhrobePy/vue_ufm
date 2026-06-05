@@ -1,4 +1,4 @@
-import { h as defineEventHandler, I as readBody, w as getUserSession, e as createError, n as getDb, H as queryOne, a as auditLog } from '../../nitro/nitro.mjs';
+import { h as defineEventHandler, K as readBody, w as getUserSession, e as createError, n as getDb, J as queryOne, a as auditLog, D as notifyAdmins } from '../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -138,6 +138,15 @@ const index_post = defineEventHandler(async (event) => {
       referenceNumber: voucherNo,
       description: `Expense voucher ${voucherNo} (\u09F3${Number(computed_total).toLocaleString()}) created by ${actorName}`,
       severity: "info"
+    });
+    await notifyAdmins({
+      conn,
+      stableId: `exp-${newId}-submitted`,
+      text: `\u{1F4B8} Expense ${voucherNo} (\u09F3${Number(computed_total).toLocaleString()}) submitted by ${actorName} \u2014 awaiting approval`,
+      type: "warning",
+      route: `/expenses/${newId}`,
+      module: "expenses",
+      referenceId: newId
     });
     await conn.commit();
     return { ok: true, id: newId, voucher_number: voucherNo };
