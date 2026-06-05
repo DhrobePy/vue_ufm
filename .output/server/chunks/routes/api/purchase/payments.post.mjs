@@ -38,12 +38,6 @@ const payments_post = defineEventHandler(async (event) => {
   const pmtAmt = Number(amount_paid);
   try {
     await conn.beginTransaction();
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS payment_type VARCHAR(30) DEFAULT 'credit'`).catch(() => {
-    });
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS is_posted TINYINT(1) NOT NULL DEFAULT 1`).catch(() => {
-    });
-    await conn.query(`ALTER TABLE purchase_payments_adnan ADD COLUMN IF NOT EXISTS journal_entry_id INT DEFAULT NULL`).catch(() => {
-    });
     const [[po]] = await conn.query(
       `SELECT id, po_number, supplier_id, supplier_name, balance_payable
        FROM purchase_orders_adnan WHERE id = ?`,

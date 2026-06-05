@@ -24,23 +24,6 @@ const _id__delete = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS order_deletion_log (
-        id                 INT AUTO_INCREMENT PRIMARY KEY,
-        order_id           INT NOT NULL,
-        order_number       VARCHAR(50) NOT NULL,
-        customer_id        INT,
-        customer_name      VARCHAR(200),
-        total_amount       DECIMAL(15,2),
-        amount_paid        DECIMAL(15,2),
-        balance_due        DECIMAL(15,2),
-        order_status       VARCHAR(50),
-        deleted_by_user_id INT,
-        deleted_by_name    VARCHAR(200),
-        deleted_at         DATETIME,   -- set explicitly to UTC_TIMESTAMP() on insert
-        INDEX idx_deleted_at (deleted_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
     const [[order]] = await conn.query(
       `SELECT o.id, o.customer_id, o.order_number,
               o.total_amount, o.amount_paid, o.balance_due,

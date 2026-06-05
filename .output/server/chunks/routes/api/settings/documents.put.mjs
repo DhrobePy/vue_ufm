@@ -26,14 +26,6 @@ const documents_put = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS system_settings (
-        setting_key   VARCHAR(120) NOT NULL PRIMARY KEY,
-        setting_value MEDIUMTEXT,
-        updated_by    INT          DEFAULT NULL,
-        updated_at    DATETIME     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
-    `);
     const updated = [];
     for (const key of ALLOWED_KEYS) {
       if (key in body && typeof body[key] === "string") {

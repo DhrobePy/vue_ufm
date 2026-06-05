@@ -778,7 +778,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-CM6m3Xp8.mjs')
+    component: () => import('./create-Bo9WFryM.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -856,7 +856,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./vouchers-h-Tn0lU8.mjs')
+    component: () => import('./vouchers-PlN28HYR.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -922,13 +922,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./create-kWvzcAy0.mjs')
+    component: () => import('./create-ClwmkP_H.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1o || {},
-    component: () => import('./index--VjGjWAh.mjs')
+    component: () => import('./index-8upPDupx.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1078,7 +1078,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-99sgPyqM.mjs')
+    component: () => import('./edit-MKnoeV-r.mjs')
   },
   {
     name: "credit-sales-dispatch",

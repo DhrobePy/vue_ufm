@@ -33,11 +33,6 @@ const index_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(`
-      ALTER TABLE purchase_orders_adnan
-        ADD COLUMN IF NOT EXISTS po_payment_terms VARCHAR(50) DEFAULT 'Credit 30'
-    `).catch(() => {
-    });
     const [[sup]] = await conn.query(
       `SELECT company_name FROM suppliers WHERE id = ?`,
       [supplier_id]
