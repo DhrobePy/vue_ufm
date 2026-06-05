@@ -1,0 +1,1 @@
+import{r as t,ao as n,E as o,Q as r,m as s}from"./CfXEBvsb.js";const m=t({__name:"index",async setup(_){let e,a;return[e,a]=n(()=>o("/dashboard",{replace:!0})),await e,a(),(c,p)=>(r(),s("div"))}});export{m as default};

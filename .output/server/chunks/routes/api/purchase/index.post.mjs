@@ -42,7 +42,8 @@ const index_post = defineEventHandler(async (event) => {
     const receivedKg = Number(quantity_received_kg);
     const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(po.unit_price_per_kg);
-    const totalValue = receivedKg * unitPrice;
+    const billedQty = expectedKg > 0 ? expectedKg : receivedKg;
+    const totalValue = billedQty * unitPrice;
     const baseQty = expectedKg > 0 ? expectedKg : Number(po.quantity_kg);
     const varPct = baseQty > 0 ? ((receivedKg - baseQty) / baseQty * 100).toFixed(4) : "0";
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
@@ -97,7 +98,7 @@ const index_post = defineEventHandler(async (event) => {
       recordType: "grn",
       recordId: grnId,
       referenceNumber: grnNo,
-      description: `GRN ${grnNo} recorded: ${po.supplier_name} \xB7 PO ${po.po_number} \xB7 Received ${receivedKg.toLocaleString()} KG \xB7 \u09F3${totalValue.toLocaleString()}${varianceNote}`,
+      description: `GRN ${grnNo} recorded: ${po.supplier_name} \xB7 PO ${po.po_number} \xB7 Received ${receivedKg.toLocaleString()} KG \xB7 Billed ${billedQty.toLocaleString()} KG \xB7 \u09F3${totalValue.toLocaleString()}${varianceNote}`,
       severity: Math.abs(Number(varPct)) > 1 ? "warning" : "info"
     });
     if (over_delivery_action === "accept_with_dan" && Number(excess_qty) > 0) {

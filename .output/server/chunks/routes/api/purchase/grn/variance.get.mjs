@@ -1,4 +1,4 @@
-import { h as defineEventHandler, G as query } from '../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, w as getUserSession, e as createError, G as query } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -9,7 +9,13 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const variance_get = defineEventHandler(async () => {
+const variance_get = defineEventHandler(async (event) => {
+  var _a, _b;
+  const session = await getUserSession(event);
+  const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
+  if (!["admin", "superadmin"].includes(role)) {
+    throw createError({ statusCode: 403, statusMessage: "Access denied \u2014 admin/superadmin only" });
+  }
   const rows = await query(
     `SELECT
        g.id,

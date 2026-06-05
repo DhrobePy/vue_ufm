@@ -1144,7 +1144,7 @@ const _routes = [
     name: "purchase-grn-variance",
     path: "/purchase/grn/variance",
     meta: __nuxt_page_meta$Q || {},
-    component: () => import('./variance-CMfYMDjq.mjs')
+    component: () => import('./variance-DHkc3jiT.mjs')
   },
   {
     name: "purchase-orders",
@@ -1216,7 +1216,7 @@ const _routes = [
     name: "purchase-orders-create",
     path: "/purchase/orders/create",
     meta: __nuxt_page_meta$E || {},
-    component: () => import('./create-Yty2Vfm9.mjs')
+    component: () => import('./create-CK_BEUCw.mjs')
   },
   {
     name: "accounts-journal-create",
@@ -1276,7 +1276,7 @@ const _routes = [
     name: "purchase-grn-id",
     path: "/purchase/grn/:id()",
     meta: __nuxt_page_meta$u || {},
-    component: () => import('./index-CeWLtNl0.mjs')
+    component: () => import('./index-rBM0EHx0.mjs')
   },
   {
     name: "purchase-grn-id-print",
@@ -1396,13 +1396,13 @@ const _routes = [
     name: "purchase-orders-id",
     path: "/purchase/orders/:id()",
     meta: __nuxt_page_meta$a || {},
-    component: () => import('./index-BPWIzVTT.mjs')
+    component: () => import('./index-CARndl_1.mjs')
   },
   {
     name: "purchase-orders-id-print",
     path: "/purchase/orders/:id()/print",
     meta: __nuxt_page_meta$9 || {},
-    component: () => import('./print-b6F7mgJy.mjs')
+    component: () => import('./print-CaU4nZYQ.mjs')
   },
   {
     name: "purchase-suppliers-summary",
@@ -2055,7 +2055,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-BOcePBuv.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-DEIvd6qY.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };
