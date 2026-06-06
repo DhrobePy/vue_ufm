@@ -1,9 +1,9 @@
 <template>
   <div class="space-y-6 animate-fade-in">
 
-    <!-- ── Offline draft restore banner ─────────────── -->
+    <!-- ── Offline draft restore banner (credit-sales users only) ── -->
     <Transition name="slide-down">
-      <div v-if="hasDraft"
+      <div v-if="hasDraft && perms.canAccessModule('credit_sales')"
            class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm"
            style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2)">
         <svg class="w-4 h-4 text-gold-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">

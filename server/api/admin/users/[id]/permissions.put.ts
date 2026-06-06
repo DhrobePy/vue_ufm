@@ -5,8 +5,9 @@
  *
  * Body: { data_scope: string, allowed_branches: string[], permissions: Record<string,any> }
  */
-import { getDb }   from '~/server/utils/db'
-import { auditLog } from '~/server/utils/audit'
+import { getDb }             from '~/server/utils/db'
+import { auditLog }          from '~/server/utils/audit'
+import { invalidatePermCache } from '~/server/utils/permCache'
 
 export default defineEventHandler(async (event) => {
   const session  = await getUserSession(event)
@@ -106,6 +107,10 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+
+    // Bust the server-side permission cache so the new config takes effect immediately
+    invalidatePermCache(targetId)
+
     return { ok: true, user_id: targetId }
   } catch (e) {
     await conn.rollback()
