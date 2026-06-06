@@ -604,7 +604,7 @@ const _routes = [
     name: "pos",
     path: "/pos",
     meta: __nuxt_page_meta$2e || {},
-    component: () => import('./index-CwZkSxSe.mjs')
+    component: () => import('./index-Mirc9t0S.mjs')
   },
   {
     name: "pos-today",
