@@ -333,5 +333,34 @@ export default defineNitroPlugin(async () => {
     'TEXT NULL DEFAULT NULL',
   )
 
+  // ── 19. product_variants — barcode ────────────────────────────────────────
+  //   Queried by hub.get.ts; missing from production schema.
+  await addCol(
+    db, 'product_variants', 'barcode',
+    'VARCHAR(100) NULL DEFAULT NULL',
+  )
+
+  // ── 20. product_variants — stock_qty ─────────────────────────────────────
+  //   Authoritative on-hand quantity.  Used by hub.get.ts and pos/products.get.ts.
+  await addCol(
+    db, 'product_variants', 'stock_qty',
+    "DECIMAL(12,3) NOT NULL DEFAULT 0 COMMENT 'Authoritative stock quantity'",
+  )
+
+  // ── 21. product_variants — reserved_qty ──────────────────────────────────
+  //   Quantity reserved for pending orders.  Available stock = stock_qty - reserved_qty.
+  await addCol(
+    db, 'product_variants', 'reserved_qty',
+    "DECIMAL(12,3) NOT NULL DEFAULT 0 COMMENT 'Reserved for pending orders'",
+  )
+
+  // ── 22. product_variants — unit_price ─────────────────────────────────────
+  //   Fallback base price when no branch-specific product_prices row exists.
+  //   Used by hub.get.ts (base_price) and pos/products.get.ts (COALESCE fallback).
+  await addCol(
+    db, 'product_variants', 'unit_price',
+    "DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Fallback base price if no branch price set'",
+  )
+
   console.log('[db-migrate] startup migrations complete')
 })

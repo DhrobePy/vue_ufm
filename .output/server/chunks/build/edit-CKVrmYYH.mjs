@@ -206,4 +206,4 @@ _sfc_main.setup = (props, ctx) => {
 const edit = /* @__PURE__ */ _export_sfc(_sfc_main, [["__scopeId", "data-v-f39e765a"]]);
 
 export { edit as default };
-//# sourceMappingURL=edit-1TfWFRK8.mjs.map
+//# sourceMappingURL=edit-CKVrmYYH.mjs.map
