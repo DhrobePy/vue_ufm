@@ -51,8 +51,8 @@
       </svg>
     </button>
 
-    <!-- Notification bell -->
-    <div class="relative" ref="notifAreaRef">
+    <!-- Notification bell — only for admin / superadmin -->
+    <div v-if="isAdminUser" class="relative" ref="notifAreaRef">
       <button
         @click="notifOpen = !notifOpen"
         class="relative w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/[0.07] transition-all duration-150"
@@ -209,6 +209,9 @@ defineEmits(['toggle-sidebar'])
 
 const route  = useRoute()
 const { user: sessionUser, clear } = useUserSession()
+const isAdminUser = computed(() =>
+  ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()),
+)
 const searchStore = useGlobalSearch()
 const themeStore  = useTheme()
 const { success, warning: toastWarning } = useToast()
@@ -237,6 +240,8 @@ const userInitials = computed(() => {
 async function handleLogout() {
   await $fetch('/api/auth/logout', { method: 'POST' }).catch(() => {})
   await clear()
+  // Clear cached permissions so the next user starts fresh
+  usePermissions().clear()
   await navigateTo('/auth/login')
 }
 
@@ -324,6 +329,8 @@ async function loadNotifications() {
 }
 
 onMounted(() => {
+  // Only poll notifications for admin/superadmin users
+  if (!isAdminUser.value) return
   loadNotifications()
   // Poll every 90 s — reduced from 30 s to ease process pressure on shared hosting
   const timer = setInterval(loadNotifications, 90_000)

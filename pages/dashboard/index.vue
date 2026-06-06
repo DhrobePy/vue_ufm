@@ -36,7 +36,7 @@
           </svg>
           {{ warRoom ? 'Exit' : 'War Room' }}
         </button>
-        <NuxtLink to="/credit-sales/create" class="btn-gold text-xs">
+        <NuxtLink v-if="perms.canAccessModule('credit_sales')" to="/credit-sales/create" class="btn-gold text-xs">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
           New Order
         </NuxtLink>
@@ -250,7 +250,7 @@
       <div class="glass-card p-5">
         <div class="flex items-center justify-between mb-4">
           <h2 class="section-title">Pending Approvals</h2>
-          <NuxtLink to="/credit-sales/approve" class="text-xs text-gold-500 hover:text-gold-400 font-medium transition-colors">
+          <NuxtLink v-if="perms.canAccessModule('credit_sales')" to="/credit-sales/approve" class="text-xs text-gold-500 hover:text-gold-400 font-medium transition-colors">
             View all →
           </NuxtLink>
         </div>
@@ -313,6 +313,9 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+
+// Permissions — used to gate module-specific links in this page
+const perms = usePermissions()
 
 // ── Live stats — SSR fetch, then polled every 30 s ────────────────
 const { data: statsData, refresh: refreshStats } =
