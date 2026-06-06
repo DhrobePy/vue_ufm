@@ -1,146 +1,1297 @@
 <template>
-  <div class="space-y-6">
-    <UiPageHeader title="Products" subtitle="Flour brands · variants · pricing · inventory"
+  <div class="space-y-5">
+
+    <!-- ══ HEADER ══════════════════════════════════════════════════════════════ -->
+    <UiPageHeader title="Products" subtitle="Base products · grades · variants · pricing · inventory"
                   :breadcrumb="['Products']">
       <template #actions>
-        <button class="btn-gold text-xs">+ Add Product</button>
+        <button @click="showAddProduct = true"
+                class="btn-gold text-xs flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+          </svg>
+          New Product
+        </button>
       </template>
     </UiPageHeader>
 
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <KpiCard label="Base Products"   :value="String(allProducts.length)"     trend="Active"           trend-up  icon="box"   color="purple" />
-      <KpiCard label="Variants"        :value="String(totalVariants)"          trend="All active"       trend-up  icon="list"  color="blue" />
-      <KpiCard label="Categories"      :value="String(categories.length - 1)"  trend="Product lines"    trend-up  icon="box"   color="orange" />
-      <KpiCard label="Priced Variants" :value="String(pricedVariants)"         trend="Have unit prices" trend-up  icon="chart" color="teal" />
+    <!-- ══ KPI STRIP ═══════════════════════════════════════════════════════════ -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div v-for="k in kpis" :key="k.label"
+           class="glass-card p-4 flex items-center gap-3 overflow-hidden relative group hover:ring-1 hover:ring-white/[0.06] transition-all duration-200">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
+             :style="`background:${k.bg};border:1px solid ${k.border}`">
+          <span class="text-xl leading-none">{{ k.icon }}</span>
+        </div>
+        <div>
+          <p class="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">{{ k.label }}</p>
+          <p class="text-2xl font-black tabular-nums" :class="k.color">{{ k.val }}</p>
+          <p class="text-[10px] text-gray-600">{{ k.sub }}</p>
+        </div>
+      </div>
     </div>
 
-    <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading products…</div>
-    <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
-
-    <template v-else>
-      <!-- Category tabs -->
-      <div class="flex gap-2 flex-wrap">
-        <button v-for="cat in categories" :key="cat"
-          @click="activeCategory = cat"
-          :class="['px-3 py-1.5 rounded-xl text-xs font-medium border transition-all',
-            activeCategory === cat
-              ? 'bg-gold-500/15 text-gold-400 border-gold-500/25'
-              : 'text-gray-500 border-white/[0.07] hover:text-gray-300']">
-          {{ cat }}
+    <!-- ══ TAB BAR ══════════════════════════════════════════════════════════════ -->
+    <div class="flex items-center justify-between flex-wrap gap-3">
+      <div class="flex gap-1 p-1 bg-white/[0.03] rounded-2xl border border-white/[0.06]">
+        <button @click="setTab('catalog')"
+                class="px-5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-2"
+                :class="tab === 'catalog'
+                  ? 'bg-white/[0.09] text-gray-100 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+          </svg>
+          Catalog
+        </button>
+        <button v-if="isAdmin" @click="setTab('pricing')"
+                class="px-5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 flex items-center gap-2"
+                :class="tab === 'pricing'
+                  ? 'bg-white/[0.09] text-gray-100 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-300'">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Pricing Engine
+          <span class="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/20">ADMIN</span>
         </button>
       </div>
 
-      <!-- Product cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <div v-for="p in filteredProducts" :key="p.id"
-             class="glass-card-hover p-5 space-y-4 cursor-pointer">
-          <!-- Header -->
-          <div class="flex items-start justify-between gap-2">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-                 style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.15)">
-              🌾
+      <!-- Search + filters (catalog only) -->
+      <Transition name="fade-quick">
+        <div v-if="tab === 'catalog'" class="flex items-center gap-2 flex-wrap">
+          <div class="relative">
+            <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none"
+                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+            </svg>
+            <input v-model="search" placeholder="Search products, SKU…"
+                   class="input-glass pl-9 pr-3 py-1.5 text-xs w-48" />
+          </div>
+          <div class="flex gap-1 flex-wrap">
+            <button v-for="cat in categories" :key="cat"
+                    @click="filterCategory = cat"
+                    class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-150"
+                    :class="filterCategory === cat
+                      ? 'bg-gold-500/15 text-gold-400 border-gold-500/25'
+                      : 'text-gray-500 border-white/[0.07] hover:text-gray-300 hover:border-white/[0.12]'">
+              {{ cat === 'All' ? 'All' : cat }}
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </div>
+
+    <!-- Loading / error -->
+    <div v-if="pending" class="glass-card p-12 text-center space-y-3">
+      <div class="w-8 h-8 border-2 border-gold-500/30 border-t-gold-500 rounded-full animate-spin mx-auto" />
+      <p class="text-xs text-gray-500">Loading…</p>
+    </div>
+    <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
+
+    <!-- ══ TAB CONTENT ══════════════════════════════════════════════════════════ -->
+    <template v-else>
+      <Transition name="tab-slide" mode="out-in">
+
+        <!-- ─── CATALOG ──────────────────────────────────────────────────────── -->
+        <div v-if="tab === 'catalog'" key="catalog" class="space-y-3">
+
+          <!-- Product accordion cards -->
+          <div v-for="p in filteredProducts" :key="p.id"
+               class="rounded-2xl border transition-all duration-200 overflow-hidden"
+               :class="expandedId === p.id
+                 ? 'bg-white/[0.04] border-white/[0.10]'
+                 : 'bg-white/[0.02] border-white/[0.05] hover:border-white/[0.08]'">
+
+            <!-- ── Card header ────────────────────────────────────────────────── -->
+            <div class="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none"
+                 @click="toggleExpand(p.id)">
+
+              <!-- Category icon blob -->
+              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 transition-all duration-300"
+                   :class="[categoryBg(p.category), expandedId === p.id ? 'scale-110' : 'hover:scale-105']">
+                {{ categoryIcon(p.category) }}
+              </div>
+
+              <!-- Name + badges -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="font-bold text-gray-100 text-sm">{{ p.base_name }}</h3>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        :class="categoryPill(p.category)">{{ p.category }}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border"
+                        :class="p.status === 'active'
+                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          : 'bg-gray-500/10 text-gray-500 border-gray-500/20'">
+                    {{ p.status }}
+                  </span>
+                </div>
+                <p class="text-[11px] text-gray-500 mt-0.5">
+                  {{ p.variants.length }} variant{{ p.variants.length !== 1 ? 's' : '' }}
+                  <span v-if="priceRange(p)" class="text-gold-500/90 ml-1.5">· {{ priceRange(p) }}</span>
+                </p>
+              </div>
+
+              <!-- Right actions -->
+              <div class="flex items-center gap-2 shrink-0" @click.stop>
+                <button @click="openEditProduct(p)"
+                        class="p-1.5 rounded-lg text-gray-600 hover:text-gray-200 hover:bg-white/[0.06] transition-all">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                  </svg>
+                </button>
+                <div class="transition-transform duration-300 text-gray-500"
+                     :class="expandedId === p.id ? 'rotate-180' : ''">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                  </svg>
+                </div>
+              </div>
             </div>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">active</span>
+
+            <!-- ── Expanded body ─────────────────────────────────────────────── -->
+            <Transition name="expand">
+              <div v-if="expandedId === p.id" class="border-t border-white/[0.06]">
+
+                <!-- Variant rows -->
+                <div class="overflow-x-auto">
+                  <table class="w-full text-xs min-w-[480px]">
+                    <thead>
+                      <tr class="border-b border-white/[0.04] text-[10px] text-gray-600 uppercase tracking-wider">
+                        <th class="px-4 py-2 text-left font-semibold w-24">Pack</th>
+                        <th class="px-3 py-2 text-left font-semibold w-16">Grade</th>
+                        <th class="px-3 py-2 text-left font-semibold hidden md:table-cell">SKU / Barcode</th>
+                        <th class="px-3 py-2 text-left font-semibold w-40">Stock</th>
+                        <th v-for="b in branches" :key="b.id"
+                            class="px-3 py-2 text-center font-semibold min-w-[88px]">
+                          {{ b.code }}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/[0.03]">
+                      <tr v-if="!p.variants.length">
+                        <td :colspan="4 + branches.length"
+                            class="px-4 py-6 text-center text-gray-600 italic text-xs">
+                          No variants — add one below
+                        </td>
+                      </tr>
+                      <tr v-for="v in p.variants" :key="v.id"
+                          class="hover:bg-white/[0.02] transition-colors">
+
+                        <!-- Pack weight -->
+                        <td class="px-4 py-2.5">
+                          <span class="px-2 py-0.5 rounded-md text-[11px] font-bold font-mono"
+                                :class="packBadge(v.weight_variant)">
+                            {{ v.weight_variant }}
+                          </span>
+                        </td>
+
+                        <!-- Grade -->
+                        <td class="px-3 py-2.5">
+                          <span v-if="v.grade"
+                                class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black border shadow-sm"
+                                :class="gradeBadge(v.grade)" :title="`Grade ${v.grade}`">
+                            {{ v.grade }}
+                          </span>
+                          <span v-else class="text-gray-700 text-[10px]">—</span>
+                        </td>
+
+                        <!-- SKU / Barcode -->
+                        <td class="px-3 py-2.5 hidden md:table-cell">
+                          <p class="font-mono text-gray-500 text-[11px] leading-tight">{{ v.sku || '—' }}</p>
+                          <p v-if="v.barcode" class="font-mono text-gray-700 text-[10px]">{{ v.barcode }}</p>
+                        </td>
+
+                        <!-- Stock bar -->
+                        <td class="px-3 py-2.5">
+                          <div class="flex items-center gap-1.5">
+                            <div class="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden shrink-0">
+                              <div class="h-full rounded-full transition-all duration-700"
+                                   :class="stockBarColor(v)"
+                                   :style="`width:${stockPct(v)}%`" />
+                            </div>
+                            <span class="font-mono tabular-nums text-gray-300 text-[11px] shrink-0">
+                              {{ Number(v.stock_qty).toLocaleString() }}
+                            </span>
+                          </div>
+                          <div class="text-[10px] text-gray-600 mt-0.5 pl-[74px] -ml-px">
+                            avail <span :class="availColor(v)">{{ Math.max(0, Number(v.stock_qty) - Number(v.reserved_qty)).toLocaleString() }}</span>
+                          </div>
+                        </td>
+
+                        <!-- Price cells (inline editable) -->
+                        <td v-for="b in branches" :key="b.id"
+                            class="px-3 py-2.5 text-center">
+                          <!-- Editing state -->
+                          <div v-if="editingCell === `${v.id}:${b.id}`"
+                               class="flex items-center justify-center gap-1">
+                            <span class="text-gold-400 text-[10px]">৳</span>
+                            <input ref="priceInputRef"
+                                   v-model.number="editingValue"
+                                   type="number" min="0" step="1"
+                                   class="w-16 bg-transparent border-b border-gold-500 text-center text-[11px] font-mono font-bold text-gray-100 outline-none appearance-none"
+                                   @keyup.enter="commitEdit(v.id, b.id)"
+                                   @keyup.escape="cancelEdit()" />
+                            <button @click="commitEdit(v.id, b.id)" :disabled="savingCell"
+                                    class="text-emerald-400 hover:text-emerald-300 disabled:opacity-50">
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                              </svg>
+                            </button>
+                            <button @click="cancelEdit()" class="text-gray-600 hover:text-gray-400">
+                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                              </svg>
+                            </button>
+                          </div>
+                          <!-- Display state -->
+                          <button v-else
+                                  @click="startEdit(v.id, b.id, v.prices[b.id]?.unit_price ?? null)"
+                                  class="group/pc w-full flex items-center justify-center transition-all duration-150">
+                            <span v-if="v.prices[b.id]?.unit_price"
+                                  class="font-mono font-bold text-gold-400 group-hover/pc:text-gold-300 tabular-nums text-xs underline decoration-dotted decoration-gold-500/30 group-hover/pc:decoration-gold-400/60">
+                              ৳{{ Number(v.prices[b.id].unit_price).toLocaleString() }}
+                            </span>
+                            <span v-else
+                                  class="text-[10px] text-gray-700 border border-dashed border-gray-700/60 group-hover/pc:border-gold-500/40 group-hover/pc:text-gold-500/70 rounded px-1.5 py-0.5 transition-all">
+                              + Set
+                            </span>
+                          </button>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Card footer: add variant + totals -->
+                <div class="px-4 py-3 border-t border-white/[0.04] flex items-center justify-between flex-wrap gap-2">
+                  <button @click="openAddVariant(p.id)"
+                          class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gold-400 transition-colors group/add">
+                    <div class="w-5 h-5 rounded-md border border-dashed border-gray-700 group-hover/add:border-gold-500/50 flex items-center justify-center transition-colors">
+                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                      </svg>
+                    </div>
+                    Add Variant
+                  </button>
+                  <div class="flex items-center gap-4 text-[10px] text-gray-600">
+                    <span>Total stock: <strong class="text-gray-400">{{ p.variants.reduce((s, v) => s + Number(v.stock_qty), 0).toLocaleString() }}</strong></span>
+                    <span>Reserved: <strong class="text-orange-400/80">{{ p.variants.reduce((s, v) => s + Number(v.reserved_qty), 0).toLocaleString() }}</strong></span>
+                  </div>
+                </div>
+              </div>
+            </Transition>
           </div>
-          <div>
-            <h3 class="font-semibold text-gray-100 text-sm leading-tight">{{ p.base_name }}</h3>
-            <p class="text-[10px] text-gray-600 mt-0.5 font-mono">{{ p.base_sku }}</p>
-            <p class="text-[11px] text-gray-500 mt-1">{{ p.category }}</p>
+
+          <!-- Empty state -->
+          <div v-if="!filteredProducts.length"
+               class="glass-card p-14 text-center space-y-3">
+            <div class="text-5xl">📦</div>
+            <p class="text-gray-400 font-semibold">No products found</p>
+            <p class="text-xs text-gray-600">Try adjusting your search or filter</p>
           </div>
-          <!-- Variants -->
-          <div class="space-y-1.5">
-            <p class="text-[10px] text-gray-600 uppercase tracking-wider font-semibold">Variants</p>
-            <div class="flex flex-wrap gap-1.5">
-              <span v-for="v in p.variants" :key="v.id"
-                class="px-1.5 py-0.5 rounded-md text-[10px] font-mono border bg-white/[0.06] text-gray-400 border-white/[0.08]">
-                {{ v.weight_variant }}
-              </span>
+        </div>
+
+        <!-- ─── PRICING ENGINE ────────────────────────────────────────────────── -->
+        <div v-else-if="tab === 'pricing'" key="pricing" class="space-y-5">
+
+          <!-- Flash -->
+          <Transition name="fade-quick">
+            <div v-if="peFlash.msg"
+                 class="px-4 py-3 text-sm border rounded-xl flex items-start gap-2"
+                 :class="peFlash.ok
+                   ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-300'
+                   : 'bg-red-500/10 border-red-500/20 text-red-300'">
+              <span>{{ peFlash.ok ? '✓' : '✗' }}</span>
+              <span>{{ peFlash.msg }}</span>
+            </div>
+          </Transition>
+
+          <!-- ── Section 1: Formula Config ────────────────────────────────── -->
+          <div class="glass-card p-0 overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
+              <h2 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+                <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+                Formula & Branch Surcharges
+              </h2>
+              <button @click="saveConfig" :disabled="savingConfig"
+                      class="btn-gold text-xs px-4 py-1.5 disabled:opacity-50">
+                {{ savingConfig ? 'Saving…' : 'Save Config' }}
+              </button>
+            </div>
+            <div class="p-5 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <!-- Formula -->
+              <div>
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">74 kg Auto-Price Formula</p>
+                <div class="rounded-lg bg-blue-500/10 border border-blue-500/20 px-4 py-3 font-mono text-xs text-blue-300 mb-4">
+                  price_74 = (price_50 ÷ <strong>{{ cfg.formula.bag_50 }}</strong>)
+                  × <strong>{{ cfg.formula.bag_74 }}</strong>
+                  + <strong>{{ cfg.formula.packaging_fee }}</strong>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                  <div>
+                    <label class="block text-[11px] text-gray-500 mb-1">Bag size 50 kg</label>
+                    <input v-model.number="cfg.formula.bag_50" type="number" min="1"
+                           class="input-glass w-full text-xs py-1.5 text-center font-mono" @input="recalcPreview" />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-gray-500 mb-1">Bag size 74 kg</label>
+                    <input v-model.number="cfg.formula.bag_74" type="number" min="1"
+                           class="input-glass w-full text-xs py-1.5 text-center font-mono" @input="recalcPreview" />
+                  </div>
+                  <div>
+                    <label class="block text-[11px] text-gray-500 mb-1">Packaging (৳)</label>
+                    <input v-model.number="cfg.formula.packaging_fee" type="number" step="0.01"
+                           class="input-glass w-full text-xs py-1.5 text-center font-mono" @input="recalcPreview" />
+                  </div>
+                </div>
+              </div>
+              <!-- Branch surcharges -->
+              <div>
+                <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Branch Surcharges (৳)</p>
+                <table class="w-full text-xs">
+                  <thead>
+                    <tr class="text-gray-600 border-b border-white/[0.04] text-[11px]">
+                      <th class="pb-2 text-left font-medium">Branch</th>
+                      <th class="pb-2 text-center font-medium">50 kg</th>
+                      <th class="pb-2 text-center font-medium">74 kg</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-white/[0.03]">
+                    <tr v-for="b in branches" :key="b.id">
+                      <td class="py-1.5 text-gray-300 font-medium">{{ b.name }}
+                        <span class="text-gray-600 text-[10px] ml-1">({{ b.code }})</span>
+                      </td>
+                      <td class="py-1.5 px-2">
+                        <input v-model.number="cfg.branch_surcharges[b.id].surcharge_50" type="number" step="0.01"
+                               class="input-glass w-full text-xs py-1 text-center font-mono" @input="recalcPreview" />
+                      </td>
+                      <td class="py-1.5 px-2">
+                        <input v-model.number="cfg.branch_surcharges[b.id].surcharge_74" type="number" step="0.01"
+                               class="input-glass w-full text-xs py-1 text-center font-mono" @input="recalcPreview" />
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <!-- Price range -->
-          <div class="flex items-center justify-between pt-2 border-t border-white/[0.06]">
+
+          <!-- ── Section 2: Grade-based prices ───────────────────────────── -->
+          <div class="glass-card p-0 overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-white/[0.06]">
+              <h2 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gold-500 text-black text-[10px] font-black">1</span>
+                Set Base 50 kg Price per Grade
+              </h2>
+              <p class="text-xs text-gray-500 mt-0.5">74 kg is auto-calculated from the formula above.</p>
+            </div>
+            <div class="p-5 space-y-4">
+              <div v-for="grade in peGrades" :key="grade"
+                   class="border border-white/[0.06] rounded-xl overflow-hidden hover:border-white/[0.10] transition-colors">
+                <div class="flex items-center gap-3 px-4 py-3 bg-white/[0.02] border-b border-white/[0.05]">
+                  <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl font-black text-lg border"
+                        :class="gradeBadge(grade)">{{ grade }}</span>
+                  <div>
+                    <p class="font-bold text-gray-200 text-sm">Grade {{ grade }}</p>
+                    <p class="text-[11px] text-gray-600">
+                      {{ (peGradeData[grade]?.['50'] ?? []).length }} × 50 kg ·
+                      {{ (peGradeData[grade]?.['74'] ?? []).length }} × 74 kg
+                    </p>
+                  </div>
+                </div>
+                <div class="p-4 grid grid-cols-1 lg:grid-cols-3 gap-5">
+                  <div class="flex flex-col justify-center">
+                    <label class="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Base 50 kg Price (৳)</label>
+                    <input v-model.number="base50[grade]" type="number" step="0.01" min="0"
+                           placeholder="Enter price…"
+                           class="input-glass w-full py-3 text-center font-black text-xl text-gold-300"
+                           @input="recalcPreview" />
+                    <div class="mt-2 text-center text-xs text-gray-500">
+                      74 kg auto →
+                      <span class="font-bold text-purple-400">{{ calc74For(grade) }}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-semibold text-blue-400 uppercase tracking-wide mb-2">50 kg Products</p>
+                    <div v-if="!(peGradeData[grade]?.['50']?.length)" class="text-xs text-gray-600 italic">None</div>
+                    <div v-else class="space-y-1 max-h-32 overflow-y-auto pr-1">
+                      <div v-for="v in peGradeData[grade]['50']" :key="v.variant_id"
+                           class="flex items-start gap-2 bg-blue-500/10 rounded-lg px-2.5 py-1.5">
+                        <span class="text-blue-400/80 text-[10px] mt-0.5 shrink-0">📦</span>
+                        <div class="min-w-0">
+                          <p class="text-xs font-medium text-gray-300 truncate">{{ v.product_name }}</p>
+                          <p class="text-[10px] text-gray-600">
+                            {{ v.sku }}
+                            <span v-if="v.current_price !== null"> · ৳{{ fmt(v.current_price) }}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-[11px] font-semibold text-purple-400 uppercase tracking-wide mb-2">74 kg (auto)</p>
+                    <div v-if="!(peGradeData[grade]?.['74']?.length)" class="text-xs text-gray-600 italic">None</div>
+                    <div v-else class="space-y-1 max-h-32 overflow-y-auto pr-1">
+                      <div v-for="v in peGradeData[grade]['74']" :key="v.variant_id"
+                           class="flex items-start gap-2 bg-purple-500/10 rounded-lg px-2.5 py-1.5">
+                        <span class="text-purple-400/80 text-[10px] mt-0.5 shrink-0">📦</span>
+                        <div class="min-w-0">
+                          <p class="text-xs font-medium text-gray-300 truncate">{{ v.product_name }}</p>
+                          <p class="text-[10px] text-gray-600">
+                            {{ v.sku }}
+                            <span v-if="v.current_price !== null"> · ৳{{ fmt(v.current_price) }}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Section 3: Custom-weight ──────────────────────────────────── -->
+          <div v-if="peCustomAll.length" class="glass-card p-0 overflow-hidden border border-amber-500/20">
+            <div class="px-5 py-3.5 border-b border-amber-500/20 bg-amber-500/5">
+              <h2 class="text-sm font-bold text-amber-300 flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-black">2</span>
+                Custom-Weight Products — Manual Price
+              </h2>
+              <p class="text-xs text-amber-500/70 mt-0.5">Formula doesn't apply. Enter flat price per bag.</p>
+            </div>
+            <div class="p-5">
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div v-for="item in peCustomAll" :key="item.variant_id"
+                     class="border border-white/[0.06] rounded-xl p-4 hover:border-amber-500/30 transition-colors">
+                  <p class="text-xs font-semibold text-gray-300 truncate">{{ item.product_name }}</p>
+                  <div class="flex items-center gap-2 mt-1 mb-3">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 font-medium">{{ item.weight_variant }} {{ item.uom }}</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] bg-white/[0.06] text-gray-500">Grade {{ item.grade }}</span>
+                  </div>
+                  <label class="block text-[11px] text-gray-500 mb-1">Price per bag (৳)</label>
+                  <input v-model.number="peCustomPrices[item.variant_id]" type="number" step="0.01" min="0"
+                         placeholder="Enter price…"
+                         class="input-glass w-full text-xs py-2 text-center font-mono font-bold" />
+                  <p v-if="item.current_price !== null" class="mt-1 text-[10px] text-gray-600 text-center">
+                    Current: ৳{{ fmt(item.current_price) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Section 4: Live Preview ────────────────────────────────────── -->
+          <div class="glass-card p-0 overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
+              <h2 class="text-sm font-bold text-gray-200 flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gold-500 text-black text-[10px] font-black">
+                  {{ peCustomAll.length ? '3' : '2' }}
+                </span>
+                Live Price Preview
+                <span class="text-xs font-normal text-gray-600 ml-1">— updates as you type</span>
+              </h2>
+            </div>
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead class="border-b border-white/[0.06]">
+                  <tr>
+                    <th class="px-4 py-2.5 text-left text-gray-600 font-semibold uppercase tracking-wider sticky left-0 bg-[#0f1117] min-w-[90px]">Grade</th>
+                    <th class="px-3 py-2.5 text-center text-blue-400 font-semibold bg-blue-500/5 min-w-[90px]">Base 50</th>
+                    <th class="px-3 py-2.5 text-center text-purple-400 font-semibold bg-purple-500/5 min-w-[90px]">Base 74</th>
+                    <template v-for="b in branches" :key="b.id">
+                      <th class="px-3 py-2.5 text-center text-blue-400/70 font-semibold bg-blue-500/5 min-w-[90px]">
+                        {{ b.code }}<br/><span class="text-[10px] font-normal text-gray-600">50 kg</span>
+                      </th>
+                      <th class="px-3 py-2.5 text-center text-purple-400/70 font-semibold bg-purple-500/5 min-w-[90px]">
+                        {{ b.code }}<br/><span class="text-[10px] font-normal text-gray-600">74 kg</span>
+                      </th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-white/[0.03]">
+                  <tr v-for="grade in peGrades" :key="grade" class="hover:bg-white/[0.02]">
+                    <td class="px-4 py-2.5 font-bold text-gray-300 sticky left-0 bg-[#0f1117]">Grade {{ grade }}</td>
+                    <td class="px-3 py-2.5 text-center bg-blue-500/5 font-semibold text-blue-300">{{ pePreview[grade]?.base50 ?? '—' }}</td>
+                    <td class="px-3 py-2.5 text-center bg-purple-500/5 font-semibold text-purple-300">{{ pePreview[grade]?.base74 ?? '—' }}</td>
+                    <template v-for="b in branches" :key="b.id">
+                      <td class="px-3 py-2.5 text-center bg-blue-500/5 text-blue-300/80">{{ pePreview[grade]?.branches[b.id]?.p50 ?? '—' }}</td>
+                      <td class="px-3 py-2.5 text-center bg-purple-500/5 text-purple-300/80">{{ pePreview[grade]?.branches[b.id]?.p74 ?? '—' }}</td>
+                    </template>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ── Section 5: Apply ───────────────────────────────────────────── -->
+          <div class="glass-card p-5 flex items-center justify-between flex-wrap gap-4">
             <div>
-              <p class="text-[10px] text-gray-600">Price</p>
-              <p class="text-sm font-bold text-gold-400">{{ priceRange(p) }}</p>
+              <p class="font-bold text-gray-200 text-sm flex items-center gap-2">
+                <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gold-500 text-black text-[10px] font-black">
+                  {{ peCustomAll.length ? '4' : '3' }}
+                </span>
+                Review &amp; Apply All Prices
+              </p>
+              <p class="text-xs text-gray-500 mt-0.5">Review the full before/after comparison before writing to DB.</p>
             </div>
-            <div class="text-right">
-              <p class="text-[10px] text-gray-600">Variants</p>
-              <p class="text-sm font-semibold text-gray-300">{{ p.variants.length }}</p>
+            <div class="flex items-center gap-3">
+              <button @click="peResetPrices"
+                      class="px-4 py-2 text-xs border border-white/10 rounded-lg text-gray-400 hover:text-gray-200 transition-colors">
+                ↺ Reset
+              </button>
+              <button @click="peOpenReview" class="btn-gold text-xs px-5 py-2">
+                🔍 Review Changes
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- Price list table -->
-      <div class="glass-card p-5">
-        <h2 class="section-title mb-4">Current Price List</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
-            <thead>
-              <tr class="border-b border-white/[0.06]">
-                <th class="text-left py-2.5 px-3 text-gray-500 font-semibold uppercase tracking-wider">Product</th>
-                <th class="text-left py-2.5 px-3 text-gray-500 font-semibold uppercase tracking-wider">SKU</th>
-                <th class="text-left py-2.5 px-3 text-gray-500 font-semibold uppercase tracking-wider">Variant</th>
-                <th class="text-left py-2.5 px-3 text-gray-500 font-semibold uppercase tracking-wider">Grade</th>
-                <th class="text-right py-2.5 px-3 text-gray-500 font-semibold uppercase tracking-wider">Unit Price</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-white/[0.04]">
-              <template v-for="p in allProducts" :key="p.id">
-                <tr v-for="(v, vi) in p.variants" :key="v.id"
-                    class="hover:bg-white/[0.02] transition-colors">
-                  <td class="py-2.5 px-3 font-medium text-gray-300">{{ vi === 0 ? p.base_name : '' }}</td>
-                  <td class="py-2.5 px-3 font-mono text-gray-600">{{ vi === 0 ? p.base_sku : '' }}</td>
-                  <td class="py-2.5 px-3 text-gray-400">{{ v.weight_variant }}</td>
-                  <td class="py-2.5 px-3 text-gray-500">{{ v.grade || '—' }}</td>
-                  <td class="py-2.5 px-3 text-right font-bold"
-                      :class="v.unit_price ? 'text-gold-400' : 'text-gray-600'">
-                    {{ v.unit_price ? '৳' + Number(v.unit_price).toLocaleString() : '—' }}
+      </Transition>
+    </template>
+
+    <!-- ══ MODALS ════════════════════════════════════════════════════════════ -->
+
+    <!-- Add Product -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showAddProduct"
+             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="showAddProduct = false">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-white/[0.08] p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">New Base Product</h3>
+              <button @click="showAddProduct = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <div class="space-y-4">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Product Name *</label>
+                <input v-model="newProduct.name" type="text" class="input-glass" placeholder="e.g. 2Hati Moida" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category *</label>
+                <select v-model="newProduct.category" class="input-glass">
+                  <option value="Flour">Flour (Moida)</option>
+                  <option value="Atta">Atta</option>
+                  <option value="Bran">Bran (Vushi)</option>
+                  <option value="Semolina">Semolina (Sooji)</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
+                <textarea v-model="newProduct.description" rows="2" class="input-glass resize-none" />
+              </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button @click="addProduct" :disabled="!newProduct.name || addingProduct"
+                      class="btn-gold text-xs flex-1 disabled:opacity-50">
+                {{ addingProduct ? 'Adding…' : 'Add Product' }}
+              </button>
+              <button @click="showAddProduct = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Edit Product -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showEditProduct"
+             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="showEditProduct = false">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-white/[0.08] p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">Edit Product</h3>
+              <button @click="showEditProduct = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <div class="space-y-4">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Product Name *</label>
+                <input v-model="editProductForm.name" type="text" class="input-glass" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category *</label>
+                <select v-model="editProductForm.category" class="input-glass">
+                  <option value="Flour">Flour (Moida)</option>
+                  <option value="Atta">Atta</option>
+                  <option value="Bran">Bran (Vushi)</option>
+                  <option value="Semolina">Semolina (Sooji)</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
+                <textarea v-model="editProductForm.description" rows="2" class="input-glass resize-none" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</label>
+                <select v-model="editProductForm.status" class="input-glass">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button @click="saveEditProduct" :disabled="!editProductForm.name || editingProduct"
+                      class="btn-gold text-xs flex-1 disabled:opacity-50">
+                {{ editingProduct ? 'Saving…' : 'Save Changes' }}
+              </button>
+              <button @click="showEditProduct = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Add Variant -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showAddVariant"
+             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="showAddVariant = false">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-white/[0.08] p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">New Variant</h3>
+              <button @click="showAddVariant = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Pack Weight *</label>
+                <select v-model="newVariant.packWeight" class="field-input">
+                  <option value="37kg">37 kg</option>
+                  <option value="50kg">50 kg</option>
+                  <option value="55kg">55 kg</option>
+                  <option value="74kg">74 kg</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Grade</label>
+                <select v-model="newVariant.grade" class="field-input">
+                  <option value="">— None —</option>
+                  <option value="A">Grade A</option>
+                  <option value="B">Grade B</option>
+                  <option value="C">Grade C</option>
+                  <option value="R">Grade R</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Unit Price (৳)</label>
+                <input v-model.number="newVariant.unitPrice" type="number" min="0" class="field-input" placeholder="0" />
+              </div>
+              <div class="col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Barcode</label>
+                <input v-model="newVariant.barcode" type="text" class="field-input font-mono" placeholder="EAN-13 or custom" />
+              </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button @click="addVariant" :disabled="addingVariant"
+                      class="btn-gold text-xs flex-1 disabled:opacity-50">
+                {{ addingVariant ? 'Adding…' : 'Add Variant' }}
+              </button>
+              <button @click="showAddVariant = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Pricing Engine Review Modal -->
+    <Teleport to="body">
+      <div v-if="peReviewOpen"
+           class="fixed inset-0 z-50 flex items-start justify-center bg-black/70 overflow-y-auto py-8"
+           @click.self="peReviewOpen = false">
+        <div class="relative bg-[#0f1117] border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-5xl mx-4 flex flex-col"
+             style="max-height:90vh">
+          <div class="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+            <div>
+              <h3 class="text-base font-bold text-gray-100">Review Price Changes</h3>
+              <p class="text-xs text-gray-500 mt-0.5">Confirm all changes before writing to the database.</p>
+            </div>
+            <button @click="peReviewOpen = false" class="text-gray-600 hover:text-gray-300 text-lg">✕</button>
+          </div>
+          <div class="px-6 py-2.5 border-b border-white/[0.04] bg-white/[0.02] flex flex-wrap gap-5 text-xs shrink-0">
+            <span><strong class="text-gray-200">{{ peReviewRows.length }}</strong> <span class="text-gray-500">rows</span></span>
+            <span><strong class="text-emerald-400">{{ peReviewStats.increases }}</strong> <span class="text-gray-500">increases</span></span>
+            <span><strong class="text-red-400">{{ peReviewStats.decreases }}</strong> <span class="text-gray-500">decreases</span></span>
+            <span><strong class="text-gray-400">{{ peReviewStats.unchanged }}</strong> <span class="text-gray-500">unchanged</span></span>
+            <span><strong class="text-blue-400">{{ peReviewStats.isNew }}</strong> <span class="text-gray-500">new</span></span>
+          </div>
+          <div class="overflow-y-auto flex-1 min-h-0">
+            <table class="w-full text-xs">
+              <thead class="sticky top-0 z-10 bg-[#0f1117] border-b border-white/[0.06]">
+                <tr class="text-gray-600 uppercase tracking-wide">
+                  <th class="px-4 py-2.5 text-left font-semibold">Grade / Product</th>
+                  <th class="px-4 py-2.5 text-left font-semibold">Branch</th>
+                  <th class="px-4 py-2.5 text-center font-semibold">Weight</th>
+                  <th class="px-4 py-2.5 text-center font-semibold">Current</th>
+                  <th class="px-4 py-2.5 text-center font-semibold">New Price</th>
+                  <th class="px-4 py-2.5 text-center font-semibold">Δ</th>
+                  <th class="px-4 py-2.5 text-center font-semibold">%</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-white/[0.03]">
+                <tr v-for="(r, i) in peReviewRows" :key="i"
+                    :class="{
+                      'bg-blue-500/5':    r.delta === null,
+                      'bg-emerald-500/5': r.delta !== null && r.delta > 0.005,
+                      'bg-red-500/5':     r.delta !== null && r.delta < -0.005,
+                    }">
+                  <td class="px-4 py-2 font-semibold text-gray-300">{{ r.label }}</td>
+                  <td class="px-4 py-2 text-gray-400">{{ r.branch }}</td>
+                  <td class="px-4 py-2 text-center">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium"
+                          :class="r.weight.startsWith('50') ? 'bg-blue-500/20 text-blue-300'
+                                : r.weight.includes('custom') ? 'bg-amber-500/20 text-amber-300'
+                                : 'bg-purple-500/20 text-purple-300'">
+                      {{ r.weight }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-2 text-center">
+                    <span v-if="r.curr !== null" class="text-gray-400 font-mono">৳{{ fmt(r.curr) }}</span>
+                    <span v-else class="text-blue-400 text-[10px] font-medium">New</span>
+                  </td>
+                  <td class="px-4 py-2 text-center font-bold font-mono text-gray-200">৳{{ fmt(r.newP) }}</td>
+                  <td class="px-4 py-2 text-center font-mono">
+                    <span v-if="r.delta === null" class="text-blue-400 text-[10px]">No prior</span>
+                    <span v-else-if="r.delta > 0.005" class="text-emerald-400">+৳{{ fmt(r.delta) }}</span>
+                    <span v-else-if="r.delta < -0.005" class="text-red-400">(৳{{ fmt(Math.abs(r.delta)) }})</span>
+                    <span v-else class="text-gray-600">—</span>
+                  </td>
+                  <td class="px-4 py-2 text-center font-mono">
+                    <span v-if="r.pct !== null && Math.abs(r.delta ?? 0) > 0.005"
+                          :class="(r.delta ?? 0) > 0 ? 'text-emerald-400' : 'text-red-400'">
+                      {{ (r.delta ?? 0) > 0 ? '+' : '' }}{{ r.pct.toFixed(1) }}%
+                    </span>
+                    <span v-else class="text-gray-600">—</span>
                   </td>
                 </tr>
-              </template>
-              <tr v-if="!allProducts.length">
-                <td colspan="5" class="py-8 text-center text-gray-600">No products found</td>
-              </tr>
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
+          <div class="px-6 py-4 border-t border-white/[0.06] bg-white/[0.02] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 rounded-b-2xl">
+            <div class="flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-4 py-2.5 rounded-lg">
+              ⚠ Existing prices will be <strong class="ml-1">archived</strong> and replaced.
+            </div>
+            <div class="flex items-center gap-3">
+              <button @click="peReviewOpen = false"
+                      class="px-4 py-2 text-xs border border-white/10 rounded-lg text-gray-400 hover:text-gray-200 transition-colors">
+                ← Back
+              </button>
+              <button @click="applyPrices" :disabled="applying"
+                      class="btn-gold text-xs px-6 py-2 disabled:opacity-50">
+                <svg v-if="applying" class="w-3 h-3 animate-spin inline mr-1.5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                {{ applying ? 'Applying…' : '✓ Confirm & Apply' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </template>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
-const activeCategory = ref('All')
+const { user }  = useUserSession()
+const { success, error: toastError } = useToast()
+const isAdmin   = computed(() =>
+  ['admin', 'superadmin'].includes((user.value?.role ?? '').toLowerCase()),
+)
 
-const { data, pending, error } = await useFetch('/api/products')
+// ── Data ─────────────────────────────────────────────────────────────────────
+const { data, refresh, pending, error } = await useFetch('/api/products/hub')
 
 const allProducts = computed(() => (data.value?.products ?? []) as any[])
+const branches    = computed(() => (data.value?.branches  ?? []) as any[])
+const engineData  = computed(() => data.value?.engine ?? null)
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+const kpis = computed(() => {
+  const totalV = allProducts.value.reduce((s: number, p: any) => s + (p.variants?.length ?? 0), 0)
+  let priced = 0
+  let totalStock = 0
+  for (const p of allProducts.value) {
+    for (const v of (p.variants ?? []) as any[]) {
+      if (Object.keys(v.prices ?? {}).length > 0) priced++
+      totalStock += Number(v.stock_qty ?? 0)
+    }
+  }
+  return [
+    { label: 'Base Products', val: allProducts.value.length,  icon: '📦', color: 'text-violet-400',  bg: 'rgba(139,92,246,0.10)', border: 'rgba(139,92,246,0.20)', sub: 'Active product families' },
+    { label: 'Variants',      val: totalV,                    icon: '🗂',  color: 'text-sky-400',     bg: 'rgba(56,189,248,0.10)',  border: 'rgba(56,189,248,0.20)',  sub: 'All active SKUs' },
+    { label: 'Total Stock',   val: totalStock.toLocaleString(), icon: '📊', color: 'text-emerald-400', bg: 'rgba(52,211,153,0.10)',  border: 'rgba(52,211,153,0.20)',  sub: 'Bags in warehouse' },
+    { label: 'Priced',        val: `${priced}/${totalV}`,     icon: '💰', color: 'text-amber-400',   bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.20)', sub: 'Variants with price' },
+  ]
+})
+
+// ── Tabs ──────────────────────────────────────────────────────────────────────
+const tab = ref<'catalog' | 'pricing'>('catalog')
+function setTab(t: 'catalog' | 'pricing') { tab.value = t }
+
+// ── Catalog: search + filter ──────────────────────────────────────────────────
+const search         = ref('')
+const filterCategory = ref('All')
+const expandedId     = ref<number | null>(null)
+
+function toggleExpand(id: number) {
+  expandedId.value = expandedId.value === id ? null : id
+}
 
 const categories = computed(() => {
   const cats = new Set<string>(allProducts.value.map((p: any) => p.category).filter(Boolean))
   return ['All', ...Array.from(cats).sort()]
 })
 
-const filteredProducts = computed(() =>
-  activeCategory.value === 'All'
-    ? allProducts.value
-    : allProducts.value.filter((p: any) => p.category === activeCategory.value)
-)
+const filteredProducts = computed(() => {
+  let list = allProducts.value as any[]
+  if (filterCategory.value !== 'All')
+    list = list.filter((p: any) => p.category === filterCategory.value)
+  if (search.value.trim()) {
+    const q = search.value.toLowerCase()
+    list = list.filter((p: any) =>
+      p.base_name.toLowerCase().includes(q) ||
+      (p.variants as any[]).some((v: any) => v.sku?.toLowerCase().includes(q)),
+    )
+  }
+  return list
+})
 
-const totalVariants  = computed(() => allProducts.value.reduce((s: number, p: any) => s + (p.variants?.length ?? 0), 0))
-const pricedVariants = computed(() => allProducts.value.reduce((s: number, p: any) =>
-  s + (p.variants ?? []).filter((v: any) => v.unit_price != null).length, 0))
+// ── Inline price editing ──────────────────────────────────────────────────────
+const editingCell  = ref<string | null>(null) // "variantId:branchId"
+const editingValue = ref(0)
+const savingCell   = ref(false)
+const priceInputRef = ref<HTMLInputElement | null>(null)
 
-function priceRange(p: any): string {
-  const prices = (p.variants ?? [])
-    .map((v: any) => Number(v.unit_price))
-    .filter((x: number) => x > 0)
-  if (!prices.length) return '—'
-  const mn = Math.min(...prices)
-  const mx = Math.max(...prices)
-  return mn === mx ? `৳${mn.toLocaleString()}` : `৳${mn.toLocaleString()}–৳${mx.toLocaleString()}`
+function startEdit(variantId: number, branchId: number, currentPrice: number | null) {
+  editingCell.value  = `${variantId}:${branchId}`
+  editingValue.value = currentPrice ?? 0
+  nextTick(() => priceInputRef.value?.focus())
+}
+
+function cancelEdit() {
+  editingCell.value  = null
+  editingValue.value = 0
+}
+
+async function commitEdit(variantId: number, branchId: number) {
+  const price = Number(editingValue.value)
+  if (!price || price <= 0) { cancelEdit(); return }
+  savingCell.value = true
+  try {
+    await $fetch('/api/products/pricing', {
+      method: 'POST',
+      body: {
+        action: 'set_price',
+        variantId,
+        branchId,
+        unitPrice:     price,
+        effectiveDate: new Date().toISOString().slice(0, 10),
+        status:        'active',
+      },
+    })
+    success('Price updated ✓')
+    cancelEdit()
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save price')
+  } finally {
+    savingCell.value = false
+  }
+}
+
+// ── Add Product ───────────────────────────────────────────────────────────────
+const showAddProduct = ref(false)
+const addingProduct  = ref(false)
+const newProduct     = reactive({ name: '', category: 'Flour', description: '' })
+
+async function addProduct() {
+  if (!newProduct.name) return
+  addingProduct.value = true
+  try {
+    await $fetch('/api/products/base', {
+      method: 'POST',
+      body: { base_name: newProduct.name, category: newProduct.category, description: newProduct.description },
+    })
+    success(`"${newProduct.name}" added`)
+    showAddProduct.value = false
+    Object.assign(newProduct, { name: '', category: 'Flour', description: '' })
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to add')
+  } finally {
+    addingProduct.value = false
+  }
+}
+
+// ── Edit Product ──────────────────────────────────────────────────────────────
+const showEditProduct  = ref(false)
+const editingProduct   = ref(false)
+const editProductForm  = reactive({ id: 0, name: '', category: 'Flour', description: '', status: 'active' })
+
+function openEditProduct(p: any) {
+  Object.assign(editProductForm, {
+    id:          p.id,
+    name:        p.base_name,
+    category:    p.category,
+    description: p.description ?? '',
+    status:      p.status,
+  })
+  showEditProduct.value = true
+}
+
+async function saveEditProduct() {
+  editingProduct.value = true
+  try {
+    await $fetch(`/api/products/base/${editProductForm.id}`, {
+      method: 'PUT',
+      body: {
+        base_name:   editProductForm.name,
+        category:    editProductForm.category,
+        description: editProductForm.description || null,
+        status:      editProductForm.status,
+      },
+    })
+    success('Product updated ✓')
+    showEditProduct.value = false
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed')
+  } finally {
+    editingProduct.value = false
+  }
+}
+
+// ── Add Variant ───────────────────────────────────────────────────────────────
+const showAddVariant     = ref(false)
+const addingVariant      = ref(false)
+const addVariantForId    = ref<number | null>(null)
+const newVariant         = reactive({ packWeight: '50kg', grade: '', barcode: '', unitPrice: 0 })
+
+function openAddVariant(productId: number) {
+  addVariantForId.value  = productId
+  showAddVariant.value   = true
+}
+
+async function addVariant() {
+  if (!addVariantForId.value) return
+  addingVariant.value = true
+  try {
+    await $fetch('/api/products/variants', {
+      method: 'POST',
+      body: {
+        product_id:     addVariantForId.value,
+        weight_variant: newVariant.packWeight,
+        grade:          newVariant.grade     || undefined,
+        barcode:        newVariant.barcode   || undefined,
+        unit_price:     newVariant.unitPrice || undefined,
+      },
+    })
+    success('Variant added ✓')
+    showAddVariant.value = false
+    Object.assign(newVariant, { packWeight: '50kg', grade: '', barcode: '', unitPrice: 0 })
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed')
+  } finally {
+    addingVariant.value = false
+  }
+}
+
+// ══ PRICING ENGINE ════════════════════════════════════════════════════════════
+
+const peGrades       = computed<string[]>(() => engineData.value?.grades ?? [])
+const peGradeData    = computed<Record<string, Record<string, any[]>>>(() => engineData.value?.gradeData ?? {})
+const peCurrentPrices = computed<any>(() => engineData.value?.currentPrices ?? {})
+const peCustomCurrentPrices = computed<any>(() => engineData.value?.customCurrent ?? {})
+const peCustomAll    = computed<any[]>(() => {
+  const list: any[] = []
+  for (const [, wcs] of Object.entries(peGradeData.value)) {
+    for (const item of ((wcs as any)['custom'] ?? [])) {
+      list.push(item)
+      if (peCustomPrices[item.variant_id] === undefined)
+        peCustomPrices[item.variant_id] = item.current_price ?? null
+    }
+  }
+  return list
+})
+
+const cfg = reactive({
+  formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
+  branch_surcharges: {} as Record<number, { surcharge_50: number; surcharge_74: number }>,
+})
+
+const base50        = reactive<Record<string, number | null>>({})
+const peCustomPrices = reactive<Record<number, number | null>>({})
+const savingConfig  = ref(false)
+const peFlash       = reactive({ msg: '', ok: true })
+
+watch(() => engineData.value, (ed) => {
+  if (!ed) return
+  const c = ed.config
+  cfg.formula.bag_50        = c.formula?.bag_50        ?? 50
+  cfg.formula.bag_74        = c.formula?.bag_74        ?? 74
+  cfg.formula.packaging_fee = c.formula?.packaging_fee ?? 150
+  for (const b of (data.value?.branches ?? [])) {
+    cfg.branch_surcharges[b.id] = {
+      surcharge_50: c.branch_surcharges?.[b.id]?.surcharge_50 ?? 0,
+      surcharge_74: c.branch_surcharges?.[b.id]?.surcharge_74 ?? 0,
+    }
+  }
+  for (const g of (ed.grades ?? [])) {
+    if (base50[g] === undefined) base50[g] = ed.current50?.[g] ?? null
+  }
+}, { immediate: true })
+
+// Pricing engine: helpers
+function calc74(b50: number) {
+  return Math.round(((b50 / cfg.formula.bag_50) * cfg.formula.bag_74 + cfg.formula.packaging_fee) * 100) / 100
+}
+function calc74For(grade: string) {
+  const v = Number(base50[grade])
+  if (!v || v <= 0) return '—'
+  return '৳' + fmt(calc74(v))
+}
+function fmt(n: number | null | undefined) {
+  if (n == null || isNaN(Number(n))) return '—'
+  return Number(n).toLocaleString('en-BD', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+}
+
+// Live preview
+type PrevRow = { base50: string; base74: string; branches: Record<number, { p50: string; p74: string }> }
+const pePreview = reactive<Record<string, PrevRow>>({})
+
+function recalcPreview() {
+  for (const grade of peGrades.value) {
+    const b50 = Number(base50[grade])
+    if (!b50 || b50 <= 0) { pePreview[grade] = { base50: '—', base74: '—', branches: {} }; continue }
+    const b74 = calc74(b50)
+    const brs: Record<number, { p50: string; p74: string }> = {}
+    for (const b of branches.value) {
+      const sc = cfg.branch_surcharges[b.id] ?? { surcharge_50: 0, surcharge_74: 0 }
+      brs[b.id] = {
+        p50: '৳' + fmt(b50 + Number(sc.surcharge_50 ?? 0)),
+        p74: '৳' + fmt(b74 + Number(sc.surcharge_74 ?? 0)),
+      }
+    }
+    pePreview[grade] = { base50: '৳' + fmt(b50), base74: '৳' + fmt(b74), branches: brs }
+  }
+}
+watch([base50, cfg], recalcPreview, { deep: true, immediate: true })
+
+async function saveConfig() {
+  savingConfig.value = true
+  try {
+    await $fetch('/api/products/pricing-engine', {
+      method: 'POST',
+      body: { action: 'save_config', ...cfg.formula, branch_surcharges: cfg.branch_surcharges },
+    })
+    peFlash.ok = true; peFlash.msg = 'Formula config saved.'
+    setTimeout(() => { peFlash.msg = '' }, 4000)
+  } catch (e: any) {
+    peFlash.ok = false; peFlash.msg = e?.data?.statusMessage ?? 'Failed to save config'
+  } finally {
+    savingConfig.value = false
+  }
+}
+
+function peResetPrices() {
+  if (!confirm('Reset all inputs to current DB values?')) return
+  for (const g of peGrades.value) base50[g] = engineData.value?.current50?.[g] ?? null
+  for (const item of peCustomAll.value)
+    peCustomPrices[item.variant_id] = item.current_price ?? null
+}
+
+// Review modal
+interface ReviewRow { label: string; branch: string; weight: string; curr: number | null; newP: number; delta: number | null; pct: number | null }
+const peReviewOpen  = ref(false)
+const peReviewRows  = ref<ReviewRow[]>([])
+const applying      = ref(false)
+
+const peReviewStats = computed(() => {
+  let increases = 0, decreases = 0, unchanged = 0, isNew = 0
+  for (const r of peReviewRows.value) {
+    if (r.delta === null) isNew++
+    else if (r.delta > 0.005) increases++
+    else if (r.delta < -0.005) decreases++
+    else unchanged++
+  }
+  return { increases, decreases, unchanged, isNew }
+})
+
+function peOpenReview() {
+  const rows: ReviewRow[] = []
+  for (const grade of peGrades.value) {
+    const b50 = Number(base50[grade])
+    if (!b50 || b50 <= 0) continue
+    const b74 = calc74(b50)
+    for (const branch of branches.value) {
+      const sc = cfg.branch_surcharges[branch.id] ?? { surcharge_50: 0, surcharge_74: 0 }
+      for (const [wc, baseP] of [['50', b50], ['74', b74]] as [string, number][]) {
+        const surcharge = wc === '50' ? Number(sc.surcharge_50 ?? 0) : Number(sc.surcharge_74 ?? 0)
+        const newP  = Math.round((baseP + surcharge) * 100) / 100
+        const currP = peCurrentPrices.value?.[grade]?.[String(branch.id)]?.[wc] ?? null
+        const delta = currP !== null ? newP - currP : null
+        const pct   = (currP && delta !== null) ? (delta / currP) * 100 : null
+        rows.push({ label: `Grade ${grade}`, branch: branch.name, weight: `${wc} kg`, curr: currP, newP, delta, pct })
+      }
+    }
+  }
+  for (const item of peCustomAll.value) {
+    const newP = Number(peCustomPrices[item.variant_id])
+    if (!newP || newP <= 0) continue
+    for (const branch of branches.value) {
+      const currP = peCustomCurrentPrices.value?.[String(item.variant_id)]?.[String(branch.id)] ?? null
+      const delta = currP !== null ? newP - currP : null
+      const pct   = (currP && delta !== null) ? (delta / currP) * 100 : null
+      rows.push({ label: item.product_name, branch: branch.name, weight: `${item.weight_variant} (custom)`, curr: currP, newP, delta, pct })
+    }
+  }
+  if (!rows.length) { toastError('Enter at least one price before reviewing.'); return }
+  peReviewRows.value = rows
+  peReviewOpen.value = true
+}
+
+async function applyPrices() {
+  applying.value = true
+  try {
+    const base50ByGrade: Record<string, number> = {}
+    for (const g of peGrades.value) { const v = Number(base50[g]); if (v > 0) base50ByGrade[g] = v }
+    const cPrices: Record<string, number> = {}
+    for (const item of peCustomAll.value) { const v = Number(peCustomPrices[item.variant_id]); if (v > 0) cPrices[String(item.variant_id)] = v }
+    const res: any = await $fetch('/api/products/pricing-engine', {
+      method: 'POST',
+      body: { action: 'apply_prices', base50ByGrade, customPrices: cPrices, config: cfg },
+    })
+    peReviewOpen.value = false
+    peFlash.ok = true; peFlash.msg = res.message ?? `Applied — ${res.totalUpdated} price records updated.`
+    setTimeout(() => { peFlash.msg = '' }, 6000)
+    success(peFlash.msg)
+    await refresh()
+    recalcPreview()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to apply prices')
+  } finally {
+    applying.value = false
+  }
+}
+
+// ── Design helpers ────────────────────────────────────────────────────────────
+function categoryIcon(cat: string) {
+  const m: Record<string, string> = { Flour: '🌾', Atta: '🫓', Bran: '🌿', Semolina: '✨' }
+  return m[cat] ?? '📦'
+}
+
+function categoryBg(cat: string) {
+  const m: Record<string, string> = {
+    Flour:    'bg-amber-500/10',
+    Atta:     'bg-orange-500/10',
+    Bran:     'bg-green-500/10',
+    Semolina: 'bg-sky-500/10',
+  }
+  return m[cat] ?? 'bg-gray-500/10'
+}
+
+function categoryPill(cat: string) {
+  const m: Record<string, string> = {
+    Flour:    'bg-amber-500/15 text-amber-400 border border-amber-500/20',
+    Atta:     'bg-orange-500/15 text-orange-400 border border-orange-500/20',
+    Bran:     'bg-green-500/15 text-green-400 border border-green-500/20',
+    Semolina: 'bg-sky-500/15 text-sky-400 border border-sky-500/20',
+  }
+  return m[cat] ?? 'bg-gray-500/15 text-gray-400 border border-gray-500/20'
+}
+
+function gradeBadge(g: string) {
+  const m: Record<string, string> = {
+    A: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    B: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    C: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    R: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  }
+  return m[g] ?? 'bg-gray-500/20 text-gray-400 border-gray-500/30'
+}
+
+function packBadge(w: string) {
+  const n = parseInt(w)
+  if (n === 50) return 'bg-blue-500/15 text-blue-300'
+  if (n === 74) return 'bg-purple-500/15 text-purple-300'
+  if (n === 37) return 'bg-rose-500/15 text-rose-300'
+  return 'bg-amber-500/15 text-amber-300'
+}
+
+function stockPct(v: any) {
+  const available = Math.max(0, Number(v.stock_qty) - Number(v.reserved_qty))
+  const reorder   = Number(v.reorder_level) || 1
+  return Math.min(100, Math.round((available / Math.max(reorder * 3, 1)) * 100))
+}
+
+function stockBarColor(v: any) {
+  const available = Math.max(0, Number(v.stock_qty) - Number(v.reserved_qty))
+  const reorder   = Number(v.reorder_level) || 0
+  if (Number(v.stock_qty) === 0) return 'bg-gray-600'
+  if (available <= reorder)      return 'bg-red-500'
+  if (available <= reorder * 2)  return 'bg-amber-500'
+  return 'bg-emerald-500'
+}
+
+function availColor(v: any) {
+  const available = Math.max(0, Number(v.stock_qty) - Number(v.reserved_qty))
+  const reorder   = Number(v.reorder_level) || 0
+  if (Number(v.stock_qty) === 0) return 'text-gray-600'
+  if (available <= reorder)      return 'text-red-400'
+  if (available <= reorder * 2)  return 'text-amber-400'
+  return 'text-emerald-400'
+}
+
+function priceRange(p: any) {
+  const prices = (p.variants ?? []).flatMap((v: any) =>
+    Object.values(v.prices ?? {}).map((pr: any) => Number(pr.unit_price)),
+  ).filter((x: number) => x > 0)
+  if (!prices.length) {
+    // fallback: base_price
+    const bps = (p.variants ?? []).map((v: any) => Number(v.base_price)).filter((x: number) => x > 0)
+    if (!bps.length) return ''
+    const mn = Math.min(...bps); const mx = Math.max(...bps)
+    return mn === mx ? `৳${mn.toLocaleString()}` : `৳${mn.toLocaleString()}–${mx.toLocaleString()}`
+  }
+  const mn = Math.min(...prices); const mx = Math.max(...prices)
+  return mn === mx ? `৳${mn.toLocaleString()}` : `৳${mn.toLocaleString()}–${mx.toLocaleString()}`
 }
 </script>
+
+<style scoped>
+/* Tab slide */
+.tab-slide-enter-active,
+.tab-slide-leave-active { transition: opacity 0.22s ease, transform 0.22s ease; }
+.tab-slide-enter-from   { opacity: 0; transform: translateY(10px); }
+.tab-slide-leave-to     { opacity: 0; transform: translateY(-6px); }
+
+/* Accordion expand */
+.expand-enter-active,
+.expand-leave-active { transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease; overflow: hidden; }
+.expand-enter-from,
+.expand-leave-to     { max-height: 0; opacity: 0; }
+.expand-enter-to,
+.expand-leave-from   { max-height: 1200px; opacity: 1; }
+
+/* Modal */
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to       { opacity: 0; }
+
+/* Quick fade */
+.fade-quick-enter-active, .fade-quick-leave-active { transition: opacity 0.15s ease; }
+.fade-quick-enter-from, .fade-quick-leave-to       { opacity: 0; }
+</style>

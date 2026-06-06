@@ -178,14 +178,7 @@
       <!-- Customers -->
       <SidebarNavItem v-if="perms.canAccessModule('customers')" label="Customers"  route="/customers"  :collapsed="collapsed" icon-type="users"    />
       <!-- Products -->
-      <SidebarGroup v-if="perms.canAccessModule('products')" label="Products" route="/products" :collapsed="collapsed" icon-type="box" color="green">
-        <SidebarNavItem label="Overview"       route="/products"                :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Base Products"  route="/products/base"           :collapsed="collapsed" icon-type="box"       sub />
-        <SidebarNavItem label="Variants"       route="/products/variants"       :collapsed="collapsed" icon-type="list"      sub />
-        <SidebarNavItem label="Pricing"        route="/products/pricing"        :collapsed="collapsed" icon-type="money"     sub />
-        <SidebarNavItem label="Pricing Engine" route="/products/pricing-engine" :collapsed="collapsed" icon-type="cog"       sub />
-        <SidebarNavItem label="Inventory"      route="/products/inventory"      :collapsed="collapsed" icon-type="chart"     sub />
-      </SidebarGroup>
+      <SidebarNavItem v-if="perms.canAccessModule('products')" label="Products" route="/products" :collapsed="collapsed" icon-type="box" />
       <!-- POS -->
       <SidebarNavItem v-if="perms.canAccessModule('pos')"   label="POS"   route="/pos"   :collapsed="collapsed" icon-type="register" />
       <!-- Admin -->
