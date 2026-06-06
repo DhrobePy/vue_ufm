@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { query } from '~/server/utils/db'
+import { query, getDb } from '~/server/utils/db'
 
 const CONFIG_FILE = resolve('server/data/pricing_engine_config.json')
 
@@ -67,7 +67,9 @@ export default defineEventHandler(async (event) => {
       `) as Promise<any[]>,
     ])
 
-    let totalUpdated = 0
+    // Collect all price records to insert
+    interface PriceRow { variant_id: number; branch_id: number; unit_price: number }
+    const priceRows: PriceRow[] = []
 
     // Grade-based: 50 and 74 kg variants
     for (const [grade, base50Raw] of Object.entries(base50ByGrade ?? {})) {
@@ -85,18 +87,11 @@ export default defineEventHandler(async (event) => {
         for (const b of branches) {
           const sc = surcharges[String(b.id)]
           const surcharge = wc === '50' ? Number(sc?.surcharge_50 ?? 0) : Number(sc?.surcharge_74 ?? 0)
-          const finalPrice = Math.round((basePrice + surcharge) * 100) / 100
-
-          await query(
-            `UPDATE product_prices SET is_active = 0 WHERE variant_id = ? AND branch_id = ? AND is_active = 1`,
-            [v.variant_id, b.id],
-          )
-          await query(
-            `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active)
-             VALUES (?, ?, ?, ?, 'active', 1)`,
-            [v.variant_id, b.id, finalPrice, effDate],
-          )
-          totalUpdated++
+          priceRows.push({
+            variant_id: v.variant_id,
+            branch_id:  b.id,
+            unit_price: Math.round((basePrice + surcharge) * 100) / 100,
+          })
         }
       }
     }
@@ -105,22 +100,44 @@ export default defineEventHandler(async (event) => {
     for (const [variantIdStr, priceRaw] of Object.entries(customPrices ?? {})) {
       const price = Number(priceRaw)
       if (!price || price <= 0) continue
-
       for (const b of branches) {
-        await query(
-          `UPDATE product_prices SET is_active = 0 WHERE variant_id = ? AND branch_id = ? AND is_active = 1`,
-          [Number(variantIdStr), b.id],
-        )
-        await query(
-          `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active)
-           VALUES (?, ?, ?, ?, 'active', 1)`,
-          [Number(variantIdStr), b.id, price, effDate],
-        )
-        totalUpdated++
+        priceRows.push({ variant_id: Number(variantIdStr), branch_id: b.id, unit_price: price })
       }
     }
 
-    return { ok: true, totalUpdated, message: `Applied — ${totalUpdated} price records updated.` }
+    if (!priceRows.length)
+      return { ok: true, totalUpdated: 0, message: 'No prices to apply.' }
+
+    // Batch all writes inside a single transaction
+    const affectedVariantIds = [...new Set(priceRows.map(r => r.variant_id))]
+    const db   = getDb()
+    const conn = await db.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      // Deactivate all existing active prices for affected variants (one query)
+      const placeholders = affectedVariantIds.map(() => '?').join(',')
+      await conn.query(
+        `UPDATE product_prices SET is_active = 0 WHERE variant_id IN (${placeholders}) AND is_active = 1`,
+        affectedVariantIds,
+      )
+
+      // Batch insert all new prices (one query)
+      const values = priceRows.map(r => [r.variant_id, r.branch_id, r.unit_price, effDate])
+      await conn.query(
+        `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active) VALUES ?`,
+        [values],
+      )
+
+      await conn.commit()
+    } catch (e) {
+      await conn.rollback()
+      throw e
+    } finally {
+      conn.release()
+    }
+
+    return { ok: true, totalUpdated: priceRows.length, message: `Applied — ${priceRows.length} price records updated.` }
   }
 
   throw createError({ statusCode: 400, statusMessage: 'Unknown action' })

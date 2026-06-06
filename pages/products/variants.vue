@@ -81,6 +81,16 @@
                 </select>
               </div>
               <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Grade</label>
+                <select v-model="newVariant.grade" class="field-input">
+                  <option value="">— None —</option>
+                  <option value="A">Grade A</option>
+                  <option value="B">Grade B</option>
+                  <option value="C">Grade C</option>
+                  <option value="R">Grade R</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Barcode</label>
                 <input v-model="newVariant.barcode" type="text" class="field-input font-mono" placeholder="EAN-13 or custom" />
               </div>
@@ -132,6 +142,7 @@ function bagsPerMT(weight: string): number {
 const newVariant = reactive({
   productId:   '',
   packWeight:  '50kg',
+  grade:       '',
   barcode:     '',
   unitPrice:   0,
 })
@@ -145,13 +156,14 @@ async function addVariant() {
       body: {
         product_id:     Number(newVariant.productId),
         weight_variant: newVariant.packWeight,
+        grade:          newVariant.grade     || undefined,
         barcode:        newVariant.barcode   || undefined,
         unit_price:     newVariant.unitPrice || undefined,
       },
     })
     success('Variant added ✓')
     showAddModal.value = false
-    Object.assign(newVariant, { productId: '', packWeight: '50kg', barcode: '', unitPrice: 0 })
+    Object.assign(newVariant, { productId: '', packWeight: '50kg', grade: '', barcode: '', unitPrice: 0 })
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to add variant')
