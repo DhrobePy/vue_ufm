@@ -319,5 +319,19 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] user_permissions create failed:', e)
   }
 
+  // ── 17. product_variants — reorder_level ─────────────────────────────────
+  //   Referenced by hub.get.ts (Products Hub) for the stock-level indicator.
+  await addCol(
+    db, 'product_variants', 'reorder_level',
+    "INT NOT NULL DEFAULT 0 COMMENT 'Minimum stock level — triggers low-stock indicator in Products Hub'",
+  )
+
+  // ── 18. products — description ────────────────────────────────────────────
+  //   Previously dropped in the component layer; now fetched by hub.get.ts.
+  await addCol(
+    db, 'products', 'description',
+    'TEXT NULL DEFAULT NULL',
+  )
+
   console.log('[db-migrate] startup migrations complete')
 })
