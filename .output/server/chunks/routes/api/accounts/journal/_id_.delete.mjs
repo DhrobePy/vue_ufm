@@ -1,0 +1,62 @@
+import { h as defineEventHandler, v as getRouterParam, w as getUserSession, e as createError, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
+import 'node:http';
+import 'node:https';
+import 'node:crypto';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'mysql2/promise';
+import 'node:url';
+
+const _id__delete = defineEventHandler(async (event) => {
+  var _a, _b;
+  const id = Number(getRouterParam(event, "id"));
+  const session = await getUserSession(event);
+  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  if (!id) throw createError({ statusCode: 400, statusMessage: "id required" });
+  const db = getDb();
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [[je]] = await conn.query(
+      `SELECT id, description, is_reversed, related_document_type, related_document_id FROM journal_entries WHERE id = ?`,
+      [id]
+    );
+    if (!je) throw createError({ statusCode: 404, statusMessage: "Journal entry not found" });
+    if (je.is_reversed) throw createError({ statusCode: 400, statusMessage: "Cannot delete a reversed journal entry" });
+    const [[linked]] = await conn.query(
+      `SELECT id FROM journal_entries WHERE reversed_by_entry_id = ?`,
+      [id]
+    );
+    if (linked) throw createError({ statusCode: 400, statusMessage: "Cannot delete \u2014 this entry has been reversed" });
+    await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id = ?`, [id]);
+    await conn.query(`DELETE FROM journal_entries WHERE id = ?`, [id]);
+    if (je.related_document_type === "ExpenseVoucher" && je.related_document_id) {
+      await conn.query(
+        `UPDATE expense_vouchers SET journal_entry_id = NULL WHERE id = ? AND journal_entry_id = ?`,
+        [je.related_document_id, id]
+      );
+    }
+    await auditLog(conn, {
+      userId,
+      action: "deleted",
+      module: "accounts",
+      recordType: "journal_entry",
+      recordId: id,
+      referenceNumber: `JE-${id}`,
+      description: `Journal entry JE-${id} deleted by user ${userId}`,
+      severity: "critical"
+    });
+    await conn.commit();
+    return { ok: true };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+});
+
+export { _id__delete as default };
+//# sourceMappingURL=_id_.delete.mjs.map
