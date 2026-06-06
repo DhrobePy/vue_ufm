@@ -67,12 +67,12 @@ export default defineEventHandler(async (event) => {
         [orderId, item.variant_id, item.quantity, item.unit_price, lineTotal, lineTotal],
       )
 
-      // Decrement inventory (GREATEST prevents negative stock)
+      // Decrement authoritative stock on product_variants (GREATEST prevents negative)
       await conn.query(
-        `UPDATE inventory
-         SET quantity = GREATEST(0, quantity - ?), updated_at = NOW()
-         WHERE variant_id = ? AND branch_id = ?`,
-        [item.quantity, item.variant_id, branch_id],
+        `UPDATE product_variants
+         SET stock_qty = GREATEST(0, stock_qty - ?)
+         WHERE id = ?`,
+        [item.quantity, item.variant_id],
       )
     }
 

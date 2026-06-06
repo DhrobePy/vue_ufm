@@ -4,22 +4,24 @@ export default defineEventHandler(async (event) => {
   const q        = getQuery(event)
   const branchId = q.branch_id ? Number(q.branch_id) : 1
 
-  // Fetch active product variants with current price and stock for the branch
+  // Fetch active product variants with branch price and available stock.
+  // Subquery ensures one price row per variant (no GROUP BY / duplicate issue).
+  // Stock comes from product_variants.stock_qty - reserved_qty (authoritative source).
   const products = await query(
-    `SELECT pv.id, pv.sku, pv.weight_variant, pv.grade, pv.status,
+    `SELECT pv.id, pv.sku, pv.weight_variant, pv.grade,
             p.id AS product_id, p.base_name, p.category,
-            COALESCE(pp.unit_price, 0) AS price,
-            COALESCE(inv.quantity, 0)  AS stock
+            COALESCE(pp.unit_price, pv.unit_price, 0)             AS price,
+            GREATEST(0, pv.stock_qty - pv.reserved_qty)           AS stock
      FROM product_variants pv
      JOIN products p ON p.id = pv.product_id AND p.status = 'active'
-     LEFT JOIN product_prices pp ON pp.variant_id = pv.id
-                                AND pp.is_active = 1
-                                AND (pp.branch_id = ? OR pp.branch_id IS NULL)
-     LEFT JOIN inventory inv ON inv.variant_id = pv.id AND inv.branch_id = ?
+     LEFT JOIN (
+       SELECT variant_id, unit_price
+       FROM product_prices
+       WHERE is_active = 1 AND branch_id = ?
+     ) pp ON pp.variant_id = pv.id
      WHERE pv.status = 'active'
-     GROUP BY pv.id, pp.id
      ORDER BY p.category, p.base_name, pv.weight_variant`,
-    [branchId, branchId],
+    [branchId],
   ) as any[]
 
   // Distinct categories for filter tabs

@@ -230,7 +230,7 @@
                           <div v-if="editingCell === `${v.id}:${b.id}`"
                                class="flex items-center justify-center gap-1">
                             <span class="text-gold-400 text-[10px]">৳</span>
-                            <input ref="priceInputRef"
+                            <input v-autofocus
                                    v-model.number="editingValue"
                                    type="number" min="0" step="1"
                                    class="w-16 bg-transparent border-b border-gold-500 text-center text-[11px] font-mono font-bold text-gray-100 outline-none appearance-none"
@@ -873,12 +873,14 @@ const filteredProducts = computed(() => {
 const editingCell  = ref<string | null>(null) // "variantId:branchId"
 const editingValue = ref(0)
 const savingCell   = ref(false)
-const priceInputRef = ref<HTMLInputElement | null>(null)
+// v-autofocus: focuses + selects the element on mount (safe inside v-for)
+const vAutofocus = {
+  mounted(el: HTMLInputElement) { el.focus(); el.select() },
+}
 
 function startEdit(variantId: number, branchId: number, currentPrice: number | null) {
   editingCell.value  = `${variantId}:${branchId}`
   editingValue.value = currentPrice ?? 0
-  nextTick(() => priceInputRef.value?.focus())
 }
 
 function cancelEdit() {

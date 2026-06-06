@@ -1,4 +1,0 @@
-const AppTopbar_vue_vue_type_style_index_0_scoped_a64cfe97_lang = ".dropdown-enter-active[data-v-a64cfe97]{transition:all .15s ease-out}.dropdown-leave-active[data-v-a64cfe97]{transition:all .1s ease-in}.dropdown-enter-from[data-v-a64cfe97]{opacity:0;transform:translateY(-6px) scale(.97)}.dropdown-leave-to[data-v-a64cfe97]{opacity:0;transform:translateY(-4px) scale(.98)}@keyframes bell-ring-a64cfe97{0%{transform:rotate(0)}10%{transform:rotate(14deg)}20%{transform:rotate(-10deg)}30%{transform:rotate(14deg)}40%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}60%{transform:rotate(-6deg)}70%{transform:rotate(6deg)}80%{transform:rotate(-4deg)}90%{transform:rotate(4deg)}to{transform:rotate(0)}}.animate-bell[data-v-a64cfe97]{animation:bell-ring-a64cfe97 .8s ease-in-out;transform-origin:top center}";
-
-export { AppTopbar_vue_vue_type_style_index_0_scoped_a64cfe97_lang as A };
-//# sourceMappingURL=default-styles-5.mjs-B7qfb4eD.mjs.map
