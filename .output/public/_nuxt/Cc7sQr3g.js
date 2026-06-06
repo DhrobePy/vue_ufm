@@ -1,0 +1,1 @@
+import{r as t,aq as n,H as r,S as o,m as s}from"./C8a1gWXH.js";const m=t({__name:"index",async setup(_){let e,a;return[e,a]=n(()=>r("/dashboard",{replace:!0})),await e,a(),(c,p)=>(o(),s("div"))}});export{m as default};
