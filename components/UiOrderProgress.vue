@@ -104,6 +104,7 @@ const STEPS = [
   { status: 'approved',         label: 'Approved',   color: '#10b981' },
   { status: 'in_production',    label: 'Production', color: '#3b82f6' },
   { status: 'ready_to_ship',    label: 'Ready',      color: '#06b6d4' },
+  { status: 'dispatched',       label: 'Dispatched', color: '#f97316' },
   { status: 'delivered',        label: 'Delivered',  color: '#14b8a6' },
   { status: 'completed',        label: 'Completed',  color: '#a855f7' },
 ]

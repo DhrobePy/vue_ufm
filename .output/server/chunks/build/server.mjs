@@ -803,7 +803,7 @@ const _routes = [
     name: "credit-sales-all",
     path: "/credit-sales/all",
     meta: __nuxt_page_meta$1K || {},
-    component: () => import('./all-COLEweq-.mjs')
+    component: () => import('./all-XCW0OMeG.mjs')
   },
   {
     name: "customers-create",
@@ -1247,7 +1247,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$A || {},
-    component: () => import('./index-BtbF9EQ9.mjs')
+    component: () => import('./index-DdwqHab3.mjs')
   },
   {
     name: "credit-sales-production",

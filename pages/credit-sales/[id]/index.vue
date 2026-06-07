@@ -33,7 +33,7 @@
             @click="advanceStatus('ready_to_ship', 'Marked ready to ship')">
             📤 Ready to Dispatch
           </button>
-          <button v-else-if="order.status === 'ready_to_ship' || order.status === 'shipped'"
+          <button v-else-if="order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched'"
             class="btn-gold text-xs"
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
@@ -422,7 +422,7 @@
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
             <button @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
             <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
-            <NuxtLink v-if="order.status === 'ready_to_ship' || order.status === 'shipped'" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
+            <NuxtLink v-if="order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched'" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
             <button @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
             <NuxtLink :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
             <button v-if="!['cancelled','completed','rejected'].includes(order.status)"
@@ -762,7 +762,7 @@ const creditPct = computed(() => {
 })
 
 const canCollectPayment = computed(() =>
-  ['approved','in_production','ready_to_ship','delivered','partial_delivery','completed']
+  ['approved','in_production','ready_to_ship','dispatched','delivered','partial_delivery','completed']
     .includes(order.value.status),
 )
 
@@ -785,6 +785,7 @@ const WF_LABELS: Record<string, string> = {
   in_production:     'Sent to Production',
   ready_to_ship:     'Ready to Ship',
   shipped:           'Shipped',
+  dispatched:        'Dispatched',
   delivered:         'Delivery Recorded',
   partial_delivery:  'Partial Delivery',
   payment_received:  'Payment Received',
@@ -799,6 +800,7 @@ const WF_LABELS: Record<string, string> = {
 const WF_EVENT_COLORS: Record<string, string> = {
   payment_received: '#10b981',
   completed:        '#a855f7',
+  dispatched:       '#f97316',
   delivered:        '#14b8a6',
   partial_delivery: '#06b6d4',
   return_submitted: '#f59e0b',

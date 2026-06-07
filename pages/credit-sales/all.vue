@@ -122,6 +122,7 @@ const statusFilters = [
   { value: 'approved',         label: 'Approved' },
   { value: 'in_production',    label: 'In Production' },
   { value: 'ready_to_ship',    label: 'Ready to Ship' },
+  { value: 'dispatched',       label: 'Dispatched' },
   { value: 'delivered',        label: 'Delivered' },
   { value: 'completed',        label: 'Completed' },
   { value: 'cancelled',        label: 'Cancelled' },
