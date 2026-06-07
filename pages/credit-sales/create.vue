@@ -371,14 +371,18 @@ const paymentMethods = [
   { value: 'Card',           icon: '💳', label: 'Card' },
 ]
 
-// Load customers, products, bank accounts, petty cash, employees in parallel
-const [{ data: custData }, { data: prodData }, { data: bankData }, { data: pettyData }, { data: empData }] = await Promise.all([
+// Load customers, bank accounts, petty cash, employees in parallel (static)
+const [{ data: custData }, { data: bankData }, { data: pettyData }, { data: empData }] = await Promise.all([
   useFetch('/api/customers', { query: { per: 200 } }),
-  useFetch('/api/products'),
   useFetch('/api/bank-accounts'),
   useFetch('/api/expenses/petty-cash-accounts'),
   useFetch('/api/hr/employees'),
 ])
+
+// Products — reactive to branch so prices reflect the selected branch
+const { data: prodData } = await useFetch('/api/products', {
+  query: computed(() => form.branchId ? { branch_id: form.branchId } : {}),
+})
 
 const customers = computed(() =>
   (custData.value?.customers ?? []).map((c: any) => ({
@@ -489,6 +493,16 @@ function onVariantChange(item: any) {
     if (match.price) item.unitPrice = match.price
   }
 }
+
+// Re-apply branch-specific prices to all existing line items whenever
+// prodData refreshes (triggered by branch change via reactive query).
+watch(prodData, () => {
+  for (const item of form.items) {
+    if (!item.variantId) continue
+    const match = variants.value.find(v => v.id === item.variantId)
+    if (match?.price) item.unitPrice = match.price
+  }
+})
 
 const subtotal     = computed(() => form.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
 const totalDiscount = computed(() => form.items.reduce((s, i) => s + (i.discount || 0), 0) + (form.overallDiscount || 0))
