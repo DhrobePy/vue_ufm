@@ -403,7 +403,24 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] order_delivery_scans create failed:', e)
   }
 
-  // ── 26. Backfill dispatch_pin / delivery_pin for pre-QR-system orders ────────
+  // ── 26. Ensure credit_orders.status ENUM includes 'dispatched' ───────────────
+  //   If the production DB was seeded before 'dispatched' was added to the ENUM,
+  //   any attempt to SET status = 'dispatched' fails with "Data truncated".
+  //   MODIFY COLUMN replaces the ENUM definition with the full current set.
+  //   Safe: includes every value from schema_seed.sql — no existing data is lost.
+  try {
+    await db.query(`
+      ALTER TABLE credit_orders MODIFY COLUMN status
+      ENUM('pending_approval','escalated','approved','in_production',
+           'ready_to_ship','partial_delivery','delivered','completed',
+           'rejected','cancelled','dispatched')
+      DEFAULT 'pending_approval'
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] credit_orders.status ENUM widen failed:', e)
+  }
+
+  // ── 27. Backfill dispatch_pin / delivery_pin for pre-QR-system orders ────────
   //   Orders created before migrations #23-24 ran have NULL dispatch_pin.
   //   Without a PIN they can never be confirmed via QR scan.
   //   This generates and saves PINs for all such orders (runs once; idempotent
