@@ -121,9 +121,9 @@ const pricingEngine_post = defineEventHandler(async (event) => {
         `UPDATE product_prices SET is_active = 0 WHERE variant_id IN (${placeholders}) AND is_active = 1`,
         affectedVariantIds
       );
-      const values = priceRows.map((r) => [r.variant_id, r.branch_id, r.unit_price, effDate]);
+      const values = priceRows.map((r) => [r.variant_id, r.branch_id, r.unit_price, effDate, 1]);
       await conn.query(
-        `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active) VALUES ?`,
+        `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, is_active) VALUES ?`,
         [values]
       );
       await conn.commit();

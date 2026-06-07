@@ -140,9 +140,10 @@ export default defineEventHandler(async (event) => {
         affectedVariantIds,
       )
 
-      const values = priceRows.map(r => [r.variant_id, r.branch_id, r.unit_price, effDate])
+      // 5 values per row: variant_id, branch_id, unit_price, effective_date, is_active
+      const values = priceRows.map(r => [r.variant_id, r.branch_id, r.unit_price, effDate, 1])
       await conn.query(
-        `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active) VALUES ?`,
+        `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, is_active) VALUES ?`,
         [values],
       )
 
