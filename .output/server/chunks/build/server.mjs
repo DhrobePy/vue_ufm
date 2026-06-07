@@ -982,7 +982,7 @@ const _routes = [
     name: "credit-sales-create",
     path: "/credit-sales/create",
     meta: __nuxt_page_meta$1f || {},
-    component: () => import('./create-Bc_fIV2E.mjs')
+    component: () => import('./create-CbbFgIzv.mjs')
   },
   {
     name: "credit-sales-ledger",

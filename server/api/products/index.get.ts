@@ -13,16 +13,25 @@ export default defineEventHandler(async (event) => {
     params.push(`%${search}%`, `%${search}%`)
   }
 
+  // Subquery collapses product_prices to one row per variant (no duplicates when
+  // multiple branches each have an active price).  When branch_id is given we
+  // pick that branch's price; otherwise we take the minimum active price.
+  const priceSubquery = branchId
+    ? `(SELECT variant_id, unit_price FROM product_prices
+        WHERE is_active = 1 AND branch_id = ?
+        GROUP BY variant_id) pp`
+    : `(SELECT variant_id, MIN(unit_price) AS unit_price FROM product_prices
+        WHERE is_active = 1
+        GROUP BY variant_id) pp`
+
   const products = await query(
     `SELECT p.id AS product_id, p.base_name, p.category, p.base_sku,
             pv.id AS variant_id, pv.sku, pv.grade, pv.weight_variant,
             pv.weight_kg, pv.unit_of_measure, pv.status AS variant_status,
-            pp.unit_price, pp.branch_id
+            pp.unit_price
      FROM products p
      JOIN product_variants pv ON pv.product_id = p.id AND pv.status = 'active'
-     LEFT JOIN product_prices pp ON pp.variant_id = pv.id
-       AND pp.is_active = 1
-       ${branchId ? 'AND pp.branch_id = ?' : ''}
+     LEFT JOIN ${priceSubquery} ON pp.variant_id = pv.id
      WHERE ${where.join(' AND ')}
      ORDER BY p.base_name, pv.weight_variant`,
     branchId ? [...params, branchId] : params,

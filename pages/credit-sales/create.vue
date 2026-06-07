@@ -468,9 +468,11 @@ const variants = computed(() => {
   const list: Array<{ id: string; name: string; productId: string; price: number | null }> = []
   for (const p of (prodData.value?.products ?? []) as any[]) {
     for (const v of p.variants ?? []) {
+      const priceLabel = v.unit_price ? ` · ৳${Number(v.unit_price).toLocaleString()}` : ''
+      const gradeLabel = v.grade ? ` [${v.grade}]` : ''
       list.push({
         id: String(v.id),
-        name: `${p.base_name} — ${v.weight_variant}`,
+        name: `${p.base_name} (${v.weight_variant})${gradeLabel}${priceLabel}`,
         productId: String(p.id),
         price: v.unit_price ? Number(v.unit_price) : null,
       })
