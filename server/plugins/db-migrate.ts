@@ -403,5 +403,29 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] order_delivery_scans create failed:', e)
   }
 
+  // ── 26. Backfill dispatch_pin / delivery_pin for pre-QR-system orders ────────
+  //   Orders created before migrations #23-24 ran have NULL dispatch_pin.
+  //   Without a PIN they can never be confirmed via QR scan.
+  //   This generates and saves PINs for all such orders (runs once; idempotent
+  //   because subsequent restarts find dispatch_pin IS NOT NULL for all rows).
+  try {
+    const [nullRows] = await db.query(
+      `SELECT id FROM credit_orders WHERE dispatch_pin IS NULL LIMIT 500`,
+    ) as any
+    if (Array.isArray(nullRows) && nullRows.length > 0) {
+      for (const row of nullRows) {
+        const dp   = Math.floor(100000 + Math.random() * 900000).toString()
+        const delp = Math.floor(100000 + Math.random() * 900000).toString()
+        await db.query(
+          `UPDATE credit_orders SET dispatch_pin = ?, delivery_pin = ? WHERE id = ?`,
+          [dp, delp, row.id],
+        )
+      }
+      console.log(`[db-migrate] backfilled dispatch_pin for ${nullRows.length} order(s)`)
+    }
+  } catch (e) {
+    console.warn('[db-migrate] backfill dispatch_pin failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

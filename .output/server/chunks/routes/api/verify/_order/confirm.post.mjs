@@ -50,21 +50,6 @@ const confirm_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    await conn.query(
-      `INSERT INTO order_delivery_scans
-         (order_id, order_number, scan_type, pin_used, pin_correct, ip_address, user_agent, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        order.id,
-        orderNumber,
-        scan_type,
-        String(pin).slice(0, 10),
-        pinCorrect ? 1 : 0,
-        ip,
-        ua ? ua.slice(0, 500) : null,
-        transitionNote || null
-      ]
-    );
     if (newStatus) {
       await conn.query(
         `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
@@ -83,6 +68,26 @@ const confirm_post = defineEventHandler(async (event) => {
     throw e;
   } finally {
     conn.release();
+  }
+  try {
+    const pool = getDb();
+    await pool.query(
+      `INSERT INTO order_delivery_scans
+         (order_id, order_number, scan_type, pin_used, pin_correct, ip_address, user_agent, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        order.id,
+        orderNumber,
+        scan_type,
+        String(pin).slice(0, 10),
+        pinCorrect ? 1 : 0,
+        ip,
+        ua ? ua.slice(0, 500) : null,
+        transitionNote || null
+      ]
+    );
+  } catch (scanErr) {
+    console.warn("[verify/confirm] scan audit log skipped (table may not exist yet):", scanErr == null ? void 0 : scanErr.message);
   }
   if (!pinCorrect) {
     return {
