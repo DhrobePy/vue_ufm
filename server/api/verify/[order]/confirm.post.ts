@@ -65,16 +65,14 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // ── Status update (primary operation) ──────────────────────────────────
+    // Note: we intentionally skip credit_order_workflow here because
+    // performed_by_user_id is NOT NULL in production and this is a public
+    // endpoint with no authenticated user. The full audit trail lives in
+    // order_delivery_scans (pin_correct, ip_address, user_agent, etc.).
     if (newStatus) {
       await conn.query(
         `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
         [newStatus, order.id],
-      )
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, ?, ?, NULL, ?, NOW())`,
-        [order.id, order.status, newStatus, `${scan_type}_confirmed`, transitionNote],
       )
     }
 

@@ -55,12 +55,6 @@ const confirm_post = defineEventHandler(async (event) => {
         `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
         [newStatus, order.id]
       );
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, ?, ?, NULL, ?, NOW())`,
-        [order.id, order.status, newStatus, `${scan_type}_confirmed`, transitionNote]
-      );
     }
     await conn.commit();
   } catch (e) {
