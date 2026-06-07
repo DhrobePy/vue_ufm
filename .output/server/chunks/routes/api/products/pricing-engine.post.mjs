@@ -1,21 +1,34 @@
 import { h as defineEventHandler, L as readBody, e as createError, J as query, n as getDb } from '../../../nitro/nitro.mjs';
-import { writeFileSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
+import 'node:fs';
+import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const CONFIG_FILE = resolve("server/data/pricing_engine_config.json");
-function loadConfig() {
+const DEFAULT_CONFIG = {
+  formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 }};
+async function loadConfig() {
+  var _a;
   try {
-    return JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
+    const rows = await query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_engine_config'`
+    );
+    if ((_a = rows[0]) == null ? void 0 : _a.setting_value) return JSON.parse(rows[0].setting_value);
   } catch {
-    return {};
   }
+  return {};
+}
+async function saveConfig(cfg) {
+  await query(
+    `INSERT INTO system_settings (setting_key, setting_value)
+     VALUES ('pricing_engine_config', ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+    [JSON.stringify(cfg)]
+  );
 }
 const WEIGHT_MAP = {
   "50": "50",
@@ -39,17 +52,17 @@ const pricingEngine_post = defineEventHandler(async (event) => {
   const { action } = body != null ? body : {};
   if (action === "save_config") {
     const { bag_50, bag_74, packaging_fee, branch_surcharges } = body;
-    const current = loadConfig();
+    const current = await loadConfig();
     const updated = {
       ...current,
       formula: {
-        bag_50: Math.max(1, Number(bag_50) || 50),
-        bag_74: Math.max(1, Number(bag_74) || 74),
-        packaging_fee: (_a = Number(packaging_fee)) != null ? _a : 150
+        bag_50: Math.max(1, Number(bag_50) || DEFAULT_CONFIG.formula.bag_50),
+        bag_74: Math.max(1, Number(bag_74) || DEFAULT_CONFIG.formula.bag_74),
+        packaging_fee: (_a = Number(packaging_fee)) != null ? _a : DEFAULT_CONFIG.formula.packaging_fee
       },
       branch_surcharges: (_b = branch_surcharges != null ? branch_surcharges : current.branch_surcharges) != null ? _b : {}
     };
-    writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2));
+    await saveConfig(updated);
     return { ok: true, message: "Formula config saved." };
   }
   if (action === "apply_prices") {

@@ -1,27 +1,31 @@
 import { h as defineEventHandler, J as query } from '../../../nitro/nitro.mjs';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
+import 'node:fs';
+import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const CONFIG_FILE = resolve("server/data/pricing_engine_config.json");
 const DEFAULT_CFG = {
   formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
   branch_surcharges: {}
 };
-function loadConfig() {
-  var _a;
+async function loadConfig() {
+  var _a, _b;
   try {
-    const parsed = JSON.parse(readFileSync(CONFIG_FILE, "utf-8"));
-    return { ...DEFAULT_CFG, ...parsed, formula: { ...DEFAULT_CFG.formula, ...(_a = parsed.formula) != null ? _a : {} } };
+    const rows = await query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_engine_config'`
+    );
+    if ((_a = rows[0]) == null ? void 0 : _a.setting_value) {
+      const parsed = JSON.parse(rows[0].setting_value);
+      return { ...DEFAULT_CFG, ...parsed, formula: { ...DEFAULT_CFG.formula, ...(_b = parsed.formula) != null ? _b : {} } };
+    }
   } catch {
-    return { ...DEFAULT_CFG };
   }
+  return { ...DEFAULT_CFG };
 }
 function mapWeight(wv) {
   const n = parseInt(wv);
@@ -31,7 +35,7 @@ function mapWeight(wv) {
 }
 const hub_get = defineEventHandler(async () => {
   var _a, _b, _c, _d, _e;
-  const config = loadConfig();
+  const config = await loadConfig();
   const [products, variants, prices, branches, currRows] = await Promise.all([
     // Base products
     query(`

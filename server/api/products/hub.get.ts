@@ -3,23 +3,25 @@
  * Single endpoint that powers the unified Products Hub page.
  * Returns: products+variants+per-branch prices, branches, pricing-engine data.
  */
-import { readFileSync } from 'node:fs'
-import { resolve }      from 'node:path'
-import { query }        from '~/server/utils/db'
+import { query } from '~/server/utils/db'
 
-const CONFIG_FILE = resolve('server/data/pricing_engine_config.json')
 const DEFAULT_CFG = {
   formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
   branch_surcharges: {} as Record<string, { surcharge_50: number; surcharge_74: number }>,
 }
 
-function loadConfig() {
+/** Load pricing engine config from system_settings (DB, no filesystem). */
+async function loadConfig() {
   try {
-    const parsed = JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'))
-    return { ...DEFAULT_CFG, ...parsed, formula: { ...DEFAULT_CFG.formula, ...(parsed.formula ?? {}) } }
-  } catch {
-    return { ...DEFAULT_CFG }
-  }
+    const rows = await query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_engine_config'`,
+    ) as any[]
+    if (rows[0]?.setting_value) {
+      const parsed = JSON.parse(rows[0].setting_value)
+      return { ...DEFAULT_CFG, ...parsed, formula: { ...DEFAULT_CFG.formula, ...(parsed.formula ?? {}) } }
+    }
+  } catch { /* fall through */ }
+  return { ...DEFAULT_CFG }
 }
 
 function mapWeight(wv: string): string {
@@ -30,7 +32,7 @@ function mapWeight(wv: string): string {
 }
 
 export default defineEventHandler(async () => {
-  const config = loadConfig()
+  const config = await loadConfig()
 
   const [products, variants, prices, branches, currRows] = await Promise.all([
     // Base products

@@ -1,22 +1,22 @@
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { query } from '~/server/utils/db'
-
-const CONFIG_FILE = resolve('server/data/pricing_engine_config.json')
 
 const DEFAULT_CONFIG = {
   formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
   branch_surcharges: {} as Record<string, { surcharge_50: number; surcharge_74: number }>,
 }
 
-function loadConfig() {
+/** Load pricing engine config from system_settings (DB, no filesystem). */
+async function loadConfig() {
   try {
-    const raw = readFileSync(CONFIG_FILE, 'utf-8')
-    const parsed = JSON.parse(raw)
-    return { ...DEFAULT_CONFIG, ...parsed, formula: { ...DEFAULT_CONFIG.formula, ...(parsed.formula ?? {}) } }
-  } catch {
-    return { ...DEFAULT_CONFIG }
-  }
+    const rows = await query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_engine_config'`,
+    ) as any[]
+    if (rows[0]?.setting_value) {
+      const parsed = JSON.parse(rows[0].setting_value)
+      return { ...DEFAULT_CONFIG, ...parsed, formula: { ...DEFAULT_CONFIG.formula, ...(parsed.formula ?? {}) } }
+    }
+  } catch { /* fall through to default */ }
+  return { ...DEFAULT_CONFIG }
 }
 
 const WEIGHT_MAP: Record<string, string> = {
@@ -35,7 +35,7 @@ function mapWeight(wv: string): string {
 }
 
 export default defineEventHandler(async () => {
-  const config = loadConfig()
+  const config = await loadConfig()
 
   const [allVariants, currRows, branches] = await Promise.all([
     query(`
@@ -106,9 +106,9 @@ export default defineEventHandler(async () => {
   const customCurrent: Record<string, Record<string, number>> = {}
 
   for (const cr of currRows) {
-    const g  = cr.grade
-    const br = String(cr.branch_id)
-    const wc = mapWeight(cr.weight_variant)
+    const g   = cr.grade
+    const br  = String(cr.branch_id)
+    const wc  = mapWeight(cr.weight_variant)
     const vid = String(cr.variant_id)
 
     if (wc === '50' || wc === '74') {

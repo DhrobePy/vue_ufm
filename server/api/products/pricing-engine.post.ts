@@ -1,16 +1,36 @@
-import { readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { query, getDb } from '~/server/utils/db'
 
-const CONFIG_FILE = resolve('server/data/pricing_engine_config.json')
+const DEFAULT_CONFIG = {
+  formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
+  branch_surcharges: {} as Record<string, { surcharge_50: number; surcharge_74: number }>,
+}
 
-function loadConfig() {
-  try { return JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')) } catch { return {} }
+/** Load config from system_settings. */
+async function loadConfig() {
+  try {
+    const rows = await query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'pricing_engine_config'`,
+    ) as any[]
+    if (rows[0]?.setting_value) return JSON.parse(rows[0].setting_value)
+  } catch { /* ignore */ }
+  return {}
+}
+
+/** Persist config to system_settings (UPSERT). */
+async function saveConfig(cfg: object) {
+  await query(
+    `INSERT INTO system_settings (setting_key, setting_value)
+     VALUES ('pricing_engine_config', ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+    [JSON.stringify(cfg)],
+  )
 }
 
 const WEIGHT_MAP: Record<string, string> = {
-  '50': '50', '74': '74', '50KG': '50', '74KG': '74',
-  '50 KG': '50', '74 KG': '74', '50kg': '50', '74kg': '74',
+  '50': '50', '74': '74',
+  '50KG': '50', '74KG': '74',
+  '50 KG': '50', '74 KG': '74',
+  '50kg': '50', '74kg': '74',
 }
 function mapWeight(wv: string): string {
   if (WEIGHT_MAP[wv]) return WEIGHT_MAP[wv]
@@ -26,17 +46,17 @@ export default defineEventHandler(async (event) => {
   // ── SAVE CONFIG ────────────────────────────────────────────────────────────
   if (action === 'save_config') {
     const { bag_50, bag_74, packaging_fee, branch_surcharges } = body
-    const current = loadConfig()
+    const current = await loadConfig()
     const updated = {
       ...current,
       formula: {
-        bag_50:        Math.max(1, Number(bag_50)        || 50),
-        bag_74:        Math.max(1, Number(bag_74)        || 74),
-        packaging_fee: Number(packaging_fee)             ?? 150,
+        bag_50:        Math.max(1, Number(bag_50)   || DEFAULT_CONFIG.formula.bag_50),
+        bag_74:        Math.max(1, Number(bag_74)   || DEFAULT_CONFIG.formula.bag_74),
+        packaging_fee: Number(packaging_fee)        ?? DEFAULT_CONFIG.formula.packaging_fee,
       },
       branch_surcharges: branch_surcharges ?? current.branch_surcharges ?? {},
     }
-    writeFileSync(CONFIG_FILE, JSON.stringify(updated, null, 2))
+    await saveConfig(updated)
     return { ok: true, message: 'Formula config saved.' }
   }
 
@@ -56,7 +76,7 @@ export default defineEventHandler(async (event) => {
 
     const effDate = new Date().toISOString().slice(0, 10)
 
-    // Load branches + all active variants (same as GET)
+    // Load branches + all active variants
     const [branches, allVariants] = await Promise.all([
       query(`SELECT id, name FROM branches WHERE status = 'active'`) as Promise<any[]>,
       query(`
@@ -67,7 +87,6 @@ export default defineEventHandler(async (event) => {
       `) as Promise<any[]>,
     ])
 
-    // Collect all price records to insert
     interface PriceRow { variant_id: number; branch_id: number; unit_price: number }
     const priceRows: PriceRow[] = []
 
@@ -115,14 +134,12 @@ export default defineEventHandler(async (event) => {
     try {
       await conn.beginTransaction()
 
-      // Deactivate all existing active prices for affected variants (one query)
       const placeholders = affectedVariantIds.map(() => '?').join(',')
       await conn.query(
         `UPDATE product_prices SET is_active = 0 WHERE variant_id IN (${placeholders}) AND is_active = 1`,
         affectedVariantIds,
       )
 
-      // Batch insert all new prices (one query)
       const values = priceRows.map(r => [r.variant_id, r.branch_id, r.unit_price, effDate])
       await conn.query(
         `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, status, is_active) VALUES ?`,
