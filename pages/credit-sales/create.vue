@@ -372,8 +372,10 @@ const paymentMethods = [
 ]
 
 // Load customers, bank accounts, petty cash, employees in parallel (static)
+// Customers use simple=1 to skip the heavy GROUP BY + credit_orders JOIN —
+// the create-order page only needs id/name/balances, not order counts.
 const [{ data: custData }, { data: bankData }, { data: pettyData }, { data: empData }] = await Promise.all([
-  useFetch('/api/customers', { query: { per: 200 } }),
+  useFetch('/api/customers', { query: { per: 500, simple: '1' } }),
   useFetch('/api/bank-accounts'),
   useFetch('/api/expenses/petty-cash-accounts'),
   useFetch('/api/hr/employees'),

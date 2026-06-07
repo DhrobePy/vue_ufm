@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
   const type   = (q.type   as string) || ''
   const page   = Number(q.page) || 1
   const per    = Number(q.per)  || 30
+  const simple = q.simple === '1' || q.simple === 'true' // lightweight mode for dropdowns
   const { limit, offset } = paginate(page, per)
 
   const where: string[] = []
@@ -19,6 +20,23 @@ export default defineEventHandler(async (event) => {
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
 
+  // ── Simple / lightweight mode (used by create-order dropdowns) ────────────
+  // Skips the heavy LEFT JOIN + GROUP BY on credit_orders.
+  // Returns just the fields needed for selection: id, name, business, balances.
+  if (simple) {
+    const customers = await query(
+      `SELECT c.id, c.name, c.business_name, c.phone_number,
+              c.customer_type, c.credit_limit, c.current_balance, c.status
+       FROM customers c
+       ${w}
+       ORDER BY c.name
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset],
+    )
+    return { customers, total: null, page, perPage: limit, stats: null }
+  }
+
+  // ── Full mode (customer list page) — includes order counts ────────────────
   const [customers, [cnt], stats] = await Promise.all([
     query(
       `SELECT c.id, c.name, c.business_name, c.phone_number, c.email,

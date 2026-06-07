@@ -271,8 +271,9 @@
 </template>
 
 <script setup lang="ts">
-import QRCode from 'qrcode'
-
+// NOTE: qrcode is imported dynamically inside onMounted (client-only).
+// A top-level import causes Nitro to try loading it server-side where
+// the canvas/PNG renderer may not be available, crashing SSR.
 definePageMeta({ layout: false })
 const route   = useRoute()
 const orderId = computed(() => Number(route.params.id))
@@ -380,17 +381,18 @@ async function saveTC() {
   }
 }
 
-// Auto-print if ?print=1, and generate QR code
+// Auto-print if ?print=1, and generate QR code (client-only via dynamic import)
 onMounted(async () => {
   tcLive.value  = storedTC.value
   tcDraft.value = storedTC.value
   if (useRoute().query.print === '1') {
     setTimeout(() => window.print(), 600)
   }
-  // Generate QR — links to the public delivery scan page
+  // Generate QR — dynamic import keeps qrcode out of the SSR bundle entirely
   const orderNumber = (data.value?.order as any)?.order_number
   if (orderNumber) {
     try {
+      const { default: QRCode } = await import('qrcode')
       const url = `${window.location.origin}/d/${orderNumber}`
       qrDataUrl.value = await QRCode.toDataURL(url, {
         width:  96,

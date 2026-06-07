@@ -15,6 +15,7 @@ const index_get = defineEventHandler(async (event) => {
   const type = q.type || "";
   const page = Number(q.page) || 1;
   const per = Number(q.per) || 30;
+  const simple = q.simple === "1" || q.simple === "true";
   const { limit, offset } = paginate(page, per);
   const where = [];
   const params = [];
@@ -27,6 +28,18 @@ const index_get = defineEventHandler(async (event) => {
     params.push(type);
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
+  if (simple) {
+    const customers2 = await query(
+      `SELECT c.id, c.name, c.business_name, c.phone_number,
+              c.customer_type, c.credit_limit, c.current_balance, c.status
+       FROM customers c
+       ${w}
+       ORDER BY c.name
+       LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+    return { customers: customers2, total: null, page, perPage: limit, stats: null };
+  }
   const [customers, [cnt], stats] = await Promise.all([
     query(
       `SELECT c.id, c.name, c.business_name, c.phone_number, c.email,

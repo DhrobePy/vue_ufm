@@ -989,7 +989,7 @@ const _routes = [
     name: "credit-sales-create",
     path: "/credit-sales/create",
     meta: __nuxt_page_meta$1f || {},
-    component: () => import('./create-iWvFkcIK.mjs')
+    component: () => import('./create-BWCIwSPD.mjs')
   },
   {
     name: "credit-sales-ledger",
@@ -1355,7 +1355,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$i || {},
-    component: () => import('./invoice-Dp9MoFpy.mjs')
+    component: () => import('./invoice-DTdUzZN7.mjs')
   },
   {
     name: "credit-sales-id-payment",
