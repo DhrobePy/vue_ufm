@@ -18,6 +18,7 @@ const FREE_PREFIXES = [
   '/api/me/',
   '/api/kiosk/',
   '/api/device/',
+  '/api/verify/',   // Public QR delivery scan endpoints — no auth required
   '/_nuxt/',
   '/__nuxt',
 ]

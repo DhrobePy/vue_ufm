@@ -437,8 +437,9 @@ function getRouteRules(arg) {
     return {};
   }
 }
+const __nuxt_page_meta$2h = { layout: "default" };
 const __nuxt_page_meta$2g = { layout: "default" };
-const __nuxt_page_meta$2f = { layout: "default" };
+const __nuxt_page_meta$2f = { layout: false };
 const __nuxt_page_meta$2e = { layout: "default" };
 const __nuxt_page_meta$2d = { layout: "default" };
 const __nuxt_page_meta$2c = { layout: false };
@@ -591,14 +592,20 @@ const _routes = [
   {
     name: "hr",
     path: "/hr",
-    meta: __nuxt_page_meta$2g || {},
+    meta: __nuxt_page_meta$2h || {},
     component: () => import('./index-B3VOvqcs.mjs')
   },
   {
     name: "hr-loans",
     path: "/hr/loans",
-    meta: __nuxt_page_meta$2f || {},
+    meta: __nuxt_page_meta$2g || {},
     component: () => import('./loans-CIITWge2.mjs')
+  },
+  {
+    name: "d-order",
+    path: "/d/:order()",
+    meta: __nuxt_page_meta$2f || {},
+    component: () => import('./_order_-BVA0vh5k.mjs')
   },
   {
     name: "pos",
@@ -718,7 +725,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$1X || {},
-    component: () => import('./settings-D87xTQ8g.mjs')
+    component: () => import('./settings-C-WeVyq3.mjs')
   },
   {
     name: "bank-statement",
@@ -1348,7 +1355,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$i || {},
-    component: () => import('./invoice-B4sEhpvn.mjs')
+    component: () => import('./invoice-Dp9MoFpy.mjs')
   },
   {
     name: "credit-sales-id-payment",

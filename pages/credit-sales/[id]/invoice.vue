@@ -251,23 +251,16 @@
             when processed through the ERP system.
           </div>
           <div style="text-align:right;">
-            <!-- Mini QR-code placeholder -->
-            <div style="width:48px;height:48px;background:#111;border-radius:6px;display:flex;align-items:center;justify-content:center;margin-left:auto;">
-              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-                <rect x="2" y="2" width="14" height="14" rx="2" fill="white"/>
-                <rect x="5" y="5" width="8" height="8" rx="1" fill="#111"/>
-                <rect x="20" y="2" width="14" height="14" rx="2" fill="white"/>
-                <rect x="23" y="5" width="8" height="8" rx="1" fill="#111"/>
-                <rect x="2" y="20" width="14" height="14" rx="2" fill="white"/>
-                <rect x="5" y="23" width="8" height="8" rx="1" fill="#111"/>
-                <rect x="20" y="20" width="4" height="4" fill="white"/>
-                <rect x="26" y="20" width="4" height="4" fill="white"/>
-                <rect x="20" y="26" width="4" height="4" fill="white"/>
-                <rect x="26" y="26" width="8" height="8" fill="white"/>
-                <rect x="32" y="20" width="2" height="4" fill="white"/>
-              </svg>
+            <!-- Real QR code — generated client-side from order URL -->
+            <img v-if="qrDataUrl" :src="qrDataUrl"
+              style="width:72px;height:72px;border-radius:6px;border:1px solid #e5e7eb;display:block;margin-left:auto;" />
+            <div v-else style="width:72px;height:72px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;margin-left:auto;"></div>
+            <!-- Dispatch PIN — 6-digit code for the dispatcher to enter on scan page -->
+            <div v-if="dispatchPin"
+              style="margin-top:4px;font-family:monospace;font-size:12px;font-weight:800;color:#111827;letter-spacing:3px;text-align:center;">
+              {{ dispatchPin }}
             </div>
-            <div style="font-size:8px;color:#9ca3af;margin-top:3px;text-align:center;">Scan to verify</div>
+            <div style="font-size:8px;color:#9ca3af;margin-top:2px;text-align:center;">Scan · PIN to confirm dispatch</div>
           </div>
         </div>
 
@@ -278,6 +271,8 @@
 </template>
 
 <script setup lang="ts">
+import QRCode from 'qrcode'
+
 definePageMeta({ layout: false })
 const route   = useRoute()
 const orderId = computed(() => Number(route.params.id))
@@ -341,6 +336,10 @@ const generatedAt = new Date().toLocaleString('en-BD', {
   hour: '2-digit', minute: '2-digit',
 })
 
+// ── QR code + dispatch PIN ───────────────────────────────────────────────────
+const qrDataUrl   = ref('')
+const dispatchPin = computed(() => (data.value?.order as any)?.dispatch_pin ?? null)
+
 // ── Role & T&C editor ────────────────────────────────────────────────────────
 const { user: sessionUser } = useUserSession()
 const isAdmin = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
@@ -381,12 +380,26 @@ async function saveTC() {
   }
 }
 
-// Auto-print if ?print=1
-onMounted(() => {
+// Auto-print if ?print=1, and generate QR code
+onMounted(async () => {
   tcLive.value  = storedTC.value
   tcDraft.value = storedTC.value
   if (useRoute().query.print === '1') {
     setTimeout(() => window.print(), 600)
+  }
+  // Generate QR — links to the public delivery scan page
+  const orderNumber = (data.value?.order as any)?.order_number
+  if (orderNumber) {
+    try {
+      const url = `${window.location.origin}/d/${orderNumber}`
+      qrDataUrl.value = await QRCode.toDataURL(url, {
+        width:  96,
+        margin: 1,
+        color:  { dark: '#111827', light: '#ffffff' },
+      })
+    } catch (e) {
+      console.warn('[invoice] QR generation failed:', e)
+    }
   }
 })
 </script>

@@ -114,14 +114,18 @@ const index_post = defineEventHandler(async (event) => {
         it.product_id = (_n = pv == null ? void 0 : pv.product_id) != null ? _n : null;
       }
     }
+    const dispatchPin = Math.floor(1e5 + Math.random() * 9e5).toString();
+    const deliveryPin = Math.floor(1e5 + Math.random() * 9e5).toString();
     const [result] = await conn.query(
       `INSERT INTO credit_orders
          (order_number, customer_id, assigned_branch_id, order_date, required_date, priority,
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
+          dispatch_pin, delivery_pin,
           created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
+               ?, ?,
                ?, NOW(), NOW())`,
       [
         orderNo,
@@ -138,6 +142,8 @@ const index_post = defineEventHandler(async (event) => {
         advancePaid,
         advancePaid,
         balanceDue,
+        dispatchPin,
+        deliveryPin,
         userId
       ]
     );

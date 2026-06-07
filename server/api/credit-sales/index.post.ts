@@ -115,14 +115,20 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    // Generate 6-digit PINs for delivery verification (QR scan)
+    const dispatchPin = Math.floor(100000 + Math.random() * 900000).toString()
+    const deliveryPin = Math.floor(100000 + Math.random() * 900000).toString()
+
     const [result] = await conn.query<any>(
       `INSERT INTO credit_orders
          (order_number, customer_id, assigned_branch_id, order_date, required_date, priority,
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
+          dispatch_pin, delivery_pin,
           created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
+               ?, ?,
                ?, NOW(), NOW())`,
       [
         orderNo,
@@ -139,6 +145,8 @@ export default defineEventHandler(async (event) => {
         advancePaid,
         advancePaid,
         balanceDue,
+        dispatchPin,
+        deliveryPin,
         userId,
       ],
     )

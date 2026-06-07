@@ -362,5 +362,46 @@ export default defineNitroPlugin(async () => {
     "DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Fallback base price if no branch price set'",
   )
 
+  // ── 23. credit_orders — dispatch_pin ──────────────────────────────────────
+  //   6-digit numeric PIN printed on the invoice.  Dispatcher enters it on the
+  //   mobile scan page (/d/:order_number) to confirm goods have left the warehouse.
+  //   Status transition: ready_to_ship → dispatched.
+  await addCol(
+    db, 'credit_orders', 'dispatch_pin',
+    "VARCHAR(10) NULL DEFAULT NULL COMMENT '6-digit PIN for dispatcher to confirm dispatch via QR scan'",
+  )
+
+  // ── 24. credit_orders — delivery_pin ─────────────────────────────────────
+  //   Provisioned for future driver-side delivery confirmation.
+  //   Not active yet — toggle in Admin > Settings > Delivery when needed.
+  await addCol(
+    db, 'credit_orders', 'delivery_pin',
+    "VARCHAR(10) NULL DEFAULT NULL COMMENT '6-digit PIN for driver delivery confirmation (provisioned, not active)'",
+  )
+
+  // ── 25. order_delivery_scans table ───────────────────────────────────────
+  //   Audit trail of every QR scan: who scanned, what PIN was tried, result.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS order_delivery_scans (
+        id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        order_id     INT UNSIGNED NOT NULL,
+        order_number VARCHAR(50)  NOT NULL,
+        scan_type    ENUM('view','dispatch','delivery') NOT NULL DEFAULT 'view',
+        pin_used     VARCHAR(10)  NULL,
+        pin_correct  TINYINT(1)   NOT NULL DEFAULT 0,
+        scanned_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        ip_address   VARCHAR(45)  NULL,
+        user_agent   VARCHAR(500) NULL,
+        notes        VARCHAR(255) NULL,
+        INDEX idx_order_id  (order_id),
+        INDEX idx_order_num (order_number),
+        INDEX idx_scanned   (scanned_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] order_delivery_scans create failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

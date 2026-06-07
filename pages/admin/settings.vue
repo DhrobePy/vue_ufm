@@ -395,6 +395,78 @@
           </div>
         </div>
 
+        <!-- ── Delivery Verification ────────────────────────────────────── -->
+        <div v-if="activeTab === 'delivery'" class="space-y-5">
+          <div class="glass-card p-6 space-y-5">
+            <div>
+              <h3 class="section-title">QR Delivery Verification</h3>
+              <p class="text-xs text-gray-500 mt-1">
+                Each credit sales invoice gets a unique QR code and 6-digit PIN.
+                When scanned, the dispatcher or driver can confirm dispatch / delivery without logging into the ERP.
+              </p>
+            </div>
+
+            <!-- Toggle: Require Dispatch PIN -->
+            <div class="flex items-start justify-between gap-4 py-4 border-t border-white/[0.06]">
+              <div class="flex-1">
+                <p class="text-sm font-semibold text-gray-200">Require Dispatch PIN <span class="text-[10px] font-normal text-emerald-400 ml-1.5">Active</span></p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Dispatcher must scan the invoice QR and enter the 6-digit PIN to mark an order as
+                  <span class="text-gray-300 font-mono text-[11px]">dispatched</span>.
+                  PIN is printed on the invoice footer and never expires.
+                </p>
+                <p class="text-xs text-gray-600 mt-1">Status transition: <span class="text-purple-400 font-mono text-[11px]">ready_to_ship → dispatched</span></p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="deliverySettings.require_dispatch_pin" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+
+            <!-- Toggle: Require Delivery PIN (driver side) -->
+            <div class="flex items-start justify-between gap-4 py-4 border-t border-white/[0.06]">
+              <div class="flex-1">
+                <p class="text-sm font-semibold text-gray-200">
+                  Require Delivery PIN — Driver Side
+                  <span class="text-[10px] font-normal text-amber-400 ml-1.5 border border-amber-400/30 rounded px-1.5 py-0.5">Provisioned · Not Active</span>
+                </p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  Customer receives a delivery PIN (separate from dispatch PIN) that the driver enters
+                  at point of delivery to confirm goods were received. Enable when driver-side verification is needed.
+                </p>
+                <p class="text-xs text-gray-600 mt-1">Status transition: <span class="text-blue-400 font-mono text-[11px]">dispatched → delivered</span></p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="deliverySettings.require_delivery_pin" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+
+            <!-- How it works (info box) -->
+            <div class="rounded-xl p-4 bg-white/[0.03] border border-white/[0.07] space-y-2">
+              <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">How it works</p>
+              <ol class="text-xs text-gray-500 space-y-1.5 list-decimal list-inside">
+                <li>Invoice is printed with a QR code and 6-digit PIN in the footer.</li>
+                <li>When order is <span class="text-gray-300 font-mono">ready_to_ship</span>, dispatcher scans the QR with any phone camera.</li>
+                <li>Public page opens — no login needed. Dispatcher enters the PIN.</li>
+                <li>Status updates to <span class="text-gray-300 font-mono">dispatched</span> automatically.</li>
+                <li>QR is rescanable — scanning again shows current status and audit trail.</li>
+              </ol>
+            </div>
+
+            <div v-if="deliverySaveMsg" class="text-xs" :class="deliverySaveMsg.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'">
+              {{ deliverySaveMsg }}
+            </div>
+
+            <div class="flex justify-end">
+              <button @click="saveDeliverySettings" :disabled="deliverySaving"
+                class="btn-gold text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100">
+                {{ deliverySaving ? 'Saving…' : 'Save Delivery Settings' }}
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- ── Maintenance ───────────────────────────────────────────────── -->
         <div v-if="activeTab === 'maintenance'" class="space-y-5">
 
@@ -513,6 +585,36 @@ async function saveDocSettings() {
   }
 }
 
+// ── Delivery verification settings ──────────────────────────────────────────
+const { data: deliveryData } = await useFetch('/api/settings/delivery')
+const deliverySettings = reactive({
+  require_dispatch_pin: (deliveryData.value as any)?.settings?.require_dispatch_pin ?? true,
+  require_delivery_pin: (deliveryData.value as any)?.settings?.require_delivery_pin ?? false,
+})
+const deliverySaving  = ref(false)
+const deliverySaveMsg = ref('')
+
+async function saveDeliverySettings() {
+  deliverySaving.value  = true
+  deliverySaveMsg.value = ''
+  try {
+    await $fetch('/api/settings/delivery', {
+      method: 'PUT',
+      body: {
+        require_dispatch_pin: deliverySettings.require_dispatch_pin,
+        require_delivery_pin: deliverySettings.require_delivery_pin,
+      },
+    })
+    deliverySaveMsg.value = '✓ Delivery settings saved'
+    success('Delivery settings saved')
+  } catch (e: any) {
+    deliverySaveMsg.value = '✗ ' + (e?.data?.statusMessage ?? 'Failed to save')
+    toastError(e?.data?.statusMessage ?? 'Failed to save delivery settings')
+  } finally {
+    deliverySaving.value = false
+  }
+}
+
 // ── Seed state ───────────────────────────────────────────────────────────────
 const seeding    = ref(false)
 const seedReport = ref<any>(null)
@@ -541,6 +643,7 @@ const tabs = [
   { id: 'finance',       icon: '💰', label: 'Finance' },
   { id: 'orders',        icon: '📋', label: 'Orders' },
   { id: 'documents',     icon: '📄', label: 'Documents' },
+  { id: 'delivery',      icon: '📦', label: 'Delivery' },
   { id: 'appearance',    icon: '🎨', label: 'Appearance' },
   { id: 'notifications', icon: '🔔', label: 'Notifications' },
   { id: 'security',      icon: '🔒', label: 'Security' },
