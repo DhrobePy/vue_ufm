@@ -227,12 +227,8 @@
             <template v-if="form.advanceMethod === 'Cash'">
               <div class="md:col-span-2 space-y-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Petty Cash Account *</label>
-                <select v-model="form.advanceCashAccountId" class="input-glass">
-                  <option value="">— Select account —</option>
-                  <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">
-                    {{ a.account_name }} ({{ a.branch_name || 'Head Office' }})
-                  </option>
-                </select>
+                <UiSearchSelect v-model="form.advanceCashAccountId" :options="cashAccountOptions"
+                  placeholder="Type cash box / account name…" />
               </div>
             </template>
 
@@ -240,12 +236,8 @@
             <template v-if="['Bank Transfer','Cheque','Card'].includes(form.advanceMethod)">
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Bank Account *</label>
-                <select v-model="form.advanceBankAccountId" class="input-glass">
-                  <option value="">— Select account —</option>
-                  <option v-for="a in bankAccounts" :key="a.id" :value="a.id">
-                    {{ a.bank_name }} – {{ a.account_name }}
-                  </option>
-                </select>
+                <UiSearchSelect v-model="form.advanceBankAccountId" :options="bankAccountOptions"
+                  placeholder="Type bank name or account number…" />
               </div>
               <div v-if="form.advanceMethod === 'Bank Transfer'" class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Transfer Type</label>
@@ -283,12 +275,8 @@
             <!-- Collected by employee -->
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Collected By</label>
-              <select v-model="form.advanceCollectedBy" class="input-glass">
-                <option value="">— Select employee —</option>
-                <option v-for="e in employees" :key="e.id" :value="e.id">
-                  {{ e.first_name }} {{ e.last_name }}
-                </option>
-              </select>
+              <UiSearchSelect v-model="form.advanceCollectedBy" :options="employeeOptions"
+                placeholder="Type employee name…" />
             </div>
           </div>
         </div>
@@ -398,6 +386,21 @@ const customers = computed(() =>
 const bankAccounts     = computed(() => (bankData.value?.accounts  ?? []) as any[])
 const pettyCashAccounts = computed(() => (pettyData.value?.accounts ?? []) as any[])
 const employees        = computed(() => (empData.value?.employees   ?? []) as any[])
+
+const bankAccountOptions = computed(() => bankAccounts.value.map(a => ({
+  value: a.id,
+  label: `${a.bank_name} — AC: ${a.account_number}`,
+  sub:   a.branch_name || a.account_name || '',
+})))
+const cashAccountOptions = computed(() => pettyCashAccounts.value.map(a => ({
+  value: a.id,
+  label: a.account_name,
+  sub:   a.branch_name || 'Head Office',
+})))
+const employeeOptions = computed(() => employees.value.map(e => ({
+  value: e.id,
+  label: `${e.first_name} ${e.last_name ?? ''}`.trim(),
+})))
 
 const selectedCustomer = computed(() =>
   customers.value.find(c => c.id === form.customerId) ?? null

@@ -72,23 +72,15 @@
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
               {{ form.method === 'bank' ? 'Company Bank Account *' : 'Receiving Bank Account (optional)' }}
             </label>
-            <select v-model="form.bankAccountId" class="input-glass">
-              <option value="">— Select account —</option>
-              <option v-for="a in bankAccounts" :key="a.id" :value="a.id">
-                {{ a.bank_name }} — {{ a.branch_name || '' }} — AC: {{ a.account_number }}
-              </option>
-            </select>
+            <UiSearchSelect v-model="form.bankAccountId" :options="bankAccountOptions"
+              placeholder="Type bank name or account number…" />
           </div>
 
           <!-- Petty cash account (cash payments) -->
           <div v-if="form.method === 'cash'" class="space-y-1.5">
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Petty Cash Account *</label>
-            <select v-model="form.cashAccountId" class="input-glass">
-              <option value="">— Select cash box / account —</option>
-              <option v-for="a in pettyAccounts" :key="a.id" :value="a.id">
-                {{ a.account_name }} ({{ a.branch_name || 'Head Office' }})
-              </option>
-            </select>
+            <UiSearchSelect v-model="form.cashAccountId" :options="cashAccountOptions"
+              placeholder="Type cash box / account name…" />
           </div>
 
           <!-- Date & collector -->
@@ -180,6 +172,17 @@ const order          = computed(() => (orderData.value?.order          ?? {}) as
 const recentPayments = computed(() => (orderData.value?.recentPayments ?? orderData.value?.payments ?? []) as any[])
 const bankAccounts   = computed(() => (bankData.value?.accounts  ?? []) as any[])
 const pettyAccounts  = computed(() => (pettyData.value?.accounts ?? []) as any[])
+
+const bankAccountOptions = computed(() => bankAccounts.value.map(a => ({
+  value: a.id,
+  label: `${a.bank_name} — AC: ${a.account_number}`,
+  sub:   a.branch_name || a.account_name || '',
+})))
+const cashAccountOptions = computed(() => pettyAccounts.value.map(a => ({
+  value: a.id,
+  label: a.account_name,
+  sub:   a.branch_name || 'Head Office',
+})))
 
 const outstanding = computed(() => Number(order.value.balance_due ?? 0))
 const paidPct     = computed(() => {

@@ -99,12 +99,8 @@
         <!-- Company bank account — hide for contra and cash -->
         <div v-if="form.payType !== 'contra' && form.method !== 'cash'" class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Company Bank Account *</label>
-          <select v-model="form.bankAccountId" class="input-glass">
-            <option value="">— Paid from —</option>
-            <option v-for="ba in bankAccounts" :key="ba.id" :value="ba.id">
-              {{ ba.bank_name }} — {{ ba.account_number }}
-            </option>
-          </select>
+          <UiSearchSelect v-model="form.bankAccountId" :options="bankAccountOptions"
+            placeholder="Type bank name or account number…" />
         </div>
 
         <div class="space-y-1.5">
@@ -166,6 +162,12 @@ const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }
 const suppliers     = computed(() => (suppData.value as any)?.suppliers    ?? [])
 const openPOs       = computed(() => (poData.value  as any)?.orders        ?? [])
 const bankAccounts  = computed(() => (baData.value  as any)?.accounts      ?? [])
+
+const bankAccountOptions = computed(() => (bankAccounts.value as any[]).map(a => ({
+  value: a.id,
+  label: `${a.bank_name} — AC: ${a.account_number}`,
+  sub:   a.branch_name || a.account_name || '',
+})))
 const recentPayments = computed(() => (pmtData.value as any)?.payments     ?? [])
 
 const paymentTypes = [
