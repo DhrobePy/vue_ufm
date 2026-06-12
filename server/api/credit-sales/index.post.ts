@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
        FROM credit_orders
        WHERE customer_id = ?
          AND status IN ('pending_approval','escalated','approved',
-                        'in_production','produced','ready_to_ship','shipped')`,
+                        'in_production','produced','ready_to_ship','shipped','dispatched')`,
       [customer_id],
     )
     const pendingExposure = Number(expRow?.pending ?? 0)

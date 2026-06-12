@@ -23,11 +23,11 @@ export default defineEventHandler(async (event) => {
                 SELECT SUM(o2.balance_due)
                 FROM credit_orders o2
                 WHERE o2.customer_id = c.id
-                  AND o2.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped')
+                  AND o2.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped','dispatched')
                   AND o2.id != o.id
               ), 0) AS other_pending_exposure,
               -- This order's own uncommitted balance (if not yet delivered)
-              CASE WHEN o.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped')
+              CASE WHEN o.status IN ('pending_approval','approved','in_production','ready_to_ship','shipped','dispatched')
                    THEN o.balance_due ELSE 0 END AS this_order_pending
        FROM credit_orders o
        JOIN customers c ON c.id = o.customer_id

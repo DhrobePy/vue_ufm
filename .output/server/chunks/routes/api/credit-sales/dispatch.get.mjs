@@ -26,8 +26,8 @@ const dispatch_get = defineEventHandler(async () => {
     queryOne(
       `SELECT
          SUM(status IN ('ready_to_ship','approved','produced'))               AS ready_count,
-         SUM(CASE WHEN status = 'shipped' AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) AS dispatched_today,
-         COALESCE(SUM(CASE WHEN status = 'shipped' AND DATE(updated_at) = CURDATE() THEN total_weight_kg ELSE 0 END), 0) AS dispatched_kg_today
+         SUM(CASE WHEN status IN ('shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) AS dispatched_today,
+         COALESCE(SUM(CASE WHEN status IN ('shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN total_weight_kg ELSE 0 END), 0) AS dispatched_kg_today
        FROM credit_orders`
     )
   ]);

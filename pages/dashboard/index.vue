@@ -515,6 +515,7 @@ const warRoomPipeline = computed(() => [
   { label: 'Approved',   count: s.value.approved         ?? 0, color: '#10b981' },
   { label: 'Production', count: s.value.in_production    ?? 0, color: '#3b82f6' },
   { label: 'Ready',      count: s.value.ready_to_ship    ?? 0, color: '#06b6d4' },
+  { label: 'Dispatched', count: s.value.dispatched       ?? 0, color: '#f97316' },
   { label: 'Delivered',  count: s.value.delivered        ?? 0, color: '#14b8a6' },
 ])
 

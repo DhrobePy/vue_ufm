@@ -49,6 +49,7 @@
           <option value="approved">Approved</option>
           <option value="in_production">In Production</option>
           <option value="ready_to_ship">Ready to Ship</option>
+          <option value="dispatched">Dispatched</option>
           <option value="delivered">Delivered</option>
           <option value="partial_delivery">Partial Delivery</option>
           <option value="completed">Completed</option>
@@ -293,6 +294,7 @@
             <option value="approved">Approved</option>
             <option value="in_production">In Production</option>
             <option value="ready_to_ship">Ready to Ship</option>
+            <option value="dispatched">Dispatched</option>
             <option value="delivered">Delivered</option>
             <option value="partial_delivery">Partial Delivery</option>
             <option value="completed">Completed</option>
@@ -360,6 +362,7 @@ const PIPELINE_META = [
   { status: 'approved',         label: 'Approved',      color: '#10b981', route: '/credit-sales/all' },
   { status: 'in_production',    label: 'In Production', color: '#3b82f6', route: '/credit-sales/production' },
   { status: 'ready_to_ship',    label: 'Ready to Ship', color: '#06b6d4', route: '/credit-sales/dispatch' },
+  { status: 'dispatched',       label: 'Dispatched',    color: '#f97316', route: '/credit-sales/all' },
   { status: 'delivered',        label: 'Delivered',     color: '#14b8a6', route: '/credit-sales/all' },
 ]
 
