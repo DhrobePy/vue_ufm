@@ -43,8 +43,9 @@ const PATH_MODULE_MAP: Array<{ prefix: string; modules: string[] }> = [
   { prefix: '/api/pos',           modules: ['pos'] },
   { prefix: '/api/hr',            modules: ['hr'] },
   { prefix: '/api/admin',         modules: ['admin'] },
-  { prefix: '/api/settings',      modules: ['admin'] },
-  { prefix: '/api/notifications', modules: ['admin'] },
+  { prefix: '/api/settings',      modules: ['admin'] },   // GETs exempted below — config reads are needed app-wide
+  // NOTE: /api/notifications intentionally unmapped — endpoint scopes to the
+  // logged-in user; the bell must work for every role.
   { prefix: '/api/dashboard',     modules: ['dashboard'] },
   // Shared resources — accessible if the user has any module that legitimately needs them
   { prefix: '/api/customers', modules: ['credit_sales', 'pos', 'collector', 'customers'] },
@@ -69,7 +70,11 @@ export default defineEventHandler(async (event) => {
   // 4. Admin / Superadmin bypass everything
   if (['admin', 'superadmin'].includes(role)) return
 
-  // 5. Find which module(s) this path requires
+  // 5. Settings READS are app-wide config (invoice T&C, delivery toggles, …)
+  //    — any authenticated user may fetch them. Writes still require admin.
+  if (path.startsWith('/api/settings') && event.method === 'GET') return
+
+  // 6. Find which module(s) this path requires
   const entry = PATH_MODULE_MAP.find(e => path.startsWith(e.prefix))
   if (!entry) return // Unknown path — let the endpoint handle it
 

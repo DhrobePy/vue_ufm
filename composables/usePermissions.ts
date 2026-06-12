@@ -183,13 +183,14 @@ export const usePermissions = () => {
   }
 
   /**
-   * Returns the first route the user is allowed to visit.
-   * Used to redirect after a blocked navigation attempt.
+   * Returns the first route the user is allowed to visit — page-aware:
+   * a user granted only credit_sales pages ['all','ledger'] lands on
+   * /credit-sales/all, not the module root they may not have access to.
    */
   function firstAllowedRoute(): string {
     if (sessionIsAdmin.value || state.value.isAdmin) return '/dashboard'
-    for (const [key, route] of Object.entries(MODULE_ROUTES)) {
-      if (canAccessModule(key)) return route
+    for (const [route, entry] of Object.entries(PERM_ROUTES)) {
+      if (canAccessModule(entry.module) && canAccessPage(entry.module, entry.page)) return route
     }
     // Nothing configured — send to POS as safest fallback
     return '/pos'

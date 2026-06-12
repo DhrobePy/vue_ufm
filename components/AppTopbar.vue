@@ -115,11 +115,13 @@
             </div>
           </div>
           <div class="px-4 py-2.5 border-t border-white/[0.06] flex justify-between items-center">
-            <NuxtLink to="/admin/audit" @click="notifOpen = false"
+            <NuxtLink v-if="perms.canAccessRoute('/admin/audit')" to="/admin/audit" @click="notifOpen = false"
                       class="text-xs transition-colors"
                       style="color: var(--accent-from)">
               View full audit log →
             </NuxtLink>
+            <span v-else />
+
             <button v-if="unreadNotifications.length" @click="clearAll" class="text-[10px] text-gray-600 hover:text-gray-400">Clear all</button>
           </div>
         </div>
@@ -162,7 +164,7 @@
             <p class="text-[10px] font-mono text-gold-500/80 mt-0.5">{{ sessionUser?.role }}</p>
           </div>
           <div class="p-1.5 space-y-0.5">
-            <NuxtLink to="/admin/settings"
+            <NuxtLink v-if="perms.canAccessRoute('/admin/settings')" to="/admin/settings"
               class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-100 hover:bg-white/[0.06] transition-all duration-150">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 19.07l1.41-1.41M12 2v2M12 20v2M2 12h2M20 12h2"/></svg>
               Settings
@@ -212,6 +214,7 @@ const { user: sessionUser, clear } = useUserSession()
 const isAdminUser = computed(() =>
   ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()),
 )
+const perms = usePermissions()
 const searchStore = useGlobalSearch()
 const themeStore  = useTheme()
 const { success, warning: toastWarning } = useToast()

@@ -271,6 +271,10 @@ const isAdminUser = computed(() =>
 
 // Permissions —————————————————————————————————————————
 const perms = usePermissions()
+// Self-load on mount: on a hard page load (e.g. right after login) the route
+// middleware may not have populated the cache yet — without this the sidebar
+// renders empty for non-admin users until their next client-side navigation.
+onMounted(() => { perms.load() })
 
 // Section-level visibility (hide section header when all children are hidden)
 const showOperations = computed(() =>

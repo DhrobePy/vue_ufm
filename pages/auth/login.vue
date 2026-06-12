@@ -151,7 +151,9 @@ async function handleLogin() {
     // Hard redirect — forces the browser to send the session cookie with a
     // fresh GET request so Nuxt SSR can hydrate the session on the server side.
     // This avoids any client-side loggedIn state race with the auth middleware.
-    window.location.href = '/dashboard'
+    // Root (/) resolves the user's permissions and lands them on their first
+    // allowed page — admins get /dashboard, restricted users their module.
+    window.location.href = '/'
   } catch (e: any) {
     loading.value = false
     loginError.value = e?.data?.statusMessage || e?.data?.message || 'Invalid email or password'
