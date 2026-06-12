@@ -172,8 +172,8 @@ const orderId = Number(route.params.id)
 // Load order, bank accounts and petty cash accounts in parallel
 const [{ data: orderData, pending, error: fetchError }, { data: bankData }, { data: pettyData }] = await Promise.all([
   useFetch(() => `/api/credit-sales/${orderId}`),
-  useFetch('/api/bank-accounts'),
-  useFetch('/api/expenses/petty-cash-accounts'),
+  useFetch('/api/lookup/bank-accounts'),
+  useFetch('/api/lookup/cash-accounts'),
 ])
 
 const order          = computed(() => (orderData.value?.order          ?? {}) as any)

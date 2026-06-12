@@ -159,7 +159,7 @@ const { success, error } = useToast()
 const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }] = await Promise.all([
   useFetch('/api/suppliers', { query: { per: 100 } }),
   useFetch('/api/purchase/orders/open'),
-  useFetch('/api/bank-accounts'),
+  useFetch('/api/lookup/bank-accounts'),
   useFetch('/api/purchase/payments', { query: { per: 5 } }),
 ])
 

@@ -230,7 +230,7 @@
                 <select v-model="form.advanceCashAccountId" class="input-glass">
                   <option value="">— Select account —</option>
                   <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">
-                    {{ a.account_name }} (Balance: ৳{{ Number(a.current_balance).toLocaleString() }})
+                    {{ a.account_name }} ({{ a.branch_name || 'Head Office' }})
                   </option>
                 </select>
               </div>
@@ -376,9 +376,9 @@ const paymentMethods = [
 // the create-order page only needs id/name/balances, not order counts.
 const [{ data: custData }, { data: bankData }, { data: pettyData }, { data: empData }] = await Promise.all([
   useFetch('/api/customers', { query: { per: 500, simple: '1' } }),
-  useFetch('/api/bank-accounts'),
-  useFetch('/api/expenses/petty-cash-accounts'),
-  useFetch('/api/hr/employees'),
+  useFetch('/api/lookup/bank-accounts'),
+  useFetch('/api/lookup/cash-accounts'),
+  useFetch('/api/lookup/employees'),
 ])
 
 // Products — reactive to branch so prices reflect the selected branch

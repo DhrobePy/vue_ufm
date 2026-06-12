@@ -785,7 +785,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-Bryn_Yld.mjs')
+    component: () => import('./create-B24E5tjM.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -863,7 +863,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./vouchers-B5a3L1kF.mjs')
+    component: () => import('./vouchers-CLffbefn.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -929,13 +929,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./create-DlOmSA7H.mjs')
+    component: () => import('./create-BR9BhkDt.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1o || {},
-    component: () => import('./index-CFuNKJDW.mjs')
+    component: () => import('./index-DqY7yQtn.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -989,7 +989,7 @@ const _routes = [
     name: "credit-sales-create",
     path: "/credit-sales/create",
     meta: __nuxt_page_meta$1f || {},
-    component: () => import('./create-BWCIwSPD.mjs')
+    component: () => import('./create-D-k6UiEk.mjs')
   },
   {
     name: "credit-sales-ledger",
@@ -1085,7 +1085,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-D_-mOhhu.mjs')
+    component: () => import('./edit-D06_ac9u.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1337,7 +1337,7 @@ const _routes = [
     name: "purchase-payments-record",
     path: "/purchase/payments/record",
     meta: __nuxt_page_meta$l || {},
-    component: () => import('./record-DATjtAlX.mjs')
+    component: () => import('./record-VI3_DI4S.mjs')
   },
   {
     name: "purchase-suppliers",
@@ -1361,7 +1361,7 @@ const _routes = [
     name: "credit-sales-id-payment",
     path: "/credit-sales/:id()/payment",
     meta: __nuxt_page_meta$h || {},
-    component: () => import('./payment-DJwrtjxO.mjs')
+    component: () => import('./payment-CAM0RtvH.mjs')
   },
   {
     name: "fleet-reports-maintenance",
