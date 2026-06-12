@@ -34,6 +34,17 @@ const _order__get = defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: "Order not found" });
   }
   const order = orders[0];
+  const items = await query(
+    `SELECT oi.quantity, oi.unit_price, oi.line_total,
+            p.base_name AS product_name,
+            pv.weight_variant, pv.grade, pv.sku
+     FROM credit_order_items oi
+     LEFT JOIN products         p  ON p.id  = oi.product_id
+     LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+     WHERE oi.order_id = ?
+     ORDER BY oi.id`,
+    [order.id]
+  );
   const scans = await query(
     `SELECT scan_type, pin_correct, scanned_at, notes
      FROM order_delivery_scans
@@ -65,6 +76,18 @@ const _order__get = defineEventHandler(async (event) => {
       has_dispatch_pin: !!order.has_dispatch_pin,
       created_at: order.created_at
     },
+    items: items.map((i) => {
+      var _a2, _b2, _c2, _d2, _e2, _f2, _g2;
+      return {
+        product_name: (_a2 = i.product_name) != null ? _a2 : "Product",
+        weight_variant: (_b2 = i.weight_variant) != null ? _b2 : null,
+        grade: (_c2 = i.grade) != null ? _c2 : null,
+        sku: (_d2 = i.sku) != null ? _d2 : null,
+        quantity: Number((_e2 = i.quantity) != null ? _e2 : 0),
+        unit_price: Number((_f2 = i.unit_price) != null ? _f2 : 0),
+        line_total: Number((_g2 = i.line_total) != null ? _g2 : 0)
+      };
+    }),
     scans: scans.map((s) => {
       var _a2;
       return {

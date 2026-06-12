@@ -1,0 +1,1 @@
+import{u as o}from"./B03AOCjf.js";import{r,ar as s,H as n,S as i,m as c}from"./D75R5kn8.js";const u=r({__name:"index",async setup(m){let e,t;{const a=o();[e,t]=s(()=>a.load()),await e,t(),[e,t]=s(()=>n(a.firstAllowedRoute(),{replace:!0})),await e,t()}return(a,_)=>(i(),c("div"))}});export{u as default};

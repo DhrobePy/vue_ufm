@@ -34,6 +34,19 @@ export default defineEventHandler(async (event) => {
 
   const order = orders[0]
 
+  // Line items — what the dispatcher / delivery staff verifies against the goods
+  const items = await query(
+    `SELECT oi.quantity, oi.unit_price, oi.line_total,
+            p.base_name AS product_name,
+            pv.weight_variant, pv.grade, pv.sku
+     FROM credit_order_items oi
+     LEFT JOIN products         p  ON p.id  = oi.product_id
+     LEFT JOIN product_variants pv ON pv.id = oi.variant_id
+     WHERE oi.order_id = ?
+     ORDER BY oi.id`,
+    [order.id],
+  ) as any[]
+
   // Fetch scan history (most recent first, max 30)
   const scans = await query(
     `SELECT scan_type, pin_correct, scanned_at, notes
@@ -68,6 +81,15 @@ export default defineEventHandler(async (event) => {
       has_dispatch_pin: !!order.has_dispatch_pin,
       created_at:     order.created_at,
     },
+    items: items.map(i => ({
+      product_name:   i.product_name ?? 'Product',
+      weight_variant: i.weight_variant ?? null,
+      grade:          i.grade ?? null,
+      sku:            i.sku ?? null,
+      quantity:       Number(i.quantity ?? 0),
+      unit_price:     Number(i.unit_price ?? 0),
+      line_total:     Number(i.line_total ?? 0),
+    })),
     scans: scans.map(s => ({
       scan_type:   s.scan_type,
       pin_correct: !!s.pin_correct,

@@ -58,6 +58,29 @@
         </div>
       </div>
 
+      <!-- ── Line items ── -->
+      <div v-if="orderData.items?.length" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:16px 20px;margin-bottom:16px;">
+        <div style="font-size:12px;font-weight:600;color:#9ca3af;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">
+          📦 Items ({{ totalBags }} bags)
+        </div>
+        <div v-for="(it, i) in orderData.items" :key="i"
+          style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;"
+          :style="i < orderData.items.length - 1 ? 'border-bottom:1px solid rgba(255,255,255,0.05);' : ''">
+          <div style="min-width:0;">
+            <div style="font-size:13px;color:#e5e7eb;font-weight:600;">
+              {{ it.product_name }}<span v-if="it.weight_variant" style="color:#9ca3af;font-weight:500;"> · {{ it.weight_variant }}</span>
+            </div>
+            <div v-if="it.grade || it.sku" style="font-size:10px;color:#6b7280;margin-top:1px;">
+              <span v-if="it.grade">Grade {{ it.grade }}</span><span v-if="it.grade && it.sku"> · </span><span v-if="it.sku">{{ it.sku }}</span>
+            </div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;">
+            <div style="font-size:13px;color:#fbbf24;font-weight:700;">{{ fmtNum(it.quantity) }} <span style="font-size:10px;color:#9ca3af;font-weight:500;">bags</span></div>
+            <div style="font-size:10px;color:#6b7280;">৳{{ fmtNum(it.line_total) }}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── Dispatch confirmation panel ── -->
       <div v-if="canConfirmDispatch || orderData.order.status === 'dispatched'" style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:20px;margin-bottom:16px;">
 
@@ -243,6 +266,10 @@ async function confirmDelivery() {
 
 const canConfirmDispatch = computed(() =>
   orderData.value?.order?.status === 'ready_to_ship' && orderData.value?.order?.has_dispatch_pin,
+)
+
+const totalBags = computed(() =>
+  (orderData.value?.items ?? []).reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
 )
 
 const statusLabel = computed(() => {
