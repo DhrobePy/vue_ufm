@@ -11,29 +11,29 @@
         :breadcrumb="['Credit Sales', 'All Sales', order.order_number]"
       >
         <template #actions>
-          <button @click="printInvoice" class="btn-ghost text-xs">🖨️ Print Invoice</button>
-          <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`" class="btn-ghost text-xs">💰 Collect Payment</NuxtLink>
+          <button v-if="perms.canDo('credit_sales', 'all', 'print')" @click="printInvoice" class="btn-ghost text-xs">🖨️ Print Invoice</button>
+          <NuxtLink v-if="canCollectPayment && perms.canDo('credit_sales', 'all', 'collect_payment')" :to="`/credit-sales/${id}/payment`" class="btn-ghost text-xs">💰 Collect Payment</NuxtLink>
 
-          <button v-if="order.status === 'pending_approval'"
+          <button v-if="order.status === 'pending_approval' && perms.canDo('credit_sales', 'approve', 'approve')"
             class="btn-gold text-xs" @click="approvalModal = true">
             📋 Review &amp; Approve
           </button>
-          <button v-else-if="order.status === 'escalated'"
+          <button v-else-if="order.status === 'escalated' && perms.canDo('credit_sales', 'approve', 'escalate')"
             class="btn-gold text-xs" @click="approvalModal = true"
             style="background:linear-gradient(135deg,#f97316,#ea580c);color:#000;">
             ⚠️ Escalation Review
           </button>
-          <button v-else-if="order.status === 'approved'"
+          <button v-else-if="order.status === 'approved' && perms.canDo('credit_sales', 'production', 'mark_ready')"
             class="btn-gold text-xs" :disabled="acting"
             @click="advanceStatus('in_production', 'Sent to production queue')">
             🏭 Send to Production
           </button>
-          <button v-else-if="order.status === 'in_production'"
+          <button v-else-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_ready')"
             class="btn-gold text-xs" :disabled="acting"
             @click="advanceStatus('ready_to_ship', 'Marked ready to ship')">
             📤 Ready to Dispatch
           </button>
-          <button v-else-if="order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched'"
+          <button v-else-if="(order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')"
             class="btn-gold text-xs"
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
@@ -420,12 +420,12 @@
           <!-- Quick actions -->
           <div class="glass-card p-4 space-y-2">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
-            <button @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
-            <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
-            <NuxtLink v-if="order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched'" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
-            <button @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
-            <NuxtLink :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
-            <button v-if="!['cancelled','completed','rejected'].includes(order.status)"
+            <button v-if="perms.canDo('credit_sales', 'all', 'print')" @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
+            <NuxtLink v-if="canCollectPayment && perms.canDo('credit_sales', 'all', 'collect_payment')" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
+            <NuxtLink v-if="(order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
+            <button v-if="perms.canDo('credit_sales', 'all', 'telegram')" @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
+            <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
+            <button v-if="!['cancelled','completed','rejected'].includes(order.status) && perms.canDo('credit_sales', 'all', 'cancel')"
               @click="cancelModal = true"
               class="btn-ghost w-full justify-start text-xs py-2 text-red-400 hover:bg-red-500/10">
               ❌ Cancel Order
@@ -705,6 +705,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 const route = useRoute()
 const id    = computed(() => Number(route.params.id))

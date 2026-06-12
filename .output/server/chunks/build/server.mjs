@@ -773,13 +773,13 @@ const _routes = [
     name: "customers",
     path: "/customers",
     meta: __nuxt_page_meta$1P || {},
-    component: () => import('./index-BkmywY_x.mjs')
+    component: () => import('./index-1RInr_jt.mjs')
   },
   {
     name: "dashboard",
     path: "/dashboard",
     meta: __nuxt_page_meta$1O || {},
-    component: () => import('./index-CmvIyIA_.mjs')
+    component: () => import('./index-BmEDCOAj.mjs')
   },
   {
     name: "expenses-create",
@@ -803,7 +803,7 @@ const _routes = [
     name: "credit-sales-all",
     path: "/credit-sales/all",
     meta: __nuxt_page_meta$1K || {},
-    component: () => import('./all-BVK8OosQ.mjs')
+    component: () => import('./all-BCFLqpM-.mjs')
   },
   {
     name: "customers-create",
@@ -983,7 +983,7 @@ const _routes = [
     name: "credit-sales-ageing",
     path: "/credit-sales/ageing",
     meta: __nuxt_page_meta$1g || {},
-    component: () => import('./ageing-dnczIVlq.mjs')
+    component: () => import('./ageing-DDo8w90F.mjs')
   },
   {
     name: "credit-sales-create",
@@ -995,7 +995,7 @@ const _routes = [
     name: "credit-sales-ledger",
     path: "/credit-sales/ledger",
     meta: __nuxt_page_meta$1e || {},
-    component: () => import('./ledger-DaATIQx6.mjs')
+    component: () => import('./ledger-Cwe11Est.mjs')
   },
   {
     name: "customers-id-edit",
@@ -1049,7 +1049,7 @@ const _routes = [
     name: "credit-sales-approve",
     path: "/credit-sales/approve",
     meta: __nuxt_page_meta$15 || {},
-    component: () => import('./approve-DqUEgnB2.mjs')
+    component: () => import('./approve-yhhDN44V.mjs')
   },
   {
     name: "customers-id",
@@ -1091,7 +1091,7 @@ const _routes = [
     name: "credit-sales-dispatch",
     path: "/credit-sales/dispatch",
     meta: __nuxt_page_meta$_ || {},
-    component: () => import('./dispatch-BZGGQhgk.mjs')
+    component: () => import('./dispatch-CzpI7JHU.mjs')
   },
   {
     name: "credit-sales-payments",
@@ -1247,13 +1247,13 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$A || {},
-    component: () => import('./index-DAYxbU8T.mjs')
+    component: () => import('./index-DvcCfrea.mjs')
   },
   {
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$z || {},
-    component: () => import('./production-B2pp4nnC.mjs')
+    component: () => import('./production-BJ80ol0m.mjs')
   },
   {
     name: "fleet-drivers-id-edit",
@@ -1433,7 +1433,7 @@ const _routes = [
     name: "admin-users-id-permissions",
     path: "/admin/users/:id()/permissions",
     meta: __nuxt_page_meta$5 || {},
-    component: () => import('./permissions-BFJUs08h.mjs')
+    component: () => import('./permissions-Dwypzvwa.mjs')
   },
   {
     name: "purchase-payments-id",
@@ -1676,7 +1676,7 @@ const globalMiddleware = [
   manifest_45route_45rule
 ];
 const namedMiddleware = {
-  "permissions-global-client": () => import('./permissions.global.client-Fi6Yx8uY.mjs')
+  "permissions-global-client": () => import('./permissions.global.client-CTyal8gT.mjs')
 };
 const pageIslandRoutes = {};
 const plugin$1 = /* @__PURE__ */ defineNuxtPlugin({
@@ -2064,7 +2064,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-Bpb3VLtJ.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-C1MPNQC7.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };

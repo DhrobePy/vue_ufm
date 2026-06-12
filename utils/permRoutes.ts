@@ -101,9 +101,26 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/hr/biometric':               { module: 'hr',           page: 'biometric' },
 }
 
+/**
+ * Dynamic detail routes (/credit-sales/123, /customers/45/edit, …) belong to
+ * the LIST page they are reached from — not to the module's dashboard page,
+ * which a restricted user may not have. Checked before the static map.
+ */
+const DYNAMIC_PERM_ROUTES: Array<{ pattern: RegExp; entry: PermRoute }> = [
+  { pattern: /^\/credit-sales\/\d+(\/|$)/, entry: { module: 'credit_sales', page: 'all' } },
+  { pattern: /^\/customers\/\d+(\/|$)/,    entry: { module: 'customers',    page: 'list' } },
+  { pattern: /^\/customers\/create$/,      entry: { module: 'customers',    page: 'list' } },
+  { pattern: /^\/purchase\/orders\/\d+(\/|$)/, entry: { module: 'purchase', page: 'orders' } },
+  { pattern: /^\/admin\/users\/\d+(\/|$)/, entry: { module: 'admin',        page: 'users' } },
+  { pattern: /^\/hr\/employees\/\d+(\/|$)/, entry: { module: 'hr',          page: 'employees' } },
+]
+
 /** Longest-prefix route lookup: '/credit-sales/all?x=1' → the 'all' page entry. */
 export function permRouteFor(path: string): PermRoute | null {
   const clean = path.split('?')[0].replace(/\/+$/, '') || '/'
+  for (const { pattern, entry } of DYNAMIC_PERM_ROUTES) {
+    if (pattern.test(clean)) return entry
+  }
   let best: PermRoute | null = null
   let bestLen = 0
   for (const [route, entry] of Object.entries(PERM_ROUTES)) {
