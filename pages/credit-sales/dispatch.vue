@@ -82,7 +82,7 @@ async function dispatch(row: any) {
   try {
     await $fetch(`/api/credit-sales/${row.id}/workflow`, {
       method: 'POST',
-      body: { to_status: 'shipped', comments: 'Dispatched from dispatch queue' },
+      body: { to_status: 'dispatched', comments: 'Dispatched from dispatch queue' },
     })
     success(`Order ${row.order_number} dispatched`)
     await refresh()
