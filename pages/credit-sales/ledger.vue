@@ -11,7 +11,7 @@
       <input type="date" v-model="dateFrom" class="input-glass w-40" />
       <input type="date" v-model="dateTo"   class="input-glass w-40" />
       <button @click="applyFilter" class="btn-ghost text-xs">Filter</button>
-      <button @click="exportLedger" class="btn-gold text-xs">Export</button>
+      <button v-if="perms.canDo('credit_sales', 'ledger', 'export')" @click="exportLedger" class="btn-gold text-xs">Export</button>
     </div>
 
     <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
@@ -44,6 +44,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 const selectedCustomerId = ref('')

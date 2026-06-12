@@ -3,7 +3,7 @@
     <UiPageHeader title="Customers" subtitle="Credit & POS customers — outstanding balances & limits"
                   :breadcrumb="['Customers']">
       <template #actions>
-        <NuxtLink to="/customers/create" class="btn-gold text-xs">+ Add Customer</NuxtLink>
+        <NuxtLink v-if="perms.canDo('customers', 'list', 'create')" to="/customers/create" class="btn-gold text-xs">+ Add Customer</NuxtLink>
       </template>
     </UiPageHeader>
 
@@ -84,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 const search     = ref('')

@@ -139,6 +139,7 @@
 
             <!-- Mark Ready -->
             <button
+              v-if="perms.canDo('credit_sales', 'production', 'mark_ready')"
               @click.stop="markReady(order)"
               :disabled="acting === order.id"
               class="btn-gold text-xs py-1.5 px-3 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -172,6 +173,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 const { success, error: toastError } = useToast()

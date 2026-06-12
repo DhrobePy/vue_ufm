@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <UiPageHeader title="All Sales" subtitle="Complete credit order history" :breadcrumb="['Credit Sales','All Sales']">
       <template #actions>
-        <NuxtLink to="/credit-sales/create" class="btn-gold text-xs">+ New Order</NuxtLink>
+        <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'create')" to="/credit-sales/create" class="btn-gold text-xs">+ New Order</NuxtLink>
       </template>
     </UiPageHeader>
 
@@ -92,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 const search        = ref('')

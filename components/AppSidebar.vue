@@ -74,42 +74,42 @@
 
       <!-- Credit Sales -->
       <SidebarGroup v-if="perms.canAccessModule('credit_sales')" label="Credit Sales" route="/credit-sales" :collapsed="collapsed" icon-type="sales" color="blue">
-        <SidebarNavItem label="Dashboard"         route="/credit-sales"              :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="All Sales"         route="/credit-sales/all"          :collapsed="collapsed" icon-type="list"      sub />
-        <SidebarNavItem label="Create Order"      route="/credit-sales/create"       :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="Approve Orders"    route="/credit-sales/approve"      :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Production Queue"  route="/credit-sales/production"   :collapsed="collapsed" icon-type="factory"   sub />
-        <SidebarNavItem label="Dispatch Queue"    route="/credit-sales/dispatch"     :collapsed="collapsed" icon-type="truck"     sub />
-        <SidebarNavItem label="Customer Ledger"   route="/credit-sales/ledger"       :collapsed="collapsed" icon-type="book"      sub />
-        <SidebarNavItem label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales')" label="Dashboard"         route="/credit-sales"              :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/all')" label="All Sales"         route="/credit-sales/all"          :collapsed="collapsed" icon-type="list"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/create')" label="Create Order"      route="/credit-sales/create"       :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/approve')" label="Approve Orders"    route="/credit-sales/approve"      :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/production')" label="Production Queue"  route="/credit-sales/production"   :collapsed="collapsed" icon-type="factory"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/dispatch')" label="Dispatch Queue"    route="/credit-sales/dispatch"     :collapsed="collapsed" icon-type="truck"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ledger')" label="Customer Ledger"   route="/credit-sales/ledger"       :collapsed="collapsed" icon-type="book"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ageing')" label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
       </SidebarGroup>
 
       <!-- Fleet Management -->
       <SidebarGroup v-if="perms.canAccessModule('fleet')" label="Fleet" route="/fleet" :collapsed="collapsed" icon-type="truck" color="teal">
-        <SidebarNavItem label="Dashboard"    route="/fleet"                       :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Vehicles"     route="/fleet/vehicles"              :collapsed="collapsed" icon-type="truck"     sub />
-        <SidebarNavItem label="Drivers"      route="/fleet/drivers"               :collapsed="collapsed" icon-type="users"     sub />
-        <SidebarNavItem label="Trips"        route="/fleet/trips"                 :collapsed="collapsed" icon-type="list"      sub />
-        <SidebarNavItem label="Maintenance"  route="/fleet/maintenance"           :collapsed="collapsed" icon-type="cog"       sub />
-        <SidebarNavItem label="PM Rules"     route="/fleet/maintenance/rules"     :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Fuel Logs"    route="/fleet/fuel"                  :collapsed="collapsed" icon-type="receipt"   sub />
-        <SidebarNavItem label="Fuel Report"  route="/fleet/fuel/efficiency"       :collapsed="collapsed" icon-type="chart"     sub />
-        <SidebarNavItem label="Purchases"    route="/fleet/purchases"             :collapsed="collapsed" icon-type="cart"      sub />
-        <SidebarNavItem label="Items"        route="/fleet/items"                 :collapsed="collapsed" icon-type="box"       sub />
-        <SidebarNavItem label="Reports"      route="/fleet/reports"               :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet')" label="Dashboard"    route="/fleet"                       :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/vehicles')" label="Vehicles"     route="/fleet/vehicles"              :collapsed="collapsed" icon-type="truck"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/drivers')" label="Drivers"      route="/fleet/drivers"               :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/trips')" label="Trips"        route="/fleet/trips"                 :collapsed="collapsed" icon-type="list"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/maintenance')" label="Maintenance"  route="/fleet/maintenance"           :collapsed="collapsed" icon-type="cog"       sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/maintenance/rules')" label="PM Rules"     route="/fleet/maintenance/rules"     :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/fuel')" label="Fuel Logs"    route="/fleet/fuel"                  :collapsed="collapsed" icon-type="receipt"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/fuel/efficiency')" label="Fuel Report"  route="/fleet/fuel/efficiency"       :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/purchases')" label="Purchases"    route="/fleet/purchases"             :collapsed="collapsed" icon-type="cart"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/items')" label="Items"        route="/fleet/items"                 :collapsed="collapsed" icon-type="box"       sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/reports')" label="Reports"      route="/fleet/reports"               :collapsed="collapsed" icon-type="chart"     sub />
       </SidebarGroup>
 
       <!-- Purchase -->
       <SidebarGroup v-if="perms.canAccessModule('purchase')" label="Purchase" route="/purchase" :collapsed="collapsed" icon-type="cart" color="orange">
-        <SidebarNavItem label="Dashboard"       route="/purchase"                   :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="All POs"         route="/purchase/orders"            :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="Goods Received"  route="/purchase/grn"               :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase')" label="Dashboard"       route="/purchase"                   :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/orders')" label="All POs"         route="/purchase/orders"            :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/orders/create')" label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/grn')" label="Goods Received"  route="/purchase/grn"               :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="isAdminUser" label="Variance Report" route="/purchase/grn/variance" :collapsed="collapsed" icon-type="chart" sub />
-        <SidebarNavItem label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
-        <SidebarNavItem label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
-        <SidebarNavItem label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/payments')" label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/adjustments')" label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/suppliers')" label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/suppliers/summary')" label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"   sub />
       </SidebarGroup>
 
       <!-- Finance section ────────────────────────────── -->
@@ -122,29 +122,29 @@
 
       <!-- Expenses -->
       <SidebarGroup v-if="perms.canAccessModule('expenses')" label="Expenses" route="/expenses" :collapsed="collapsed" icon-type="receipt" color="yellow">
-        <SidebarNavItem label="Dashboard"      route="/expenses"            :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Create Expense" route="/expenses/create"     :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="History"        route="/expenses/history"    :collapsed="collapsed" icon-type="clock"     sub />
-        <SidebarNavItem label="Approve"        route="/expenses/approve"    :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem label="Categories"     route="/expenses/categories" :collapsed="collapsed" icon-type="tag"       sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/expenses')" label="Dashboard"      route="/expenses"            :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/expenses/create')" label="Create Expense" route="/expenses/create"     :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/expenses/history')" label="History"        route="/expenses/history"    :collapsed="collapsed" icon-type="clock"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/expenses/approve')" label="Approve"        route="/expenses/approve"    :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/expenses/categories')" label="Categories"     route="/expenses/categories" :collapsed="collapsed" icon-type="tag"       sub />
       </SidebarGroup>
 
       <!-- Bank -->
       <SidebarGroup v-if="perms.canAccessModule('bank')" label="Bank" route="/bank" :collapsed="collapsed" icon-type="bank" color="indigo">
-        <SidebarNavItem label="Dashboard"       route="/bank"                       :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="New Transaction" route="/bank/transaction/create"    :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem label="Transfer"        route="/bank/transfer"              :collapsed="collapsed" icon-type="arrows"    sub />
-        <SidebarNavItem label="Statement"       route="/bank/statement"             :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem label="Accounts"        route="/bank/accounts"              :collapsed="collapsed" icon-type="bank"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank')" label="Dashboard"       route="/bank"                       :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank/transaction/create')" label="New Transaction" route="/bank/transaction/create"    :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank/transfer')" label="Transfer"        route="/bank/transfer"              :collapsed="collapsed" icon-type="arrows"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank/statement')" label="Statement"       route="/bank/statement"             :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank/accounts')" label="Accounts"        route="/bank/accounts"              :collapsed="collapsed" icon-type="bank"      sub />
       </SidebarGroup>
 
       <!-- Accounts -->
       <SidebarGroup v-if="perms.canAccessModule('accounts')" label="Accounts" route="/accounts" :collapsed="collapsed" icon-type="book" color="teal">
-        <SidebarNavItem label="Chart of Accounts" route="/accounts/coa"            :collapsed="collapsed" icon-type="chart"    sub />
-        <SidebarNavItem label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus"     sub />
-        <SidebarNavItem label="Statement"         route="/accounts/statement"      :collapsed="collapsed" icon-type="file"     sub />
-        <SidebarNavItem label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
-        <SidebarNavItem label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/coa')" label="Chart of Accounts" route="/accounts/coa"            :collapsed="collapsed" icon-type="chart"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/journal/create')" label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/statement')" label="Statement"         route="/accounts/statement"      :collapsed="collapsed" icon-type="file"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/voucher')" label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/daily-log')" label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
       </SidebarGroup>
 
       <!-- Standalone Modules section ─────────────────── -->
@@ -159,8 +159,8 @@
       <SidebarNavItem v-if="perms.canAccessModule('sales')"      label="Sales"      route="/sales"      :collapsed="collapsed" icon-type="chart"   />
       <!-- Production -->
       <SidebarGroup v-if="perms.canAccessModule('production')" label="Production" route="/production" :collapsed="collapsed" icon-type="factory" color="teal">
-        <SidebarNavItem label="Dashboard" route="/production"        :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="New Batch" route="/production/create" :collapsed="collapsed" icon-type="plus"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/production')" label="Dashboard" route="/production"        :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/production/create')" label="New Batch" route="/production/create" :collapsed="collapsed" icon-type="plus"      sub />
       </SidebarGroup>
       <!-- Dispatch -->
       <SidebarNavItem v-if="perms.canAccessModule('dispatch')"   label="Dispatch"   route="/dispatch"   :collapsed="collapsed" icon-type="truck"   />
@@ -194,18 +194,18 @@
 
       <!-- HR Module -->
       <SidebarGroup v-if="perms.canAccessModule('hr')" label="HR" route="/hr" :collapsed="collapsed" icon-type="users" color="teal">
-        <SidebarNavItem label="Dashboard"        route="/hr"                    :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem label="Employees"        route="/hr/employees"          :collapsed="collapsed" icon-type="users"     sub />
-        <SidebarNavItem label="Attendance"       route="/hr/attendance"         :collapsed="collapsed" icon-type="clock"     sub />
-        <SidebarNavItem label="Leave Requests"   route="/hr/leave-requests"     :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem label="Salary Structure" route="/hr/salary-structure"   :collapsed="collapsed" icon-type="chart"     sub />
-        <SidebarNavItem label="Payroll"          route="/hr/payroll"            :collapsed="collapsed" icon-type="money"     sub />
-        <SidebarNavItem label="Advances"         route="/hr/advances"           :collapsed="collapsed" icon-type="receipt"   sub />
-        <SidebarNavItem label="Loans"            route="/hr/loans"              :collapsed="collapsed" icon-type="bank"      sub />
-        <SidebarNavItem label="Overtime"         route="/hr/overtime"           :collapsed="collapsed" icon-type="clock"     sub />
-        <SidebarNavItem label="Bonuses"          route="/hr/bonuses"            :collapsed="collapsed" icon-type="money"     sub />
-        <SidebarNavItem label="Holidays"         route="/hr/holidays"           :collapsed="collapsed" icon-type="calendar"  sub />
-        <SidebarNavItem label="Biometric"        route="/hr/biometric"          :collapsed="collapsed" icon-type="clock"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr')" label="Dashboard"        route="/hr"                    :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/employees')" label="Employees"        route="/hr/employees"          :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/attendance')" label="Attendance"       route="/hr/attendance"         :collapsed="collapsed" icon-type="clock"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/leave-requests')" label="Leave Requests"   route="/hr/leave-requests"     :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/salary-structure')" label="Salary Structure" route="/hr/salary-structure"   :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/payroll')" label="Payroll"          route="/hr/payroll"            :collapsed="collapsed" icon-type="money"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/advances')" label="Advances"         route="/hr/advances"           :collapsed="collapsed" icon-type="receipt"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/loans')" label="Loans"            route="/hr/loans"              :collapsed="collapsed" icon-type="bank"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/overtime')" label="Overtime"         route="/hr/overtime"           :collapsed="collapsed" icon-type="clock"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/bonuses')" label="Bonuses"          route="/hr/bonuses"            :collapsed="collapsed" icon-type="money"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/holidays')" label="Holidays"         route="/hr/holidays"           :collapsed="collapsed" icon-type="calendar"  sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/hr/biometric')" label="Biometric"        route="/hr/biometric"          :collapsed="collapsed" icon-type="clock"     sub />
       </SidebarGroup>
 
     </nav>

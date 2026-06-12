@@ -35,7 +35,8 @@
             <span class="font-mono text-xs text-gray-300">{{ value ? (Number(value)/1000).toFixed(2)+' MT' : '—' }}</span>
           </template>
           <template #actions="{ row }">
-            <button class="btn-gold text-xs py-1 px-2.5" @click="dispatch(row)" :disabled="acting === row.id">
+            <button v-if="perms.canDo('credit_sales', 'dispatch', 'mark_dispatched')"
+              class="btn-gold text-xs py-1 px-2.5" @click="dispatch(row)" :disabled="acting === row.id">
               {{ acting === row.id ? '…' : 'Dispatch' }}
             </button>
           </template>
@@ -46,6 +47,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 

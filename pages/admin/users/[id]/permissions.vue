@@ -802,6 +802,12 @@ function togglePage(mod: string, pg: string) {
     delete perms.value[mod].actions[pg]
   } else {
     arr.push(pg)
+    // Default: enabling a page grants all its actions; admin unticks what to deny
+    const def = moduleRegistry.find(m => m.key === mod)?.pages.find(p => p.key === pg)
+    if (def?.actions?.length) {
+      perms.value[mod].actions[pg] = {}
+      for (const a of def.actions) perms.value[mod].actions[pg][a.key] = true
+    }
   }
 }
 function toggleAction(mod: string, pg: string, act: string) {

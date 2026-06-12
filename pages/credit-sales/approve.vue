@@ -54,8 +54,10 @@
         </div>
         <div class="flex items-center gap-2 shrink-0">
           <NuxtLink :to="`/credit-sales/${order.id}`" class="btn-ghost text-xs py-2 px-3">View</NuxtLink>
-          <button @click="showReject(order)" class="btn-ghost text-xs py-2 px-3 border-red-500/20 text-red-400 hover:bg-red-500/10">Reject</button>
-          <button @click="doApprove(order)"
+          <button v-if="perms.canDo('credit_sales', 'approve', 'reject')"
+                  @click="showReject(order)" class="btn-ghost text-xs py-2 px-3 border-red-500/20 text-red-400 hover:bg-red-500/10">Reject</button>
+          <button v-if="perms.canDo('credit_sales', 'approve', creditPct(order) > 80 ? 'escalate' : 'approve')"
+                  @click="doApprove(order)"
                   :class="['text-xs py-2 px-4 rounded-xl font-semibold transition-all duration-200',
                     creditPct(order) > 80 ? 'bg-orange-500/15 border border-orange-500/25 text-orange-400 hover:bg-orange-500/25' : 'btn-gold']"
                   :disabled="acting === order.id">
@@ -90,6 +92,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 

@@ -44,4 +44,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
     if (fallback === to.path) return
     return navigateTo(fallback, { replace: true })
   }
+
+  // ── 8. Page-level block: module is enabled but this specific page is not
+  //       in the user's page whitelist (e.g. has 'All Sales' but not 'Approve')
+  if (!perms.canAccessRoute(to.path)) {
+    const fallback = perms.firstAllowedRoute()
+    if (fallback === to.path) return
+    return navigateTo(fallback, { replace: true })
+  }
 })

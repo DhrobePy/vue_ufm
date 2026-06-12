@@ -127,8 +127,26 @@ export const usePermissions = () => {
   }
 
   /**
+   * Page-level check (matches the stored shape from the admin editor:
+   * { enabled, pages: string[], actions: { pageKey: { actionKey: bool } } }).
+   *
+   * Back-compat rule: a module enabled with an EMPTY pages list is a
+   * module-level grant — every page (and action) in it is allowed. As soon
+   * as the admin selects specific pages, the list becomes a whitelist.
+   */
+  function canAccessPage(module: string, page: string): boolean {
+    if (sessionIsAdmin.value) return true
+    if (!state.value.loaded) return false
+    if (state.value.isAdmin) return true
+    const mod = state.value.permissions[module]
+    if (!mod?.enabled) return false
+    if (!Array.isArray(mod.pages) || mod.pages.length === 0) return true // module-level grant
+    return mod.pages.includes(page)
+  }
+
+  /**
    * Fine-grained action check.
-   * E.g. canDo('credit_sales', 'all_sales', 'create')
+   * E.g. canDo('credit_sales', 'all', 'create')
    */
   function canDo(module: string, page: string, action: string): boolean {
     if (sessionIsAdmin.value) return true
@@ -136,9 +154,23 @@ export const usePermissions = () => {
     if (state.value.isAdmin) return true
     const mod = state.value.permissions[module]
     if (!mod?.enabled) return false
-    const pg = mod.pages?.[page]
-    if (!pg?.enabled) return false
-    return pg.actions?.[action] === true
+    // Module-level grant (no page whitelist) → all actions allowed
+    if (!Array.isArray(mod.pages) || mod.pages.length === 0) return true
+    if (!mod.pages.includes(page)) return false
+    return mod.actions?.[page]?.[action] === true
+  }
+
+  /**
+   * Route-based page check used by the sidebar and the route guard.
+   * '/credit-sales/create' → canAccessPage('credit_sales', 'create').
+   * Unknown routes fall back to the module-level check.
+   */
+  function canAccessRoute(path: string): boolean {
+    if (sessionIsAdmin.value) return true
+    const entry = permRouteFor(path)
+    if (entry) return canAccessPage(entry.module, entry.page)
+    const mod = moduleFromPath(path)
+    return mod ? canAccessModule(mod) : true
   }
 
   /**
@@ -169,6 +201,8 @@ export const usePermissions = () => {
     load,
     clear,
     canAccessModule,
+    canAccessPage,
+    canAccessRoute,
     canDo,
     moduleFromPath,
     firstAllowedRoute,
