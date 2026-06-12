@@ -112,6 +112,43 @@
 
       </div>
 
+      <!-- ── Final delivery confirmation (authorized staff only) ── -->
+      <div v-if="orderData.order.status === 'dispatched' && canDeliver && !deliverSuccess"
+        style="background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.2);border-radius:16px;padding:20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+          <div style="font-size:24px;">✅</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#4ade80;">Confirm Final Delivery</div>
+            <div style="font-size:11px;color:#9ca3af;">Logged in as {{ deliverUserName }}. This records the full delivery, posts it to the customer ledger and marks the order delivered.</div>
+          </div>
+        </div>
+        <p v-if="deliverError" style="color:#f87171;font-size:12px;text-align:center;margin-bottom:10px;">{{ deliverError }}</p>
+        <button v-if="!deliverArmed" @click="deliverArmed = true"
+          style="width:100%;padding:12px;border-radius:12px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.3);color:#4ade80;font-size:14px;font-weight:700;cursor:pointer;">
+          🚚 Confirm Delivery…
+        </button>
+        <div v-else style="display:flex;gap:8px;">
+          <button @click="deliverArmed = false" :disabled="delivering"
+            style="flex:1;padding:12px;border-radius:12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:#9ca3af;font-size:13px;font-weight:600;cursor:pointer;">
+            Cancel
+          </button>
+          <button @click="confirmDelivery" :disabled="delivering"
+            style="flex:2;padding:12px;border-radius:12px;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;font-size:13px;font-weight:700;border:none;cursor:pointer;"
+            :style="delivering ? 'opacity:0.5;cursor:not-allowed' : ''">
+            <span v-if="delivering">Recording delivery…</span>
+            <span v-else>✓ Yes, mark as delivered</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Delivery success -->
+      <div v-if="deliverSuccess"
+        style="background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.2);border-radius:16px;padding:24px;margin-bottom:16px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:10px;">🎉</div>
+        <div style="font-size:16px;font-weight:700;color:#4ade80;margin-bottom:6px;">{{ deliverMessage }}</div>
+        <div style="font-size:12px;color:#6b7280;">Ledger updated · order marked as delivered.</div>
+      </div>
+
       <!-- PIN entry for re-scan (dispatched state) -->
       <div v-if="orderData.order.status === 'dispatched' && showPinEntry && !confirmSuccess"
         style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;margin-bottom:16px;">
@@ -177,6 +214,32 @@ const confirming     = ref(false)
 const confirmSuccess = ref(false)
 const confirmMessage = ref('')
 const showPinEntry   = ref(false)
+
+// ── Final delivery (authorized ERP users only) ──
+const { data: canDeliverData } = await useFetch<any>('/api/verify/can-deliver')
+const canDeliver      = computed(() => canDeliverData.value?.allowed === true)
+const deliverUserName = computed(() => canDeliverData.value?.user_name ?? '')
+const deliverArmed    = ref(false)
+const delivering      = ref(false)
+const deliverSuccess  = ref(false)
+const deliverMessage  = ref('')
+const deliverError    = ref('')
+
+async function confirmDelivery() {
+  deliverError.value = ''
+  delivering.value = true
+  try {
+    const res = await $fetch<any>(`/api/verify/${orderNum.value}/deliver`, { method: 'POST' })
+    deliverSuccess.value = true
+    deliverMessage.value = res.message ?? 'Delivery confirmed'
+    await refreshNuxtData(`verify-${orderNum.value}`)
+  } catch (e: any) {
+    deliverError.value = e?.data?.statusMessage ?? 'Server error. Please try again.'
+    deliverArmed.value = false
+  } finally {
+    delivering.value = false
+  }
+}
 
 const canConfirmDispatch = computed(() =>
   orderData.value?.order?.status === 'ready_to_ship' && orderData.value?.order?.has_dispatch_pin,

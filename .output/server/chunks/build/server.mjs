@@ -605,7 +605,7 @@ const _routes = [
     name: "d-order",
     path: "/d/:order()",
     meta: __nuxt_page_meta$2f || {},
-    component: () => import('./_order_-BVA0vh5k.mjs')
+    component: () => import('./_order_-DH2VKBea.mjs')
   },
   {
     name: "pos",
@@ -725,7 +725,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$1X || {},
-    component: () => import('./settings-DUbxkMXm.mjs')
+    component: () => import('./settings-C9h1fbxB.mjs')
   },
   {
     name: "bank-statement",

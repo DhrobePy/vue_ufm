@@ -423,23 +423,35 @@
               </label>
             </div>
 
-            <!-- Toggle: Require Delivery PIN (driver side) -->
-            <div class="flex items-start justify-between gap-4 py-4 border-t border-white/[0.06]">
-              <div class="flex-1">
-                <p class="text-sm font-semibold text-gray-200">
-                  Require Delivery PIN — Driver Side
-                  <span class="text-[10px] font-normal text-amber-400 ml-1.5 border border-amber-400/30 rounded px-1.5 py-0.5">Provisioned · Not Active</span>
-                </p>
-                <p class="text-xs text-gray-500 mt-0.5">
-                  Customer receives a delivery PIN (separate from dispatch PIN) that the driver enters
-                  at point of delivery to confirm goods were received. Enable when driver-side verification is needed.
-                </p>
-                <p class="text-xs text-gray-600 mt-1">Status transition: <span class="text-blue-400 font-mono text-[11px]">dispatched → delivered</span></p>
+            <!-- Final delivery confirmation — authorized staff -->
+            <div class="py-4 border-t border-white/[0.06]">
+              <p class="text-sm font-semibold text-gray-200">
+                Final Delivery Confirmation — Authorized Staff
+                <span class="text-[10px] font-normal text-emerald-400 ml-1.5">Active</span>
+              </p>
+              <p class="text-xs text-gray-500 mt-0.5">
+                Drivers do not confirm deliveries. When a <span class="text-gray-300 font-mono text-[11px]">dispatched</span>
+                order's QR is scanned by a logged-in authorized user, they get a one-tap
+                "Confirm Final Delivery" button that records the full delivery, posts the customer
+                ledger entry and marks the order <span class="text-gray-300 font-mono text-[11px]">delivered</span>.
+              </p>
+              <p class="text-xs text-gray-600 mt-1.5 mb-3">
+                Admins and superadmins are always authorized. Assign additional users below (e.g. the dispatch manager):
+              </p>
+
+              <div class="rounded-xl bg-white/[0.03] border border-white/[0.07] divide-y divide-white/[0.05] max-h-64 overflow-y-auto">
+                <label v-for="u in assignableUsers" :key="u.id"
+                  class="flex items-center justify-between gap-3 px-4 py-2.5 cursor-pointer hover:bg-white/[0.03]">
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium text-gray-200 truncate">{{ u.display_name }}</p>
+                    <p class="text-[10px] text-gray-500 truncate">{{ u.email }} · {{ u.role }}</p>
+                  </div>
+                  <input type="checkbox" class="accent-amber-500 shrink-0"
+                    :checked="deliverySettings.delivery_confirm_user_ids.includes(u.id)"
+                    @change="toggleDeliveryUser(u.id)" />
+                </label>
+                <p v-if="!assignableUsers.length" class="px-4 py-3 text-xs text-gray-500">No other active users found.</p>
               </div>
-              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
-                <input v-model="deliverySettings.require_delivery_pin" type="checkbox" class="sr-only peer" />
-                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
-              </label>
             </div>
 
             <!-- How it works (info box) -->
@@ -450,6 +462,8 @@
                 <li>When order is <span class="text-gray-300 font-mono">ready_to_ship</span>, dispatcher scans the QR with any phone camera.</li>
                 <li>Public page opens — no login needed. Dispatcher enters the PIN.</li>
                 <li>Status updates to <span class="text-gray-300 font-mono">dispatched</span> automatically.</li>
+                <li>At handover, an authorized staff member (logged into the ERP on their phone) scans the same QR and taps <span class="text-gray-300">Confirm Final Delivery</span>.</li>
+                <li>Full delivery is recorded — ledger, journal entry and balances — and status becomes <span class="text-gray-300 font-mono">delivered</span>.</li>
                 <li>QR is rescanable — scanning again shows current status and audit trail.</li>
               </ol>
             </div>
@@ -589,10 +603,27 @@ async function saveDocSettings() {
 const { data: deliveryData } = await useFetch('/api/settings/delivery')
 const deliverySettings = reactive({
   require_dispatch_pin: (deliveryData.value as any)?.settings?.require_dispatch_pin ?? true,
-  require_delivery_pin: (deliveryData.value as any)?.settings?.require_delivery_pin ?? false,
+  delivery_confirm_user_ids: [
+    ...((deliveryData.value as any)?.settings?.delivery_confirm_user_ids ?? []),
+  ].map(Number) as number[],
 })
 const deliverySaving  = ref(false)
 const deliverySaveMsg = ref('')
+
+// Users assignable as delivery confirmers (admins are always allowed implicitly)
+const { data: allUsersData } = await useFetch('/api/admin/users')
+const assignableUsers = computed(() =>
+  ((allUsersData.value as any)?.users ?? []).filter((u: any) =>
+    u.status === 'active' && !['admin', 'superadmin'].includes((u.role ?? '').toLowerCase()),
+  ),
+)
+
+function toggleDeliveryUser(id: number) {
+  const ids = deliverySettings.delivery_confirm_user_ids
+  const idx = ids.indexOf(id)
+  if (idx >= 0) ids.splice(idx, 1)
+  else ids.push(id)
+}
 
 async function saveDeliverySettings() {
   deliverySaving.value  = true
@@ -602,7 +633,7 @@ async function saveDeliverySettings() {
       method: 'PUT',
       body: {
         require_dispatch_pin: deliverySettings.require_dispatch_pin,
-        require_delivery_pin: deliverySettings.require_delivery_pin,
+        delivery_confirm_user_ids: deliverySettings.delivery_confirm_user_ids,
       },
     })
     deliverySaveMsg.value = '✓ Delivery settings saved'

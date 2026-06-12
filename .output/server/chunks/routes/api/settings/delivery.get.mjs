@@ -12,8 +12,8 @@ import 'node:url';
 const DEFAULTS = {
   require_dispatch_pin: true,
   // Dispatcher must enter PIN on invoice to confirm dispatch
-  require_delivery_pin: false
-  // Driver-side confirmation — provisioned, not active yet
+  delivery_confirm_user_ids: []
+  // Users (besides admin/superadmin) allowed to confirm final delivery via QR
 };
 const delivery_get = defineEventHandler(async () => {
   var _a;

@@ -5,8 +5,8 @@
 import { query } from '~/server/utils/db'
 
 const DEFAULTS = {
-  require_dispatch_pin:  true,   // Dispatcher must enter PIN on invoice to confirm dispatch
-  require_delivery_pin:  false,  // Driver-side confirmation — provisioned, not active yet
+  require_dispatch_pin:      true,   // Dispatcher must enter PIN on invoice to confirm dispatch
+  delivery_confirm_user_ids: [] as number[], // Users (besides admin/superadmin) allowed to confirm final delivery via QR
 }
 
 export default defineEventHandler(async () => {

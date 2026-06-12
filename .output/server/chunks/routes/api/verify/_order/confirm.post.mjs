@@ -41,9 +41,6 @@ const confirm_post = defineEventHandler(async (event) => {
       transitionNote = "Dispatch confirmed via QR PIN scan";
     } else if (scan_type === "dispatch" && order.status === "dispatched") {
       transitionNote = "Re-scan: order already dispatched";
-    } else if (scan_type === "delivery" && order.status === "dispatched") {
-      newStatus = "delivered";
-      transitionNote = "Delivery confirmed via QR PIN scan";
     }
   }
   const db = getDb();

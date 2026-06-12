@@ -52,10 +52,10 @@ export default defineEventHandler(async (event) => {
     } else if (scan_type === 'dispatch' && order.status === 'dispatched') {
       // Already dispatched — rescan is allowed, just acknowledge
       transitionNote = 'Re-scan: order already dispatched'
-    } else if (scan_type === 'delivery' && order.status === 'dispatched') {
-      newStatus      = 'delivered'
-      transitionNote = 'Delivery confirmed via QR PIN scan'
     }
+    // NOTE: scan_type 'delivery' never changes status here. Final delivery is
+    // confirmed by authorized staff via POST /api/verify/:order/deliver, which
+    // performs the full delivery flow (ledger, journal entry, balances).
   }
 
   // Persist scan record + optional status update
