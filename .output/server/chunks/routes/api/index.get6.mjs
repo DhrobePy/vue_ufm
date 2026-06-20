@@ -1,4 +1,4 @@
-import { h as defineEventHandler, p as getQuery, J as query, F as paginate } from '../../nitro/nitro.mjs';
+import { h as defineEventHandler, p as getQuery, K as query, G as paginate } from '../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -12,6 +12,8 @@ import 'node:url';
 const index_get = defineEventHandler(async (event) => {
   const q = getQuery(event);
   const search = q.search || "";
+  const type = q.type || "";
+  const status = q.status || "";
   const page = Number(q.page) || 1;
   const perPage = Math.min(Number(q.per) || 25, 500);
   const { limit, offset } = paginate(page, perPage);
@@ -20,6 +22,14 @@ const index_get = defineEventHandler(async (event) => {
   if (search) {
     where.push("(s.company_name LIKE ? OR s.supplier_code LIKE ? OR s.phone LIKE ?)");
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  if (type) {
+    where.push("s.supplier_type = ?");
+    params.push(type);
+  }
+  if (status) {
+    where.push("s.status = ?");
+    params.push(status);
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
   const [suppliers, [cnt]] = await Promise.all([

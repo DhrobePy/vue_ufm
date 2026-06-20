@@ -14,6 +14,21 @@
         </template>
       </UiPageHeader>
 
+      <!-- Delivery lock banner -->
+      <div v-if="po.is_delivery_locked"
+           class="rounded-xl p-4 border flex items-start gap-3"
+           style="background:rgba(245,158,11,0.06);border-color:rgba(245,158,11,0.20)">
+        <span class="text-base mt-0.5">🔒</span>
+        <div class="text-xs">
+          <p class="font-semibold text-yellow-300">Delivery Permanently Locked</p>
+          <p class="text-yellow-200/60 mt-0.5">
+            {{ po.delivery_lock_reason || 'Final delivery marked' }}
+            <span v-if="po.delivery_locked_at"> · {{ fmtDate(po.delivery_locked_at) }}</span>
+          </p>
+          <p class="text-yellow-200/40 mt-0.5">No further GRNs can be added. Contact admin to unlock.</p>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div class="lg:col-span-2 space-y-5">
 
@@ -133,12 +148,22 @@
                 <span class="text-gray-600">Outstanding</span>
                 <span class="font-bold text-red-400">৳{{ outstanding.toLocaleString() }}</span>
               </div>
+              <div v-if="availableCredit > 0" class="flex justify-between pt-1 border-t border-white/[0.06]">
+                <span class="text-blue-400">Available Credit</span>
+                <span class="font-bold text-blue-300">৳{{ availableCredit.toLocaleString() }}</span>
+              </div>
             </div>
             <div class="h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
               <div class="h-full rounded-full bg-emerald-500 transition-all"
                    :style="`width:${paidPct}%`" />
             </div>
-            <NuxtLink to="/purchase/payments/record" class="btn-gold text-xs w-full justify-center">Record Payment</NuxtLink>
+            <NuxtLink :to="`/purchase/payments/record?po_id=${route.params.id}&supplier_id=${po.supplier_id}`"
+                      class="btn-gold text-xs w-full justify-center">Record Payment</NuxtLink>
+            <NuxtLink v-if="availableCredit > 0"
+                      :to="`/purchase/payments/record?po_id=${route.params.id}&supplier_id=${po.supplier_id}&use_credit=1`"
+                      class="btn-ghost text-xs w-full justify-center text-blue-400 hover:border-blue-500/30">
+              Use Supplier Credit (৳{{ availableCredit.toLocaleString() }})
+            </NuxtLink>
           </div>
 
           <div class="glass-card p-5 space-y-3">
@@ -190,10 +215,15 @@
               {{ actionBusy === 'cancel' ? 'Cancelling…' : 'Cancel PO' }}
             </button>
 
-            <!-- Admin-only: Reverse PO (cancels all GRNs + voids all payments) -->
+            <!-- Admin-only: Final Delivery + Reverse + Hard Delete -->
             <template v-if="isAdmin">
               <div class="h-px bg-white/[0.06] my-1" />
               <p class="text-[10px] font-semibold text-gray-600 uppercase tracking-wider px-1">Admin Override</p>
+              <button v-if="po.delivery_status !== 'closed' || !po.is_delivery_locked"
+                @click="markFinalDelivery" :disabled="!!actionBusy"
+                class="btn-ghost text-xs w-full justify-start gap-2 text-teal-400 hover:text-teal-300 hover:border-teal-500/30">
+                🔒 {{ actionBusy === 'final_delivery' ? 'Locking…' : 'Mark Final Delivery & Lock' }}
+              </button>
               <button @click="reversePO" :disabled="!!actionBusy"
                 class="btn-ghost text-xs w-full justify-start gap-2 text-orange-400 hover:text-orange-300 hover:border-orange-500/30">
                 ↩ {{ actionBusy === 'reverse' ? 'Reversing…' : 'Reverse PO (Cancel all GRNs & Payments)' }}
@@ -226,6 +256,16 @@ const { data, pending, error, refresh } = await useFetch(
 const po       = computed(() => (data.value?.po       ?? {}) as any)
 const grns     = computed(() => (data.value?.grns     ?? []) as any[])
 const payments = computed(() => (data.value?.payments ?? []) as any[])
+
+// Supplier credit
+const availableCredit = ref(0)
+watch(() => po.value?.supplier_id, async (sid) => {
+  if (!sid) return
+  try {
+    const res = await $fetch(`/api/purchase/suppliers/${sid}/credit`) as any
+    availableCredit.value = Number(res?.available_credit ?? 0)
+  } catch { availableCredit.value = 0 }
+}, { immediate: true })
 
 function fmtDate(val: any): string {
   if (!val) return '—'
@@ -311,5 +351,15 @@ async function hardDeletePO() {
     success('PO permanently deleted')
     navigateTo('/purchase/orders')
   } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed to delete PO') } finally { actionBusy.value = false }
+}
+
+async function markFinalDelivery() {
+  if (!confirm(`Mark FINAL DELIVERY for PO ${po.value.po_number}?\n\nThis will permanently lock the delivery — no further GRNs can be added. Proceed?`)) return
+  actionBusy.value = 'final_delivery'
+  try {
+    await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'final_delivery' } })
+    success('PO marked as final delivery — delivery locked')
+    await refresh()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
 }
 </script>

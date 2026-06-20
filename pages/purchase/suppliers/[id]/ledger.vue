@@ -4,6 +4,7 @@
                   :subtitle="`All transactions with this supplier`"
                   :breadcrumb="['Purchase', 'Suppliers', supplier?.company_name ?? '…', 'Ledger']">
       <template #actions>
+        <button @click="exportCsv" class="btn-ghost text-xs">↓ Export CSV</button>
         <button @click="printLedger" class="btn-ghost text-xs">🖨 Print</button>
         <NuxtLink to="/purchase/suppliers" class="btn-ghost text-xs">← Suppliers</NuxtLink>
       </template>
@@ -101,7 +102,17 @@ const supplier = computed(() => (data.value as any)?.supplier ?? null)
 const ledger   = computed(() => (data.value as any)?.ledger   ?? [])
 const stats    = computed(() => (data.value as any)?.stats    ?? {})
 
-function printLedger() {
-  window.print()
+function printLedger() { window.print() }
+
+function exportCsv() {
+  const sup = supplier.value
+  const headers = ['Date','Description','Reference','Debit (Payment)','Credit (Purchase)','Balance']
+  const rows = ledger.value.map((tx: any) => [tx.date, tx.description, tx.ref, tx.debit, tx.credit, tx.balance])
+  const csv = [headers, ...rows].map((row: any[]) => row.map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url  = URL.createObjectURL(blob)
+  const name = `ledger-${sup?.company_name?.replace(/\s+/g, '-') ?? supplierId}-${new Date().toISOString().slice(0,10)}.csv`
+  const a    = Object.assign(document.createElement('a'), { href: url, download: name })
+  a.click(); URL.revokeObjectURL(url)
 }
 </script>

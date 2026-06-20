@@ -3,6 +3,8 @@
     <UiPageHeader title="Weight Variance Report" subtitle="GRN vs ordered quantity analysis"
                   :breadcrumb="['Purchase','GRNs','Variance Report']">
       <template #actions>
+        <button @click="exportCsv" class="btn-ghost text-xs">↓ Export CSV</button>
+        <button @click="printReport" class="btn-ghost text-xs">🖨 Print</button>
         <NuxtLink to="/purchase/grn" class="btn-ghost text-xs">← All GRNs</NuxtLink>
       </template>
     </UiPageHeader>
@@ -149,4 +151,20 @@ const gainCount   = computed(() => filtered.value.filter((r: any) => r.variance_
 const lossValue   = computed(() => filtered.value.filter((r: any) => r.variance_type === 'loss').reduce((s: number, r: any) => s + Math.abs(Number(r.variance_value)), 0))
 const gainValue   = computed(() => filtered.value.filter((r: any) => r.variance_type === 'gain').reduce((s: number, r: any) => s + Number(r.variance_value), 0))
 const netVariance = computed(() => gainValue.value - lossValue.value)
+
+function exportCsv() {
+  const headers = ['GRN Date','GRN #','PO #','Supplier','Truck','Ordered (kg)','Received (kg)','Variance (kg)','Variance %','Value Impact','Type']
+  const rows = filtered.value.map((r: any) => [
+    r.grn_date, r.grn_number, r.po_number, r.supplier_name, r.truck_number ?? '',
+    r.ordered_quantity, r.received_quantity, r.variance,
+    Number(r.variance_percentage).toFixed(2), r.variance_value, r.variance_type,
+  ])
+  const csv = [headers, ...rows].map(row => row.map((v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const url  = URL.createObjectURL(blob)
+  const a    = Object.assign(document.createElement('a'), { href: url, download: `variance-report-${new Date().toISOString().slice(0,10)}.csv` })
+  a.click(); URL.revokeObjectURL(url)
+}
+
+function printReport() { window.print() }
 </script>

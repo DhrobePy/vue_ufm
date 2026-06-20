@@ -1,9 +1,14 @@
 import { query, paginate } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
-  const q      = getQuery(event)
-  const search = (q.search as string) || ''
-  const status = (q.status as string) || ''
+  const q               = getQuery(event)
+  const search          = (q.search          as string) || ''
+  const status          = (q.status          as string) || ''
+  const deliveryStatus  = (q.delivery_status as string) || ''
+  const paymentStatus   = (q.payment_status  as string) || ''
+  const origin          = (q.origin          as string) || ''
+  const dateFrom        = (q.date_from       as string) || ''
+  const dateTo          = (q.date_to         as string) || ''
   const page    = Number(q.page) || 1
   const perPage = Math.min(Number(q.per) || 25, 200)
   const { limit, offset } = paginate(page, perPage)
@@ -15,7 +20,12 @@ export default defineEventHandler(async (event) => {
     where.push('(o.po_number LIKE ? OR o.supplier_name LIKE ?)')
     params.push(`%${search}%`, `%${search}%`)
   }
-  if (status) { where.push('o.po_status = ?'); params.push(status) }
+  if (status)          { where.push('o.po_status = ?');          params.push(status) }
+  if (deliveryStatus)  { where.push('o.delivery_status = ?');    params.push(deliveryStatus) }
+  if (paymentStatus)   { where.push('o.payment_status = ?');     params.push(paymentStatus) }
+  if (origin)          { where.push('o.wheat_origin = ?');       params.push(origin) }
+  if (dateFrom)        { where.push('o.po_date >= ?');           params.push(dateFrom) }
+  if (dateTo)          { where.push('o.po_date <= ?');           params.push(dateTo) }
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
 

@@ -1,10 +1,12 @@
 import { query, paginate } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
-  const q      = getQuery(event)
-  const search   = (q.search as string) || ''
-  const page     = Number(q.page) || 1
-  const perPage  = Math.min(Number(q.per) || 25, 500)   // honour ?per= up to 500
+  const q       = getQuery(event)
+  const search  = (q.search as string) || ''
+  const type    = (q.type   as string) || ''
+  const status  = (q.status as string) || ''
+  const page    = Number(q.page) || 1
+  const perPage = Math.min(Number(q.per) || 25, 500)
   const { limit, offset } = paginate(page, perPage)
 
   const where: string[] = []
@@ -14,6 +16,8 @@ export default defineEventHandler(async (event) => {
     where.push('(s.company_name LIKE ? OR s.supplier_code LIKE ? OR s.phone LIKE ?)')
     params.push(`%${search}%`, `%${search}%`, `%${search}%`)
   }
+  if (type)   { where.push('s.supplier_type = ?'); params.push(type) }
+  if (status) { where.push('s.status = ?');        params.push(status) }
 
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
 

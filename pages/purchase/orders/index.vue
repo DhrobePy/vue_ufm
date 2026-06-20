@@ -7,19 +7,51 @@
     </UiPageHeader>
 
     <!-- Filter bar -->
-    <div class="glass-card p-4 flex flex-wrap items-center gap-3">
-      <input v-model.lazy="search" type="text" class="field-input text-xs py-1.5 w-52"
-             placeholder="Search PO #, supplier…" />
-      <select v-model="statusFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
-        <option value="">All Status</option>
-        <option value="draft">Draft</option>
-        <option value="approved">Approved</option>
-        <option value="partial">Partial</option>
-        <option value="completed">Completed</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
-      <div class="ml-auto text-xs text-gray-500">
-        <span class="font-medium text-gray-300">{{ data?.total ?? 0 }}</span> orders
+    <div class="glass-card p-4 space-y-3">
+      <div class="flex flex-wrap items-center gap-3">
+        <input v-model.lazy="search" type="text" class="field-input text-xs py-1.5 w-52"
+               placeholder="Search PO #, supplier…" />
+        <select v-model="statusFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
+          <option value="">All Status</option>
+          <option value="draft">Draft</option>
+          <option value="approved">Approved</option>
+          <option value="partial">Partial</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+        <select v-model="deliveryFilter" class="field-input text-xs py-1.5 w-40" @change="page=1;refresh()">
+          <option value="">All Delivery</option>
+          <option value="pending">Pending</option>
+          <option value="partial">Partial</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select v-model="paymentFilter" class="field-input text-xs py-1.5 w-40" @change="page=1;refresh()">
+          <option value="">All Payment</option>
+          <option value="unpaid">Unpaid</option>
+          <option value="partial">Partial</option>
+          <option value="paid">Paid</option>
+        </select>
+        <select v-model="originFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
+          <option value="">All Origins</option>
+          <option value="India">India</option>
+          <option value="Ukraine">Ukraine</option>
+          <option value="Russia">Russia</option>
+          <option value="Australia">Australia</option>
+          <option value="Local">Local</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2 text-xs text-gray-500">
+          <span>From:</span>
+          <input v-model="dateFrom" type="date" class="field-input text-xs py-1 w-36" @change="page=1;refresh()" />
+          <span>To:</span>
+          <input v-model="dateTo" type="date" class="field-input text-xs py-1 w-36" @change="page=1;refresh()" />
+        </div>
+        <button @click="resetFilters" class="btn-ghost text-xs py-1.5">Reset</button>
+        <div class="ml-auto text-xs text-gray-500">
+          <span class="font-medium text-gray-300">{{ data?.total ?? 0 }}</span> orders
+        </div>
       </div>
     </div>
 
@@ -58,20 +90,43 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+const route = useRoute()
 
-const search       = ref('')
-const statusFilter = ref('')
-const page         = ref(1)
-const perPage      = 20
+const search         = ref((route.query.search as string) || '')
+const statusFilter   = ref((route.query.status as string) || '')
+const deliveryFilter = ref((route.query.delivery_status as string) || '')
+const paymentFilter  = ref((route.query.payment_status as string) || '')
+const originFilter   = ref((route.query.origin as string) || '')
+const dateFrom       = ref('')
+const dateTo         = ref('')
+const page           = ref(1)
+const perPage        = 25
 
 const { data, pending, error, refresh } = await useFetch('/api/purchase/orders', {
   query: computed(() => ({
-    search: search.value,
-    status: statusFilter.value,
-    page:   page.value,
-    per:    perPage,
+    search:          search.value,
+    status:          statusFilter.value,
+    delivery_status: deliveryFilter.value,
+    payment_status:  paymentFilter.value,
+    origin:          originFilter.value,
+    date_from:       dateFrom.value,
+    date_to:         dateTo.value,
+    page:            page.value,
+    per:             perPage,
   })),
 })
+
+function resetFilters() {
+  search.value         = ''
+  statusFilter.value   = ''
+  deliveryFilter.value = ''
+  paymentFilter.value  = ''
+  originFilter.value   = ''
+  dateFrom.value       = ''
+  dateTo.value         = ''
+  page.value           = 1
+  refresh()
+}
 
 function fmtDate(val: any): string {
   if (!val) return '—'

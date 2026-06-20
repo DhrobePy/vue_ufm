@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { e as createError$1, H as parseURL, k as encodePath, g as decodePath, x as hasProtocol, A as isScriptProtocol, B as joinURL, U as withQuery, j as defu, P as sanitizeStatusCode, m as getContext, $ as $fetch$1, b as baseURL, f as createHooks, l as executeAsync } from '../nitro/nitro.mjs';
+import { e as createError$1, I as parseURL, k as encodePath, g as decodePath, y as hasProtocol, B as isScriptProtocol, C as joinURL, V as withQuery, j as defu, Q as sanitizeStatusCode, m as getContext, $ as $fetch$1, b as baseURL, f as createHooks, l as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'node:http';
@@ -629,7 +629,7 @@ const _routes = [
     name: "bank",
     path: "/bank",
     meta: __nuxt_page_meta$2b || {},
-    component: () => import('./index-D2MIj4JS.mjs')
+    component: () => import('./index-YthzmokP.mjs')
   },
   {
     name: "hr-bonuses",
@@ -761,7 +761,7 @@ const _routes = [
     name: "purchase",
     path: "/purchase",
     meta: __nuxt_page_meta$1R || {},
-    component: () => import('./index-DmpJUINI.mjs')
+    component: () => import('./index-Vu8iOusN.mjs')
   },
   {
     name: "collector",
@@ -785,7 +785,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./create-Bryn_Yld.mjs')
+    component: () => import('./create-B24E5tjM.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -863,7 +863,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./vouchers-B5a3L1kF.mjs')
+    component: () => import('./vouchers-CLffbefn.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -929,13 +929,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./create-DlOmSA7H.mjs')
+    component: () => import('./create-BR9BhkDt.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1o || {},
-    component: () => import('./index-CFuNKJDW.mjs')
+    component: () => import('./index-DqY7yQtn.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -971,13 +971,13 @@ const _routes = [
     name: "bank-accounts",
     path: "/bank/accounts",
     meta: __nuxt_page_meta$1i || {},
-    component: () => import('./index-BCBy2t6S.mjs')
+    component: () => import('./index-CeD9jzNI.mjs')
   },
   {
     name: "bank-accounts-types",
     path: "/bank/accounts/types",
     meta: __nuxt_page_meta$1h || {},
-    component: () => import('./types-Dyga-zg8.mjs')
+    component: () => import('./types-8RXczxVS.mjs')
   },
   {
     name: "credit-sales-ageing",
@@ -1085,7 +1085,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-D_-mOhhu.mjs')
+    component: () => import('./edit-D06_ac9u.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1151,13 +1151,13 @@ const _routes = [
     name: "purchase-grn-variance",
     path: "/purchase/grn/variance",
     meta: __nuxt_page_meta$Q || {},
-    component: () => import('./variance-vP5zb8V9.mjs')
+    component: () => import('./variance-CpzVyLMN.mjs')
   },
   {
     name: "purchase-orders",
     path: "/purchase/orders",
     meta: __nuxt_page_meta$P || {},
-    component: () => import('./index-C0rspdLc.mjs')
+    component: () => import('./index-D0T14SWe.mjs')
   },
   {
     name: "accounts-journal",
@@ -1241,7 +1241,7 @@ const _routes = [
     name: "bank-transaction-create",
     path: "/bank/transaction/create",
     meta: __nuxt_page_meta$B || {},
-    component: () => import('./create-BUllJM1u.mjs')
+    component: () => import('./create-B0EVptxs.mjs')
   },
   {
     name: "credit-sales-id",
@@ -1337,13 +1337,13 @@ const _routes = [
     name: "purchase-payments-record",
     path: "/purchase/payments/record",
     meta: __nuxt_page_meta$l || {},
-    component: () => import('./record-DD8UnKRx.mjs')
+    component: () => import('./record-B0goiVnG.mjs')
   },
   {
     name: "purchase-suppliers",
     path: "/purchase/suppliers",
     meta: __nuxt_page_meta$k || {},
-    component: () => import('./index-glGLtd4N.mjs')
+    component: () => import('./index-D3VD6ihq.mjs')
   },
   {
     name: "credit-sales-id-deliver",
@@ -1403,7 +1403,7 @@ const _routes = [
     name: "purchase-orders-id",
     path: "/purchase/orders/:id()",
     meta: __nuxt_page_meta$a || {},
-    component: () => import('./index-Dy3itsvg.mjs')
+    component: () => import('./index-DWcJUgSO.mjs')
   },
   {
     name: "purchase-orders-id-print",
@@ -1457,7 +1457,7 @@ const _routes = [
     name: "purchase-suppliers-id-ledger",
     path: "/purchase/suppliers/:id()/ledger",
     meta: __nuxt_page_meta$1 || {},
-    component: () => import('./ledger-YawAK0It.mjs')
+    component: () => import('./ledger-Dk0WhsHc.mjs')
   },
   {
     name: "purchase-adjustments-id",

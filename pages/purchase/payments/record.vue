@@ -14,10 +14,25 @@
         <!-- Supplier select -->
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Supplier *</label>
-          <select v-model="form.supplierId" class="input-glass" @change="form.poId = ''">
+          <select v-model="form.supplierId" class="input-glass" @change="form.poId = ''; loadCredit()">
             <option value="">— Select supplier —</option>
             <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.company_name }}</option>
           </select>
+        </div>
+
+        <!-- Supplier credit display -->
+        <div v-if="availableCredit > 0" class="rounded-xl p-3.5 border" style="background:rgba(59,130,246,0.06);border-color:rgba(59,130,246,0.20)">
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-blue-300">Available Supplier Credit</p>
+              <p class="text-lg font-bold font-mono text-blue-400 mt-0.5">৳{{ availableCredit.toLocaleString() }}</p>
+            </div>
+            <button @click="applyCredit" type="button"
+              class="text-xs px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-500/30 hover:bg-blue-500/30 transition-colors">
+              Apply Credit
+            </button>
+          </div>
+          <p class="text-[11px] text-blue-400/50 mt-1">Credit will reduce the payment amount required from this supplier</p>
         </div>
 
         <!-- PO select (filtered by supplier) -->
@@ -150,6 +165,7 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 const { success, error } = useToast()
+const route = useRoute()
 
 // Load suppliers, open POs, bank accounts, and recent payments in parallel
 const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }] = await Promise.all([
@@ -177,9 +193,14 @@ const paymentTypes = [
   { value: 'contra',           label: 'Contra / Offset',  hint: 'Sales invoice set-off' },
 ]
 
+// Pre-fill from query params (linked from PO detail page)
+const qPoId      = route.query.po_id      ? Number(route.query.po_id)      : null
+const qSupplierId = route.query.supplier_id ? Number(route.query.supplier_id) : null
+const qUseCredit = route.query.use_credit === '1'
+
 const form = reactive({
-  supplierId:    '' as number | string,
-  poId:          '' as number | string,
+  supplierId:    (qSupplierId ?? '') as number | string,
+  poId:          (qPoId ?? '') as number | string,
   date:          new Date().toISOString().slice(0, 10),
   payType:       'credit',
   method:        'bank',
@@ -188,6 +209,36 @@ const form = reactive({
   bankAccountId: '' as number | string,
   notes:         '',
 })
+
+const availableCredit = ref(0)
+
+async function loadCredit() {
+  const sid = form.supplierId
+  if (!sid) { availableCredit.value = 0; return }
+  try {
+    const res = await $fetch(`/api/purchase/suppliers/${sid}/credit`) as any
+    availableCredit.value = Number(res?.available_credit ?? 0)
+  } catch { availableCredit.value = 0 }
+}
+
+// If use_credit was requested, apply the credit amount automatically
+function applyCredit() {
+  const po = selectedPO.value
+  const credit = availableCredit.value
+  if (!credit) return
+  if (po) {
+    const due = Number(po.balance_payable ?? 0)
+    form.amount = Math.max(0, due - credit) || null
+    success(`Credit of ৳${credit.toLocaleString()} applied — new amount: ৳${(form.amount ?? 0).toLocaleString()}`)
+  } else {
+    form.amount = null
+    success(`Credit ৳${credit.toLocaleString()} noted — select a PO to calculate net`)
+  }
+}
+
+// Load credit on mount if supplier pre-filled
+if (qSupplierId) { loadCredit() }
+if (qUseCredit) { nextTick(() => { if (availableCredit.value > 0) applyCredit() }) }
 
 // When payType changes to contra, auto-set method; when leaving contra restore bank
 watch(() => form.payType, (val) => {

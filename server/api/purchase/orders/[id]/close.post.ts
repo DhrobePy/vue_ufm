@@ -7,7 +7,7 @@ export default defineEventHandler(async (event) => {
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid PO ID' })
 
   const body    = await readBody(event)
-  const action  = (body?.action ?? 'close') as 'close' | 'reopen' | 'reverse'
+  const action  = (body?.action ?? 'close') as 'close' | 'reopen' | 'reverse' | 'final_delivery'
   const session = await getUserSession(event)
   const userId  = session?.user?.id ?? 1
   const role    = (session?.user?.role ?? '').toLowerCase()
@@ -23,6 +23,36 @@ export default defineEventHandler(async (event) => {
       `SELECT id, po_number, delivery_status, po_status FROM purchase_orders_adnan WHERE id = ?`, [id],
     )
     if (!po) throw createError({ statusCode: 404, statusMessage: 'Purchase order not found' })
+
+    // ── FINAL DELIVERY (admin only) ──────────────────────────────────────
+    if (action === 'final_delivery') {
+      if (!isAdmin) throw createError({ statusCode: 403, statusMessage: 'Only admin can mark final delivery' })
+      if (po.delivery_status === 'closed') throw createError({ statusCode: 400, statusMessage: 'PO is already closed' })
+
+      await conn.query(
+        `UPDATE purchase_orders_adnan
+         SET delivery_status            = 'closed',
+             is_delivery_locked         = 1,
+             delivery_lock_reason       = 'Final delivery marked by admin',
+             delivery_locked_by_user_id = ?,
+             delivery_locked_at         = NOW(),
+             updated_at                 = NOW()
+         WHERE id = ?`,
+        [userId, id],
+      )
+      await auditLog(conn, {
+        userId,
+        action:          'po_locked',
+        module:          'purchase',
+        recordType:      'purchase_order',
+        recordId:        id,
+        referenceNumber: po.po_number,
+        description:     `PO ${po.po_number} marked as Final Delivery — delivery locked permanently`,
+        severity:        'info',
+      })
+      await conn.commit()
+      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked` }
+    }
 
     // ── REVERSE (admin/superadmin only) ─────────────────────────────────
     if (action === 'reverse') {

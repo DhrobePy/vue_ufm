@@ -1,4 +1,4 @@
-import { h as defineEventHandler, v as getRouterParam, e as createError, L as readBody, w as getUserSession, n as getDb, O as recalcPO, a as auditLog } from '../../../../../nitro/nitro.mjs';
+import { h as defineEventHandler, w as getRouterParam, e as createError, M as readBody, x as getUserSession, n as getDb, a as auditLog, P as recalcPO } from '../../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -28,6 +28,33 @@ const close_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!po) throw createError({ statusCode: 404, statusMessage: "Purchase order not found" });
+    if (action === "final_delivery") {
+      if (!isAdmin) throw createError({ statusCode: 403, statusMessage: "Only admin can mark final delivery" });
+      if (po.delivery_status === "closed") throw createError({ statusCode: 400, statusMessage: "PO is already closed" });
+      await conn.query(
+        `UPDATE purchase_orders_adnan
+         SET delivery_status            = 'closed',
+             is_delivery_locked         = 1,
+             delivery_lock_reason       = 'Final delivery marked by admin',
+             delivery_locked_by_user_id = ?,
+             delivery_locked_at         = NOW(),
+             updated_at                 = NOW()
+         WHERE id = ?`,
+        [userId, id]
+      );
+      await auditLog(conn, {
+        userId,
+        action: "po_locked",
+        module: "purchase",
+        recordType: "purchase_order",
+        recordId: id,
+        referenceNumber: po.po_number,
+        description: `PO ${po.po_number} marked as Final Delivery \u2014 delivery locked permanently`,
+        severity: "info"
+      });
+      await conn.commit();
+      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked` };
+    }
     if (action === "reverse") {
       if (!isAdmin) throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can reverse a PO" });
       await conn.query(

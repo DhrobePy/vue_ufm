@@ -1,4 +1,4 @@
-import { h as defineEventHandler, p as getQuery, J as query, F as paginate } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, p as getQuery, K as query, G as paginate } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -13,6 +13,11 @@ const orders_get = defineEventHandler(async (event) => {
   const q = getQuery(event);
   const search = q.search || "";
   const status = q.status || "";
+  const deliveryStatus = q.delivery_status || "";
+  const paymentStatus = q.payment_status || "";
+  const origin = q.origin || "";
+  const dateFrom = q.date_from || "";
+  const dateTo = q.date_to || "";
   const page = Number(q.page) || 1;
   const perPage = Math.min(Number(q.per) || 25, 200);
   const { limit, offset } = paginate(page, perPage);
@@ -25,6 +30,26 @@ const orders_get = defineEventHandler(async (event) => {
   if (status) {
     where.push("o.po_status = ?");
     params.push(status);
+  }
+  if (deliveryStatus) {
+    where.push("o.delivery_status = ?");
+    params.push(deliveryStatus);
+  }
+  if (paymentStatus) {
+    where.push("o.payment_status = ?");
+    params.push(paymentStatus);
+  }
+  if (origin) {
+    where.push("o.wheat_origin = ?");
+    params.push(origin);
+  }
+  if (dateFrom) {
+    where.push("o.po_date >= ?");
+    params.push(dateFrom);
+  }
+  if (dateTo) {
+    where.push("o.po_date <= ?");
+    params.push(dateTo);
   }
   const w = where.length ? "WHERE " + where.join(" AND ") : "";
   const [orders, [cnt]] = await Promise.all([

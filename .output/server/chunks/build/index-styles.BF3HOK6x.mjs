@@ -1,0 +1,8 @@
+const index_vue_vue_type_style_index_0_scoped_1af481f9_lang = ".modal-enter-active[data-v-1af481f9],.modal-leave-active[data-v-1af481f9]{transition:opacity .2s ease}.modal-enter-from[data-v-1af481f9],.modal-leave-to[data-v-1af481f9]{opacity:0}";
+
+const indexStyles_BF3HOK6x = [
+  index_vue_vue_type_style_index_0_scoped_1af481f9_lang
+];
+
+export { indexStyles_BF3HOK6x as default };
+//# sourceMappingURL=index-styles.BF3HOK6x.mjs.map

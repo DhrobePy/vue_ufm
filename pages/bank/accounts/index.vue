@@ -43,6 +43,7 @@
 
         <div class="flex gap-2">
           <NuxtLink to="/bank/transaction/create" class="btn-ghost text-xs flex-1 justify-center">Transact</NuxtLink>
+          <button @click.stop="openEdit(acc)" class="btn-ghost text-xs px-3">Edit</button>
         </div>
       </div>
     </div>
@@ -123,14 +124,21 @@
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account Type</label>
                 <select v-model="newAccount.account_type" class="input-glass">
-                  <option value="Current">Current Account</option>
-                  <option value="Savings">Savings Account</option>
-                  <option value="Cash">Cash</option>
+                  <option value="Checking">Checking / Current</option>
+                  <option value="Savings">Savings</option>
+                  <option value="Loan">Loan</option>
+                  <option value="Credit">Credit</option>
+                  <option value="FDR">FDR</option>
+                  <option value="Other">Other / Cash</option>
                 </select>
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Opening Balance (৳)</label>
                 <input v-model.number="newAccount.opening_balance" type="number" class="input-glass font-mono" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Notes</label>
+                <textarea v-model="newAccount.notes" rows="2" class="input-glass resize-none" placeholder="Optional notes…" />
               </div>
             </div>
             <div class="flex gap-3 pt-2">
@@ -143,6 +151,67 @@
         </div>
       </Transition>
     </Teleport>
+
+    <!-- Edit account modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showEditModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-white/[0.08] p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">Edit Account</h3>
+              <button @click="showEditModal = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <div class="grid grid-cols-1 gap-4">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bank Name *</label>
+                <input v-model="editForm.bank_name" class="input-glass" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account Name</label>
+                <input v-model="editForm.account_name" class="input-glass" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Branch</label>
+                <input v-model="editForm.branch_name" class="input-glass" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account No.</label>
+                <input v-model="editForm.account_number" class="input-glass font-mono" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Account Type</label>
+                <select v-model="editForm.account_type" class="input-glass">
+                  <option value="Checking">Checking / Current</option>
+                  <option value="Savings">Savings</option>
+                  <option value="Loan">Loan</option>
+                  <option value="Credit">Credit</option>
+                  <option value="FDR">FDR</option>
+                  <option value="Other">Other / Cash</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</label>
+                <select v-model="editForm.status" class="input-glass">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Notes</label>
+                <textarea v-model="editForm.notes" rows="2" class="input-glass resize-none" />
+              </div>
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button @click="saveEdit" :disabled="saving" class="btn-gold text-xs flex-1">
+                {{ saving ? 'Saving…' : 'Save Changes' }}
+              </button>
+              <button @click="showEditModal = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -150,46 +219,73 @@
 definePageMeta({ layout: 'default' })
 const { success, error } = useToast()
 
-const showAddModal = ref(false)
-const saving       = ref(false)
+const showAddModal  = ref(false)
+const showEditModal = ref(false)
+const saving        = ref(false)
+const editingId     = ref<number | null>(null)
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
 const cardColor = (idx: number) => COLORS[idx % COLORS.length]
 
-// Bank Module accounts (bank_tx_accounts) — manual entry system
 const { data, pending, refresh } = await useFetch('/api/bank/dashboard')
 const accounts     = computed(() => (data.value as any)?.accounts ?? [])
 const totalBalance = computed(() => (data.value as any)?.stats?.total_balance ?? 0)
 
-// GL-linked accounts (bank_accounts) — connected to journal entries / unified statement
 const { data: glData } = await useFetch('/api/bank-accounts')
 const glAccounts = computed(() =>
   ((glData.value as any)?.accounts ?? []).filter((a: any) => a.chart_of_account_id),
 )
 
 const newAccount = reactive({
-  bank_name: '',
-  account_name: '',
-  branch_name: '',
-  account_number: '',
-  account_type: 'Current',
-  opening_balance: 0,
+  bank_name: '', account_name: '', branch_name: '',
+  account_number: '', account_type: 'Checking', opening_balance: 0, notes: '',
 })
+
+const editForm = reactive({
+  bank_name: '', account_name: '', branch_name: '',
+  account_number: '', account_type: 'Checking', status: 'active', notes: '',
+})
+
+function openEdit(acc: any) {
+  editingId.value = acc.id
+  Object.assign(editForm, {
+    bank_name:      acc.bank_name      ?? '',
+    account_name:   acc.account_name   ?? '',
+    branch_name:    acc.branch_name    ?? '',
+    account_number: acc.account_number ?? '',
+    account_type:   acc.account_type   ?? 'Checking',
+    status:         acc.status         ?? 'active',
+    notes:          acc.notes          ?? '',
+  })
+  showEditModal.value = true
+}
 
 async function addAccount() {
   if (!newAccount.bank_name || !newAccount.account_number) return
   saving.value = true
   try {
-    await $fetch('/api/bank/accounts', {
-      method: 'POST',
-      body: { ...newAccount },
-    })
+    await $fetch('/api/bank/accounts', { method: 'POST', body: { ...newAccount } })
     success(`Account "${newAccount.bank_name}" added`)
     showAddModal.value = false
-    Object.assign(newAccount, { bank_name: '', account_name: '', branch_name: '', account_number: '', account_type: 'Current', opening_balance: 0 })
+    Object.assign(newAccount, { bank_name: '', account_name: '', branch_name: '', account_number: '', account_type: 'Checking', opening_balance: 0, notes: '' })
     await refresh()
   } catch (e: any) {
     error(e?.data?.statusMessage ?? 'Failed to add account')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveEdit() {
+  if (!editingId.value || !editForm.bank_name) return
+  saving.value = true
+  try {
+    await $fetch(`/api/bank/accounts/${editingId.value}`, { method: 'PATCH', body: { ...editForm } })
+    success('Account updated')
+    showEditModal.value = false
+    await refresh()
+  } catch (e: any) {
+    error(e?.data?.statusMessage ?? 'Failed to update account')
   } finally {
     saving.value = false
   }
