@@ -5,13 +5,23 @@
     <UiPageHeader title="Products" subtitle="Base products · grades · variants · pricing · inventory"
                   :breadcrumb="['Products']">
       <template #actions>
-        <button @click="showAddProduct = true"
-                class="btn-gold text-xs flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
-          </svg>
-          New Product
-        </button>
+        <div class="flex items-center gap-2">
+          <a href="/api/products/export/csv" download
+             class="btn-ghost text-xs flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Export CSV
+          </a>
+          <button @click="showAddProduct = true"
+                  class="btn-gold text-xs flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+            </svg>
+            New Product
+          </button>
+        </div>
       </template>
     </UiPageHeader>
 
@@ -577,6 +587,10 @@
                 <input v-model="newProduct.name" type="text" class="input-glass" placeholder="e.g. 2Hati Moida" />
               </div>
               <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Base SKU</label>
+                <input v-model="newProduct.base_sku" type="text" class="input-glass font-mono uppercase" placeholder="e.g. UFF" />
+              </div>
+              <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category *</label>
                 <select v-model="newProduct.category" class="input-glass">
                   <option value="Flour">Flour (Moida)</option>
@@ -617,6 +631,10 @@
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Product Name *</label>
                 <input v-model="editProductForm.name" type="text" class="input-glass" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Base SKU</label>
+                <input v-model="editProductForm.base_sku" type="text" class="input-glass font-mono uppercase" placeholder="e.g. UFF" />
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category *</label>
@@ -683,8 +701,14 @@
                 </select>
               </div>
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Unit Price (৳)</label>
-                <input v-model.number="newVariant.unitPrice" type="number" min="0" class="field-input" placeholder="0" />
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">UOM</label>
+                <select v-model="newVariant.uom" class="field-input">
+                  <option value="bag">bag</option>
+                  <option value="kg">kg</option>
+                  <option value="gm">gm</option>
+                  <option value="litre">litre</option>
+                  <option value="pcs">pcs</option>
+                </select>
               </div>
               <div class="col-span-2 space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Barcode</label>
@@ -917,7 +941,7 @@ async function commitEdit(variantId: number, branchId: number) {
 // ── Add Product ───────────────────────────────────────────────────────────────
 const showAddProduct = ref(false)
 const addingProduct  = ref(false)
-const newProduct     = reactive({ name: '', category: 'Flour', description: '' })
+const newProduct     = reactive({ name: '', base_sku: '', category: 'Flour', description: '' })
 
 async function addProduct() {
   if (!newProduct.name) return
@@ -925,11 +949,11 @@ async function addProduct() {
   try {
     await $fetch('/api/products/base', {
       method: 'POST',
-      body: { base_name: newProduct.name, category: newProduct.category, description: newProduct.description },
+      body: { base_name: newProduct.name, base_sku: newProduct.base_sku || null, category: newProduct.category, description: newProduct.description },
     })
     success(`"${newProduct.name}" added`)
     showAddProduct.value = false
-    Object.assign(newProduct, { name: '', category: 'Flour', description: '' })
+    Object.assign(newProduct, { name: '', base_sku: '', category: 'Flour', description: '' })
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to add')
@@ -941,12 +965,13 @@ async function addProduct() {
 // ── Edit Product ──────────────────────────────────────────────────────────────
 const showEditProduct  = ref(false)
 const editingProduct   = ref(false)
-const editProductForm  = reactive({ id: 0, name: '', category: 'Flour', description: '', status: 'active' })
+const editProductForm  = reactive({ id: 0, name: '', base_sku: '', category: 'Flour', description: '', status: 'active' })
 
 function openEditProduct(p: any) {
   Object.assign(editProductForm, {
     id:          p.id,
     name:        p.base_name,
+    base_sku:    p.base_sku ?? '',
     category:    p.category,
     description: p.description ?? '',
     status:      p.status,
@@ -961,6 +986,7 @@ async function saveEditProduct() {
       method: 'PUT',
       body: {
         base_name:   editProductForm.name,
+        base_sku:    editProductForm.base_sku || null,
         category:    editProductForm.category,
         description: editProductForm.description || null,
         status:      editProductForm.status,
@@ -980,7 +1006,7 @@ async function saveEditProduct() {
 const showAddVariant     = ref(false)
 const addingVariant      = ref(false)
 const addVariantForId    = ref<number | null>(null)
-const newVariant         = reactive({ packWeight: '50kg', grade: '', barcode: '', unitPrice: 0 })
+const newVariant         = reactive({ packWeight: '50kg', grade: '', uom: 'bag', barcode: '' })
 
 function openAddVariant(productId: number) {
   addVariantForId.value  = productId
@@ -994,16 +1020,16 @@ async function addVariant() {
     await $fetch('/api/products/variants', {
       method: 'POST',
       body: {
-        product_id:     addVariantForId.value,
-        weight_variant: newVariant.packWeight,
-        grade:          newVariant.grade     || undefined,
-        barcode:        newVariant.barcode   || undefined,
-        unit_price:     newVariant.unitPrice || undefined,
+        product_id:      addVariantForId.value,
+        weight_variant:  newVariant.packWeight,
+        grade:           newVariant.grade          || undefined,
+        unit_of_measure: newVariant.uom,
+        barcode:         newVariant.barcode        || undefined,
       },
     })
     success('Variant added ✓')
     showAddVariant.value = false
-    Object.assign(newVariant, { packWeight: '50kg', grade: '', barcode: '', unitPrice: 0 })
+    Object.assign(newVariant, { packWeight: '50kg', grade: '', uom: 'bag', barcode: '' })
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed')

@@ -1,4 +1,4 @@
-import { h as defineEventHandler, M as readBody, e as createError, K as query } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, x as getUserSession, e as createError, M as readBody, K as query } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -9,13 +9,19 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
+const PROD_ROLES = ["admin", "superadmin", "production manager-srg", "production manager-demra"];
 const base_post = defineEventHandler(async (event) => {
+  var _a, _b;
+  const session = await getUserSession(event);
+  const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
+  if (!PROD_ROLES.includes(role))
+    throw createError({ statusCode: 403, statusMessage: "Forbidden" });
   const body = await readBody(event);
-  const { base_name, category, description } = body;
+  const { base_name, base_sku, category, description } = body;
   if (!(base_name == null ? void 0 : base_name.trim())) throw createError({ statusCode: 400, statusMessage: "Product name is required" });
   const result = await query(
-    `INSERT INTO products (base_name, category, description, status) VALUES (?, ?, ?, 'active')`,
-    [base_name.trim(), category || "Flour", description || null]
+    `INSERT INTO products (base_name, base_sku, category, description, status) VALUES (?, ?, ?, ?, 'active')`,
+    [base_name.trim(), (base_sku == null ? void 0 : base_sku.trim()) || null, category || "Flour", description || null]
   );
   return { id: result.insertId, message: "Product created" };
 });

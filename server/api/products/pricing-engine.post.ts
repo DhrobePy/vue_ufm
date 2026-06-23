@@ -39,7 +39,16 @@ function mapWeight(wv: string): string {
   return 'custom'
 }
 
+const ACCOUNTS_ROLES = ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra']
+
 export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  const role    = ((session?.user as any)?.role ?? '').toLowerCase()
+  if (!ACCOUNTS_ROLES.includes(role))
+    throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
+
+  const changedBy = (session?.user as any)?.name ?? 'System'
+
   const body = await readBody(event)
   const { action } = body ?? {}
 
@@ -135,6 +144,18 @@ export default defineEventHandler(async (event) => {
       await conn.beginTransaction()
 
       const placeholders = affectedVariantIds.map(() => '?').join(',')
+
+      // Capture current active prices for audit log
+      const [oldPrices] = await conn.query(
+        `SELECT variant_id, branch_id, unit_price FROM product_prices
+         WHERE variant_id IN (${placeholders}) AND is_active = 1`,
+        affectedVariantIds,
+      ) as any
+      const oldPriceMap = new Map<string, number>()
+      for (const row of oldPrices) {
+        oldPriceMap.set(`${row.variant_id}:${row.branch_id}`, Number(row.unit_price))
+      }
+
       await conn.query(
         `UPDATE product_prices SET is_active = 0 WHERE variant_id IN (${placeholders}) AND is_active = 1`,
         affectedVariantIds,
@@ -146,6 +167,19 @@ export default defineEventHandler(async (event) => {
         `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, is_active) VALUES ?`,
         [values],
       )
+
+      // Write price_change_log rows
+      const logValues = priceRows.map(r => {
+        const oldPrice = oldPriceMap.get(`${r.variant_id}:${r.branch_id}`) ?? null
+        const changeType = oldPrice !== null ? 'update' : 'set'
+        return [r.variant_id, r.branch_id, oldPrice, r.unit_price, changeType, changedBy]
+      })
+      if (logValues.length) {
+        await conn.query(
+          `INSERT INTO price_change_log (variant_id, branch_id, old_price, new_price, change_type, changed_by) VALUES ?`,
+          [logValues],
+        )
+      }
 
       await conn.commit()
     } catch (e) {

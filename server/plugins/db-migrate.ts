@@ -444,5 +444,44 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] backfill dispatch_pin failed:', e)
   }
 
+  // ── 28. products — base_sku ──────────────────────────────────────────────
+  await addCol(db, 'products', 'base_sku', "VARCHAR(50) NULL DEFAULT NULL COMMENT 'Short unique SKU prefix, e.g. UFF'")
+
+  // ── 29. product_variants — sku ────────────────────────────────────────────
+  await addCol(db, 'product_variants', 'sku', "VARCHAR(100) NULL DEFAULT NULL COMMENT 'Full auto-generated SKU, e.g. UFF-50KG-A'")
+
+  // ── 30. product_variants — grade ─────────────────────────────────────────
+  await addCol(db, 'product_variants', 'grade', "VARCHAR(50) NULL DEFAULT NULL COMMENT 'e.g. A-Grade, B'")
+
+  // ── 31. product_variants — unit_of_measure ────────────────────────────────
+  await addCol(db, 'product_variants', 'unit_of_measure', "VARCHAR(20) NOT NULL DEFAULT 'bag' COMMENT 'pcs | litre | kg | gm | bag'")
+
+  // ── 32. product_variants — weight_kg ─────────────────────────────────────
+  await addCol(db, 'product_variants', 'weight_kg', "DECIMAL(8,2) NULL DEFAULT NULL COMMENT 'Numeric weight for calculations'")
+
+  // ── 33. price_change_log table ───────────────────────────────────────────
+  //   Audit trail for every price set / update / archive / engine event.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS price_change_log (
+        id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        variant_id  INT UNSIGNED NOT NULL,
+        branch_id   INT UNSIGNED NOT NULL,
+        old_price   DECIMAL(10,2) NULL,
+        new_price   DECIMAL(10,2) NULL,
+        change_type VARCHAR(20)  NOT NULL DEFAULT 'set'
+                      COMMENT 'set | update | archive | engine',
+        changed_by  VARCHAR(150) NULL,
+        changed_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        note        VARCHAR(255) NULL,
+        INDEX idx_variant  (variant_id),
+        INDEX idx_branch   (branch_id),
+        INDEX idx_changed  (changed_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] price_change_log create failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

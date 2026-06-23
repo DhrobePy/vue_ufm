@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid product ID' })
 
   const body = await readBody(event)
-  const { base_name, category, description, status } = body
+  const { base_name, base_sku, category, description, status } = body
 
   if (!base_name?.trim()) throw createError({ statusCode: 400, statusMessage: 'Product name is required' })
 
@@ -15,9 +15,9 @@ export default defineEventHandler(async (event) => {
 
   const result = await query(
     `UPDATE products
-     SET base_name = ?, category = ?, description = ?, status = ?
+     SET base_name = ?, base_sku = ?, category = ?, description = ?, status = ?
      WHERE id = ? AND status != 'deleted'`,
-    [base_name.trim(), category || 'Flour', description || null, status || 'active', id],
+    [base_name.trim(), base_sku?.trim() || null, category || 'Flour', description || null, status || 'active', id],
   ) as any
 
   if (result.affectedRows === 0)

@@ -1,4 +1,4 @@
-import { h as defineEventHandler, M as readBody, e as createError, K as query, n as getDb } from '../../../nitro/nitro.mjs';
+import { h as defineEventHandler, x as getUserSession, e as createError, M as readBody, K as query, n as getDb } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -46,8 +46,14 @@ function mapWeight(wv) {
     if (wv.toLowerCase().includes(String(parseInt(pat)))) return cls;
   return "custom";
 }
+const ACCOUNTS_ROLES = ["admin", "superadmin", "accounts", "accounts-srg", "accounts-demra"];
 const pricingEngine_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  const session = await getUserSession(event);
+  const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
+  if (!ACCOUNTS_ROLES.includes(role))
+    throw createError({ statusCode: 403, statusMessage: "Forbidden" });
+  const changedBy = (_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.name) != null ? _d : "System";
   const body = await readBody(event);
   const { action } = body != null ? body : {};
   if (action === "save_config") {
@@ -58,9 +64,9 @@ const pricingEngine_post = defineEventHandler(async (event) => {
       formula: {
         bag_50: Math.max(1, Number(bag_50) || DEFAULT_CONFIG.formula.bag_50),
         bag_74: Math.max(1, Number(bag_74) || DEFAULT_CONFIG.formula.bag_74),
-        packaging_fee: (_a = Number(packaging_fee)) != null ? _a : DEFAULT_CONFIG.formula.packaging_fee
+        packaging_fee: (_e = Number(packaging_fee)) != null ? _e : DEFAULT_CONFIG.formula.packaging_fee
       },
-      branch_surcharges: (_b = branch_surcharges != null ? branch_surcharges : current.branch_surcharges) != null ? _b : {}
+      branch_surcharges: (_f = branch_surcharges != null ? branch_surcharges : current.branch_surcharges) != null ? _f : {}
     };
     await saveConfig(updated);
     return { ok: true, message: "Formula config saved." };
@@ -70,7 +76,7 @@ const pricingEngine_post = defineEventHandler(async (event) => {
     if (!(config == null ? void 0 : config.formula))
       throw createError({ statusCode: 400, statusMessage: "Config formula missing" });
     const { bag_50, bag_74, packaging_fee } = config.formula;
-    const surcharges = (_c = config.branch_surcharges) != null ? _c : {};
+    const surcharges = (_g = config.branch_surcharges) != null ? _g : {};
     const effDate = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const [branches, allVariants] = await Promise.all([
       query(`SELECT id, name FROM branches WHERE status = 'active'`),
@@ -93,7 +99,7 @@ const pricingEngine_post = defineEventHandler(async (event) => {
         const basePrice = wc === "50" ? base50 : base74;
         for (const b of branches) {
           const sc = surcharges[String(b.id)];
-          const surcharge = wc === "50" ? Number((_d = sc == null ? void 0 : sc.surcharge_50) != null ? _d : 0) : Number((_e = sc == null ? void 0 : sc.surcharge_74) != null ? _e : 0);
+          const surcharge = wc === "50" ? Number((_h = sc == null ? void 0 : sc.surcharge_50) != null ? _h : 0) : Number((_i = sc == null ? void 0 : sc.surcharge_74) != null ? _i : 0);
           priceRows.push({
             variant_id: v.variant_id,
             branch_id: b.id,
@@ -117,6 +123,15 @@ const pricingEngine_post = defineEventHandler(async (event) => {
     try {
       await conn.beginTransaction();
       const placeholders = affectedVariantIds.map(() => "?").join(",");
+      const [oldPrices] = await conn.query(
+        `SELECT variant_id, branch_id, unit_price FROM product_prices
+         WHERE variant_id IN (${placeholders}) AND is_active = 1`,
+        affectedVariantIds
+      );
+      const oldPriceMap = /* @__PURE__ */ new Map();
+      for (const row of oldPrices) {
+        oldPriceMap.set(`${row.variant_id}:${row.branch_id}`, Number(row.unit_price));
+      }
       await conn.query(
         `UPDATE product_prices SET is_active = 0 WHERE variant_id IN (${placeholders}) AND is_active = 1`,
         affectedVariantIds
@@ -126,6 +141,18 @@ const pricingEngine_post = defineEventHandler(async (event) => {
         `INSERT INTO product_prices (variant_id, branch_id, unit_price, effective_date, is_active) VALUES ?`,
         [values]
       );
+      const logValues = priceRows.map((r) => {
+        var _a2;
+        const oldPrice = (_a2 = oldPriceMap.get(`${r.variant_id}:${r.branch_id}`)) != null ? _a2 : null;
+        const changeType = oldPrice !== null ? "update" : "set";
+        return [r.variant_id, r.branch_id, oldPrice, r.unit_price, changeType, changedBy];
+      });
+      if (logValues.length) {
+        await conn.query(
+          `INSERT INTO price_change_log (variant_id, branch_id, old_price, new_price, change_type, changed_by) VALUES ?`,
+          [logValues]
+        );
+      }
       await conn.commit();
     } catch (e) {
       await conn.rollback();
