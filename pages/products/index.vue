@@ -145,14 +145,29 @@
             <!-- Cards grid -->
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               <div v-for="v in filteredByGrade(grade)" :key="v.id"
-                   class="rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
+                   class="group rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
 
                 <!-- Card header -->
                 <div class="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
-                  <div class="flex items-start justify-between gap-2 mb-2.5">
+                  <div class="flex items-start justify-between gap-1.5 mb-2.5">
                     <p class="font-bold text-gray-200 text-sm leading-tight flex-1 min-w-0">{{ v.product_name }}</p>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
-                          :class="categoryPill(v.category)">{{ v.category }}</span>
+                    <div class="flex items-center gap-0.5 shrink-0">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="categoryPill(v.category)">{{ v.category }}</span>
+                      <button @click.stop="openEditProductById(v.product_id)" title="Edit product"
+                              class="p-1 rounded text-gray-700 hover:text-gray-300 hover:bg-white/[0.06] transition-all opacity-0 group-hover:opacity-100">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                      </button>
+                      <button v-if="isAdmin" @click.stop="confirmDeleteProductById(v.product_id, v.product_name)" title="Delete product"
+                              class="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-500/[0.06] transition-all opacity-0 group-hover:opacity-100">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div class="flex items-center gap-2 flex-wrap">
                     <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-black"
@@ -227,11 +242,27 @@
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
               <div v-for="v in ungradedFiltered" :key="v.id"
-                   class="rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
+                   class="group rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
                 <div class="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
-                  <div class="flex items-start justify-between gap-2 mb-2.5">
+                  <div class="flex items-start justify-between gap-1.5 mb-2.5">
                     <p class="font-bold text-gray-200 text-sm leading-tight flex-1 min-w-0">{{ v.product_name }}</p>
-                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0" :class="categoryPill(v.category)">{{ v.category }}</span>
+                    <div class="flex items-center gap-0.5 shrink-0">
+                      <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="categoryPill(v.category)">{{ v.category }}</span>
+                      <button @click.stop="openEditProductById(v.product_id)" title="Edit product"
+                              class="p-1 rounded text-gray-700 hover:text-gray-300 hover:bg-white/[0.06] transition-all opacity-0 group-hover:opacity-100">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                        </svg>
+                      </button>
+                      <button v-if="isAdmin" @click.stop="confirmDeleteProductById(v.product_id, v.product_name)" title="Delete product"
+                              class="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-500/[0.06] transition-all opacity-0 group-hover:opacity-100">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div class="flex items-center gap-2">
                     <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-black" :class="packBadge(v.weight_variant)">{{ v.weight_variant }}</span>
@@ -636,6 +667,45 @@
               </button>
               <button @click="showEditProduct = false" class="btn-ghost text-xs">Cancel</button>
             </div>
+            <div v-if="isAdmin" class="pt-2 border-t border-white/[0.06]">
+              <button @click="confirmDeleteProductById(editProductForm.id, editProductForm.name)"
+                      class="w-full text-xs text-red-500/60 hover:text-red-400 py-1.5 rounded-lg hover:bg-red-500/[0.06] transition-all">
+                Delete this product
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- Delete Product Confirm -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="deleteProductTarget"
+             class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="deleteProductTarget = null">
+          <div class="w-full max-w-sm rounded-2xl bg-[#161616] border border-red-500/20 p-6 space-y-4">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                </svg>
+              </div>
+              <div class="flex-1">
+                <h3 class="text-base font-bold text-gray-100">Delete Product?</h3>
+                <p class="text-sm text-gray-400 mt-1">
+                  <span class="font-semibold text-gray-200">{{ deleteProductTarget.name }}</span> and all its variants will be archived.
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-3">
+              <button @click="doDeleteProduct" :disabled="deletingProduct"
+                      class="flex-1 py-2 rounded-xl text-sm font-semibold bg-red-500/15 text-red-400 border border-red-500/25 hover:bg-red-500/25 disabled:opacity-50 transition-all">
+                {{ deletingProduct ? 'Deleting…' : 'Yes, Delete' }}
+              </button>
+              <button @click="deleteProductTarget = null" class="btn-ghost text-xs">Cancel</button>
+            </div>
           </div>
         </div>
       </Transition>
@@ -1021,6 +1091,39 @@ async function saveEditProduct() {
     toastError(e?.data?.statusMessage ?? 'Failed')
   } finally {
     editingProduct.value = false
+  }
+}
+
+// ── Delete Product ────────────────────────────────────────────────────────────
+const deleteProductTarget = ref<{ id: number; name: string } | null>(null)
+const deletingProduct     = ref(false)
+
+function getProduct(productId: number) {
+  return (allProducts.value as any[]).find((p: any) => p.id === productId) ?? null
+}
+
+function openEditProductById(productId: number) {
+  const p = getProduct(productId)
+  if (p) openEditProduct(p)
+}
+
+function confirmDeleteProductById(productId: number, productName: string) {
+  showEditProduct.value     = false
+  deleteProductTarget.value = { id: productId, name: productName }
+}
+
+async function doDeleteProduct() {
+  if (!deleteProductTarget.value) return
+  deletingProduct.value = true
+  try {
+    await $fetch(`/api/products/base/${deleteProductTarget.value.id}`, { method: 'DELETE' })
+    success(`"${deleteProductTarget.value.name}" deleted`)
+    deleteProductTarget.value = null
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to delete')
+  } finally {
+    deletingProduct.value = false
   }
 }
 

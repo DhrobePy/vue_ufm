@@ -757,7 +757,7 @@ const _routes = [
     name: "products",
     path: "/products",
     meta: __nuxt_page_meta$1U || {},
-    component: () => import('./index-TSfK9tCg.mjs')
+    component: () => import('./index-hQphvdES.mjs')
   },
   {
     name: "purchase",
