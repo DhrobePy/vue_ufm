@@ -69,27 +69,17 @@
         </button>
       </div>
 
-      <!-- Search + filters (catalog only) -->
+      <!-- Search (catalog only) -->
       <Transition name="fade-quick">
-        <div v-if="tab === 'catalog'" class="flex items-center gap-2 flex-wrap">
+        <div v-if="tab === 'catalog'">
           <div class="relative">
             <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none"
                  fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
             </svg>
-            <input v-model="search" placeholder="Search products, SKU…"
-                   class="input-glass pl-9 pr-3 py-1.5 text-xs w-48" />
-          </div>
-          <div class="flex gap-1 flex-wrap">
-            <button v-for="cat in categories" :key="cat"
-                    @click="filterCategory = cat"
-                    class="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-all duration-150"
-                    :class="filterCategory === cat
-                      ? 'bg-gold-500/15 text-gold-400 border-gold-500/25'
-                      : 'text-gray-500 border-white/[0.07] hover:text-gray-300 hover:border-white/[0.12]'">
-              {{ cat === 'All' ? 'All' : cat }}
-            </button>
+            <input v-model="search" placeholder="Search product, SKU, pack…"
+                   class="input-glass pl-9 pr-3 py-1.5 text-xs w-56" />
           </div>
         </div>
       </Transition>
@@ -107,202 +97,184 @@
       <Transition name="tab-slide" mode="out-in">
 
         <!-- ─── CATALOG ──────────────────────────────────────────────────────── -->
-        <div v-if="tab === 'catalog'" key="catalog" class="space-y-3">
+        <div v-if="tab === 'catalog'" key="catalog" class="space-y-5">
 
-          <!-- Product accordion cards -->
-          <div v-for="p in filteredProducts" :key="p.id"
-               class="rounded-2xl border transition-all duration-200 overflow-hidden"
-               :class="expandedId === p.id
-                 ? 'bg-white/[0.04] border-white/[0.10]'
-                 : 'bg-white/[0.02] border-white/[0.05] hover:border-white/[0.08]'">
+          <!-- Grade tabs -->
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button v-for="g in ['All', ...catalogGrades]" :key="g"
+                    @click="gradeTab = g"
+                    class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150"
+                    :class="gradeTab === g
+                      ? gradePillActive(g)
+                      : 'bg-white/[0.03] border-white/[0.07] text-gray-500 hover:text-gray-300 hover:border-white/[0.12]'">
+              <span v-if="g !== 'All'"
+                    class="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-black border"
+                    :class="gradeTab === g ? gradeBadge(g) : 'bg-white/[0.06] border-white/[0.10] text-gray-500'">{{ g }}</span>
+              {{ g === 'All' ? 'All Grades' : `Grade ${g}` }}
+              <span class="text-[10px] opacity-50 tabular-nums">{{ g === 'All' ? allCatalogVariants.length : (variantsByGrade[g]?.length ?? 0) }}</span>
+            </button>
+            <div v-if="ungradedFiltered.length" class="h-4 w-px bg-white/[0.08] mx-1"/>
+            <button v-if="ungradedFiltered.length"
+                    @click="gradeTab = '?'"
+                    class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all duration-150"
+                    :class="gradeTab === '?'
+                      ? 'bg-white/[0.08] border-white/[0.14] text-gray-300'
+                      : 'bg-white/[0.03] border-white/[0.07] text-gray-600 hover:text-gray-400'">
+              Ungraded
+              <span class="text-[10px] opacity-50">{{ ungradedFiltered.length }}</span>
+            </button>
+          </div>
 
-            <!-- ── Card header ────────────────────────────────────────────────── -->
-            <div class="flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none"
-                 @click="toggleExpand(p.id)">
+          <!-- Graded sections -->
+          <template v-for="grade in displayedGradeKeys" :key="grade">
 
-              <!-- Category icon blob -->
-              <div class="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 transition-all duration-300"
-                   :class="[categoryBg(p.category), expandedId === p.id ? 'scale-110' : 'hover:scale-105']">
-                {{ categoryIcon(p.category) }}
-              </div>
-
-              <!-- Name + badges -->
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <h3 class="font-bold text-gray-100 text-sm">{{ p.base_name }}</h3>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                        :class="categoryPill(p.category)">{{ p.category }}</span>
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold border"
-                        :class="p.status === 'active'
-                          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          : 'bg-gray-500/10 text-gray-500 border-gray-500/20'">
-                    {{ p.status }}
-                  </span>
-                </div>
-                <p class="text-[11px] text-gray-500 mt-0.5">
-                  {{ p.variants.length }} variant{{ p.variants.length !== 1 ? 's' : '' }}
-                  <span v-if="priceRange(p)" class="text-gold-500/90 ml-1.5">· {{ priceRange(p) }}</span>
+            <!-- Section header (only in All view) -->
+            <div v-if="gradeTab === 'All'" class="flex items-center gap-3">
+              <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg font-black text-sm border shrink-0"
+                    :class="gradeBadge(grade)">{{ grade }}</span>
+              <div>
+                <h3 class="font-semibold text-gray-300 text-sm">Grade {{ grade }}</h3>
+                <p class="text-[11px] text-gray-600">
+                  {{ filteredByGrade(grade).length }} variant{{ filteredByGrade(grade).length !== 1 ? 's' : '' }}
+                  · {{ productCountForGrade(grade) }} product{{ productCountForGrade(grade) !== 1 ? 's' : '' }}
                 </p>
               </div>
+              <div class="flex-1 h-px bg-white/[0.05]"/>
+            </div>
 
-              <!-- Right actions -->
-              <div class="flex items-center gap-2 shrink-0" @click.stop>
-                <button @click="openEditProduct(p)"
-                        class="p-1.5 rounded-lg text-gray-600 hover:text-gray-200 hover:bg-white/[0.06] transition-all">
-                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                  </svg>
-                </button>
-                <div class="transition-transform duration-300 text-gray-500"
-                     :class="expandedId === p.id ? 'rotate-180' : ''">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                  </svg>
+            <!-- Cards grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div v-for="v in filteredByGrade(grade)" :key="v.id"
+                   class="rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
+
+                <!-- Card header -->
+                <div class="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
+                  <div class="flex items-start justify-between gap-2 mb-2.5">
+                    <p class="font-bold text-gray-200 text-sm leading-tight flex-1 min-w-0">{{ v.product_name }}</p>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0"
+                          :class="categoryPill(v.category)">{{ v.category }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-black"
+                          :class="packBadge(v.weight_variant)">{{ v.weight_variant }}</span>
+                    <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black border"
+                          :class="gradeBadge(grade)">{{ grade }}</span>
+                    <span v-if="v.sku" class="font-mono text-[10px] text-gray-600 truncate">{{ v.sku }}</span>
+                  </div>
+                </div>
+
+                <!-- Branch prices -->
+                <div class="px-4 py-3 flex-1 space-y-1.5">
+                  <div v-for="b in branches" :key="b.id"
+                       class="flex items-center gap-2 group/pr">
+                    <span class="text-[10px] font-semibold text-gray-600 w-10 shrink-0 uppercase tracking-wide">{{ b.code }}</span>
+                    <div class="flex-1 h-px bg-white/[0.04]"/>
+                    <!-- Editing -->
+                    <div v-if="editingCell === `${v.id}:${b.id}`" class="flex items-center gap-1">
+                      <span class="text-gold-500/80 text-[10px]">৳</span>
+                      <input v-autofocus v-model.number="editingValue" type="number" min="0" step="1"
+                             class="w-20 bg-transparent border-b border-gold-500 text-right text-xs font-mono font-bold text-gold-300 outline-none appearance-none"
+                             @keyup.enter="commitEdit(v.id, b.id)" @keyup.escape="cancelEdit()" />
+                      <button @click="commitEdit(v.id, b.id)" :disabled="savingCell"
+                              class="text-emerald-400 text-xs leading-none disabled:opacity-40">✓</button>
+                      <button @click="cancelEdit()" class="text-gray-600 text-xs leading-none hover:text-gray-400">✕</button>
+                    </div>
+                    <!-- Display -->
+                    <button v-else @click="startEdit(v.id, b.id, v.prices[b.id]?.unit_price ?? null)"
+                            class="transition-all duration-100">
+                      <span v-if="v.prices[b.id]?.unit_price"
+                            class="font-mono font-bold text-xs text-gold-400 group-hover/pr:text-gold-300 tabular-nums">
+                        ৳{{ Number(v.prices[b.id].unit_price).toLocaleString() }}
+                      </span>
+                      <span v-else
+                            class="text-[10px] text-gray-700 border border-dashed border-gray-700/50 group-hover/pr:border-gold-500/40 group-hover/pr:text-gold-500/60 rounded px-1.5 py-0.5 transition-all">
+                        + Set
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Footer: stock + actions -->
+                <div class="px-4 py-2.5 border-t border-white/[0.04] flex items-center gap-2.5">
+                  <div class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-700"
+                         :class="stockBarColor(v)" :style="`width:${stockPct(v)}%`" />
+                  </div>
+                  <span class="text-[10px] font-mono tabular-nums shrink-0"
+                        :class="availColor(v)">
+                    {{ Number(v.stock_qty || 0).toLocaleString() }}
+                  </span>
+                  <NuxtLink :to="`/products/${v.product_id}/${v.id}/pricing`"
+                            class="text-gray-700 hover:text-gold-400 transition-colors shrink-0" title="Open pricing">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                    </svg>
+                  </NuxtLink>
                 </div>
               </div>
             </div>
+          </template>
 
-            <!-- ── Expanded body ─────────────────────────────────────────────── -->
-            <Transition name="expand">
-              <div v-if="expandedId === p.id" class="border-t border-white/[0.06]">
-
-                <!-- Variant rows -->
-                <div class="overflow-x-auto">
-                  <table class="w-full text-xs min-w-[480px]">
-                    <thead>
-                      <tr class="border-b border-white/[0.04] text-[10px] text-gray-600 uppercase tracking-wider">
-                        <th class="px-4 py-2 text-left font-semibold w-24">Pack</th>
-                        <th class="px-3 py-2 text-left font-semibold w-16">Grade</th>
-                        <th class="px-3 py-2 text-left font-semibold hidden md:table-cell">SKU / Barcode</th>
-                        <th class="px-3 py-2 text-left font-semibold w-40">Stock</th>
-                        <th v-for="b in branches" :key="b.id"
-                            class="px-3 py-2 text-center font-semibold min-w-[88px]">
-                          {{ b.code }}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody class="divide-y divide-white/[0.03]">
-                      <tr v-if="!p.variants.length">
-                        <td :colspan="4 + branches.length"
-                            class="px-4 py-6 text-center text-gray-600 italic text-xs">
-                          No variants — add one below
-                        </td>
-                      </tr>
-                      <tr v-for="v in p.variants" :key="v.id"
-                          class="hover:bg-white/[0.02] transition-colors">
-
-                        <!-- Pack weight -->
-                        <td class="px-4 py-2.5">
-                          <span class="px-2 py-0.5 rounded-md text-[11px] font-bold font-mono"
-                                :class="packBadge(v.weight_variant)">
-                            {{ v.weight_variant }}
-                          </span>
-                        </td>
-
-                        <!-- Grade -->
-                        <td class="px-3 py-2.5">
-                          <span v-if="v.grade"
-                                class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-black border shadow-sm"
-                                :class="gradeBadge(v.grade)" :title="`Grade ${v.grade}`">
-                            {{ v.grade }}
-                          </span>
-                          <span v-else class="text-gray-700 text-[10px]">—</span>
-                        </td>
-
-                        <!-- SKU / Barcode -->
-                        <td class="px-3 py-2.5 hidden md:table-cell">
-                          <p class="font-mono text-gray-500 text-[11px] leading-tight">{{ v.sku || '—' }}</p>
-                          <p v-if="v.barcode" class="font-mono text-gray-700 text-[10px]">{{ v.barcode }}</p>
-                        </td>
-
-                        <!-- Stock bar -->
-                        <td class="px-3 py-2.5">
-                          <div class="flex items-center gap-1.5">
-                            <div class="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden shrink-0">
-                              <div class="h-full rounded-full transition-all duration-700"
-                                   :class="stockBarColor(v)"
-                                   :style="`width:${stockPct(v)}%`" />
-                            </div>
-                            <span class="font-mono tabular-nums text-gray-300 text-[11px] shrink-0">
-                              {{ Number(v.stock_qty).toLocaleString() }}
-                            </span>
-                          </div>
-                          <div class="text-[10px] text-gray-600 mt-0.5 pl-[74px] -ml-px">
-                            avail <span :class="availColor(v)">{{ Math.max(0, Number(v.stock_qty) - Number(v.reserved_qty)).toLocaleString() }}</span>
-                          </div>
-                        </td>
-
-                        <!-- Price cells (inline editable) -->
-                        <td v-for="b in branches" :key="b.id"
-                            class="px-3 py-2.5 text-center">
-                          <!-- Editing state -->
-                          <div v-if="editingCell === `${v.id}:${b.id}`"
-                               class="flex items-center justify-center gap-1">
-                            <span class="text-gold-400 text-[10px]">৳</span>
-                            <input v-autofocus
-                                   v-model.number="editingValue"
-                                   type="number" min="0" step="1"
-                                   class="w-16 bg-transparent border-b border-gold-500 text-center text-[11px] font-mono font-bold text-gray-100 outline-none appearance-none"
-                                   @keyup.enter="commitEdit(v.id, b.id)"
-                                   @keyup.escape="cancelEdit()" />
-                            <button @click="commitEdit(v.id, b.id)" :disabled="savingCell"
-                                    class="text-emerald-400 hover:text-emerald-300 disabled:opacity-50">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                              </svg>
-                            </button>
-                            <button @click="cancelEdit()" class="text-gray-600 hover:text-gray-400">
-                              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                              </svg>
-                            </button>
-                          </div>
-                          <!-- Display state -->
-                          <button v-else
-                                  @click="startEdit(v.id, b.id, v.prices[b.id]?.unit_price ?? null)"
-                                  class="group/pc w-full flex items-center justify-center transition-all duration-150">
-                            <span v-if="v.prices[b.id]?.unit_price"
-                                  class="font-mono font-bold text-gold-400 group-hover/pc:text-gold-300 tabular-nums text-xs underline decoration-dotted decoration-gold-500/30 group-hover/pc:decoration-gold-400/60">
-                              ৳{{ Number(v.prices[b.id].unit_price).toLocaleString() }}
-                            </span>
-                            <span v-else
-                                  class="text-[10px] text-gray-700 border border-dashed border-gray-700/60 group-hover/pc:border-gold-500/40 group-hover/pc:text-gold-500/70 rounded px-1.5 py-0.5 transition-all">
-                              + Set
-                            </span>
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                <!-- Card footer: add variant + totals -->
-                <div class="px-4 py-3 border-t border-white/[0.04] flex items-center justify-between flex-wrap gap-2">
-                  <button @click="openAddVariant(p.id)"
-                          class="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gold-400 transition-colors group/add">
-                    <div class="w-5 h-5 rounded-md border border-dashed border-gray-700 group-hover/add:border-gold-500/50 flex items-center justify-center transition-colors">
-                      <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
-                      </svg>
-                    </div>
-                    Add Variant
-                  </button>
-                  <div class="flex items-center gap-4 text-[10px] text-gray-600">
-                    <span>Total stock: <strong class="text-gray-400">{{ p.variants.reduce((s, v) => s + Number(v.stock_qty), 0).toLocaleString() }}</strong></span>
-                    <span>Reserved: <strong class="text-orange-400/80">{{ p.variants.reduce((s, v) => s + Number(v.reserved_qty), 0).toLocaleString() }}</strong></span>
+          <!-- Ungraded section -->
+          <template v-if="(gradeTab === 'All' || gradeTab === '?') && ungradedFiltered.length">
+            <div v-if="gradeTab === 'All'" class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-gray-500/10 border border-gray-500/20 flex items-center justify-center text-gray-600 text-xs font-bold shrink-0">?</div>
+              <div>
+                <h3 class="font-semibold text-gray-500 text-sm">Ungraded</h3>
+                <p class="text-[11px] text-gray-600">{{ ungradedFiltered.length }} variant{{ ungradedFiltered.length !== 1 ? 's' : '' }}</p>
+              </div>
+              <div class="flex-1 h-px bg-white/[0.05]"/>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div v-for="v in ungradedFiltered" :key="v.id"
+                   class="rounded-2xl border border-white/[0.06] bg-white/[0.025] overflow-hidden flex flex-col hover:border-white/[0.10] hover:bg-white/[0.035] transition-all duration-200">
+                <div class="px-4 pt-3.5 pb-3 border-b border-white/[0.05]">
+                  <div class="flex items-start justify-between gap-2 mb-2.5">
+                    <p class="font-bold text-gray-200 text-sm leading-tight flex-1 min-w-0">{{ v.product_name }}</p>
+                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold shrink-0" :class="categoryPill(v.category)">{{ v.category }}</span>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="px-2.5 py-0.5 rounded-lg text-[11px] font-black" :class="packBadge(v.weight_variant)">{{ v.weight_variant }}</span>
+                    <span v-if="v.sku" class="font-mono text-[10px] text-gray-600">{{ v.sku }}</span>
                   </div>
                 </div>
+                <div class="px-4 py-3 flex-1 space-y-1.5">
+                  <div v-for="b in branches" :key="b.id" class="flex items-center gap-2 group/pr">
+                    <span class="text-[10px] font-semibold text-gray-600 w-10 shrink-0 uppercase tracking-wide">{{ b.code }}</span>
+                    <div class="flex-1 h-px bg-white/[0.04]"/>
+                    <div v-if="editingCell === `${v.id}:${b.id}`" class="flex items-center gap-1">
+                      <span class="text-gold-500/80 text-[10px]">৳</span>
+                      <input v-autofocus v-model.number="editingValue" type="number" min="0" step="1"
+                             class="w-20 bg-transparent border-b border-gold-500 text-right text-xs font-mono font-bold text-gold-300 outline-none appearance-none"
+                             @keyup.enter="commitEdit(v.id, b.id)" @keyup.escape="cancelEdit()" />
+                      <button @click="commitEdit(v.id, b.id)" :disabled="savingCell" class="text-emerald-400 text-xs disabled:opacity-40">✓</button>
+                      <button @click="cancelEdit()" class="text-gray-600 text-xs hover:text-gray-400">✕</button>
+                    </div>
+                    <button v-else @click="startEdit(v.id, b.id, v.prices[b.id]?.unit_price ?? null)" class="transition-all duration-100">
+                      <span v-if="v.prices[b.id]?.unit_price" class="font-mono font-bold text-xs text-gold-400 group-hover/pr:text-gold-300 tabular-nums">৳{{ Number(v.prices[b.id].unit_price).toLocaleString() }}</span>
+                      <span v-else class="text-[10px] text-gray-700 border border-dashed border-gray-700/50 group-hover/pr:border-gold-500/40 group-hover/pr:text-gold-500/60 rounded px-1.5 py-0.5 transition-all">+ Set</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="px-4 py-2.5 border-t border-white/[0.04] flex items-center gap-2.5">
+                  <div class="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div class="h-full rounded-full transition-all duration-700" :class="stockBarColor(v)" :style="`width:${stockPct(v)}%`" />
+                  </div>
+                  <span class="text-[10px] font-mono tabular-nums shrink-0" :class="availColor(v)">{{ Number(v.stock_qty || 0).toLocaleString() }}</span>
+                  <NuxtLink :to="`/products/${v.product_id}/${v.id}/pricing`" class="text-gray-700 hover:text-gold-400 transition-colors shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                  </NuxtLink>
+                </div>
               </div>
-            </Transition>
-          </div>
+            </div>
+          </template>
 
           <!-- Empty state -->
-          <div v-if="!filteredProducts.length"
+          <div v-if="displayedVariants.length === 0"
                class="glass-card p-14 text-center space-y-3">
             <div class="text-5xl">📦</div>
-            <p class="text-gray-400 font-semibold">No products found</p>
-            <p class="text-xs text-gray-600">Try adjusting your search or filter</p>
+            <p class="text-gray-400 font-semibold">No variants found</p>
+            <p class="text-xs text-gray-600">Try adjusting your search or grade filter</p>
           </div>
         </div>
 
@@ -865,33 +837,83 @@ const kpis = computed(() => {
 const tab = ref<'catalog' | 'pricing'>('catalog')
 function setTab(t: 'catalog' | 'pricing') { tab.value = t }
 
-// ── Catalog: search + filter ──────────────────────────────────────────────────
-const search         = ref('')
-const filterCategory = ref('All')
-const expandedId     = ref<number | null>(null)
+// ── Catalog: search + grade tabs ──────────────────────────────────────────────
+const search   = ref('')
+const gradeTab = ref('All')
 
-function toggleExpand(id: number) {
-  expandedId.value = expandedId.value === id ? null : id
-}
-
-const categories = computed(() => {
-  const cats = new Set<string>(allProducts.value.map((p: any) => p.category).filter(Boolean))
-  return ['All', ...Array.from(cats).sort()]
+const allCatalogVariants = computed(() => {
+  const result: any[] = []
+  for (const p of allProducts.value as any[]) {
+    for (const v of (p.variants ?? []) as any[]) {
+      result.push({ ...v, product_name: p.base_name, category: p.category, product_id: p.id })
+    }
+  }
+  return result
 })
 
-const filteredProducts = computed(() => {
-  let list = allProducts.value as any[]
-  if (filterCategory.value !== 'All')
-    list = list.filter((p: any) => p.category === filterCategory.value)
+const filteredCatalogVariants = computed(() => {
+  let list = allCatalogVariants.value
   if (search.value.trim()) {
     const q = search.value.toLowerCase()
-    list = list.filter((p: any) =>
-      p.base_name.toLowerCase().includes(q) ||
-      (p.variants as any[]).some((v: any) => v.sku?.toLowerCase().includes(q)),
+    list = list.filter((v: any) =>
+      v.product_name.toLowerCase().includes(q) ||
+      (v.sku ?? '').toLowerCase().includes(q) ||
+      (v.weight_variant ?? '').toLowerCase().includes(q),
     )
   }
   return list
 })
+
+const catalogGrades = computed(() => {
+  const gs = new Set<string>()
+  for (const v of allCatalogVariants.value) { if (v.grade) gs.add(v.grade) }
+  return [...gs].sort()
+})
+
+const variantsByGrade = computed(() => {
+  const map: Record<string, any[]> = {}
+  for (const v of filteredCatalogVariants.value) {
+    const g = v.grade || '?'
+    if (!map[g]) map[g] = []
+    map[g].push(v)
+  }
+  return map
+})
+
+const displayedGradeKeys = computed(() => {
+  if (gradeTab.value !== 'All') return gradeTab.value === '?' ? [] : [gradeTab.value]
+  return catalogGrades.value
+})
+
+const ungradedFiltered = computed(() =>
+  filteredCatalogVariants.value.filter((v: any) => !v.grade),
+)
+
+const displayedVariants = computed(() => {
+  if (gradeTab.value === 'All') return filteredCatalogVariants.value
+  return filteredCatalogVariants.value.filter((v: any) =>
+    gradeTab.value === '?' ? !v.grade : v.grade === gradeTab.value,
+  )
+})
+
+function filteredByGrade(grade: string): any[] {
+  return filteredCatalogVariants.value.filter((v: any) => v.grade === grade)
+}
+
+function productCountForGrade(grade: string): number {
+  return new Set(filteredByGrade(grade).map((v: any) => v.product_id)).size
+}
+
+function gradePillActive(g: string) {
+  if (g === 'All') return 'bg-white/[0.08] border-white/[0.14] text-gray-100 shadow-sm'
+  const m: Record<string, string> = {
+    A: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    B: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
+    C: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    R: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  }
+  return m[g] ?? 'bg-gold-500/15 text-gold-300 border-gold-500/30'
+}
 
 // ── Inline price editing ──────────────────────────────────────────────────────
 const editingCell  = ref<string | null>(null) // "variantId:branchId"
