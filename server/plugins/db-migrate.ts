@@ -483,5 +483,44 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] price_change_log create failed:', e)
   }
 
+  // ── 34. branches — branch_type + source_branch_id (regional pricing) ──────
+  //   factory      = produces flour, has ex-factory base prices
+  //   sales_region = district sales point; price = source factory + charges
+  //   office       = administrative, never priced
+  await addCol(db, 'branches', 'branch_type', "VARCHAR(20) NULL DEFAULT NULL COMMENT 'factory | sales_region | office'")
+  await addCol(db, 'branches', 'source_branch_id', "INT UNSIGNED NULL DEFAULT NULL COMMENT 'Factory branch that feeds this sales region'")
+
+  // Seed branch_type once — only rows still NULL are touched
+  try {
+    await db.query(`UPDATE branches SET branch_type = 'factory' WHERE branch_type IS NULL AND id IN (1, 2)`)
+    await db.query(`UPDATE branches SET branch_type = 'office' WHERE branch_type IS NULL AND code = 'HO'`)
+    await db.query(`UPDATE branches SET branch_type = 'sales_region' WHERE branch_type IS NULL`)
+  } catch (e) {
+    console.warn('[db-migrate] branch_type seed failed:', e)
+  }
+
+  // ── 35. branch_price_components — named charges per branch ────────────────
+  //   charge_type 'base'       → baked into the stored region price
+  //   charge_type 'mini_truck' → per-bag surcharge applied at order time only
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS branch_price_components (
+        id           INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        branch_id    INT UNSIGNED NOT NULL,
+        name         VARCHAR(100) NOT NULL COMMENT 'e.g. Freight (Big Truck), Handling, Toll',
+        weight_class VARCHAR(10)  NOT NULL DEFAULT 'all' COMMENT '50 | 74 | all',
+        charge_type  VARCHAR(20)  NOT NULL DEFAULT 'base' COMMENT 'base | mini_truck',
+        amount       DECIMAL(10,2) NOT NULL DEFAULT 0,
+        is_active    TINYINT(1)   NOT NULL DEFAULT 1,
+        sort_order   INT          NOT NULL DEFAULT 0,
+        created_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_bpc_branch (branch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] branch_price_components create failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

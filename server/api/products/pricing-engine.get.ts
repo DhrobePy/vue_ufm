@@ -2,7 +2,6 @@ import { query } from '~/server/utils/db'
 
 const DEFAULT_CONFIG = {
   formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
-  branch_surcharges: {} as Record<string, { surcharge_50: number; surcharge_74: number }>,
 }
 
 /** Load pricing engine config from system_settings (DB, no filesystem). */
@@ -37,7 +36,7 @@ function mapWeight(wv: string): string {
 export default defineEventHandler(async () => {
   const config = await loadConfig()
 
-  const [allVariants, currRows, branches] = await Promise.all([
+  const [allVariants, currRows, branches, componentRows] = await Promise.all([
     query(`
       SELECT p.id AS product_id, p.base_name AS product_name, p.category,
              pv.id AS variant_id, pv.grade, pv.weight_variant, pv.sku, pv.unit_of_measure,
@@ -60,14 +59,24 @@ export default defineEventHandler(async () => {
       ORDER BY pv.grade, pp.branch_id
     `) as Promise<any[]>,
 
-    query(`SELECT id, name, code FROM branches WHERE status = 'active' ORDER BY id`) as Promise<any[]>,
+    query(`
+      SELECT id, name, code, branch_type, source_branch_id
+      FROM branches WHERE status = 'active' ORDER BY branch_type = 'factory' DESC, id
+    `) as Promise<any[]>,
+
+    query(`
+      SELECT id, branch_id, name, weight_class, charge_type, amount, is_active, sort_order
+      FROM branch_price_components
+      ORDER BY branch_id, sort_order, id
+    `) as Promise<any[]>,
   ])
 
-  // Ensure branch surcharges exist for all branches
-  for (const b of branches) {
-    if (!config.branch_surcharges[b.id]) {
-      config.branch_surcharges[b.id] = { surcharge_50: 0, surcharge_74: 0 }
-    }
+  // Components grouped per branch
+  const componentsByBranch: Record<string, any[]> = {}
+  for (const c of componentRows) {
+    const key = String(c.branch_id)
+    if (!componentsByBranch[key]) componentsByBranch[key] = []
+    componentsByBranch[key].push({ ...c, amount: Number(c.amount) })
   }
 
   // Build gradeData
@@ -90,18 +99,7 @@ export default defineEventHandler(async () => {
     })
   }
 
-  // current_50[grade] = lowest active price among 50kg variants
-  const current50: Record<string, number> = {}
-  for (const [grade, wcs] of Object.entries(gradeData)) {
-    for (const item of (wcs['50'] ?? [])) {
-      if (item.current_price !== null) {
-        if (current50[grade] === undefined || item.current_price < current50[grade])
-          current50[grade] = item.current_price
-      }
-    }
-  }
-
-  // currentPrices[grade][branch_id][wc] = price
+  // currentPrices[grade][branch_id][wc] = price ;  customCurrent[variant_id][branch_id]
   const currentPrices: Record<string, Record<string, Record<string, number>>> = {}
   const customCurrent: Record<string, Record<string, number>> = {}
 
@@ -122,7 +120,22 @@ export default defineEventHandler(async () => {
     }
   }
 
+  // current50ByFactory[factory_id][grade] = current active 50kg price at that factory
+  const current50ByFactory: Record<string, Record<string, number>> = {}
+  for (const b of branches) {
+    if (b.branch_type !== 'factory') continue
+    const fid = String(b.id)
+    current50ByFactory[fid] = {}
+    for (const [g, brs] of Object.entries(currentPrices)) {
+      const p = (brs as any)[fid]?.['50']
+      if (p !== undefined) current50ByFactory[fid][g] = p
+    }
+  }
+
   const grades = Object.keys(gradeData).sort()
 
-  return { config, grades, gradeData, current50, currentPrices, customCurrent, branches }
+  return {
+    config, grades, gradeData, currentPrices, customCurrent,
+    branches, componentsByBranch, current50ByFactory,
+  }
 })

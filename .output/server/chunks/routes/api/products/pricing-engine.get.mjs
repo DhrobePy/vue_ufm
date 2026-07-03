@@ -10,8 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const DEFAULT_CONFIG = {
-  formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
-  branch_surcharges: {}
+  formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 }
 };
 async function loadConfig() {
   var _a, _b;
@@ -47,7 +46,7 @@ function mapWeight(wv) {
 const pricingEngine_get = defineEventHandler(async () => {
   var _a;
   const config = await loadConfig();
-  const [allVariants, currRows, branches] = await Promise.all([
+  const [allVariants, currRows, branches, componentRows] = await Promise.all([
     query(`
       SELECT p.id AS product_id, p.base_name AS product_name, p.category,
              pv.id AS variant_id, pv.grade, pv.weight_variant, pv.sku, pv.unit_of_measure,
@@ -68,12 +67,21 @@ const pricingEngine_get = defineEventHandler(async () => {
       GROUP BY pv.grade, pp.branch_id, pv.weight_variant, pv.id
       ORDER BY pv.grade, pp.branch_id
     `),
-    query(`SELECT id, name, code FROM branches WHERE status = 'active' ORDER BY id`)
+    query(`
+      SELECT id, name, code, branch_type, source_branch_id
+      FROM branches WHERE status = 'active' ORDER BY branch_type = 'factory' DESC, id
+    `),
+    query(`
+      SELECT id, branch_id, name, weight_class, charge_type, amount, is_active, sort_order
+      FROM branch_price_components
+      ORDER BY branch_id, sort_order, id
+    `)
   ]);
-  for (const b of branches) {
-    if (!config.branch_surcharges[b.id]) {
-      config.branch_surcharges[b.id] = { surcharge_50: 0, surcharge_74: 0 };
-    }
+  const componentsByBranch = {};
+  for (const c of componentRows) {
+    const key = String(c.branch_id);
+    if (!componentsByBranch[key]) componentsByBranch[key] = [];
+    componentsByBranch[key].push({ ...c, amount: Number(c.amount) });
   }
   const gradeData = {};
   for (const row of allVariants) {
@@ -93,15 +101,6 @@ const pricingEngine_get = defineEventHandler(async () => {
       weight_class: wc
     });
   }
-  const current50 = {};
-  for (const [grade, wcs] of Object.entries(gradeData)) {
-    for (const item of (_a = wcs["50"]) != null ? _a : []) {
-      if (item.current_price !== null) {
-        if (current50[grade] === void 0 || item.current_price < current50[grade])
-          current50[grade] = item.current_price;
-      }
-    }
-  }
   const currentPrices = {};
   const customCurrent = {};
   for (const cr of currRows) {
@@ -119,8 +118,27 @@ const pricingEngine_get = defineEventHandler(async () => {
       customCurrent[vid][br] = Number(cr.unit_price);
     }
   }
+  const current50ByFactory = {};
+  for (const b of branches) {
+    if (b.branch_type !== "factory") continue;
+    const fid = String(b.id);
+    current50ByFactory[fid] = {};
+    for (const [g, brs] of Object.entries(currentPrices)) {
+      const p = (_a = brs[fid]) == null ? void 0 : _a["50"];
+      if (p !== void 0) current50ByFactory[fid][g] = p;
+    }
+  }
   const grades = Object.keys(gradeData).sort();
-  return { config, grades, gradeData, current50, currentPrices, customCurrent, branches };
+  return {
+    config,
+    grades,
+    gradeData,
+    currentPrices,
+    customCurrent,
+    branches,
+    componentsByBranch,
+    current50ByFactory
+  };
 });
 
 export { pricingEngine_get as default };

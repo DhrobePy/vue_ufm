@@ -1279,7 +1279,7 @@ const _routes = [
     name: "products-pricing-engine",
     path: "/products/pricing-engine",
     meta: __nuxt_page_meta$x || {},
-    component: () => import('./pricing-engine-CZSAib5_.mjs')
+    component: () => import('./pricing-engine-CuBGeT1O.mjs')
   },
   {
     name: "purchase-grn-id",
