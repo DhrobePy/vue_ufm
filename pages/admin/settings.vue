@@ -68,19 +68,35 @@
         <div v-if="activeTab === 'branches'" class="space-y-5">
           <div class="glass-card p-6 space-y-4">
             <div class="flex items-center justify-between">
-              <h3 class="section-title">Branches</h3>
-              <button class="btn-gold text-xs">+ Add Branch</button>
+              <div>
+                <h3 class="section-title">Branches</h3>
+                <p class="text-xs text-gray-600 mt-0.5">Factories produce; sales regions get factory price + their freight charges (set in Pricing Engine).</p>
+              </div>
+              <button @click="openBranchModal()" class="btn-gold text-xs">+ Add Branch</button>
             </div>
             <div class="space-y-3">
               <div v-for="b in branches" :key="b.id"
-                class="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.07]">
-                <div>
-                  <p class="text-sm font-semibold text-gray-200">{{ b.name }}</p>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ b.address }}</p>
+                class="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.07] gap-3 flex-wrap">
+                <div class="flex items-center gap-3 min-w-0">
+                  <span class="text-lg shrink-0">{{ branchTypeIcon(b.branch_type) }}</span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-gray-200">
+                      {{ b.name }}
+                      <span v-if="b.code" class="text-[10px] font-mono text-gray-600 ml-1">{{ b.code }}</span>
+                    </p>
+                    <p class="text-xs text-gray-500 mt-0.5 truncate">
+                      {{ branchTypeLabel(b.branch_type) }}
+                      <span v-if="b.branch_type === 'sales_region' && b.source_branch_id" class="text-sky-500/80">
+                        · via {{ branchName(b.source_branch_id) }}</span>
+                      <span v-else-if="b.branch_type === 'sales_region'" class="text-amber-500/90">
+                        · ⚠ no source factory</span>
+                      <span v-if="b.address && b.address !== '—'"> · {{ b.address }}</span>
+                    </p>
+                  </div>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 shrink-0">
                   <UiStatusBadge :status="b.status" />
-                  <button class="text-xs text-gray-500 hover:text-gold-400 transition-colors">Edit</button>
+                  <button @click="openBranchModal(b)" class="text-xs text-gray-500 hover:text-gold-400 transition-colors">Edit</button>
                 </div>
               </div>
             </div>
@@ -524,6 +540,74 @@
 
       </div>
     </div>
+
+    <!-- Branch Add/Edit Modal -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="branchModalOpen"
+             class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="branchModalOpen = false">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-white/[0.08] p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">{{ branchForm.id ? 'Edit Branch' : 'New Branch' }}</h3>
+              <button @click="branchModalOpen = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Branch Name *</label>
+                <input v-model="branchForm.name" type="text" class="input-glass" placeholder="e.g. Sylhet Branch" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Code</label>
+                <input v-model="branchForm.code" type="text" class="input-glass font-mono uppercase" placeholder="e.g. SYL" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</label>
+                <select v-model="branchForm.status" class="input-glass">
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Type *</label>
+                <select v-model="branchForm.branch_type" class="input-glass">
+                  <option value="factory">🏭 Factory</option>
+                  <option value="sales_region">📍 Sales Region</option>
+                  <option value="office">🏢 Office</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Source Factory</label>
+                <select v-model="branchForm.source_branch_id" :disabled="branchForm.branch_type !== 'sales_region'"
+                        class="input-glass disabled:opacity-40">
+                  <option :value="null">— None —</option>
+                  <option v-for="f in factoryBranches" :key="f.id" :value="f.id">{{ f.name }}</option>
+                </select>
+              </div>
+              <div class="col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Address</label>
+                <input v-model="branchForm.address" type="text" class="input-glass" placeholder="District, area…" />
+              </div>
+              <div class="col-span-2 space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Phone</label>
+                <input v-model="branchForm.phone" type="text" class="input-glass font-mono" placeholder="01XXXXXXXXX" />
+              </div>
+            </div>
+            <p v-if="branchForm.branch_type === 'sales_region' && !branchForm.source_branch_id"
+               class="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              ⚠ Without a source factory the pricing engine will skip this region. You can also set it later in the Pricing Engine → Branch Network.
+            </p>
+            <div class="flex gap-3 pt-2">
+              <button @click="saveBranch" :disabled="!branchForm.name.trim() || savingBranch"
+                      class="btn-gold text-xs flex-1 disabled:opacity-50">
+                {{ savingBranch ? 'Saving…' : (branchForm.id ? 'Save Changes' : 'Create Branch') }}
+              </button>
+              <button @click="branchModalOpen = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -692,16 +776,70 @@ const company = reactive({
 })
 
 // Fetch real branches from DB
-const { data: branchData } = await useFetch('/api/branches')
+const { data: branchData, refresh: refreshBranches } = await useFetch('/api/branches')
 const branches = computed(() =>
   ((branchData.value as any)?.branches ?? []).map((b: any) => ({
-    id:      b.id,
-    name:    b.name,
-    code:    b.code ?? '',
-    address: b.address ?? '—',
-    status:  b.status ?? 'active',
+    id:               b.id,
+    name:             b.name,
+    code:             b.code ?? '',
+    address:          b.address ?? '—',
+    phone:            b.phone ?? '',
+    status:           b.status ?? 'active',
+    branch_type:      b.branch_type ?? 'sales_region',
+    source_branch_id: b.source_branch_id ?? null,
   })),
 )
+
+const factoryBranches = computed(() =>
+  branches.value.filter((b: any) => b.branch_type === 'factory' && b.id !== branchForm.id),
+)
+
+function branchTypeIcon(t: string)  { return t === 'factory' ? '🏭' : t === 'office' ? '🏢' : '📍' }
+function branchTypeLabel(t: string) { return t === 'factory' ? 'Factory' : t === 'office' ? 'Office' : 'Sales Region' }
+function branchName(id: number)     { return branches.value.find((b: any) => b.id === id)?.name ?? '?' }
+
+// ── Branch add/edit modal ─────────────────────────────────────────────────────
+const branchModalOpen = ref(false)
+const savingBranch    = ref(false)
+const branchForm      = reactive({
+  id: 0, name: '', code: '', address: '', phone: '',
+  status: 'active', branch_type: 'sales_region', source_branch_id: null as number | null,
+})
+
+function openBranchModal(b?: any) {
+  Object.assign(branchForm, b
+    ? { id: b.id, name: b.name, code: b.code, address: b.address === '—' ? '' : b.address,
+        phone: b.phone, status: b.status, branch_type: b.branch_type,
+        source_branch_id: b.source_branch_id }
+    : { id: 0, name: '', code: '', address: '', phone: '',
+        status: 'active', branch_type: 'sales_region', source_branch_id: null })
+  branchModalOpen.value = true
+}
+
+async function saveBranch() {
+  savingBranch.value = true
+  try {
+    const body = {
+      name:             branchForm.name,
+      code:             branchForm.code,
+      address:          branchForm.address,
+      phone:            branchForm.phone,
+      status:           branchForm.status,
+      branch_type:      branchForm.branch_type,
+      source_branch_id: branchForm.source_branch_id,
+    }
+    const res: any = branchForm.id
+      ? await $fetch(`/api/branches/${branchForm.id}`, { method: 'PUT', body })
+      : await $fetch('/api/branches', { method: 'POST', body })
+    success(res.message ?? 'Branch saved')
+    branchModalOpen.value = false
+    await refreshBranches()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save branch')
+  } finally {
+    savingBranch.value = false
+  }
+}
 
 const finance = reactive({
   fyStart: '07',
@@ -738,3 +876,8 @@ function save(section: string) {
   success(`${section} saved successfully`)
 }
 </script>
+
+<style scoped>
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to       { opacity: 0; }
+</style>

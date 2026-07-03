@@ -11,9 +11,10 @@ import 'node:url';
 
 const branches_get = defineEventHandler(async () => {
   const branches = await query(
-    `SELECT id, name, code, address, phone_number AS phone, status
+    `SELECT id, name, code, address, phone_number AS phone, status,
+            branch_type, source_branch_id
      FROM branches
-     ORDER BY id`
+     ORDER BY branch_type = 'factory' DESC, id`
   );
   return { branches };
 });
