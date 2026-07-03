@@ -7,7 +7,14 @@ export default defineEventHandler(async (event) => {
 
   const body      = await readBody(event)
   const session   = await getUserSession(event)
-  const userId    = session?.user?.id ?? 1
+  if (!session?.user)
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId    = Number((session.user as any).id)
+  const role      = ((session.user as any).role ?? '').toLowerCase()
+  const canDeliver = ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra',
+    'dispatch-srg', 'dispatch-demra', 'dispatchpos-srg', 'dispatchpos-demra'].includes(role)
+  if (!canDeliver)
+    throw createError({ statusCode: 403, statusMessage: 'Your role cannot record deliveries' })
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
@@ -30,12 +37,17 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Verify order exists
+    // Verify order exists and is actually dispatched (locked against races)
     const [[order]] = await conn.query<any>(
       `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date
-       FROM credit_orders o WHERE o.id = ?`, [id],
+       FROM credit_orders o WHERE o.id = ? FOR UPDATE`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
+    if (!['shipped', 'dispatched', 'delivered'].includes(order.status))
+      throw createError({
+        statusCode: 409,
+        statusMessage: `Order is "${order.status}" — dispatch it first (deliveries only after dispatch)`,
+      })
 
     // Generate delivery number
     const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
@@ -83,93 +95,9 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    // ── Customer ledger entry (invoice debit on delivery) ─────
-    // This is where revenue hits the ledger — on confirmed shipment/delivery
-    const [[lastLedger]] = await conn.query<any>(
-      `SELECT COALESCE(balance_after, 0) AS bal
-       FROM customer_ledger WHERE customer_id = ?
-       ORDER BY created_at DESC, id DESC LIMIT 1`,
-      [order.customer_id],
-    )
-    const prevBal  = Number(lastLedger?.bal ?? 0)
-    const newBal   = prevBal + totalAmount
-    const shipType = is_final ? 'Full Delivery' : 'Partial Delivery'
-
-    await conn.query(
-      `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
-      [
-        order.customer_id,
-        delivDate,
-        deliveryId,
-        delNo,
-        `${shipType} — ${delNo} (Order ${order.order_number})`,
-        totalAmount,
-        newBal,
-        userId,
-      ],
-    )
-
-    // Update customer running balance
-    await conn.query(
-      `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
-      [totalAmount, order.customer_id],
-    )
-
-    // ── GL Journal Entry: DR Accounts Receivable / CR Sales Revenue ──────────
-    // Revenue is recognised at delivery (matching principle).
-    // Failure here must never block the delivery from saving.
-    try {
-      const [[arAccount]] = await conn.query<any>(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Accounts Receivable'
-         ORDER BY id ASC LIMIT 1`,
-      )
-      const [[revenueAccount]] = await conn.query<any>(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Revenue'
-         ORDER BY id ASC LIMIT 1`,
-      )
-
-      if (arAccount?.id && revenueAccount?.id) {
-        const jeDesc = `Sales — ${delNo} (Order ${order.order_number}, ${is_final ? 'Final' : 'Partial'} Delivery)`
-        const [jeRes] = await conn.query<any>(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
-          [delivDate, jeDesc.slice(0, 255), deliveryId, userId],
-        )
-        const jeId = jeRes.insertId
-
-        // DR Accounts Receivable (customer owes us)
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, arAccount.id, totalAmount, delNo],
-        )
-        // CR Sales Revenue (revenue recognised)
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, revenueAccount.id, totalAmount, delNo],
-        )
-
-        // Backlink journal_entry_id onto the customer_ledger row we just inserted
-        await conn.query(
-          `UPDATE customer_ledger SET journal_entry_id = ?
-           WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
-          [jeId, deliveryId],
-        )
-      } else {
-        console.warn(`[deliver] Skipping JE for ${delNo}: AR=${arAccount?.id}, Rev=${revenueAccount?.id}`)
-      }
-    } catch (jeErr) {
-      console.warn(`[deliver] JE creation failed for ${delNo}:`, jeErr)
-    }
+    // NOTE: NO ledger / JE here. The invoice (full order value) posts to
+    // customer_ledger + GL at DISPATCH (workflow ship transition) — the
+    // accounting pivot. Deliveries only record physical movement.
 
     // Update order status + write workflow timeline entry
     const wfToStatus = is_final ? 'delivered' : order.status

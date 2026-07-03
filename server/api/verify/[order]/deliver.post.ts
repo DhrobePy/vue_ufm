@@ -120,67 +120,8 @@ export default defineEventHandler(async (event) => {
         )
       }
 
-      // Customer ledger debit (revenue hits the ledger at delivery)
-      const [[lastLedger]] = await conn.query<any>(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [order.customer_id],
-      )
-      const newBal = Number(lastLedger?.bal ?? 0) + totalAmount
-
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
-        [order.customer_id, delivDate, deliveryId, delNo,
-         `Full Delivery — ${delNo} (Order ${order.order_number}, via QR)`,
-         totalAmount, newBal, userId],
-      )
-
-      await conn.query(
-        `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
-        [totalAmount, order.customer_id],
-      )
-
-      // GL journal entry — never blocks the delivery
-      try {
-        const [[arAccount]] = await conn.query<any>(
-          `SELECT id FROM chart_of_accounts WHERE account_type = 'Accounts Receivable' ORDER BY id ASC LIMIT 1`,
-        )
-        const [[revenueAccount]] = await conn.query<any>(
-          `SELECT id FROM chart_of_accounts WHERE account_type = 'Revenue' ORDER BY id ASC LIMIT 1`,
-        )
-        if (arAccount?.id && revenueAccount?.id) {
-          const jeDesc = `Sales — ${delNo} (Order ${order.order_number}, Final Delivery via QR)`
-          const [jeRes] = await conn.query<any>(
-            `INSERT INTO journal_entries
-               (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-             VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
-            [delivDate, jeDesc.slice(0, 255), deliveryId, userId],
-          )
-          await conn.query(
-            `INSERT INTO transaction_lines
-               (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, ?, 0.00, ?)`,
-            [jeRes.insertId, arAccount.id, totalAmount, delNo],
-          )
-          await conn.query(
-            `INSERT INTO transaction_lines
-               (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, 0.00, ?, ?)`,
-            [jeRes.insertId, revenueAccount.id, totalAmount, delNo],
-          )
-          await conn.query(
-            `UPDATE customer_ledger SET journal_entry_id = ?
-             WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
-            [jeRes.insertId, deliveryId],
-          )
-        }
-      } catch (jeErr) {
-        console.warn(`[verify/deliver] JE creation failed for ${delNo}:`, jeErr)
-      }
+      // NOTE: NO ledger / JE here — the invoice posted at DISPATCH (the
+      // accounting pivot). QR delivery only confirms physical handover.
     }
 
     // Status + workflow (authenticated user → NOT NULL constraint satisfied)

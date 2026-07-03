@@ -69,10 +69,25 @@ export default defineEventHandler(async (event) => {
 
     // ── Cascade delete ─────────────────────────────────────────────────────
 
-    // 1. Delivery items
+    // 0. Capture delivery ids + ledger-linked journal entries BEFORE deleting
+    //    anything, so GL reversal and ledger cleanup see the full picture.
     const [deliveries] = await conn.query<any[]>(
       `SELECT id FROM credit_order_deliveries WHERE order_id = ?`, [id],
     )
+    const deliveryIds = (deliveries as any[]).map(d => d.id)
+
+    const ledgerRefParams: any[] = [id, ...deliveryIds]
+    const deliveryRefSql = deliveryIds.length
+      ? ` OR (reference_type = 'credit_order_delivery' AND reference_id IN (${deliveryIds.map(() => '?').join(',')}))`
+      : ''
+    const [ledgerRows] = await conn.query<any[]>(
+      `SELECT id, journal_entry_id FROM customer_ledger
+       WHERE (reference_type = 'credit_order' AND reference_id = ?)${deliveryRefSql}`,
+      ledgerRefParams,
+    )
+    const jeIds = (ledgerRows as any[]).map(r => r.journal_entry_id).filter(Boolean)
+
+    // 1. Delivery items
     for (const d of deliveries as any[]) {
       await conn.query(`DELETE FROM credit_order_delivery_items WHERE delivery_id = ?`, [d.id])
     }
@@ -93,20 +108,20 @@ export default defineEventHandler(async (event) => {
     // 4. Audit trail (order-level)
     await conn.query(`DELETE FROM credit_order_audit WHERE order_id = ?`, [id])
 
-    // 5. Ledger entries tied to deliveries or the order directly
-    await conn.query(
-      `DELETE FROM customer_ledger
-       WHERE reference_type IN ('credit_order','credit_order_delivery')
-         AND reference_id IN (
-           SELECT id FROM credit_order_deliveries WHERE order_id = ?
-           UNION ALL SELECT ? AS id
-         )`,
-      [id, id],
-    )
-    await conn.query(
-      `DELETE FROM customer_ledger WHERE reference_type = 'credit_order' AND reference_id = ?`,
-      [id],
-    )
+    // 5. Ledger entries + their GL journal entries (keep the GL balanced —
+    //    an orphaned Dr AR / Cr Revenue would leave phantom revenue behind)
+    if (ledgerRows.length) {
+      const lidPh = (ledgerRows as any[]).map(() => '?').join(',')
+      await conn.query(
+        `DELETE FROM customer_ledger WHERE id IN (${lidPh})`,
+        (ledgerRows as any[]).map(r => r.id),
+      )
+    }
+    if (jeIds.length) {
+      const jePh = jeIds.map(() => '?').join(',')
+      await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id IN (${jePh})`, jeIds)
+      await conn.query(`DELETE FROM journal_entries WHERE id IN (${jePh})`, jeIds)
+    }
 
     // 6. Order items
     await conn.query(`DELETE FROM credit_order_items WHERE order_id = ?`, [id])

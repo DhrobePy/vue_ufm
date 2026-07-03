@@ -1,4 +1,4 @@
-import { h as defineEventHandler, w as getRouterParam, x as getUserSession, q as getRequestHeader, e as createError, n as getDb, a as auditLog } from '../../../nitro/nitro.mjs';
+import { j as defineEventHandler, C as getRouterParam, F as getUserSession, v as getRequestHeader, f as createError, q as getDb, b as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -73,6 +73,15 @@ const _id__delete = defineEventHandler(async (event) => {
       `SELECT id FROM credit_order_deliveries WHERE order_id = ?`,
       [id]
     );
+    const deliveryIds = deliveries.map((d) => d.id);
+    const ledgerRefParams = [id, ...deliveryIds];
+    const deliveryRefSql = deliveryIds.length ? ` OR (reference_type = 'credit_order_delivery' AND reference_id IN (${deliveryIds.map(() => "?").join(",")}))` : "";
+    const [ledgerRows] = await conn.query(
+      `SELECT id, journal_entry_id FROM customer_ledger
+       WHERE (reference_type = 'credit_order' AND reference_id = ?)${deliveryRefSql}`,
+      ledgerRefParams
+    );
+    const jeIds = ledgerRows.map((r) => r.journal_entry_id).filter(Boolean);
     for (const d of deliveries) {
       await conn.query(`DELETE FROM credit_order_delivery_items WHERE delivery_id = ?`, [d.id]);
     }
@@ -87,19 +96,18 @@ const _id__delete = defineEventHandler(async (event) => {
     await conn.query(`DELETE FROM credit_order_returns WHERE order_id = ?`, [id]);
     await conn.query(`DELETE FROM credit_order_workflow WHERE order_id = ?`, [id]);
     await conn.query(`DELETE FROM credit_order_audit WHERE order_id = ?`, [id]);
-    await conn.query(
-      `DELETE FROM customer_ledger
-       WHERE reference_type IN ('credit_order','credit_order_delivery')
-         AND reference_id IN (
-           SELECT id FROM credit_order_deliveries WHERE order_id = ?
-           UNION ALL SELECT ? AS id
-         )`,
-      [id, id]
-    );
-    await conn.query(
-      `DELETE FROM customer_ledger WHERE reference_type = 'credit_order' AND reference_id = ?`,
-      [id]
-    );
+    if (ledgerRows.length) {
+      const lidPh = ledgerRows.map(() => "?").join(",");
+      await conn.query(
+        `DELETE FROM customer_ledger WHERE id IN (${lidPh})`,
+        ledgerRows.map((r) => r.id)
+      );
+    }
+    if (jeIds.length) {
+      const jePh = jeIds.map(() => "?").join(",");
+      await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id IN (${jePh})`, jeIds);
+      await conn.query(`DELETE FROM journal_entries WHERE id IN (${jePh})`, jeIds);
+    }
     await conn.query(`DELETE FROM credit_order_items WHERE order_id = ?`, [id]);
     await conn.query(`DELETE FROM credit_orders WHERE id = ?`, [id]);
     await conn.query(

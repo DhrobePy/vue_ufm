@@ -522,5 +522,93 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] branch_price_components create failed:', e)
   }
 
+  // ── 36. user_approval_limits — delegated order-approval authority ─────────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_approval_limits (
+        id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id          INT UNSIGNED NOT NULL UNIQUE,
+        max_order_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        set_by_user_id   INT UNSIGNED NULL,
+        created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] user_approval_limits failed:', e) }
+
+  // ── 37. order_approval_conditions — production hold + dispatch clearance ──
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS order_approval_conditions (
+        id                     INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        order_id               INT UNSIGNED NOT NULL UNIQUE,
+        production_hold        TINYINT(1) NOT NULL DEFAULT 0,
+        production_hold_note   VARCHAR(255) NULL,
+        production_released_by INT UNSIGNED NULL,
+        production_released_at DATETIME NULL,
+        dispatch_hold          TINYINT(1) NOT NULL DEFAULT 0,
+        condition_type         VARCHAR(30) NULL COMMENT 'manual | outstanding_below | outstanding_after_ship | amount_received',
+        condition_amount       DECIMAL(14,2) NULL,
+        auto_release           TINYINT(1) NOT NULL DEFAULT 0,
+        accounts_note          VARCHAR(255) NULL,
+        dispatch_cleared       TINYINT(1) NOT NULL DEFAULT 0,
+        dispatch_cleared_by    INT UNSIGNED NULL,
+        dispatch_cleared_at    DATETIME NULL,
+        dispatch_cleared_note  VARCHAR(255) NULL,
+        created_by_user_id     INT UNSIGNED NULL,
+        created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_oac_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] order_approval_conditions failed:', e) }
+
+  // ── 38. order_amendments — pre/post-dispatch change control ───────────────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS order_amendments (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        amendment_number   VARCHAR(30) NOT NULL UNIQUE,
+        order_id           INT UNSIGNED NOT NULL,
+        regime             VARCHAR(10) NOT NULL COMMENT 'pre | post (dispatch)',
+        amend_type         VARCHAR(30) NOT NULL COMMENT 'transport | price | qty | correction | freight | rebate',
+        description        VARCHAR(500) NULL,
+        old_values         LONGTEXT NULL COMMENT 'JSON snapshot before',
+        new_values         LONGTEXT NULL COMMENT 'JSON snapshot after / requested',
+        flat_amount        DECIMAL(14,2) NULL COMMENT 'post regime: signed ± posted as debit/credit note',
+        status             VARCHAR(20) NOT NULL DEFAULT 'pending' COMMENT 'pending | approved | rejected',
+        requested_by       INT UNSIGNED NOT NULL,
+        decided_by         INT UNSIGNED NULL,
+        decided_at         DATETIME NULL,
+        decision_note      VARCHAR(255) NULL,
+        journal_entry_id   INT UNSIGNED NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_amd_order (order_id),
+        INDEX idx_amd_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] order_amendments failed:', e) }
+
+  // ── 39. credit_orders — delivery type + mini-truck surcharge ──────────────
+  await addCol(db, 'credit_orders', 'delivery_type', "VARCHAR(20) NOT NULL DEFAULT 'big_truck' COMMENT 'big_truck | mini_truck'")
+  await addCol(db, 'credit_orders', 'mini_truck_surcharge', "DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'order-level surcharge included in total_amount'")
+
+  // ── 40. payment_allocations — one payment split across orders ─────────────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS payment_allocations (
+        id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        payment_id       INT UNSIGNED NOT NULL,
+        order_id         INT UNSIGNED NOT NULL,
+        allocated_amount DECIMAL(14,2) NOT NULL,
+        as_advance       TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = order not dispatched yet, counts as advance',
+        created_at       DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pa_payment (payment_id),
+        INDEX idx_pa_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] payment_allocations failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })

@@ -1,4 +1,4 @@
-import { h as defineEventHandler, w as getRouterParam, e as createError, M as readBody, x as getUserSession, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
+import { j as defineEventHandler, C as getRouterParam, f as createError, _ as readBody, F as getUserSession, v as getRequestHeader, q as getDb, b as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,13 +10,29 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
-  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
-  const ipAddress = (_d = (_c = getRequestHeader(event, "x-forwarded-for")) != null ? _c : getRequestHeader(event, "x-real-ip")) != null ? _d : void 0;
+  if (!(session == null ? void 0 : session.user))
+    throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
+  const userId = Number(session.user.id);
+  const role = ((_a = session.user.role) != null ? _a : "").toLowerCase();
+  const canDeliver = [
+    "admin",
+    "superadmin",
+    "accounts",
+    "accounts-srg",
+    "accounts-demra",
+    "dispatch-srg",
+    "dispatch-demra",
+    "dispatchpos-srg",
+    "dispatchpos-demra"
+  ].includes(role);
+  if (!canDeliver)
+    throw createError({ statusCode: 403, statusMessage: "Your role cannot record deliveries" });
+  const ipAddress = (_c = (_b = getRequestHeader(event, "x-forwarded-for")) != null ? _b : getRequestHeader(event, "x-real-ip")) != null ? _c : void 0;
   const {
     delivery_date,
     truck_number,
@@ -36,15 +52,20 @@ const deliver_post = defineEventHandler(async (event) => {
     await conn.beginTransaction();
     const [[order]] = await conn.query(
       `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date
-       FROM credit_orders o WHERE o.id = ?`,
+       FROM credit_orders o WHERE o.id = ? FOR UPDATE`,
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+    if (!["shipped", "dispatched", "delivered"].includes(order.status))
+      throw createError({
+        statusCode: 409,
+        statusMessage: `Order is "${order.status}" \u2014 dispatch it first (deliveries only after dispatch)`
+      });
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_e = cnt.n) != null ? _e : 0) + 1).padStart(4, "0");
+    const seq = String(((_d = cnt.n) != null ? _d : 0) + 1).padStart(4, "0");
     const delNo = `DEL-${today}-${seq}`;
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
@@ -80,84 +101,12 @@ const deliver_post = defineEventHandler(async (event) => {
           deliveryId,
           item.order_item_id,
           item.product_id,
-          (_f = item.variant_id) != null ? _f : null,
+          (_e = item.variant_id) != null ? _e : null,
           Number(item.qty_delivered),
           Number(item.unit_price),
           Number(item.qty_delivered) * Number(item.unit_price)
         ]
       );
-    }
-    const [[lastLedger]] = await conn.query(
-      `SELECT COALESCE(balance_after, 0) AS bal
-       FROM customer_ledger WHERE customer_id = ?
-       ORDER BY created_at DESC, id DESC LIMIT 1`,
-      [order.customer_id]
-    );
-    const prevBal = Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0);
-    const newBal = prevBal + totalAmount;
-    const shipType = is_final ? "Full Delivery" : "Partial Delivery";
-    await conn.query(
-      `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
-      [
-        order.customer_id,
-        delivDate,
-        deliveryId,
-        delNo,
-        `${shipType} \u2014 ${delNo} (Order ${order.order_number})`,
-        totalAmount,
-        newBal,
-        userId
-      ]
-    );
-    await conn.query(
-      `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
-      [totalAmount, order.customer_id]
-    );
-    try {
-      const [[arAccount]] = await conn.query(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Accounts Receivable'
-         ORDER BY id ASC LIMIT 1`
-      );
-      const [[revenueAccount]] = await conn.query(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Revenue'
-         ORDER BY id ASC LIMIT 1`
-      );
-      if ((arAccount == null ? void 0 : arAccount.id) && (revenueAccount == null ? void 0 : revenueAccount.id)) {
-        const jeDesc = `Sales \u2014 ${delNo} (Order ${order.order_number}, ${is_final ? "Final" : "Partial"} Delivery)`;
-        const [jeRes] = await conn.query(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
-          [delivDate, jeDesc.slice(0, 255), deliveryId, userId]
-        );
-        const jeId = jeRes.insertId;
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, arAccount.id, totalAmount, delNo]
-        );
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, revenueAccount.id, totalAmount, delNo]
-        );
-        await conn.query(
-          `UPDATE customer_ledger SET journal_entry_id = ?
-           WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
-          [jeId, deliveryId]
-        );
-      } else {
-        console.warn(`[deliver] Skipping JE for ${delNo}: AR=${arAccount == null ? void 0 : arAccount.id}, Rev=${revenueAccount == null ? void 0 : revenueAccount.id}`);
-      }
-    } catch (jeErr) {
-      console.warn(`[deliver] JE creation failed for ${delNo}:`, jeErr);
     }
     const wfToStatus = is_final ? "delivered" : order.status;
     const wfAction = is_final ? "delivered" : "partial_delivery";

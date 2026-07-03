@@ -1,4 +1,4 @@
-import { h as defineEventHandler, x as getUserSession, e as createError, K as query, q as getRequestHeader, n as getDb, a as auditLog } from '../../../../nitro/nitro.mjs';
+import { j as defineEventHandler, F as getUserSession, f as createError, Y as query, v as getRequestHeader, q as getDb, b as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const orderNumber = ((_b = (_a = event.context.params) == null ? void 0 : _a.order) != null ? _b : "").trim().toUpperCase();
   const session = await getUserSession(event);
   const user = session == null ? void 0 : session.user;
@@ -109,69 +109,6 @@ const deliver_post = defineEventHandler(async (event) => {
             item.qty_remaining * Number(item.unit_price)
           ]
         );
-      }
-      const [[lastLedger]] = await conn.query(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [order.customer_id]
-      );
-      const newBal = Number((_m = lastLedger == null ? void 0 : lastLedger.bal) != null ? _m : 0) + totalAmount;
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'invoice', 'credit_order_delivery', ?, ?, ?, ?, 0, ?, ?)`,
-        [
-          order.customer_id,
-          delivDate,
-          deliveryId,
-          delNo,
-          `Full Delivery \u2014 ${delNo} (Order ${order.order_number}, via QR)`,
-          totalAmount,
-          newBal,
-          userId
-        ]
-      );
-      await conn.query(
-        `UPDATE customers SET current_balance = current_balance + ?, updated_at = NOW() WHERE id = ?`,
-        [totalAmount, order.customer_id]
-      );
-      try {
-        const [[arAccount]] = await conn.query(
-          `SELECT id FROM chart_of_accounts WHERE account_type = 'Accounts Receivable' ORDER BY id ASC LIMIT 1`
-        );
-        const [[revenueAccount]] = await conn.query(
-          `SELECT id FROM chart_of_accounts WHERE account_type = 'Revenue' ORDER BY id ASC LIMIT 1`
-        );
-        if ((arAccount == null ? void 0 : arAccount.id) && (revenueAccount == null ? void 0 : revenueAccount.id)) {
-          const jeDesc = `Sales \u2014 ${delNo} (Order ${order.order_number}, Final Delivery via QR)`;
-          const [jeRes] = await conn.query(
-            `INSERT INTO journal_entries
-               (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-             VALUES (?, ?, 'CreditOrderDelivery', ?, ?)`,
-            [delivDate, jeDesc.slice(0, 255), deliveryId, userId]
-          );
-          await conn.query(
-            `INSERT INTO transaction_lines
-               (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, ?, 0.00, ?)`,
-            [jeRes.insertId, arAccount.id, totalAmount, delNo]
-          );
-          await conn.query(
-            `INSERT INTO transaction_lines
-               (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, 0.00, ?, ?)`,
-            [jeRes.insertId, revenueAccount.id, totalAmount, delNo]
-          );
-          await conn.query(
-            `UPDATE customer_ledger SET journal_entry_id = ?
-             WHERE reference_type = 'credit_order_delivery' AND reference_id = ?`,
-            [jeRes.insertId, deliveryId]
-          );
-        }
-      } catch (jeErr) {
-        console.warn(`[verify/deliver] JE creation failed for ${delNo}:`, jeErr);
       }
     }
     await conn.query(

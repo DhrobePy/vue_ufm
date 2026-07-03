@@ -1,0 +1,146 @@
+import { getDb } from '~/server/utils/db'
+import { auditLog } from '~/server/utils/audit'
+import { sendTelegram } from '~/server/utils/telegram'
+import { isAdminRole, isAccountsRole, getOrderGateState } from '~/server/utils/creditOrders'
+
+/**
+ * Gate actions on one order:
+ *  - set               (accounts/admin): create/update holds + conditions
+ *  - clear_dispatch    (accounts/admin): grant dispatch clearance
+ *  - revoke_dispatch   (accounts/admin): revoke clearance — only until shipped
+ *  - release_production(admin only):     lift a production hold
+ *
+ * Clearance granting is hard-limited to the accounts family regardless of
+ * any UI toggles (playbook: safety defaults).
+ */
+export default defineEventHandler(async (event) => {
+  const id      = Number(getRouterParam(event, 'id'))
+  const body    = await readBody(event)
+  const session = await getUserSession(event)
+  if (!session?.user) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+
+  const userId   = Number((session.user as any).id)
+  const userName = (session.user as any).name ?? `User ${userId}`
+  const role     = ((session.user as any).role ?? '').toLowerCase()
+  const action   = String(body?.action ?? '')
+  const note     = body?.note ? String(body.note).slice(0, 255) : null
+
+  if (!id || !action) throw createError({ statusCode: 400, statusMessage: 'id and action required' })
+  if (!isAccountsRole(role))
+    throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
+  if (action === 'release_production' && !isAdminRole(role))
+    throw createError({ statusCode: 403, statusMessage: 'Only admin can release a production hold' })
+
+  const db   = getDb()
+  const conn = await db.getConnection()
+  let telegramMsg: string | null = null
+
+  try {
+    await conn.beginTransaction()
+
+    const [[order]] = await conn.query<any>(
+      `SELECT o.id, o.order_number, o.status, o.customer_id, c.name AS customer_name
+       FROM credit_orders o JOIN customers c ON c.id = o.customer_id
+       WHERE o.id = ? FOR UPDATE`, [id],
+    )
+    if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
+
+    if (action === 'set') {
+      const ct = ['manual', 'outstanding_below', 'outstanding_after_ship', 'amount_received']
+        .includes(body?.condition_type) ? body.condition_type : null
+      await conn.query(
+        `INSERT INTO order_approval_conditions
+           (order_id, production_hold, production_hold_note,
+            dispatch_hold, condition_type, condition_amount, auto_release,
+            accounts_note, created_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           production_hold = VALUES(production_hold),
+           production_hold_note = VALUES(production_hold_note),
+           dispatch_hold = VALUES(dispatch_hold),
+           condition_type = VALUES(condition_type),
+           condition_amount = VALUES(condition_amount),
+           auto_release = VALUES(auto_release),
+           accounts_note = VALUES(accounts_note)`,
+        [
+          id,
+          body?.production_hold ? 1 : 0,
+          body?.production_hold_note ?? null,
+          body?.dispatch_hold ? 1 : 0,
+          ct,
+          body?.condition_amount != null ? Number(body.condition_amount) : null,
+          body?.auto_release ? 1 : 0,
+          body?.accounts_note ?? null,
+          userId,
+        ],
+      )
+    }
+
+    else if (action === 'clear_dispatch') {
+      await conn.query(
+        `UPDATE order_approval_conditions
+         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
+             dispatch_cleared_note = ?
+         WHERE order_id = ?`,
+        [userId, note ?? 'Cleared by accounts', id],
+      )
+      telegramMsg = `🟢 <b>Dispatch Clearance GRANTED</b>\n${order.order_number} — ${order.customer_name}\nby ${userName}${note ? `\nNote: ${note}` : ''}`
+    }
+
+    else if (action === 'revoke_dispatch') {
+      if (['shipped', 'dispatched', 'delivered', 'completed'].includes(order.status))
+        throw createError({ statusCode: 409, statusMessage: 'Order already dispatched — clearance can no longer be revoked' })
+      // Revoke also kills auto-release: a human said stop, the machine must not restart it
+      await conn.query(
+        `UPDATE order_approval_conditions
+         SET dispatch_cleared = 0, dispatch_cleared_by = NULL, dispatch_cleared_at = NULL,
+             dispatch_cleared_note = ?, auto_release = 0
+         WHERE order_id = ?`,
+        [note ?? `Revoked by ${userName}`, id],
+      )
+      telegramMsg = `🔴 <b>Dispatch Clearance REVOKED</b>\n${order.order_number} — ${order.customer_name}\nby ${userName}${note ? `\nReason: ${note}` : ''}`
+    }
+
+    else if (action === 'release_production') {
+      await conn.query(
+        `UPDATE order_approval_conditions
+         SET production_released_by = ?, production_released_at = NOW()
+         WHERE order_id = ? AND production_hold = 1`,
+        [userId, id],
+      )
+      telegramMsg = `🟡 <b>Production Hold RELEASED</b>\n${order.order_number} — ${order.customer_name}\nby ${userName}`
+    }
+
+    else {
+      throw createError({ statusCode: 400, statusMessage: `Unknown gate action "${action}"` })
+    }
+
+    // Every gate event lands in the existing workflow trail (from = to)
+    await conn.query(
+      `INSERT INTO credit_order_workflow
+         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      [id, order.status, order.status, `gate_${action}`, userId, note],
+    )
+    await auditLog(conn, {
+      userId,
+      action: 'status_changed',
+      module: 'credit_sales',
+      recordType: 'credit_order',
+      recordId: id,
+      referenceNumber: order.order_number,
+      description: `Gate ${action} on ${order.order_number}${note ? ` · ${note}` : ''}`,
+      severity: action === 'revoke_dispatch' ? 'warning' : 'info',
+    })
+
+    const state = await getOrderGateState(conn, id)
+    await conn.commit()
+    if (telegramMsg) sendTelegram(telegramMsg)
+    return { ok: true, gate: state }
+  } catch (e) {
+    await conn.rollback()
+    throw e
+  } finally {
+    conn.release()
+  }
+})
