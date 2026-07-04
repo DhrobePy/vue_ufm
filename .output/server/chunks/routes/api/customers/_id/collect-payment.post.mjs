@@ -1,4 +1,4 @@
-import { m as defineEventHandler, G as getRouterParam, a3 as readBody, J as getUserSession, i as createError, N as isAccountsRole, t as getDb, S as nextDocNumber, w as getOrderGateState, u as getGLAccountId, _ as postJournalEntry, Z as postCustomerLedger, e as auditLog, a9 as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, O as isAccountsRole, u as getDb, q as enforceTransactionLimit, T as nextDocNumber, x as getOrderGateState, v as getGLAccountId, a0 as postJournalEntry, _ as postCustomerLedger, e as auditLog, aa as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -40,6 +40,7 @@ const collectPayment_post = defineEventHandler(async (event) => {
       [customerId]
     );
     if (!customer) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
+    await enforceTransactionLimit(conn, userId, role, amount);
     const payNo = await nextDocNumber(conn, "PAY", "customer_payments");
     const [payRes] = await conn.query(
       `INSERT INTO customer_payments

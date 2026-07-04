@@ -1,4 +1,4 @@
-import { m as defineEventHandler, J as getUserSession, a as ADMIN_ROLES, i as createError, a1 as query } from '../../../nitro/nitro.mjs';
+import { m as defineEventHandler, K as getUserSession, a as ADMIN_ROLES, i as createError, a2 as query } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -17,7 +17,8 @@ const approvalLimits_get = defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: "Admin only" });
   const users = await query(
     `SELECT u.id, u.display_name, u.username, u.role,
-            ual.max_order_amount, ual.updated_at AS limit_updated_at
+            ual.max_order_amount, ual.max_transaction_amount,
+            ual.updated_at AS limit_updated_at
      FROM users u
      LEFT JOIN user_approval_limits ual ON ual.user_id = u.id
      WHERE u.status = 'active' AND u.role NOT IN ('admin','superadmin')

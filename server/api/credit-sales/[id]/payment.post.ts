@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getOrderGateState } from '~/server/utils/creditOrders'
+import { getOrderGateState, enforceTransactionLimit } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -52,6 +52,9 @@ export default defineEventHandler(async (event) => {
        WHERE o.id = ? FOR UPDATE`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
+
+    const role = ((session.user as any).role ?? '').toLowerCase()
+    await enforceTransactionLimit(conn, userId, role, Number(amount))
 
     const pmtAmount  = Number(amount)
     const newPaid    = Number(order.amount_paid ?? 0) + pmtAmount

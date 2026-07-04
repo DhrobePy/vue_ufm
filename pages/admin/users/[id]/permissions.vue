@@ -71,6 +71,36 @@
       </div>
     </div>
 
+    <!-- Credit Authority — delegated limits (admin/superadmin sets these) -->
+    <div class="glass-card p-5 border border-gold-500/15">
+      <h2 class="section-title mb-1">Credit Authority</h2>
+      <p class="text-xs text-gray-500 mb-4">
+        Delegated money powers, enforced server-side. A personal <strong class="text-gray-400">order approval limit</strong>
+        lets this user approve orders (even escalated ones) up to that amount — it overrides the 80% rule.
+        A <strong class="text-gray-400">transaction limit</strong> caps every single payment they can record. 0 = not delegated.
+      </p>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+        <div class="space-y-1.5">
+          <label class="text-[11px] text-gray-500 uppercase tracking-wider">Order Approval Limit (৳)</label>
+          <input v-model.number="authority.max_order_amount" type="number" min="0" step="1000"
+                 class="input-glass w-full font-mono text-center" placeholder="0 — cannot approve beyond 80% rule" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-[11px] text-gray-500 uppercase tracking-wider">Transaction Limit (৳ / payment)</label>
+          <input v-model.number="authority.max_transaction_amount" type="number" min="0" step="1000"
+                 class="input-glass w-full font-mono text-center" placeholder="0 — no personal cap" />
+        </div>
+        <button @click="saveAuthority" :disabled="savingAuthority"
+                class="btn-gold text-xs py-2.5 disabled:opacity-50">
+          {{ savingAuthority ? 'Saving…' : 'Save Authority Limits' }}
+        </button>
+      </div>
+      <p class="text-[11px] text-gray-600 mt-3">
+        Amendment approvals follow the order approval limit (increases only; decreases are always allowed for delegated users).
+        Dispatch clearance / hold powers are toggled below under <strong class="text-gray-500">Payment Watch</strong>.
+      </p>
+    </div>
+
     <!-- Quick actions bar -->
     <div class="flex items-center gap-3 px-1">
       <button class="btn-ghost text-xs" @click="enableAll">Enable All Modules</button>
@@ -233,42 +263,72 @@ const moduleRegistry = [
       { key: 'all',       label: 'All Sales & Order Detail', route: 'credit-sales/all',
         actions: [
           { key: 'create',          label: 'Create Order' },
-          { key: 'edit',            label: 'Edit Order' },
+          { key: 'edit',            label: 'Edit Order (admin header edit)' },
           { key: 'delete',          label: 'Delete Order' },
           { key: 'export',          label: 'Export CSV' },
           { key: 'print',           label: 'Print Invoice' },
           { key: 'collect_payment', label: 'Collect Payment' },
           { key: 'record_delivery', label: 'Record Delivery' },
           { key: 'record_return',   label: 'Record Return' },
+          { key: 'request_amendment', label: 'Request Amendment' },
           { key: 'telegram',        label: 'Send Telegram Alert' },
           { key: 'cancel',          label: 'Cancel Order' },
         ] },
       { key: 'create',    label: 'Create Order Form', route: 'credit-sales/create',
         actions: [
-          { key: 'submit',  label: 'Submit Order' },
+          { key: 'submit',          label: 'Submit Order' },
+          { key: 'take_advance',    label: 'Take Advance Payment' },
+          { key: 'mini_truck',      label: 'Choose Mini-Truck Delivery' },
         ] },
       { key: 'approve',   label: 'Approve Orders',    route: 'credit-sales/approve',
         actions: [
-          { key: 'approve',  label: 'Approve' },
-          { key: 'reject',   label: 'Reject' },
-          { key: 'escalate', label: 'Escalate' },
+          { key: 'approve',         label: 'Approve (within personal limit / 80% rule)' },
+          { key: 'reject',          label: 'Reject' },
+          { key: 'escalate',        label: 'Escalate to Admin' },
+          { key: 'set_conditions',  label: 'Set Special Instructions (holds & payment conditions)' },
         ] },
       { key: 'production', label: 'Production Queue', route: 'credit-sales/production',
         actions: [
-          { key: 'mark_ready',    label: 'Mark Ready' },
-          { key: 'set_priority',  label: 'Set Priority' },
+          { key: 'start_production', label: 'Start Production' },
+          { key: 'mark_ready',      label: 'Mark Ready to Ship' },
+          { key: 'set_priority',    label: 'Reorder Queue / Set Priority' },
         ] },
       { key: 'dispatch',  label: 'Dispatch Queue',    route: 'credit-sales/dispatch',
         actions: [
-          { key: 'mark_dispatched', label: 'Mark Dispatched' },
+          { key: 'mark_dispatched', label: 'Dispatch (posts invoice to ledger)' },
+        ] },
+      { key: 'payment-watch', label: 'Payment Watch', route: 'credit-sales/payment-watch',
+        actions: [
+          { key: 'set_conditions',  label: 'Set / Edit Hold Conditions' },
+          { key: 'clear_dispatch',  label: 'Grant Dispatch Clearance' },
+          { key: 'revoke_dispatch', label: 'Revoke Dispatch Clearance' },
+        ] },
+      { key: 'collect',   label: 'Collect Payment (customer-level)', route: 'credit-sales/collect',
+        actions: [
+          { key: 'collect',         label: 'Record Payment' },
+          { key: 'allocate',        label: 'Allocate Across Orders' },
+        ] },
+      { key: 'payments',  label: 'Payment History',   route: 'credit-sales/payments',
+        actions: [
+          { key: 'export',          label: 'Export CSV' },
+          { key: 'reverse',         label: 'Reverse Payment' },
+          { key: 'print_receipt',   label: 'Print Money Receipt' },
+        ] },
+      { key: 'amendments', label: 'Amendments',       route: 'credit-sales/all',
+        actions: [
+          { key: 'decide',          label: 'Approve / Reject Amendments' },
         ] },
       { key: 'ledger',    label: 'Customer Ledger',   route: 'credit-sales/ledger',
         actions: [
-          { key: 'export', label: 'Export' },
+          { key: 'export', label: 'Export CSV' },
         ] },
       { key: 'ageing',    label: 'Ageing Report',     route: 'credit-sales/ageing',
         actions: [
-          { key: 'export', label: 'Export' },
+          { key: 'export', label: 'Export CSV' },
+        ] },
+      { key: 'credit-limits', label: 'Credit Limits', route: 'credit-sales/credit-limits',
+        actions: [
+          { key: 'edit_limits', label: 'Edit Customer Credit Limits' },
         ] },
     ],
   },
@@ -736,6 +796,40 @@ if (error.value) {
   globalScope.value     = d.data_scope       ?? 'branch'
   allowedBranches.value = d.allowed_branches ?? ['srg']
   perms.value = mergePerms(d.permissions ?? {})
+}
+
+// ── Credit Authority limits (separate API — user_approval_limits) ─────────────
+const authority       = reactive({ max_order_amount: 0, max_transaction_amount: 0 })
+const savingAuthority = ref(false)
+const { success: toastOk, error: toastFail } = useToast()
+
+// Prefill from the limits list (admin-only endpoint; ignore errors quietly)
+const { data: limitsData } = await useFetch('/api/credit-sales/approval-limits', { ignoreResponseError: true })
+watch(limitsData, (d: any) => {
+  const row = (d?.users ?? []).find((u: any) => u.id === userId)
+  if (row) {
+    authority.max_order_amount       = Number(row.max_order_amount ?? 0)
+    authority.max_transaction_amount = Number(row.max_transaction_amount ?? 0)
+  }
+}, { immediate: true })
+
+async function saveAuthority() {
+  savingAuthority.value = true
+  try {
+    await $fetch('/api/credit-sales/approval-limits', {
+      method: 'POST',
+      body: {
+        user_id: userId,
+        max_order_amount:       Number(authority.max_order_amount) || 0,
+        max_transaction_amount: Number(authority.max_transaction_amount) || 0,
+      },
+    })
+    toastOk('Authority limits saved ✓')
+  } catch (e: any) {
+    toastFail(e?.data?.statusMessage ?? 'Failed to save limits')
+  } finally {
+    savingAuthority.value = false
+  }
 }
 
 // ── Change detection — deep watcher (JSON.stringify on reactive proxy is unreliable) ──

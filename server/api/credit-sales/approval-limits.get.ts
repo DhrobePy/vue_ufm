@@ -10,7 +10,8 @@ export default defineEventHandler(async (event) => {
 
   const users = await query(
     `SELECT u.id, u.display_name, u.username, u.role,
-            ual.max_order_amount, ual.updated_at AS limit_updated_at
+            ual.max_order_amount, ual.max_transaction_amount,
+            ual.updated_at AS limit_updated_at
      FROM users u
      LEFT JOIN user_approval_limits ual ON ual.user_id = u.id
      WHERE u.status = 'active' AND u.role NOT IN ('admin','superadmin')

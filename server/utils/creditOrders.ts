@@ -78,8 +78,32 @@ export async function getUserApprovalLimit(
   const [[row]] = await conn.query(
     `SELECT max_order_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
   )
-  if (row) return { limit: Number(row.max_order_amount), source: 'personal' }
+  // A row with 0 order limit (e.g. only a transaction cap set) = no personal
+  // order authority — fall through to the caller's 80% rule, don't hard-block.
+  if (row && Number(row.max_order_amount) > 0)
+    return { limit: Number(row.max_order_amount), source: 'personal' }
   return { limit: 0, source: 'none' }
+}
+
+/**
+ * Enforce the per-user transaction (payment) limit. Admins are exempt.
+ * A personal max_transaction_amount > 0 caps every single payment the user
+ * records; 0 / no row = no personal cap (role checks still apply).
+ * Throws 403 when the amount exceeds the cap.
+ */
+export async function enforceTransactionLimit(
+  conn: any, userId: number, role: string, amount: number,
+): Promise<void> {
+  if (isAdminRole(role)) return
+  const [[row]] = await conn.query(
+    `SELECT max_transaction_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
+  )
+  const cap = Number(row?.max_transaction_amount ?? 0)
+  if (cap > 0 && amount > cap)
+    throw createError({
+      statusCode: 403,
+      statusMessage: `৳${amount.toLocaleString()} exceeds your transaction limit of ৳${cap.toLocaleString()} — ask admin to record it`,
+    })
 }
 
 // ─── Order gates ──────────────────────────────────────────────────────────────

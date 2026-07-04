@@ -610,5 +610,9 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] payment_allocations failed:', e) }
 
+  // ── 41. user_approval_limits — transaction (payment) approval limit ───────
+  await addCol(db, 'user_approval_limits', 'max_transaction_amount',
+    "DECIMAL(14,2) NOT NULL DEFAULT 0 COMMENT 'Max single payment/transaction this user may record; 0 = no personal cap'")
+
   console.log('[db-migrate] startup migrations complete')
 })

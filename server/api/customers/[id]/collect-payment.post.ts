@@ -4,6 +4,7 @@ import { sendTelegram } from '~/server/utils/telegram'
 import {
   isAccountsRole, getOrderGateState, getGLAccountId,
   postJournalEntry, postCustomerLedger, nextDocNumber,
+  enforceTransactionLimit,
 } from '~/server/utils/creditOrders'
 
 const DISPATCHED = ['shipped', 'dispatched', 'delivered', 'completed']
@@ -53,6 +54,8 @@ export default defineEventHandler(async (event) => {
       `SELECT id, name FROM customers WHERE id = ? FOR UPDATE`, [customerId],
     )
     if (!customer) throw createError({ statusCode: 404, statusMessage: 'Customer not found' })
+
+    await enforceTransactionLimit(conn, userId, role, amount)
 
     const payNo = await nextDocNumber(conn, 'PAY', 'customer_payments')
 

@@ -1,4 +1,4 @@
-import { m as defineEventHandler, G as getRouterParam, a3 as readBody, J as getUserSession, i as createError, y as getRequestHeader, O as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, t as getDb, H as getUserApprovalLimit, s as getCustomerOutstanding, k as creditUsagePct, N as isAccountsRole, w as getOrderGateState, u as getGLAccountId, _ as postJournalEntry, Z as postCustomerLedger, e as auditLog, a9 as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, z as getRequestHeader, Q as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, ag as userCanAction, u as getDb, I as getUserApprovalLimit, t as getCustomerOutstanding, k as creditUsagePct, O as isAccountsRole, x as getOrderGateState, v as getGLAccountId, a0 as postJournalEntry, _ as postCustomerLedger, e as auditLog, aa as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -50,6 +50,39 @@ const workflow_post = defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: `Unknown target status "${to_status}"` });
   if (!isAdminRole(role) && !rule.roles.includes(role))
     throw createError({ statusCode: 403, statusMessage: `Your role cannot move orders to "${to_status}"` });
+  const TRANSITION_PERM = {
+    approved: { page: "approve", action: "approve" },
+    rejected: { page: "approve", action: "reject" },
+    escalated: { page: "approve", action: "escalate" },
+    in_production: { page: "production", action: "start_production" },
+    ready_to_ship: { page: "production", action: "mark_ready" },
+    shipped: { page: "dispatch", action: "mark_dispatched" }
+  };
+  const tp = TRANSITION_PERM[to_status];
+  if (tp) {
+    const allowed = await userCanAction({
+      userId,
+      role,
+      module: "credit_sales",
+      page: tp.page,
+      action: tp.action,
+      roleFallback: rule.roles
+    });
+    if (!allowed)
+      throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${tp.action.replace(/_/g, " ")} (ask admin to enable it)` });
+  }
+  if (conditions && !isAdminRole(role)) {
+    const canSet = await userCanAction({
+      userId,
+      role,
+      module: "credit_sales",
+      page: "approve",
+      action: "set_conditions",
+      roleFallback: ACCOUNTS_ROLES
+    });
+    if (!canSet)
+      throw createError({ statusCode: 403, statusMessage: "Your account cannot set special instructions" });
+  }
   const db = getDb();
   const conn = await db.getConnection();
   let telegramMsg = null;

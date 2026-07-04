@@ -1,4 +1,4 @@
-import { m as defineEventHandler, i as createError, a2 as queryOne } from '../../../nitro/nitro.mjs';
+import { m as defineEventHandler, i as createError, a3 as queryOne } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';

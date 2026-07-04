@@ -7,6 +7,7 @@ import {
   getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
   getOrderGateState, getGLAccountId, postJournalEntry, postCustomerLedger,
 } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 /**
  * The ONLY endpoint that moves an order through the status pipeline.
@@ -72,6 +73,35 @@ export default defineEventHandler(async (event) => {
   // Role gate (decorative UI check re-enforced here)
   if (!isAdminRole(role) && !rule.roles.includes(role))
     throw createError({ statusCode: 403, statusMessage: `Your role cannot move orders to "${to_status}"` })
+
+  // Per-user action toggles from the privileges editor (admin bypasses;
+  // users without a permissions row keep their role-family defaults)
+  const TRANSITION_PERM: Record<string, { page: string; action: string }> = {
+    approved:      { page: 'approve',    action: 'approve' },
+    rejected:      { page: 'approve',    action: 'reject' },
+    escalated:     { page: 'approve',    action: 'escalate' },
+    in_production: { page: 'production', action: 'start_production' },
+    ready_to_ship: { page: 'production', action: 'mark_ready' },
+    shipped:       { page: 'dispatch',   action: 'mark_dispatched' },
+  }
+  const tp = TRANSITION_PERM[to_status]
+  if (tp) {
+    const allowed = await userCanAction({
+      userId, role, module: 'credit_sales', page: tp.page, action: tp.action,
+      roleFallback: rule.roles,
+    })
+    if (!allowed)
+      throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${tp.action.replace(/_/g, ' ')} (ask admin to enable it)` })
+  }
+  // Setting special instructions is its own toggleable power
+  if (conditions && !isAdminRole(role)) {
+    const canSet = await userCanAction({
+      userId, role, module: 'credit_sales', page: 'approve', action: 'set_conditions',
+      roleFallback: ACCOUNTS_ROLES,
+    })
+    if (!canSet)
+      throw createError({ statusCode: 403, statusMessage: 'Your account cannot set special instructions' })
+  }
 
   const db   = getDb()
   const conn = await db.getConnection()

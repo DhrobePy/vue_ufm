@@ -1,4 +1,4 @@
-import { m as defineEventHandler, G as getRouterParam, a3 as readBody, J as getUserSession, i as createError, N as isAccountsRole, O as isAdminRole, t as getDb, e as auditLog, w as getOrderGateState, a9 as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, O as isAccountsRole, Q as isAdminRole, ag as userCanAction, u as getDb, e as auditLog, x as getOrderGateState, aa as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -25,6 +25,23 @@ const gates_post = defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: "Accounts family or admin only" });
   if (action === "release_production" && !isAdminRole(role))
     throw createError({ statusCode: 403, statusMessage: "Only admin can release a production hold" });
+  const ACTION_PERM = {
+    set: "set_conditions",
+    clear_dispatch: "clear_dispatch",
+    revoke_dispatch: "revoke_dispatch"
+  };
+  if (ACTION_PERM[action]) {
+    const allowed = await userCanAction({
+      userId,
+      role,
+      module: "credit_sales",
+      page: "payment-watch",
+      action: ACTION_PERM[action],
+      roleFallback: ACCOUNTS_ROLES
+    });
+    if (!allowed)
+      throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${ACTION_PERM[action].replace("_", " ")}` });
+  }
   const db = getDb();
   const conn = await db.getConnection();
   let telegramMsg = null;

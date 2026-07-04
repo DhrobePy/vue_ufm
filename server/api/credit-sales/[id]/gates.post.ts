@@ -1,7 +1,8 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { isAdminRole, isAccountsRole, getOrderGateState } from '~/server/utils/creditOrders'
+import { isAdminRole, isAccountsRole, getOrderGateState, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 /**
  * Gate actions on one order:
@@ -30,6 +31,19 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
   if (action === 'release_production' && !isAdminRole(role))
     throw createError({ statusCode: 403, statusMessage: 'Only admin can release a production hold' })
+
+  // Per-user action toggles (admin bypasses; unconfigured users fall back to accounts family)
+  const ACTION_PERM: Record<string, string> = {
+    set: 'set_conditions', clear_dispatch: 'clear_dispatch', revoke_dispatch: 'revoke_dispatch',
+  }
+  if (ACTION_PERM[action]) {
+    const allowed = await userCanAction({
+      userId, role, module: 'credit_sales', page: 'payment-watch',
+      action: ACTION_PERM[action], roleFallback: ACCOUNTS_ROLES,
+    })
+    if (!allowed)
+      throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${ACTION_PERM[action].replace('_', ' ')}` })
+  }
 
   const db   = getDb()
   const conn = await db.getConnection()
