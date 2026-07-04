@@ -33,7 +33,13 @@
             @click="advanceStatus('ready_to_ship', 'Marked ready to ship')">
             📤 Ready to Dispatch
           </button>
-          <button v-else-if="(order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')"
+          <button v-else-if="order.status === 'ready_to_ship' && perms.canDo('credit_sales', 'dispatch', 'mark_dispatched')"
+            class="btn-gold text-xs" :disabled="acting"
+            :title="dispatchBlocked ? 'Dispatch is held — see banner above' : ''"
+            @click="doDispatch">
+            🚚 Dispatch Now
+          </button>
+          <button v-else-if="(order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')"
             class="btn-gold text-xs"
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
@@ -46,8 +52,52 @@
         </template>
       </UiPageHeader>
 
-      <!-- Animated order progress pipeline -->
-      <UiOrderProgress :current-status="order.status" :history="orderHistory" />
+      <!-- ── BOLD hold banner — impossible to miss ──────────────────────── -->
+      <div v-if="hasActiveHold"
+           class="rounded-2xl border-2 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hold-banner"
+           :style="`background:linear-gradient(135deg, ${holdColor}22, ${holdColor}0d); border-color:${holdColor}66`">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 relative"
+             :style="`background:${holdColor}30; color:${holdColor}`">
+          <div class="absolute inset-0 rounded-xl animate-ping opacity-30" :style="`background:${holdColor}`"/>
+          <svg class="w-6 h-6 relative z-10" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"/>
+          </svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-black tracking-wide uppercase" :style="`color:${holdColor}`">
+            {{ holdHeadline }}
+          </p>
+          <p class="text-xs text-gray-300 mt-1 leading-relaxed">
+            <template v-if="gate?.productionHold && !gate?.productionReleased">
+              ⛔ Production is on hold{{ gate.raw?.production_hold_note ? ` — ${gate.raw.production_hold_note}` : '' }}.
+            </template>
+            <template v-if="gate?.dispatchHold && !gate?.dispatchCleared">
+              🚫 Dispatch is blocked until <strong>{{ gateConditionLabel }}</strong>.
+              <span v-if="gate.conditionMet" class="text-emerald-400 font-semibold"> Condition met — clearance still required.</span>
+              <span v-if="gate.accountsNote"> Note: {{ gate.accountsNote }}</span>
+            </template>
+          </p>
+        </div>
+        <div v-if="isAccountsFamily" class="flex flex-wrap gap-2 shrink-0">
+          <button v-if="gate?.productionHold && !gate?.productionReleased && isAdmin" @click="gateAction('release_production')"
+                  class="px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors"
+                  style="background:rgba(245,158,11,0.15);border-color:rgba(245,158,11,0.4);color:#fbbf24">
+            Release Production
+          </button>
+          <button v-if="gate?.dispatchHold && !gate?.dispatchCleared" @click="gateAction('clear_dispatch')"
+                  class="px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors"
+                  style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);color:#34d399">
+            ✓ Grant Clearance
+          </button>
+          <button @click="openGateModal"
+                  class="px-3.5 py-2 rounded-xl text-xs font-semibold border border-white/[0.12] text-gray-300 hover:bg-white/[0.06] transition-colors">
+            Edit
+          </button>
+        </div>
+      </div>
+
+      <!-- Horizontal event timeline -->
+      <UiWorkflowTimeline :nodes="timelineNodes" :current-status="order.status" />
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main details -->
@@ -395,27 +445,6 @@
 
         <!-- Sidebar -->
         <div class="space-y-5">
-          <!-- Workflow timeline -->
-          <div class="glass-card p-5">
-            <h3 class="section-title mb-4">Workflow History</h3>
-            <div v-if="workflowTimeline.length" class="space-y-0">
-              <div v-for="(wf, idx) in workflowTimeline" :key="wf.id" class="flex gap-3">
-                <div class="flex flex-col items-center">
-                  <div class="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
-                       :style="`background:${wf.color}18;border:1px solid ${wf.color}30`">
-                    <div class="w-2 h-2 rounded-full" :style="`background:${wf.color}`" />
-                  </div>
-                  <div v-if="idx < workflowTimeline.length - 1" class="w-px flex-1 bg-white/[0.06] my-1 min-h-[16px]" />
-                </div>
-                <div class="pb-4">
-                  <p class="text-xs font-semibold text-gray-200">{{ wf.action }}</p>
-                  <p class="text-[11px] text-gray-600 mt-0.5">{{ wf.by }} · {{ wf.time }}</p>
-                  <p v-if="wf.note" class="text-[11px] text-gray-500 mt-1 italic">{{ wf.note }}</p>
-                </div>
-              </div>
-            </div>
-            <p v-else class="text-xs text-gray-600">No workflow events yet.</p>
-          </div>
 
           <!-- Dispatch gates / holds -->
           <div v-if="gate?.exists || (isAccountsFamily && !isShippedOrLater)"
@@ -952,63 +981,104 @@ async function gateAction(action: string) {
   }
 }
 
-// Build workflow history for UiOrderProgress (oldest-first, API now returns ASC)
-const orderHistory = computed(() =>
-  apiWorkflow.value.map((w: any) => ({
-    status: w.to_status,
-    by:     w.performed_by_name ?? 'System',
-    at:     fmtDateTime(w.performed_at),
-  })),
-)
+// ── Bold hold banner ──────────────────────────────────────────────────────────
+const hasActiveHold = computed(() => {
+  const g = gate.value
+  if (!g?.exists) return false
+  return (g.productionHold && !g.productionReleased) || (g.dispatchHold && !g.dispatchCleared)
+})
+const dispatchBlocked = computed(() => !!gate.value?.dispatchHold && !gate.value?.dispatchCleared)
+const holdColor = computed(() =>
+  dispatchBlocked.value && !gate.value?.conditionMet ? '#ef4444'
+  : dispatchBlocked.value ? '#f59e0b'
+  : '#f59e0b')
+const holdHeadline = computed(() => {
+  const g = gate.value
+  if (g?.productionHold && !g?.productionReleased && dispatchBlocked.value) return '⚠ Production & Dispatch Held'
+  if (g?.productionHold && !g?.productionReleased) return '⚠ Production Hold Active'
+  if (dispatchBlocked.value) return '⚠ Dispatch Held — Action Required'
+  return '⚠ Order Held'
+})
 
-// Build sidebar timeline
-const WF_COLORS = ['#6366f1','#eab308','#f97316','#10b981','#3b82f6','#06b6d4','#14b8a6','#a855f7']
-
-const WF_LABELS: Record<string, string> = {
-  pending_approval:  'Order Created',
-  escalated:         'Escalated',
-  approved:          'Approved',
-  in_production:     'Sent to Production',
-  ready_to_ship:     'Ready to Ship',
-  shipped:           'Shipped',
-  dispatched:        'Dispatched',
-  delivered:         'Delivery Recorded',
-  partial_delivery:  'Partial Delivery',
-  payment_received:  'Payment Received',
-  completed:         'Order Completed',
-  return_submitted:  'Return Submitted',
-  return_approved:   'Return Approved',
-  return_rejected:   'Return Rejected',
-  cancelled:         'Order Cancelled',
-  rejected:          'Order Rejected',
+async function doDispatch() {
+  if (dispatchBlocked.value) {
+    toastError(gate.value?.conditionMet
+      ? 'Condition met but clearance is manual — grant clearance first'
+      : `Dispatch blocked — ${gateConditionLabel.value}`)
+    return
+  }
+  if (!confirm(`Dispatch ${order.value.order_number}? This posts the invoice to the customer ledger.`)) return
+  try {
+    await callWorkflow('shipped', 'Dispatched from order page')
+    success(`${order.value.order_number} dispatched — invoice posted ✓`)
+  } catch {}
 }
 
-const WF_EVENT_COLORS: Record<string, string> = {
-  payment_received: '#10b981',
-  completed:        '#a855f7',
-  dispatched:       '#f97316',
-  delivered:        '#14b8a6',
-  partial_delivery: '#06b6d4',
-  return_submitted: '#f59e0b',
-  return_approved:  '#10b981',
-  return_rejected:  '#ef4444',
-  approved:         '#10b981',
-  escalated:        '#f97316',
-  cancelled:        '#ef4444',
-  rejected:         '#ef4444',
+// ── Horizontal event timeline (keyword-mapped icon/color per action) ─────────
+// Order of preference: exact `action` key, else `to_status` key, else a
+// generic status-changed fallback. Covers every event we log across
+// workflow/gates/amendments/payments/returns.
+const EVENT_MAP: Record<string, { icon: string; color: string; title: string }> = {
+  submit:                   { icon: 'cart',        color: '#6366f1', title: 'Order Placed' },
+  approved:                 { icon: 'check',       color: '#10b981', title: 'Approved' },
+  rejected:                 { icon: 'x',           color: '#ef4444', title: 'Rejected' },
+  escalated:                { icon: 'alert',       color: '#f97316', title: 'Escalated' },
+  gate_set:                 { icon: 'hand',        color: '#f59e0b', title: 'Special Instructions' },
+  gate_clear_dispatch:      { icon: 'unlock',      color: '#10b981', title: 'Dispatch Cleared' },
+  gate_revoke_dispatch:     { icon: 'lock',        color: '#ef4444', title: 'Clearance Revoked' },
+  gate_release_production:  { icon: 'unlock',      color: '#f59e0b', title: 'Production Released' },
+  gate_auto_release:        { icon: 'unlock',      color: '#10b981', title: 'Auto-Released' },
+  in_production:            { icon: 'play',        color: '#3b82f6', title: 'Production Started' },
+  ready_to_ship:            { icon: 'checkDouble', color: '#06b6d4', title: 'Ready to Ship' },
+  shipped:                  { icon: 'truck',        color: '#f97316', title: 'Dispatched' },
+  dispatched:               { icon: 'truck',        color: '#f97316', title: 'Dispatched' },
+  delivered:                { icon: 'package',      color: '#14b8a6', title: 'Delivered' },
+  partial_delivery:         { icon: 'package',      color: '#06b6d4', title: 'Partial Delivery' },
+  payment_received:         { icon: 'money',        color: '#10b981', title: 'Payment Received' },
+  completed:                { icon: 'checkDouble',  color: '#a855f7', title: 'Order Completed' },
+  return_submitted:         { icon: 'undo',         color: '#f59e0b', title: 'Return Submitted' },
+  return_approved:          { icon: 'undo',         color: '#10b981', title: 'Return Approved' },
+  return_rejected:          { icon: 'undo',         color: '#ef4444', title: 'Return Rejected' },
+  cancelled:                { icon: 'x',            color: '#ef4444', title: 'Order Cancelled' },
+  amendment_applied:        { icon: 'edit',         color: '#38bdf8', title: 'Amendment Applied' },
+  amendment_requested:      { icon: 'edit',         color: '#38bdf8', title: 'Amendment Requested' },
+  amendment_approved:       { icon: 'edit',         color: '#10b981', title: 'Amendment Approved' },
+  amendment_rejected:       { icon: 'edit',         color: '#ef4444', title: 'Amendment Rejected' },
+  admin_edit:               { icon: 'edit',         color: '#a78bfa', title: 'Admin Edit' },
 }
 
-// Sidebar timeline: newest on top (reverse of ASC api order)
-const workflowTimeline = computed(() =>
-  [...apiWorkflow.value].reverse().map((w: any, i: number) => ({
-    id:     w.id,
-    action: WF_LABELS[w.to_status] ?? (w.to_status as string).replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()),
-    by:     w.performed_by_name ?? 'System',
-    time:   fmtDateTime(w.performed_at),
-    color:  WF_EVENT_COLORS[w.to_status] ?? WF_COLORS[i % WF_COLORS.length],
-    note:   w.comments ?? '',
-  })),
-)
+function eventMeta(action: string, toStatus: string) {
+  return EVENT_MAP[action] ?? EVENT_MAP[toStatus]
+    ?? { icon: 'dot', color: '#6b7280', title: (toStatus || action).replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }
+}
+
+const timelineNodes = computed(() => {
+  const nodes: any[] = []
+
+  // Synthesized "Order Placed" node — always first, from the order itself,
+  // so admin-created orders (which auto-approve, skipping a submit row)
+  // still show where the order started.
+  if (order.value) {
+    nodes.push({
+      id: 'placed', icon: 'cart', color: '#6366f1', title: 'Order Placed',
+      date: fmtDateTime(order.value.created_at ?? order.value.order_date),
+      description: `Order created — ৳${Number(order.value.total_amount ?? 0).toLocaleString()}`,
+      by: order.value.created_by_name ?? 'System',
+    })
+  }
+
+  for (const w of apiWorkflow.value) {
+    const meta = eventMeta(w.action, w.to_status)
+    nodes.push({
+      id: w.id, icon: meta.icon, color: meta.color, title: meta.title,
+      date: fmtDateTime(w.performed_at),
+      description: w.comments || meta.title,
+      by: w.performed_by_name ?? 'System',
+      pulse: true,
+    })
+  }
+  return nodes
+})
 
 function fmtDateTime(dt: string | null): string {
   if (!dt) return '—'
