@@ -1001,7 +1001,7 @@ const _routes = [
     name: "credit-sales-ledger",
     path: "/credit-sales/ledger",
     meta: __nuxt_page_meta$1k || {},
-    component: () => import('./ledger-BJ9aqx2a.mjs')
+    component: () => import('./ledger-vlonQzWX.mjs')
   },
   {
     name: "customers-id-edit",

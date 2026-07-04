@@ -39,6 +39,16 @@
         <template #cell-debit="{ value }"><span class="text-red-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
         <template #cell-credit="{ value }"><span class="text-emerald-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
         <template #cell-balance="{ value }"><span class="font-bold text-gold-400 font-mono text-xs">৳{{ Number(value).toLocaleString() }}</span></template>
+        <template #cell-link="{ row }">
+          <NuxtLink v-if="linkFor(row)" :to="linkFor(row)!.href"
+                    class="inline-flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors whitespace-nowrap">
+            {{ linkFor(row)!.label }}
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/>
+            </svg>
+          </NuxtLink>
+          <span v-else class="text-gray-700 text-xs">—</span>
+        </template>
       </UiDataTable>
     </template>
   </div>
@@ -113,5 +123,26 @@ const cols = [
   { key: 'debit',       label: 'Debit (৳)' },
   { key: 'credit',      label: 'Credit (৳)' },
   { key: 'balance',     label: 'Balance (৳)', sortable: true },
+  { key: 'link',        label: 'View' },
 ]
+
+// Direct link to the underlying record behind each ledger row — resolved
+// from reference_type/reference_id (+ linked_order_id for returns/amendments,
+// which are stored as their own id, not the order's).
+function linkFor(row: any): { href: string; label: string } | null {
+  switch (row.reference_type) {
+    case 'credit_order':
+      return { href: `/credit-sales/${row.reference_id}`, label: 'View Order' }
+    case 'customer_payment':
+      return { href: `/credit-sales/receipt/${row.reference_id}`, label: 'View Receipt' }
+    case 'payment_reversal':
+      return { href: `/credit-sales/receipt/${row.reference_id}`, label: 'View Original' }
+    case 'credit_order_return':
+      return row.linked_order_id ? { href: `/credit-sales/${row.linked_order_id}`, label: 'View Order' } : null
+    case 'order_amendment':
+      return row.linked_order_id ? { href: `/credit-sales/${row.linked_order_id}/amend`, label: 'View Amendment' } : null
+    default:
+      return null
+  }
+}
 </script>

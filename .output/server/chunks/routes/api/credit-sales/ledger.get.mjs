@@ -40,9 +40,22 @@ const ledger_get = defineEventHandler(async (event) => {
               l.description,
               l.debit_amount AS debit, l.credit_amount AS credit,
               l.balance_after AS balance,
-              c.name AS customer_name
+              c.name AS customer_name,
+              l.reference_type, l.reference_id,
+              -- Resolve the order a return/amendment belongs to, so the
+              -- frontend can build a direct link even though the ledger
+              -- row itself only stores the return/amendment id.
+              COALESCE(
+                CASE WHEN l.reference_type = 'credit_order' THEN l.reference_id END,
+                ret_link.order_id,
+                amd_link.order_id
+              ) AS linked_order_id
        FROM customer_ledger l
        JOIN customers c ON c.id = l.customer_id
+       LEFT JOIN credit_order_returns ret_link
+              ON l.reference_type = 'credit_order_return' AND ret_link.id = l.reference_id
+       LEFT JOIN order_amendments amd_link
+              ON l.reference_type = 'order_amendment' AND amd_link.id = l.reference_id
        ${w}
        ORDER BY l.transaction_date DESC, l.id DESC
        LIMIT 200`,
@@ -91,7 +104,8 @@ const ledger_get = defineEventHandler(async (event) => {
                 o.order_number AS ref,
                 CONCAT('Order ', o.order_number) AS description,
                 o.total_amount AS debit, 0 AS credit, 0 AS balance,
-                c.name AS customer_name
+                c.name AS customer_name,
+                'credit_order' AS reference_type, o.id AS reference_id, o.id AS linked_order_id
          FROM credit_orders o
          JOIN customers c ON c.id = o.customer_id
          ${orderWhere.length ? "WHERE " + orderWhere.join(" AND ") : ""}
@@ -104,7 +118,8 @@ const ledger_get = defineEventHandler(async (event) => {
                 COALESCE(p.reference_number, CONCAT('PMT-',p.id)) AS ref,
                 CONCAT('Payment \u2014 ', p.payment_method) AS description,
                 0 AS debit, p.amount AS credit, 0 AS balance,
-                c.name AS customer_name
+                c.name AS customer_name,
+                'customer_payment' AS reference_type, p.id AS reference_id, NULL AS linked_order_id
          FROM customer_payments p
          JOIN customers c ON c.id = p.customer_id
          ${payWhere.length ? "WHERE " + payWhere.join(" AND ") : ""}
