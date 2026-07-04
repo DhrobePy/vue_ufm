@@ -417,6 +417,55 @@
             <p v-else class="text-xs text-gray-600">No workflow events yet.</p>
           </div>
 
+          <!-- Dispatch gates / holds -->
+          <div v-if="gate?.exists || (isAccountsFamily && !isShippedOrLater)"
+               class="glass-card p-4 space-y-2"
+               :class="gate?.dispatchHold && !gate?.dispatchCleared ? 'border border-amber-500/25' : ''">
+            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Dispatch Control</h3>
+
+            <template v-if="gate?.exists">
+              <div v-if="gate.productionHold" class="text-[11px] flex items-center gap-1.5"
+                   :class="gate.productionReleased ? 'text-gray-500' : 'text-red-400'">
+                ⛔ Production hold {{ gate.productionReleased ? '(released)' : '— active' }}
+              </div>
+              <div v-if="gate.dispatchHold" class="text-[11px] space-y-1">
+                <p :class="gate.dispatchCleared ? 'text-emerald-400' : gate.conditionMet ? 'text-emerald-300' : 'text-amber-400'">
+                  {{ gate.dispatchCleared ? '🟢 Dispatch clearance granted'
+                     : gate.conditionMet ? '✓ Condition met — awaiting clearance'
+                     : '🚫 Dispatch held — condition pending' }}
+                </p>
+                <p class="text-gray-600">
+                  {{ gateConditionLabel }}
+                  <span v-if="gate.autoRelease" class="text-amber-500/80"> · auto-release</span>
+                </p>
+                <p v-if="gate.accountsNote" class="text-gray-600 italic">📝 {{ gate.accountsNote }}</p>
+              </div>
+              <div v-if="!gate.productionHold && !gate.dispatchHold" class="text-[11px] text-gray-600">
+                No active holds
+              </div>
+            </template>
+            <p v-else class="text-[11px] text-gray-600">No holds — order will dispatch freely</p>
+
+            <div v-if="isAccountsFamily && !isShippedOrLater" class="flex flex-wrap gap-2 pt-1">
+              <button @click="openGateModal"
+                      class="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-amber-500/12 text-amber-300 border border-amber-500/25 hover:bg-amber-500/20 transition-colors">
+                ⚙ {{ gate?.exists ? 'Edit Conditions' : 'Set Hold / Condition' }}
+              </button>
+              <button v-if="gate?.dispatchHold && !gate?.dispatchCleared" @click="gateAction('clear_dispatch')"
+                      class="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-emerald-500/12 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors">
+                ✓ Grant Clearance
+              </button>
+              <button v-if="gate?.dispatchCleared" @click="gateAction('revoke_dispatch')"
+                      class="px-3 py-1.5 rounded-lg text-[11px] text-gray-500 border border-white/[0.08] hover:text-red-400 hover:border-red-500/25 transition-colors">
+                Revoke
+              </button>
+              <button v-if="gate?.productionHold && !gate?.productionReleased && isAdmin" @click="gateAction('release_production')"
+                      class="px-3 py-1.5 rounded-lg text-[11px] text-amber-400 border border-amber-500/25 hover:bg-amber-500/10 transition-colors">
+                Release Production
+              </button>
+            </div>
+          </div>
+
           <!-- Quick actions -->
           <div class="glass-card p-4 space-y-2">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
@@ -527,6 +576,60 @@
                   {{ acting ? '…' : pendingReturnAction === 'approve' ? '✓ Confirm Approve' : '✗ Confirm Reject' }}
                 </button>
                 <button @click="returnApprovalModal = false" class="btn-ghost flex-1">Cancel</button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
+      <!-- ── Dispatch Gate / Conditions Modal ───────────────── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="gateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+            <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="gateModal = false" />
+            <div class="relative w-full max-w-lg glass-card p-6 space-y-4 animate-slide-up my-8">
+              <h3 class="section-title text-amber-300">⚙ Dispatch Control — {{ order.order_number }}</h3>
+              <p class="text-xs text-gray-500">
+                Holds apply from this moment until cleared. The dispatch button enforces them server-side.
+              </p>
+
+              <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300">
+                <input v-model="gateForm.production_hold" type="checkbox" class="accent-amber-500" />
+                ⛔ Hold production until admin releases
+              </label>
+              <input v-if="gateForm.production_hold" v-model="gateForm.production_hold_note" type="text"
+                     class="input-glass w-full py-1.5 text-xs" placeholder="Why is production held?" />
+
+              <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-300">
+                <input v-model="gateForm.dispatch_hold" type="checkbox" class="accent-amber-500" />
+                🚫 Hold dispatch until a payment condition is met
+              </label>
+              <template v-if="gateForm.dispatch_hold">
+                <select v-model="gateForm.condition_type" class="input-glass w-full py-1.5 text-xs">
+                  <option value="manual">Manual — accounts clears by hand</option>
+                  <option value="outstanding_below">Old dues must drop below…</option>
+                  <option value="outstanding_after_ship">Total dues after shipping ≤… (0 = pay everything first)</option>
+                  <option value="amount_received">Receive at least … against this order</option>
+                </select>
+                <input v-if="gateForm.condition_type !== 'manual'" v-model.number="gateForm.condition_amount"
+                       type="number" min="0" class="input-glass w-full py-1.5 font-mono text-center text-xs"
+                       placeholder="Amount (৳)" />
+                <label class="flex items-start gap-2 cursor-pointer text-xs text-gray-500">
+                  <input v-model="gateForm.auto_release" type="checkbox" class="accent-amber-500 mt-0.5" />
+                  <span>⚡ Auto-release when the condition is met
+                    <span class="block text-[10px] text-amber-500/80">Careful with cheques — money may not be cleared yet</span>
+                  </span>
+                </label>
+                <input v-model="gateForm.accounts_note" type="text" class="input-glass w-full py-1.5 text-xs"
+                       placeholder="Note for the dispatch team…" />
+              </template>
+
+              <div class="flex gap-3 pt-1">
+                <button @click="gateModal = false" class="btn-ghost flex-1 text-xs">Cancel</button>
+                <button @click="saveGate" :disabled="gateSaving"
+                        class="btn-gold flex-1 text-xs disabled:opacity-50">
+                  {{ gateSaving ? 'Saving…' : 'Save Conditions' }}
+                </button>
               </div>
             </div>
           </div>
@@ -767,6 +870,87 @@ const canCollectPayment = computed(() =>
   ['approved','in_production','ready_to_ship','dispatched','delivered','partial_delivery','completed']
     .includes(order.value.status),
 )
+
+// ── Dispatch gates (holds & payment conditions) ───────────────────────────────
+const isAccountsFamily = computed(() =>
+  ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra']
+    .includes((sessionUser.value?.role ?? '').toLowerCase()))
+const isShippedOrLater = computed(() =>
+  ['shipped', 'dispatched', 'delivered', 'completed', 'cancelled', 'rejected']
+    .includes(order.value?.status))
+
+const { data: gateData, refresh: refreshGate } = await useFetch(
+  () => `/api/credit-sales/${id.value}/gates`, { ignoreResponseError: true })
+const gate = computed<any>(() => (gateData.value as any)?.gate ?? null)
+
+const gateConditionLabel = computed(() => {
+  const g = gate.value
+  if (!g?.dispatchHold) return ''
+  const amt = g.conditionAmount != null ? ` ৳${Number(g.conditionAmount).toLocaleString()}` : ''
+  const map: Record<string, string> = {
+    manual:                 'Manual clearance by accounts',
+    outstanding_below:      `Old dues must drop to${amt}`,
+    outstanding_after_ship: Number(g.conditionAmount) === 0 ? 'Pay everything incl. this invoice' : `Total dues after shipping ≤${amt}`,
+    amount_received:        `Receive${amt} against this order`,
+  }
+  return map[g.conditionType ?? 'manual'] ?? 'Dispatch hold'
+})
+
+const gateModal  = ref(false)
+const gateSaving = ref(false)
+const gateForm   = reactive({
+  production_hold: false, production_hold_note: '',
+  dispatch_hold: false, condition_type: 'manual',
+  condition_amount: null as number | null,
+  auto_release: false, accounts_note: '',
+})
+
+function openGateModal() {
+  const g = gate.value?.raw
+  Object.assign(gateForm, g ? {
+    production_hold: !!g.production_hold, production_hold_note: g.production_hold_note ?? '',
+    dispatch_hold: !!g.dispatch_hold, condition_type: g.condition_type ?? 'manual',
+    condition_amount: g.condition_amount != null ? Number(g.condition_amount) : null,
+    auto_release: !!g.auto_release, accounts_note: g.accounts_note ?? '',
+  } : {
+    production_hold: false, production_hold_note: '',
+    dispatch_hold: false, condition_type: 'manual',
+    condition_amount: null, auto_release: false, accounts_note: '',
+  })
+  gateModal.value = true
+}
+
+async function saveGate() {
+  gateSaving.value = true
+  try {
+    await $fetch(`/api/credit-sales/${id.value}/gates`, {
+      method: 'POST',
+      body: { action: 'set', ...gateForm },
+    })
+    success('Dispatch conditions saved ✓')
+    gateModal.value = false
+    await Promise.all([refreshGate(), refresh()])
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save conditions')
+  } finally {
+    gateSaving.value = false
+  }
+}
+
+async function gateAction(action: string) {
+  const labels: Record<string, string> = {
+    clear_dispatch: 'Grant dispatch clearance', revoke_dispatch: 'Revoke clearance',
+    release_production: 'Release the production hold',
+  }
+  if (!confirm(`${labels[action]} for ${order.value.order_number}?`)) return
+  try {
+    await $fetch(`/api/credit-sales/${id.value}/gates`, { method: 'POST', body: { action } })
+    success(`${labels[action]} ✓`)
+    await Promise.all([refreshGate(), refresh()])
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Gate action failed')
+  }
+}
 
 // Build workflow history for UiOrderProgress (oldest-first, API now returns ASC)
 const orderHistory = computed(() =>

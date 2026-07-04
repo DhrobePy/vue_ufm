@@ -27,7 +27,7 @@ const TRANSITIONS = {
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -274,7 +274,12 @@ by ${userName}`;
     return { ok: true, newStatus: to_status };
   } catch (e) {
     await conn.rollback();
-    throw e;
+    if (e == null ? void 0 : e.statusCode) throw e;
+    console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
+    throw createError({
+      statusCode: 500,
+      statusMessage: (_t = (_s = e == null ? void 0 : e.sqlMessage) != null ? _s : e == null ? void 0 : e.message) != null ? _t : "Workflow transition failed"
+    });
   } finally {
     conn.release();
   }

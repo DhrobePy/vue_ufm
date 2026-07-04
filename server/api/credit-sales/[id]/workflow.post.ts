@@ -323,9 +323,16 @@ export default defineEventHandler(async (event) => {
     if (telegramMsg) sendTelegram(telegramMsg)  // fire-and-forget, after commit
 
     return { ok: true, newStatus: to_status }
-  } catch (e) {
+  } catch (e: any) {
     await conn.rollback()
-    throw e
+    // Re-throw createError()s as-is; wrap raw SQL/JS errors so the client
+    // toast shows the real cause instead of a blank "Server Error"
+    if (e?.statusCode) throw e
+    console.error('[workflow] transition failed:', e?.message, '| errno:', e?.errno)
+    throw createError({
+      statusCode: 500,
+      statusMessage: e?.sqlMessage ?? e?.message ?? 'Workflow transition failed',
+    })
   } finally {
     conn.release()
   }

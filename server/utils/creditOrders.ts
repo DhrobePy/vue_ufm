@@ -131,9 +131,18 @@ export async function getOrderGateState(conn: any, orderId: number): Promise<Gat
     conditionAmount: null, autoRelease: false, accountsNote: null,
     conditionMet: true, currentValue: null, raw: null,
   }
-  const [[c]] = await conn.query(
-    `SELECT * FROM order_approval_conditions WHERE order_id = ?`, [orderId],
-  )
+  let c: any
+  try {
+    const [[row]] = await conn.query(
+      `SELECT * FROM order_approval_conditions WHERE order_id = ?`, [orderId],
+    )
+    c = row
+  } catch (e: any) {
+    // Table not migrated yet (stale deploy / failed startup migration):
+    // degrade to "no gates" instead of turning every dispatch into a 500.
+    console.warn('[gates] order_approval_conditions unavailable:', e?.message)
+    return none
+  }
   if (!c) return none
 
   const [[order]] = await conn.query(
