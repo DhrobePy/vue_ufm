@@ -1,5 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { sendTelegram } from '~/server/utils/telegram'
+import { getCustomerOutstanding } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
@@ -27,6 +29,7 @@ export default defineEventHandler(async (event) => {
     advance_cheque_date,         // when method = Cheque
     advance_bank_tx_type,        // RTGS|BEFTN|NPSB|Online|Deposit
     advance_collected_by_employee_id,
+    delivery_type,    // 'big_truck' (default) | 'mini_truck'
     items,            // [{ product_id, variant_id, qty_bags→quantity, unit_price, discount_amount }]
   } = body ?? {}
 
@@ -55,32 +58,53 @@ export default defineEventHandler(async (event) => {
       const line = qty * Number(it.unit_price) - Number(it.discount_amount ?? 0)
       subtotal  += line
     }
-    const totalAmount = subtotal
+
+    // ── Mini-truck surcharge (per bag, from the branch's charge components) ─
+    // Enforced server-side — the client shows a preview but never sets the amount.
+    const deliveryType = delivery_type === 'mini_truck' ? 'mini_truck' : 'big_truck'
+    let miniTruckSurcharge = 0
+    if (deliveryType === 'mini_truck' && branch_id) {
+      const [mtComponents] = await conn.query<any[]>(
+        `SELECT weight_class, SUM(amount) AS amt
+         FROM branch_price_components
+         WHERE branch_id = ? AND charge_type = 'mini_truck' AND is_active = 1
+         GROUP BY weight_class`,
+        [Number(branch_id)],
+      )
+      const perWc: Record<string, number> = {}
+      for (const c of mtComponents as any[]) perWc[c.weight_class] = Number(c.amt)
+
+      for (const it of items) {
+        const qty = Number(it.qty_bags ?? it.quantity ?? 0)
+        let wc = 'all'
+        if (it.variant_id) {
+          const [[pv]] = await conn.query<any>(
+            `SELECT weight_variant FROM product_variants WHERE id = ?`, [it.variant_id],
+          )
+          const wv = String(pv?.weight_variant ?? '')
+          wc = wv.includes('50') ? '50' : wv.includes('74') ? '74' : 'all'
+        }
+        const perBag = (perWc[wc] ?? 0) + (wc !== 'all' ? (perWc['all'] ?? 0) : 0)
+        miniTruckSurcharge += qty * perBag
+      }
+      miniTruckSurcharge = Math.round(miniTruckSurcharge * 100) / 100
+    }
+
+    const totalAmount = subtotal + miniTruckSurcharge
     const advancePaid = Number(amount_paid ?? 0)
     const balanceDue  = Math.max(0, totalAmount - advancePaid)
 
-    // ── Credit limit check ──────────────────────────────────────────────────
+    // ── Credit limit check — LEDGER truth, never customers.current_balance ──
     const [[customer]] = await conn.query<any>(
-      `SELECT credit_limit, current_balance FROM customers WHERE id = ?`,
+      `SELECT credit_limit, name AS customer_name FROM customers WHERE id = ?`,
       [customer_id],
     )
-    const creditLimit    = Number(customer?.credit_limit    ?? 0)
-    const currentBalance = Number(customer?.current_balance ?? 0)
-
-    // Pending exposure: balance_due on orders that haven't hit the ledger yet
-    const [[expRow]] = await conn.query<any>(
-      `SELECT COALESCE(SUM(balance_due), 0) AS pending
-       FROM credit_orders
-       WHERE customer_id = ?
-         AND status IN ('pending_approval','escalated','approved',
-                        'in_production','produced','ready_to_ship','shipped','dispatched')`,
-      [customer_id],
-    )
-    const pendingExposure = Number(expRow?.pending ?? 0)
-    // Total exposure = what is already owed (ledger) + uncommitted commitments + this new order
-    const totalExposure   = currentBalance + pendingExposure + balanceDue
-    const overLimit       = creditLimit > 0 && totalExposure > creditLimit
-    const excessAmount    = overLimit ? Math.round(totalExposure - creditLimit) : 0
+    const creditLimit = Number(customer?.credit_limit ?? 0)
+    const exposure    = await getCustomerOutstanding(conn, Number(customer_id))
+    // Total exposure = ledger dues + not-yet-dispatched commitments + this new order
+    const totalExposure = exposure.totalExposure + balanceDue
+    const overLimit     = creditLimit > 0 && totalExposure > creditLimit
+    const excessAmount  = overLimit ? Math.round(totalExposure - creditLimit) : 0
 
     // ── Determine order status ──────────────────────────────────────────────
     // Over limit (any role)       → 'escalated'  (requires senior/CFO explicit approval)
@@ -124,10 +148,12 @@ export default defineEventHandler(async (event) => {
          (order_number, customer_id, assigned_branch_id, order_date, required_date, priority,
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
+          delivery_type, mini_truck_surcharge,
           dispatch_pin, delivery_pin,
           created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
+               ?, ?,
                ?, ?,
                ?, NOW(), NOW())`,
       [
@@ -140,11 +166,13 @@ export default defineEventHandler(async (event) => {
         orderStatus,
         delivery_address || null,
         special_notes    || null,
-        totalAmount,
+        subtotal,
         totalAmount,
         advancePaid,
         advancePaid,
         balanceDue,
+        deliveryType,
+        miniTruckSurcharge,
         dispatchPin,
         deliveryPin,
         userId,
@@ -369,12 +397,23 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+
+    sendTelegram(
+      `${overLimit ? '⚠️' : '🧾'} <b>New Credit Order${overLimit ? ' — ESCALATED' : ''}</b>\n` +
+      `${orderNo} — ${customer?.customer_name ?? `Customer ${customer_id}`}\n` +
+      `৳${totalAmount.toLocaleString()} · ${items.length} item(s)` +
+      (deliveryType === 'mini_truck' ? ` · Mini truck (+৳${miniTruckSurcharge.toLocaleString()})` : '') +
+      (advancePaid > 0 ? `\nAdvance ৳${advancePaid.toLocaleString()} received` : '') +
+      (overLimit ? `\nCredit limit exceeded by ৳${excessAmount.toLocaleString()} — needs senior approval` : ''),
+    )
+
     return {
       ok:         true,
       id:         orderId,
       order_number: orderNo,
       status:     orderStatus,
       over_limit: overLimit,
+      mini_truck_surcharge: miniTruckSurcharge,
       ...(overLimit ? { excess_amount: excessAmount } : {}),
     }
   } catch (e) {

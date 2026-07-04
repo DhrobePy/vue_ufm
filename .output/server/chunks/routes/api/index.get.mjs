@@ -1,4 +1,4 @@
-import { j as defineEventHandler, u as getQuery, Y as query, S as paginate } from '../../nitro/nitro.mjs';
+import { m as defineEventHandler, x as getQuery, J as getUserSession, t as getDb, I as getUserBranchScope, a1 as query, W as paginate } from '../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,6 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_get = defineEventHandler(async (event) => {
+  var _a;
   const q = getQuery(event);
   const search = q.search || "";
   const status = q.status || "";
@@ -18,6 +19,23 @@ const index_get = defineEventHandler(async (event) => {
   const { limit, offset } = paginate(page, per);
   const whereClauses = [];
   const params = [];
+  const session = await getUserSession(event);
+  if (session == null ? void 0 : session.user) {
+    const conn = await getDb().getConnection();
+    try {
+      const scope = await getUserBranchScope(
+        conn,
+        Number(session.user.id),
+        ((_a = session.user.role) != null ? _a : "").toLowerCase()
+      );
+      if (scope !== null) {
+        whereClauses.push("o.assigned_branch_id = ?");
+        params.push(scope);
+      }
+    } finally {
+      conn.release();
+    }
+  }
   if (search) {
     whereClauses.push("(o.order_number LIKE ? OR c.name LIKE ? OR c.business_name LIKE ?)");
     const like = `%${search}%`;

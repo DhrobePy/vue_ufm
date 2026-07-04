@@ -1,4 +1,4 @@
-import { j as defineEventHandler, C as getRouterParam, f as createError, Y as query } from '../../../../nitro/nitro.mjs';
+import { m as defineEventHandler, G as getRouterParam, i as createError, a1 as query } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';

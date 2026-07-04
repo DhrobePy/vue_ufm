@@ -347,14 +347,23 @@
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Telegram Bot Token</label>
-              <input v-model="notifSettings.telegramToken" type="password" class="input-glass font-mono" placeholder="bot:xxxx…" />
+              <input v-model="notifSettings.telegramToken" type="password" class="input-glass font-mono"
+                     :placeholder="notifSettings.tokenMasked || '123456:ABC-xxxx…'" />
+              <p v-if="notifSettings.tokenMasked" class="text-[11px] text-gray-600">
+                Saved: {{ notifSettings.tokenMasked }} — leave blank to keep it
+              </p>
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin Telegram Chat ID</label>
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Group / Admin Chat ID</label>
               <input v-model="notifSettings.adminChatId" type="text" class="input-glass font-mono" placeholder="-100xxxxx" />
             </div>
-            <div class="flex justify-end">
-              <button @click="save('Notification settings')" class="btn-gold text-xs">Save Changes</button>
+            <div class="flex justify-end gap-3">
+              <button @click="saveTelegram(true)" :disabled="savingTelegram" class="btn-ghost text-xs disabled:opacity-50">
+                Save &amp; Send Test
+              </button>
+              <button @click="saveTelegram(false)" :disabled="savingTelegram" class="btn-gold text-xs disabled:opacity-50">
+                {{ savingTelegram ? 'Saving…' : 'Save Changes' }}
+              </button>
             </div>
           </div>
         </div>
@@ -862,7 +871,39 @@ const notifChannels = reactive([
   { key: 'email',    label: 'Email Notifications',    description: 'Send daily summaries by email', enabled: false },
 ])
 
-const notifSettings = reactive({ telegramToken: '', adminChatId: '' })
+const notifSettings  = reactive({ telegramToken: '', adminChatId: '', tokenMasked: '' })
+const savingTelegram = ref(false)
+
+// Load saved Telegram settings (masked token)
+const { data: tgData } = await useFetch('/api/settings/telegram', {
+  // non-admin roles get 403 — swallow silently, the tab is admin-only anyway
+  ignoreResponseError: true,
+})
+watch(tgData, (d: any) => {
+  if (!d) return
+  notifSettings.adminChatId = d.chat_id ?? ''
+  notifSettings.tokenMasked = d.token_masked ?? ''
+}, { immediate: true })
+
+async function saveTelegram(sendTest: boolean) {
+  savingTelegram.value = true
+  try {
+    await $fetch('/api/settings/telegram', {
+      method: 'PUT',
+      body: {
+        chat_id:   notifSettings.adminChatId,
+        ...(notifSettings.telegramToken ? { token: notifSettings.telegramToken } : {}),
+        send_test: sendTest,
+      },
+    })
+    notifSettings.telegramToken = ''
+    success(sendTest ? 'Saved — test message sent to Telegram' : 'Telegram settings saved')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save Telegram settings')
+  } finally {
+    savingTelegram.value = false
+  }
+}
 
 const security = reactive({ sessionTimeout: 120, maxLoginAttempts: 5 })
 

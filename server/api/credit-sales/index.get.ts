@@ -1,4 +1,5 @@
-import { query, paginate } from '~/server/utils/db'
+import { query, paginate, getDb } from '~/server/utils/db'
+import { getUserBranchScope } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const q      = getQuery(event)
@@ -10,6 +11,23 @@ export default defineEventHandler(async (event) => {
 
   const whereClauses: string[] = []
   const params: unknown[]      = []
+
+  // Branch-coded roles (sales-srg, dispatch-demra, …) only see their branch
+  const session = await getUserSession(event)
+  if (session?.user) {
+    const conn = await getDb().getConnection()
+    try {
+      const scope = await getUserBranchScope(
+        conn, Number((session.user as any).id), ((session.user as any).role ?? '').toLowerCase(),
+      )
+      if (scope !== null) {
+        whereClauses.push('o.assigned_branch_id = ?')
+        params.push(scope)
+      }
+    } finally {
+      conn.release()
+    }
+  }
 
   if (search) {
     whereClauses.push('(o.order_number LIKE ? OR c.name LIKE ? OR c.business_name LIKE ?)')

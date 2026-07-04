@@ -72,8 +72,9 @@
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Branch</label>
           <select v-model="form.branchId" class="input-glass">
             <option value="">Select branch…</option>
-            <option value="1">Sirajgonj</option>
-            <option value="2">Demra</option>
+            <option v-for="b in orderBranches" :key="b.id" :value="String(b.id)">
+              {{ b.branch_type === 'factory' ? '🏭' : '📍' }} {{ b.name }}
+            </option>
           </select>
         </div>
         <div class="space-y-1.5">
@@ -83,6 +84,24 @@
             <option value="high">High</option>
             <option value="urgent">Urgent</option>
           </select>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Type</label>
+          <div class="flex rounded-xl overflow-hidden border border-white/[0.08]">
+            <button type="button" @click="form.deliveryType = 'big_truck'"
+                    :class="['flex-1 py-2.5 text-xs font-semibold transition-colors',
+                      form.deliveryType === 'big_truck' ? 'bg-gold-500/15 text-gold-300' : 'text-gray-500 hover:text-gray-300']">
+              🚛 Big Truck
+            </button>
+            <button type="button" @click="form.deliveryType = 'mini_truck'"
+                    :class="['flex-1 py-2.5 text-xs font-semibold transition-colors border-l border-white/[0.08]',
+                      form.deliveryType === 'mini_truck' ? 'bg-amber-500/15 text-amber-300' : 'text-gray-500 hover:text-gray-300']">
+              🛻 Mini Truck
+            </button>
+          </div>
+          <p v-if="form.deliveryType === 'mini_truck'" class="text-[10px] text-amber-500/90">
+            Per-bag mini-truck surcharge for the selected branch is added automatically at save
+          </p>
         </div>
         <div class="md:col-span-2 space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Shipping Address</label>
@@ -330,9 +349,15 @@ const currentStep = ref(0)
 const steps = ['Customer', 'Line Items', 'Summary']
 const submitting = ref(false)
 
+// Branches for the order (factories + sales regions, never offices)
+const { data: branchListData } = await useFetch('/api/branches')
+const orderBranches = computed(() =>
+  (((branchListData.value as any)?.branches ?? []) as any[])
+    .filter(b => b.status === 'active' && b.branch_type !== 'office'))
+
 const form = reactive({
   customerId: '', orderDate: new Date().toISOString().split('T')[0],
-  requiredDate: '', branchId: '', priority: 'normal',
+  requiredDate: '', branchId: '', priority: 'normal', deliveryType: 'big_truck',
   shippingAddress: '', advancePaid: 0, overallDiscount: 0, notes: '',
   items: [{ variantId: '', productId: '', quantity: 1, unitPrice: 0, discount: 0 }],
   // advance payment details
@@ -563,6 +588,7 @@ async function submitOrder() {
         priority:         form.priority,
         delivery_address: form.shippingAddress || null,
         special_notes:    form.notes || null,
+        delivery_type:    form.deliveryType,
         amount_paid:      form.advancePaid || 0,
         advance_payment_method:          (form.advancePaid || 0) > 0 ? form.advanceMethod : undefined,
         advance_bank_account_id:         form.advanceBankAccountId  || undefined,

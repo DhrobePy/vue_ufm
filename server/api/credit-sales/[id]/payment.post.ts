@@ -1,5 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { sendTelegram } from '~/server/utils/telegram'
+import { getOrderGateState } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -7,7 +9,9 @@ export default defineEventHandler(async (event) => {
 
   const body      = await readBody(event)
   const session   = await getUserSession(event)
-  const userId    = session?.user?.id ?? 1
+  if (!session?.user)
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId    = Number((session.user as any).id)
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
@@ -40,9 +44,12 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Load the order
+    // Load the order (locked — concurrent payments must serialize)
     const [[order]] = await conn.query<any>(
-      `SELECT id, customer_id, balance_due, amount_paid, status FROM credit_orders WHERE id = ?`, [id],
+      `SELECT o.id, o.customer_id, o.order_number, o.balance_due, o.amount_paid, o.status,
+              c.name AS customer_name
+       FROM credit_orders o JOIN customers c ON c.id = o.customer_id
+       WHERE o.id = ? FOR UPDATE`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
@@ -243,6 +250,28 @@ export default defineEventHandler(async (event) => {
       [id, order.status, wfToStatus, wfAction, userId, wfComments],
     )
 
+    // ── Gate auto-release: payment may satisfy the dispatch condition ──
+    // One evaluator (getOrderGateState) sees the post-payment numbers because
+    // we're inside the same transaction that updated them.
+    let autoReleased = false
+    const gate = await getOrderGateState(conn, id)
+    if (gate.dispatchHold && !gate.dispatchCleared && gate.autoRelease && gate.conditionMet) {
+      await conn.query(
+        `UPDATE order_approval_conditions
+         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
+             dispatch_cleared_note = ?
+         WHERE order_id = ?`,
+        [userId, `Auto-released — payment ${payNo} satisfied ${gate.conditionType}`, id],
+      )
+      await conn.query(
+        `INSERT INTO credit_order_workflow
+           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+         VALUES (?, ?, ?, 'gate_auto_release', ?, ?, NOW())`,
+        [id, order.status, order.status, userId, `Dispatch clearance auto-released by payment ${payNo}`],
+      )
+      autoReleased = true
+    }
+
     // ── System audit log ───────────────────────────────────────────────
     await auditLog(conn, {
       userId,
@@ -259,12 +288,22 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+
+    sendTelegram(
+      `💰 <b>Payment Received</b>\n` +
+      `${payNo} — ${order.customer_name} (Order ${order.order_number})\n` +
+      `৳${pmtAmount.toLocaleString()} via ${mappedMethod} · balance ৳${newBalance.toLocaleString()}` +
+      (isNowComplete ? '\n✅ Order fully paid & completed' : '') +
+      (autoReleased ? '\n🟢 Dispatch clearance auto-released' : ''),
+    )
+
     return {
       ok: true,
       id: paymentId,
       reference_number: payNo,
       new_balance: newBalance,
       completed: isNowComplete,
+      gate_auto_released: autoReleased,
     }
   } catch (e: any) {
     await conn.rollback()

@@ -35,6 +35,7 @@ interface TransitionRule {
 const TRANSITIONS: Record<string, TransitionRule> = {
   approved:      { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
   rejected:      { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
+  escalated:     { from: ['pending_approval'], roles: [...ACCOUNTS_ROLES] },  // flag up to admin
   in_production: { from: ['approved'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'production' },
   ready_to_ship: { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
   shipped:       { from: ['ready_to_ship'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: 'ship' },

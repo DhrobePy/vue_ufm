@@ -1,4 +1,4 @@
-import { j as defineEventHandler, C as getRouterParam, _ as readBody, F as getUserSession, f as createError, v as getRequestHeader, K as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, q as getDb, E as getUserApprovalLimit, p as getCustomerOutstanding, h as creditUsagePct, J as isAccountsRole, t as getOrderGateState, r as getGLAccountId, W as postJournalEntry, V as postCustomerLedger, b as auditLog, a4 as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { m as defineEventHandler, G as getRouterParam, a3 as readBody, J as getUserSession, i as createError, y as getRequestHeader, O as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, t as getDb, H as getUserApprovalLimit, s as getCustomerOutstanding, k as creditUsagePct, N as isAccountsRole, w as getOrderGateState, u as getGLAccountId, _ as postJournalEntry, Z as postCustomerLedger, e as auditLog, a9 as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -16,6 +16,8 @@ const STATUS_ALIAS = {
 const TRANSITIONS = {
   approved: { from: ["pending_approval", "escalated"], roles: [...ACCOUNTS_ROLES], enforce: "approve" },
   rejected: { from: ["pending_approval", "escalated"], roles: [...ACCOUNTS_ROLES], enforce: "approve" },
+  escalated: { from: ["pending_approval"], roles: [...ACCOUNTS_ROLES] },
+  // flag up to admin
   in_production: { from: ["approved"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "production" },
   ready_to_ship: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
   shipped: { from: ["ready_to_ship"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: "ship" },
