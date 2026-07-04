@@ -28,6 +28,35 @@ async function addCol(db: any, table: string, col: string, def: string) {
   }
 }
 
+/**
+ * Rename a column when a table pre-existed under a different name than the
+ * one our CREATE TABLE IF NOT EXISTS assumed (so that statement was a no-op).
+ * Safe to run every restart: 1054 = old name doesn't exist (already renamed,
+ * or a fresh install already has the new name from CREATE TABLE); 1060 =
+ * new name already exists too — leave both alone rather than guess.
+ */
+async function renameCol(db: any, table: string, oldName: string, newName: string, def: string) {
+  try {
+    await db.query(`ALTER TABLE \`${table}\` CHANGE COLUMN \`${oldName}\` \`${newName}\` ${def}`)
+  } catch (e: any) {
+    if (e?.errno !== 1054 && e?.errno !== 1060) {
+      console.warn(`[db-migrate] ${table} rename ${oldName}->${newName} failed:`, e)
+    }
+  }
+}
+
+/** Add a UNIQUE key; silently skip if it already exists or data violates it. */
+async function addUnique(db: any, table: string, keyName: string, cols: string) {
+  try {
+    await db.query(`ALTER TABLE \`${table}\` ADD UNIQUE KEY \`${keyName}\` (${cols})`)
+  } catch (e: any) {
+    // 1061 = key name already exists, 1557/1062 = duplicate data would violate it
+    if (![1061, 1557, 1062].includes(e?.errno)) {
+      console.warn(`[db-migrate] ${table} ADD UNIQUE ${keyName} failed:`, e)
+    }
+  }
+}
+
 export default defineNitroPlugin(async () => {
   const db = getDb()
 
@@ -587,6 +616,32 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] order_approval_conditions failed:', e) }
 
+  // order_approval_conditions ALSO already existed in production (an older
+  // approval-gate table with different column names: production_note,
+  // cleared_by/cleared_at/clearance_note, approved_by_user_id — no
+  // created_by_user_id, no UNIQUE on order_id, and a condition_type ENUM
+  // missing 'outstanding_after_ship'). CREATE TABLE IF NOT EXISTS above was
+  // therefore a no-op. Reconcile the old table to the names/shape every
+  // gates/workflow/payment-watch query in this codebase actually uses.
+  await renameCol(db, 'order_approval_conditions', 'production_note', 'production_hold_note', 'VARCHAR(255) NULL DEFAULT NULL')
+  await renameCol(db, 'order_approval_conditions', 'cleared_by', 'dispatch_cleared_by', 'INT UNSIGNED NULL DEFAULT NULL')
+  await renameCol(db, 'order_approval_conditions', 'cleared_at', 'dispatch_cleared_at', 'DATETIME NULL DEFAULT NULL')
+  await renameCol(db, 'order_approval_conditions', 'clearance_note', 'dispatch_cleared_note', 'VARCHAR(255) NULL DEFAULT NULL')
+  await addCol(db, 'order_approval_conditions', 'created_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  // approved_by_user_id was NOT NULL with no default in the old table — our
+  // code never populates it, so every insert failed. Make it optional.
+  try {
+    await db.query(`ALTER TABLE order_approval_conditions MODIFY COLUMN approved_by_user_id BIGINT UNSIGNED NULL DEFAULT NULL`)
+  } catch (e) { console.warn('[db-migrate] order_approval_conditions.approved_by_user_id widen failed:', e) }
+  // condition_type was a 3-value ENUM missing 'outstanding_after_ship' —
+  // widen to VARCHAR so no condition type can ever be truncated again.
+  try {
+    await db.query(`ALTER TABLE order_approval_conditions MODIFY COLUMN condition_type VARCHAR(30) NULL DEFAULT NULL`)
+  } catch (e) { console.warn('[db-migrate] order_approval_conditions.condition_type widen failed:', e) }
+  // One row per order — our gates.post.ts / workflow.post.ts rely on
+  // ON DUPLICATE KEY UPDATE via this constraint; the old table had none.
+  await addUnique(db, 'order_approval_conditions', 'uniq_oac_order', 'order_id')
+
   // ── 38. order_amendments — pre/post-dispatch change control ───────────────
   try {
     await db.query(`
@@ -633,6 +688,13 @@ export default defineNitroPlugin(async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `)
   } catch (e) { console.warn('[db-migrate] payment_allocations failed:', e) }
+
+  // payment_allocations already existed in production (an older table with
+  // payment_id/order_id/allocated_amount/allocation_date/allocated_by_user_id)
+  // so CREATE TABLE IF NOT EXISTS above was a no-op and never added the new
+  // as_advance column the Collect Payment flow relies on. Retrofit it.
+  await addCol(db, 'payment_allocations', 'as_advance',
+    "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = order not dispatched yet, counts as advance'")
 
   // ── 41. user_approval_limits — transaction (payment) approval limit ───────
   await addCol(db, 'user_approval_limits', 'max_transaction_amount',

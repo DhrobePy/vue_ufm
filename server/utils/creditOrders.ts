@@ -134,7 +134,7 @@ export async function getOrderGateState(conn: any, orderId: number): Promise<Gat
   let c: any
   try {
     const [[row]] = await conn.query(
-      `SELECT * FROM order_approval_conditions WHERE order_id = ?`, [orderId],
+      `SELECT * FROM order_approval_conditions WHERE order_id = ? ORDER BY id DESC LIMIT 1`, [orderId],
     )
     c = row
   } catch (e: any) {

@@ -17,7 +17,7 @@ const _paymentId__get = defineEventHandler(async (event) => {
   if (!(session == null ? void 0 : session.user)) throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
   const payment = await queryOne(
     `SELECT p.*, c.name AS customer_name, c.phone_number AS customer_phone,
-            c.address AS customer_address,
+            c.business_address AS customer_address,
             o.order_number AS direct_order_number,
             u.display_name AS recorded_by,
             ba.account_name AS bank_account_name, ba.bank_name,
