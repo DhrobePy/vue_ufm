@@ -809,7 +809,7 @@ const _routes = [
     name: "credit-sales-all",
     path: "/credit-sales/all",
     meta: __nuxt_page_meta$1Q || {},
-    component: () => import('./all-DrboITdm.mjs')
+    component: () => import('./all-BeSQ9y3H.mjs')
   },
   {
     name: "customers-create",

@@ -29,7 +29,11 @@
         <option value="high">High</option>
         <option value="normal">Normal</option>
       </select>
-      <button @click="search='';priorityFilter='';activeFilter='';page=1;refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
+      <label class="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none">
+        <input v-model="heldOnly" type="checkbox" class="accent-amber-500" />
+        ⚠ Held only <span v-if="heldCount" class="text-amber-400 font-semibold">({{ heldCount }})</span>
+      </label>
+      <button @click="search='';priorityFilter='';activeFilter='';heldOnly=false;page=1;refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
       <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
         <span class="font-medium text-gray-300">{{ data?.total ?? 0 }}</span> orders
       </div>
@@ -75,6 +79,29 @@
           {{ value }}
         </span>
       </template>
+      <template #cell-hold="{ row }">
+        <div v-if="row.production_hold_active || row.dispatch_hold" class="flex flex-col gap-0.5 min-w-[140px]">
+          <span v-if="row.production_hold_active"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold w-fit
+                       bg-red-500/12 text-red-400 border border-red-500/25">
+            ⛔ Production Hold
+          </span>
+          <span v-if="row.dispatch_hold && !row.dispatch_cleared"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold w-fit"
+                :class="row.condition_met
+                  ? 'bg-emerald-500/12 text-emerald-400 border border-emerald-500/25'
+                  : 'bg-amber-500/12 text-amber-400 border border-amber-500/25'">
+            {{ row.condition_met ? '✓ Condition Met' : '🚫 Payment Hold' }}
+          </span>
+          <span v-else-if="row.dispatch_hold && row.dispatch_cleared"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold w-fit
+                       bg-sky-500/12 text-sky-400 border border-sky-500/25">
+            🟢 Cleared
+          </span>
+          <span v-if="row.dispatch_hold" class="text-[10px] text-gray-600 pl-0.5">{{ conditionLabel(row) }}</span>
+        </div>
+        <span v-else class="text-gray-700 text-xs">—</span>
+      </template>
       <template #actions="{ row }">
         <NuxtLink :to="`/credit-sales/${row.id}`" class="btn-ghost text-xs py-1 px-2.5">View</NuxtLink>
       </template>
@@ -110,11 +137,33 @@ const { data, pending, error, refresh } = await useFetch('/api/credit-sales', {
   })),
 })
 
-const rows = computed(() => (data.value?.orders ?? []).map((o: any) => ({
+const heldOnly = ref(false)
+
+const allRows = computed(() => (data.value?.orders ?? []).map((o: any) => ({
   ...o,
   customer: o.customer_name,
   date:     o.order_date,
 })))
+
+const rows = computed(() =>
+  heldOnly.value
+    ? allRows.value.filter((r: any) => r.production_hold_active || r.dispatch_hold)
+    : allRows.value,
+)
+
+const heldCount = computed(() =>
+  allRows.value.filter((r: any) => r.production_hold_active || r.dispatch_hold).length)
+
+function conditionLabel(row: any): string {
+  const amt = row.condition_amount != null ? ` ৳${Number(row.condition_amount).toLocaleString()}` : ''
+  const map: Record<string, string> = {
+    manual:                 'Manual clearance by accounts',
+    outstanding_below:      `Old dues below${amt}`,
+    outstanding_after_ship: Number(row.condition_amount) === 0 ? 'Pay everything first' : `Dues after ship ≤${amt}`,
+    amount_received:        `Receive${amt} on this order`,
+  }
+  return map[row.condition_type] ?? 'Dispatch hold'
+}
 
 const statusFilters = [
   { value: '',                 label: 'All' },
@@ -137,5 +186,6 @@ const cols = [
   { key: 'balance_due',  label: 'Balance' },
   { key: 'priority',     label: 'Priority' },
   { key: 'status',       label: 'Status' },
+  { key: 'hold',         label: 'Hold / Condition' },
 ]
 </script>
