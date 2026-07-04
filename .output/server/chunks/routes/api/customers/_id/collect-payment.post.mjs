@@ -48,7 +48,7 @@ const collectPayment_post = defineEventHandler(async (event) => {
           payment_type, reference_number, bank_account_id, cash_account_id,
           cheque_number, cheque_date, bank_transaction_type,
           allocation_status, allocated_amount, notes, created_by_user_id)
-       VALUES (NULL, ?, ?, ?, ?, ?, 'customer_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (NULL, ?, ?, ?, ?, ?, 'invoice_payment', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payNo,
         customerId,

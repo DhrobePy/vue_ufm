@@ -184,6 +184,30 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] customer_payments.payment_method widen failed:', e)
   }
 
+  // payment_type was ALSO a restrictive ENUM('advance','invoice_payment',
+  // 'partial_payment') in the original schema, so the addCol() attempt above
+  // silently no-op'd (column already existed) and never widened it. Any new
+  // payment_type value (e.g. from the customer-level Collect Payment flow)
+  // was rejected by MySQL with a data-truncated error — the "server error"
+  // seen on /credit-sales/collect. Same fix as payment_method above.
+  try {
+    await db.query(
+      `ALTER TABLE customer_payments MODIFY COLUMN payment_type VARCHAR(30) NULL DEFAULT 'invoice_payment'`,
+    )
+  } catch (e) {
+    console.warn('[db-migrate] customer_payments.payment_type widen failed:', e)
+  }
+
+  // allocation_status has the same restrictive-ENUM history; widen for the
+  // same reason even though current values happen to already fit its enum.
+  try {
+    await db.query(
+      `ALTER TABLE customer_payments MODIFY COLUMN allocation_status VARCHAR(30) NULL DEFAULT 'unallocated'`,
+    )
+  } catch (e) {
+    console.warn('[db-migrate] customer_payments.allocation_status widen failed:', e)
+  }
+
   // ── 7. credit_orders.production_seq ──────────────────────────────────────
   await addCol(
     db, 'credit_orders', 'production_seq',
