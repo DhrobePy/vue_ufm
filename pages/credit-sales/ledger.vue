@@ -35,6 +35,7 @@
       </div>
 
       <UiDataTable :columns="cols" :rows="ledger" :per-page="15" exportable search-placeholder="Search transactions…">
+        <template #cell-date="{ value }"><span class="text-gray-300 text-xs whitespace-nowrap">{{ fmtDate(value) }}</span></template>
         <template #cell-debit="{ value }"><span class="text-red-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
         <template #cell-credit="{ value }"><span class="text-emerald-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
         <template #cell-balance="{ value }"><span class="font-bold text-gold-400 font-mono text-xs">৳{{ Number(value).toLocaleString() }}</span></template>
@@ -72,6 +73,18 @@ const totalDebit   = computed(() =>  data.value?.totalDebit  ?? 0)
 const totalCredit  = computed(() =>  data.value?.totalCredit ?? 0)
 const balance      = computed(() =>  data.value?.balance     ?? 0)
 
+// transaction_date is a plain DATE column with no time-of-day. mysql2 hands
+// it back as midnight-UTC ("2026-07-04T00:00:00.000Z"), which the DataTable's
+// fallback rendered raw. Read the Y-M-D digits directly — no Date/timezone
+// conversion — so the calendar day never shifts for any viewer.
+function fmtDate(v: string | null): string {
+  if (!v) return '—'
+  const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return String(v)
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
 function applyFilter() {
   appliedCustomerId.value = selectedCustomerId.value
   appliedFrom.value       = dateFrom.value
@@ -82,7 +95,7 @@ function applyFilter() {
 function exportLedger() {
   // Trigger CSV export via browser download — basic implementation
   const rows = ledger.value.map((r: any) =>
-    [r.date, r.type, r.ref, r.description, r.debit, r.credit, r.balance].join(',')
+    [fmtDate(r.date), r.type, r.ref, r.description, r.debit, r.credit, r.balance].join(',')
   )
   const csv  = ['Date,Type,Reference,Description,Debit,Credit,Balance', ...rows].join('\n')
   const blob = new Blob([csv], { type: 'text/csv' })
