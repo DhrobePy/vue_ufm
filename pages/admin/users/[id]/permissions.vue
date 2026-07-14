@@ -270,6 +270,7 @@ const moduleRegistry = [
           { key: 'collect_payment', label: 'Collect Payment' },
           { key: 'record_delivery', label: 'Record Delivery' },
           { key: 'record_return',   label: 'Record Return' },
+          { key: 'record_over_delivery', label: 'Record Over-Delivery' },
           { key: 'request_amendment', label: 'Request Amendment' },
           { key: 'telegram',        label: 'Send Telegram Alert' },
           { key: 'cancel',          label: 'Cancel Order' },
@@ -307,6 +308,11 @@ const moduleRegistry = [
       { key: 'approval-requests', label: 'Approval Requests (maker/checker)', route: 'credit-sales/approval-requests',
         actions: [
           { key: 'decide', label: 'Approve / Reject Queued Payments' },
+        ] },
+      { key: 'over-deliveries', label: 'Over-Deliveries', route: 'credit-sales/over-deliveries',
+        actions: [
+          { key: 'decide',           label: 'Approve / Reject Over-Deliveries' },
+          { key: 'mark_retrieved',   label: 'Mark Goods Retrieved' },
         ] },
       { key: 'collect',   label: 'Collect Payment (customer-level)', route: 'credit-sales/collect',
         actions: [

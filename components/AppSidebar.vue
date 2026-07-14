@@ -83,6 +83,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ledger')" label="Customer Ledger"   route="/credit-sales/ledger"       :collapsed="collapsed" icon-type="book"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/payment-watch')" label="Payment Watch"     route="/credit-sales/payment-watch" :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/approval-requests')" label="Approval Requests" route="/credit-sales/approval-requests" :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/over-deliveries')" label="Over-Deliveries"   route="/credit-sales/over-deliveries" :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/collect')" label="Collect Payment"   route="/credit-sales/collect"      :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ageing')" label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
       </SidebarGroup>

@@ -7,8 +7,9 @@ export default defineEventHandler(async (event) => {
 
   const body      = await readBody(event)
   const session   = await getUserSession(event)
-  const userId    = session?.user?.id ?? 1
-  const role      = (session?.user?.role ?? '').toLowerCase()
+  if (!session?.user)
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId    = Number((session.user as any).id)
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
@@ -49,9 +50,11 @@ export default defineEventHandler(async (event) => {
       (s: number, i: any) => s + Number(i.returned_qty) * Number(i.unit_price), 0,
     )
 
-    // Admin/superadmin auto-approve; others go to pending
-    const autoApprove = ['admin', 'superadmin'].includes(role)
-    const retStatus   = autoApprove ? 'approved' : 'pending'
+    // Maker/checker separation (spec §2.9): always lands pending, even for
+    // admins — a DIFFERENT authorised user must approve via the decide
+    // endpoint (which already blocks self-approval). No auto-approve shortcut.
+    const autoApprove = false
+    const retStatus   = 'pending'
 
     // Insert return header
     const [result] = await conn.query<any>(

@@ -159,6 +159,32 @@
       <MiniStatCard label="Outstanding"      :value="fmtLakh(rv.total_outstanding)" delta="this month" icon="money" />
     </div>
 
+    <!-- ── Exception Radar — owner visibility (spec §2.13) ─────────────── -->
+    <div v-if="isAdminOrAccounts && radarTiles.length" class="glass-card p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="section-title flex items-center gap-2">
+          <span>🎯</span> Exception Radar
+        </h3>
+        <span v-if="radarTotal > 0" class="text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+          {{ radarTotal }} need attention
+        </span>
+        <span v-else class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400">
+          ✓ All clear
+        </span>
+      </div>
+      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <NuxtLink v-for="t in radarTiles" :key="t.key" :to="t.route"
+                  class="rounded-xl border p-3.5 flex flex-col gap-1.5 transition-all duration-150 hover:border-white/[0.16]"
+                  :class="t.count > 0 ? 'border-amber-500/20 bg-amber-500/[0.04]' : 'border-white/[0.06] bg-white/[0.015]'">
+          <div class="flex items-center justify-between">
+            <span class="text-base">{{ t.icon }}</span>
+            <span class="text-xl font-bold" :class="t.count > 0 ? 'text-amber-400' : 'text-gray-600'">{{ t.count }}</span>
+          </div>
+          <p class="text-[11px] text-gray-500 leading-tight">{{ t.label }}</p>
+        </NuxtLink>
+      </div>
+    </div>
+
     <!-- ── Main content grid ─────────────────────────── -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -320,6 +346,17 @@ const perms = usePermissions()
 // ── Live stats — SSR fetch, then polled every 30 s ────────────────
 const { data: statsData, refresh: refreshStats } =
   await useFetch('/api/dashboard/stats')
+
+// ── Exception Radar (spec §2.13) — accounts/admin only ─────────────
+const { user: sessionUserForRadar } = useUserSession()
+const isAdminOrAccounts = computed(() =>
+  ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra']
+    .includes((sessionUserForRadar.value?.role ?? '').toLowerCase()))
+const { data: radarData } = isAdminOrAccounts.value
+  ? await useFetch('/api/dashboard/exception-radar')
+  : { data: ref(null) }
+const radarTiles = computed<any[]>(() => (radarData.value as any)?.tiles ?? [])
+const radarTotal = computed(() => (radarData.value as any)?.total ?? 0)
 
 // ── Chart period — reactive; re-fetches when changed ─────────────
 const chartPeriod = ref('1M')

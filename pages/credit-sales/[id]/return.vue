@@ -191,15 +191,11 @@
         <!-- Approval info -->
         <div class="glass-card p-5 space-y-2">
           <h3 class="text-sm font-semibold text-gray-300">Approval</h3>
-          <div class="rounded-xl p-3 text-xs"
-            :class="isAdmin
-              ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-400'
-              : 'bg-amber-500/10 border border-amber-500/20 text-amber-400'">
-            <p class="font-semibold mb-1">{{ isAdmin ? '✓ Auto-Approved' : '⏳ Pending Approval' }}</p>
+          <div class="rounded-xl p-3 text-xs bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <p class="font-semibold mb-1">⏳ Pending Approval</p>
             <p class="opacity-80 leading-snug">
-              {{ isAdmin
-                ? 'As admin, the return will be approved immediately and balance adjusted.'
-                : 'Return will be submitted as pending. An admin must approve it before the balance is adjusted.' }}
+              A different authorised user must approve this return before the balance is adjusted —
+              even admins cannot approve their own submission.
             </p>
           </div>
         </div>
@@ -243,13 +239,8 @@
 definePageMeta({ layout: 'default' })
 const route  = useRoute()
 const { success, error: toastError } = useToast()
-const { user: sessionUser } = useUserSession()
 
 const id = Number(route.params.id)
-
-const isAdmin = computed(() =>
-  ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase())
-)
 
 // ── Fetch order ───────────────────────────────────────────
 const { data: orderData, pending: orderPending } = await useFetch(`/api/credit-sales/${id}`)

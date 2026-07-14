@@ -508,6 +508,7 @@
             <NuxtLink v-if="['goods_on_board', 'shipped', 'dispatched'].includes(order.status) && perms.canDo('credit_sales', 'all', 'record_delivery')" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
             <button v-if="perms.canDo('credit_sales', 'all', 'telegram')" @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
             <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
+            <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_over_delivery')" :to="`/credit-sales/${id}/over-delivery`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Over-Delivery</NuxtLink>
             <NuxtLink v-if="!['cancelled','rejected'].includes(order.status)" :to="`/credit-sales/${id}/amend`" class="btn-ghost w-full justify-start text-xs py-2">📝 Amend Order</NuxtLink>
             <button v-if="!['cancelled','completed','rejected'].includes(order.status) && perms.canDo('credit_sales', 'all', 'cancel')"
               @click="cancelModal = true"
@@ -1047,6 +1048,9 @@ const EVENT_MAP: Record<string, { icon: string; color: string; title: string }> 
   return_submitted:         { icon: 'undo',         color: '#f59e0b', title: 'Return Submitted' },
   return_approved:          { icon: 'undo',         color: '#10b981', title: 'Return Approved' },
   return_rejected:          { icon: 'undo',         color: '#ef4444', title: 'Return Rejected' },
+  over_delivery_submitted:  { icon: 'package',      color: '#f59e0b', title: 'Over-Delivery Recorded' },
+  over_delivery_approved:   { icon: 'package',      color: '#10b981', title: 'Over-Delivery Approved' },
+  over_delivery_rejected:   { icon: 'package',      color: '#ef4444', title: 'Over-Delivery Rejected' },
   cancelled:                { icon: 'x',            color: '#ef4444', title: 'Order Cancelled' },
   amendment_applied:        { icon: 'edit',         color: '#38bdf8', title: 'Amendment Applied' },
   amendment_requested:      { icon: 'edit',         color: '#38bdf8', title: 'Amendment Requested' },

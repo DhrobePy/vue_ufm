@@ -758,5 +758,47 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] credit_pending_requests failed:', e) }
 
+  // ── 44. Over-delivery handling (spec §2.9) ─────────────────────────────────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_order_over_deliveries (
+        id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        od_number            VARCHAR(30)  NOT NULL UNIQUE,
+        order_id             INT UNSIGNED NOT NULL,
+        customer_id          INT UNSIGNED NOT NULL,
+        od_date              DATE         NOT NULL,
+        total_extra_qty      DECIMAL(12,2) NOT NULL DEFAULT 0,
+        total_extra_amount   DECIMAL(14,2) NOT NULL DEFAULT 0,
+        resolution           VARCHAR(20)  NOT NULL DEFAULT 'bill' COMMENT 'bill | retrieve | writeoff',
+        notes                VARCHAR(500) NULL,
+        status               VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT 'pending | approved | rejected',
+        created_by_user_id   INT UNSIGNED NOT NULL,
+        approved_by_user_id  INT UNSIGNED NULL,
+        approved_at          DATETIME     NULL,
+        decision_note        VARCHAR(255) NULL,
+        retrieved_at         DATETIME     NULL,
+        retrieved_by_user_id INT UNSIGNED NULL,
+        journal_entry_id     INT UNSIGNED NULL,
+        created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_od_order (order_id),
+        INDEX idx_od_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_order_over_delivery_items (
+        id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        od_id          INT UNSIGNED NOT NULL,
+        order_item_id  INT UNSIGNED NULL,
+        product_id     INT UNSIGNED NULL,
+        variant_id     INT UNSIGNED NULL,
+        extra_qty      DECIMAL(12,2) NOT NULL,
+        unit_price     DECIMAL(12,2) NOT NULL,
+        line_total     DECIMAL(14,2) NOT NULL,
+        INDEX idx_odi_od (od_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] over-delivery tables failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })
