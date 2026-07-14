@@ -618,6 +618,11 @@ const moduleRegistry = [
           { key: 'adjust', label: 'Adjust Stock' },
           { key: 'export', label: 'Export' },
         ] },
+      { key: 'stock_adjustments', label: 'Stock Adjustments (maker/checker)', route: 'products/stock-adjustments',
+        actions: [
+          { key: 'create', label: 'Submit Adjustment' },
+          { key: 'decide', label: 'Approve / Reject Adjustments' },
+        ] },
     ],
   },
   {

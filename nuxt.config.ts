@@ -17,6 +17,7 @@ export default defineNuxtConfig({
     dbPass: '',
     devLogin: '',          // set NUXT_DEV_LOGIN=true in .env to enable dev credentials
     sessionSecret: 'change-this-to-a-long-random-secret-min-32-chars!!',
+    cronSecret: '',        // set NUXT_CRON_SECRET in .env to enable /api/cron/* endpoints (e.g. cPanel scheduled task)
     public: {
       appName: 'Ujjal FMC ERP',
       appUrl: 'http://localhost:3000',

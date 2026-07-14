@@ -800,5 +800,28 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] over-delivery tables failed:', e) }
 
+  // ── 45. stock_adjustments — inventory correction workflow (spec §2.9) ─────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS stock_adjustments (
+        id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        adj_number          VARCHAR(30)  NOT NULL UNIQUE,
+        variant_id          INT UNSIGNED NOT NULL,
+        delta               INT          NOT NULL COMMENT 'signed — negative = decrease, positive = increase',
+        reason              VARCHAR(255) NOT NULL,
+        notes               VARCHAR(500) NULL,
+        status              VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT 'pending | approved | rejected',
+        created_by_user_id  INT UNSIGNED NOT NULL,
+        approved_by_user_id INT UNSIGNED NULL,
+        approved_at         DATETIME     NULL,
+        decision_note       VARCHAR(255) NULL,
+        journal_entry_id    INT UNSIGNED NULL,
+        created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sa_variant (variant_id),
+        INDEX idx_sa_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] stock_adjustments failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })
