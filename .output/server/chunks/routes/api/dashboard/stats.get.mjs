@@ -1,4 +1,4 @@
-import { m as defineEventHandler, a3 as queryOne, a2 as query } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, a5 as queryOne, a4 as query } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -31,7 +31,7 @@ const stats_get = defineEventHandler(async () => {
          SUM(status = 'approved')         AS approved,
          SUM(status = 'in_production')    AS in_production,
          SUM(status = 'ready_to_ship')    AS ready_to_ship,
-         SUM(status = 'dispatched')       AS dispatched,
+         SUM(status IN ('goods_on_board','shipped','dispatched')) AS dispatched,
          SUM(status = 'delivered')        AS delivered,
          SUM(status = 'cancelled')        AS cancelled
        FROM credit_orders

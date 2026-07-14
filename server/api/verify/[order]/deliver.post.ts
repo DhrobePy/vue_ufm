@@ -52,12 +52,12 @@ export default defineEventHandler(async (event) => {
   if (!orders.length) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
   const order = orders[0]
 
-  if (order.status !== 'dispatched') {
+  if (!['goods_on_board', 'shipped'].includes(order.status)) {
     throw createError({
       statusCode: 400,
       statusMessage: order.status === 'delivered' || order.status === 'completed'
         ? 'Order is already delivered'
-        : `Order must be dispatched first (current status: ${order.status})`,
+        : `Order must be goods-on-board or shipped first (current status: ${order.status})`,
     })
   }
 

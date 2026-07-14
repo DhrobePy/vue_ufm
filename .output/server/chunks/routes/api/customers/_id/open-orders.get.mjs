@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, i as createError, K as getUserSession, a2 as query } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, j as createError, K as getUserSession, a4 as query } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -17,7 +17,7 @@ const openOrders_get = defineEventHandler(async (event) => {
   const orders = await query(
     `SELECT id, order_number, order_date, status, total_amount, amount_paid,
             advance_paid, balance_due,
-            status IN ('shipped','dispatched','delivered','completed') AS is_dispatched
+            status IN ('goods_on_board','shipped','dispatched','delivered','completed') AS is_dispatched
      FROM credit_orders
      WHERE customer_id = ?
        AND balance_due > 0

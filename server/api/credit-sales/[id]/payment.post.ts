@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getOrderGateState, enforceTransactionLimit } from '~/server/utils/creditOrders'
+import { getOrderGateState, checkTransactionLimit, queuePendingRequest } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!session?.user)
     throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
   const userId    = Number((session.user as any).id)
+  const userName  = (session.user as any).name ?? `User ${userId}`
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   const {
@@ -54,7 +55,32 @@ export default defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
     const role = ((session.user as any).role ?? '').toLowerCase()
-    await enforceTransactionLimit(conn, userId, role, Number(amount))
+
+    // Maker/checker gate (spec §2.4/§3): over the maker's personal limit ->
+    // queue for a checker instead of hard-blocking. No writes have happened
+    // yet, so committing here just persists the queued request.
+    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount))
+    if (!limitCheck.allowed) {
+      const reqId = await queuePendingRequest(conn, {
+        requestType: 'payment',
+        payload: body,
+        orderId: id,
+        customerId: order.customer_id,
+        amount: Number(amount),
+        referenceLabel: `${order.order_number} — ${order.customer_name} — ৳${Number(amount).toLocaleString()}`,
+        requestedBy: userId,
+        requestedReason: `Exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`,
+      })
+      await conn.commit()
+      sendTelegram(
+        `⏳ <b>Payment Queued for Approval</b>\n${order.order_number} — ${order.customer_name}\n` +
+        `৳${Number(amount).toLocaleString()} · Requested by ${userName} (over their ৳${limitCheck.cap.toLocaleString()} limit)`,
+      )
+      return {
+        ok: true, queued: true, pending_request_id: reqId,
+        message: `৳${Number(amount).toLocaleString()} exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()} — queued for a checker's approval.`,
+      }
+    }
 
     const pmtAmount  = Number(amount)
     const newPaid    = Number(order.amount_paid ?? 0) + pmtAmount

@@ -37,16 +37,16 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // Verify order exists and is actually dispatched (locked against races)
+    // Verify order exists and is actually goods-on-board (locked against races)
     const [[order]] = await conn.query<any>(
       `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date
        FROM credit_orders o WHERE o.id = ? FOR UPDATE`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
-    if (!['shipped', 'dispatched', 'delivered'].includes(order.status))
+    if (!['goods_on_board', 'shipped', 'delivered'].includes(order.status))
       throw createError({
         statusCode: 409,
-        statusMessage: `Order is "${order.status}" — dispatch it first (deliveries only after dispatch)`,
+        statusMessage: `Order is "${order.status}" — mark goods on board first (deliveries only after that)`,
       })
 
     // Generate delivery number

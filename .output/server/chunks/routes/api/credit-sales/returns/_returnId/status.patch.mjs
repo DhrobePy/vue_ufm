@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, i as createError, K as getUserSession, a4 as readBody, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, j as createError, K as getUserSession, a7 as readBody, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -40,6 +40,9 @@ const status_patch = defineEventHandler(async (event) => {
     if (!ret) throw createError({ statusCode: 404, statusMessage: "Return not found" });
     if (ret.status !== "pending") {
       throw createError({ statusCode: 409, statusMessage: `Return is already ${ret.status}` });
+    }
+    if (Number(ret.created_by_user_id) === Number(userId)) {
+      throw createError({ statusCode: 403, statusMessage: "You filed this return \u2014 a different authorised user must decide it" });
     }
     const newStatus = action === "approve" ? "approved" : "rejected";
     await conn.query(

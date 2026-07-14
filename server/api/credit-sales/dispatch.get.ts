@@ -18,7 +18,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const [orders, stats] = await Promise.all([
+    const [orders, onBoard, stats] = await Promise.all([
       query(
         `SELECT o.id, o.order_number, o.order_date, o.shipping_address AS delivery_address,
                 o.total_weight_kg, o.status, o.priority, o.balance_due, o.total_amount,
@@ -32,11 +32,25 @@ export default defineEventHandler(async (event) => {
          LIMIT 50`,
         scopeParams,
       ) as Promise<any[]>,
+      // Goods-on-board orders awaiting "Mark Shipped" (truck physically departs)
+      query(
+        `SELECT o.id, o.order_number, o.order_date, o.shipping_address AS delivery_address,
+                o.total_weight_kg, o.status, o.priority, o.balance_due, o.total_amount,
+                c.name AS customer_name, c.phone_number,
+                b.name AS branch_name
+         FROM credit_orders o
+         JOIN customers c ON c.id = o.customer_id
+         LEFT JOIN branches b ON b.id = o.assigned_branch_id
+         WHERE o.status = 'goods_on_board'${scopeSql}
+         ORDER BY o.updated_at ASC
+         LIMIT 50`,
+        scopeParams,
+      ) as Promise<any[]>,
       queryOne(
         `SELECT
            SUM(status IN ('ready_to_ship','approved','produced'))               AS ready_count,
-           SUM(CASE WHEN status IN ('shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) AS dispatched_today,
-           COALESCE(SUM(CASE WHEN status IN ('shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN total_weight_kg ELSE 0 END), 0) AS dispatched_kg_today
+           SUM(CASE WHEN status IN ('goods_on_board','shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN 1 ELSE 0 END) AS dispatched_today,
+           COALESCE(SUM(CASE WHEN status IN ('goods_on_board','shipped','dispatched') AND DATE(updated_at) = CURDATE() THEN total_weight_kg ELSE 0 END), 0) AS dispatched_kg_today
          FROM credit_orders`,
       ) as Promise<any>,
     ])
@@ -51,7 +65,7 @@ export default defineEventHandler(async (event) => {
       o.gate_auto      = gate.autoRelease
     }
 
-    return { orders, stats }
+    return { orders, onBoard, stats }
   } finally {
     conn.release()
   }

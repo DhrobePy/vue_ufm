@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, O as isAccountsRole, Q as isAdminRole, ag as userCanAction, u as getDb, e as auditLog, x as getOrderGateState, aa as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, a7 as readBody, K as getUserSession, j as createError, O as isAccountsRole, Q as isAdminRole, aj as userCanAction, u as getDb, e as auditLog, x as getOrderGateState, ad as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -95,8 +95,8 @@ ${order.order_number} \u2014 ${order.customer_name}
 by ${userName}${note ? `
 Note: ${note}` : ""}`;
     } else if (action === "revoke_dispatch") {
-      if (["shipped", "dispatched", "delivered", "completed"].includes(order.status))
-        throw createError({ statusCode: 409, statusMessage: "Order already dispatched \u2014 clearance can no longer be revoked" });
+      if (["goods_on_board", "dispatched", "shipped", "delivered", "completed"].includes(order.status))
+        throw createError({ statusCode: 409, statusMessage: "Order already goods on board \u2014 clearance can no longer be revoked" });
       await conn.query(
         `UPDATE order_approval_conditions
          SET dispatch_cleared = 0, dispatch_cleared_by = NULL, dispatch_cleared_at = NULL,

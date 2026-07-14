@@ -46,6 +46,11 @@ export default defineEventHandler(async (event) => {
     if (ret.status !== 'pending') {
       throw createError({ statusCode: 409, statusMessage: `Return is already ${ret.status}` })
     }
+    // Maker/checker separation (spec §2.9): the person who filed the return
+    // cannot be the one who approves/rejects it, even if they're admin.
+    if (Number(ret.created_by_user_id) === Number(userId)) {
+      throw createError({ statusCode: 403, statusMessage: 'You filed this return — a different authorised user must decide it' })
+    }
 
     const newStatus = action === 'approve' ? 'approved' : 'rejected'
 

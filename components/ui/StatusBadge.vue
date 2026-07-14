@@ -16,6 +16,8 @@ const map: Record<string, { label: string; cls: string; dot: string }> = {
   approved:          { label: 'Approved',         cls: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20', dot: '#10b981' },
   in_production:     { label: 'In Production',    cls: 'bg-blue-500/10 text-blue-400 border border-blue-500/20',      dot: '#3b82f6' },
   ready_to_ship:     { label: 'Ready to Ship',    cls: 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20',      dot: '#06b6d4' },
+  goods_on_board:    { label: 'Goods on Board',   cls: 'bg-amber-500/10 text-amber-400 border border-amber-500/20',   dot: '#f59e0b' },
+  shipped:           { label: 'Shipped',          cls: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: '#f97316' },
   dispatched:        { label: 'Dispatched',       cls: 'bg-orange-500/10 text-orange-400 border border-orange-500/20', dot: '#f97316' },
   delivered:         { label: 'Delivered',        cls: 'bg-teal-500/10 text-teal-400 border border-teal-500/20',      dot: '#14b8a6' },
   partial_delivery:  { label: 'Partial Delivery', cls: 'bg-purple-500/10 text-purple-400 border border-purple-500/20', dot: '#a855f7' },

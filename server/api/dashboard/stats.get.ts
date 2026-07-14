@@ -22,7 +22,7 @@ export default defineEventHandler(async () => {
          SUM(status = 'approved')         AS approved,
          SUM(status = 'in_production')    AS in_production,
          SUM(status = 'ready_to_ship')    AS ready_to_ship,
-         SUM(status = 'dispatched')       AS dispatched,
+         SUM(status IN ('goods_on_board','shipped','dispatched')) AS dispatched,
          SUM(status = 'delivered')        AS delivered,
          SUM(status = 'cancelled')        AS cancelled
        FROM credit_orders

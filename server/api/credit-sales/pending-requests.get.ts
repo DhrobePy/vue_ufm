@@ -1,0 +1,36 @@
+import { query } from '~/server/utils/db'
+import { isAccountsRole } from '~/server/utils/creditOrders'
+
+/** Maker/checker queue — pending (+ recently decided) payment requests. */
+export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  if (!session?.user) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const role = ((session.user as any).role ?? '').toLowerCase()
+  if (!isAccountsRole(role))
+    throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
+
+  const q      = getQuery(event)
+  const status = (q.status as string) || 'pending'
+
+  const requests = await query<any>(
+    `SELECT r.id, r.request_type, r.order_id, r.customer_id, r.amount, r.reference_label,
+            r.requested_reason, r.status, r.decision_note, r.result_payment_id,
+            r.requested_by_user_id, r.payload,
+            r.created_at, r.decided_at,
+            ru.display_name AS requested_by_name, du.display_name AS decided_by_name,
+            o.order_number
+     FROM credit_pending_requests r
+     LEFT JOIN users ru ON ru.id = r.requested_by_user_id
+     LEFT JOIN users du ON du.id = r.decided_by_user_id
+     LEFT JOIN credit_orders o ON o.id = r.order_id
+     WHERE r.status = ?
+     ORDER BY r.created_at DESC
+     LIMIT 200`,
+    [status],
+  )
+  // Parse payload JSON server-side so the client never has to
+  for (const r of requests) {
+    try { r.payload = JSON.parse(r.payload) } catch { r.payload = null }
+  }
+  return { requests }
+})

@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, i as createError, a4 as readBody, K as getUserSession, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, j as createError, a7 as readBody, K as getUserSession, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -56,10 +56,10 @@ const deliver_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-    if (!["shipped", "dispatched", "delivered"].includes(order.status))
+    if (!["goods_on_board", "shipped", "delivered"].includes(order.status))
       throw createError({
         statusCode: 409,
-        statusMessage: `Order is "${order.status}" \u2014 dispatch it first (deliveries only after dispatch)`
+        statusMessage: `Order is "${order.status}" \u2014 mark goods on board first (deliveries only after that)`
       });
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
     const [[cnt]] = await conn.query(

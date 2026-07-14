@@ -5,7 +5,7 @@ import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
   getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
-  getOrderGateState, getGLAccountId, postJournalEntry, postCustomerLedger,
+  getOrderGateState, postGoodsOnBoardInvoice,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
@@ -13,15 +13,16 @@ import { userCanAction } from '~/server/utils/permissions'
  * The ONLY endpoint that moves an order through the status pipeline.
  * Every transition is enforced here — hiding buttons in the UI is decoration.
  *
- * ACCOUNTING PIVOT: the invoice hits customer_ledger at DISPATCH (ship) for
- * the full total_amount, with a balanced JE (Dr AR / Cr Revenue). Deliveries
- * only record physical movement. Post-dispatch money changes are debit/credit
- * notes (amendments), never direct edits.
+ * ACCOUNTING PIVOT: the invoice hits customer_ledger at GOODS ON BOARD (spec
+ * §2.3) for the full total_amount, with a balanced JE (Dr AR / Cr Revenue).
+ * SHIPPED is a separate, lightweight, money-free stage after it (truck has
+ * physically departed). Deliveries only record physical movement.
+ * Post-goods-on-board money changes are debit/credit notes (amendments).
  */
 
 // Canonical pipeline + accepted aliases from older UI code
 const STATUS_ALIAS: Record<string, string> = {
-  dispatched: 'shipped',
+  dispatched: 'goods_on_board',
   produced:   'ready_to_ship',
 }
 
@@ -30,18 +31,19 @@ interface TransitionRule {
   /** roles allowed (admin always allowed) */
   roles: string[]
   /** run extra enforcement; throw createError to block */
-  enforce?: 'approve' | 'production' | 'ship'
+  enforce?: 'approve' | 'production' | 'goods_on_board'
 }
 
 const TRANSITIONS: Record<string, TransitionRule> = {
-  approved:      { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
-  rejected:      { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
-  escalated:     { from: ['pending_approval'], roles: [...ACCOUNTS_ROLES] },  // flag up to admin
-  in_production: { from: ['approved'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'production' },
-  ready_to_ship: { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
-  shipped:       { from: ['ready_to_ship'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: 'ship' },
-  completed:     { from: ['delivered'], roles: [] },  // admin only (payments auto-complete otherwise)
-  cancelled:     { from: ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship'], roles: [] }, // admin only — pre-ledger, nothing to reverse
+  approved:        { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
+  rejected:        { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
+  escalated:       { from: ['pending_approval'], roles: [...ACCOUNTS_ROLES] },  // flag up to admin
+  in_production:   { from: ['approved'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'production' },
+  ready_to_ship:   { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
+  goods_on_board:  { from: ['ready_to_ship'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: 'goods_on_board' },
+  shipped:         { from: ['goods_on_board'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] }, // truck departed — no money logic
+  completed:       { from: ['delivered'], roles: [] },  // admin only (payments auto-complete otherwise)
+  cancelled:       { from: ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship'], roles: [] }, // admin only — pre-ledger, nothing to reverse
 }
 
 export default defineEventHandler(async (event) => {
@@ -77,12 +79,13 @@ export default defineEventHandler(async (event) => {
   // Per-user action toggles from the privileges editor (admin bypasses;
   // users without a permissions row keep their role-family defaults)
   const TRANSITION_PERM: Record<string, { page: string; action: string }> = {
-    approved:      { page: 'approve',    action: 'approve' },
-    rejected:      { page: 'approve',    action: 'reject' },
-    escalated:     { page: 'approve',    action: 'escalate' },
-    in_production: { page: 'production', action: 'start_production' },
-    ready_to_ship: { page: 'production', action: 'mark_ready' },
-    shipped:       { page: 'dispatch',   action: 'mark_dispatched' },
+    approved:       { page: 'approve',    action: 'approve' },
+    rejected:       { page: 'approve',    action: 'reject' },
+    escalated:      { page: 'approve',    action: 'escalate' },
+    in_production:  { page: 'production', action: 'start_production' },
+    ready_to_ship:  { page: 'production', action: 'mark_ready' },
+    goods_on_board: { page: 'dispatch',   action: 'mark_dispatched' },
+    shipped:        { page: 'dispatch',   action: 'mark_shipped' },
   }
   const tp = TRANSITION_PERM[to_status]
   if (tp) {
@@ -220,78 +223,29 @@ export default defineEventHandler(async (event) => {
         })
     }
 
-    // ── Enforcement + LEDGER POSTING: SHIP (the accounting pivot) ───────────
-    if (rule.enforce === 'ship') {
-      const gate = await getOrderGateState(conn, id)
-      if (gate.dispatchHold && !gate.dispatchCleared) {
-        if (gate.conditionMet && gate.autoRelease) {
-          // Condition satisfied + auto-release opted in → self-clear, stamped
-          await conn.query(
-            `UPDATE order_approval_conditions
-             SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
-                 dispatch_cleared_note = 'Auto-released: condition met at dispatch'
-             WHERE order_id = ?`,
-            [userId, id],
-          )
-          wfComment += ' · dispatch clearance auto-released (condition met)'
-        } else {
-          throw createError({
-            statusCode: 423,
-            statusMessage: gate.conditionMet
-              ? 'Payment condition met but clearance is manual — ask accounts to grant it (Payment Watch)'
-              : `Dispatch blocked — payment clearance pending (${gate.conditionType ?? 'manual'}${gate.conditionAmount ? ` ৳${gate.conditionAmount.toLocaleString()}` : ''})`,
-          })
-        }
-      }
+    // ── Enforcement + LEDGER POSTING: GOODS ON BOARD (the accounting pivot) ──
+    if (rule.enforce === 'goods_on_board') {
+      const result = await postGoodsOnBoardInvoice(conn, {
+        orderId: id,
+        orderNumber: order.order_number,
+        customerId: order.customer_id,
+        customerName: order.customer_name,
+        totalAmount,
+        balanceDue: Number(order.balance_due ?? 0),
+        userId,
+        userName,
+      })
+      if (!result.alreadyPosted)
+        wfComment = `Goods on board — invoice ৳${totalAmount.toLocaleString()} posted to ledger · ${wfComment}`.trim()
+      if (result.autoReleased)
+        wfComment += ' · dispatch clearance auto-released (condition met)'
+      telegramMsg = result.telegramMsg
+    }
 
-      // Post the invoice — once. Guard against double-posting.
-      const [[already]] = await conn.query<any>(
-        `SELECT id FROM customer_ledger
-         WHERE reference_type = 'credit_order' AND reference_id = ? AND transaction_type = 'invoice'
-         LIMIT 1`,
-        [id],
-      )
-      if (!already) {
-        const shipDate = new Date().toISOString().slice(0, 10)
-        let jeId: number | null = null
-        const arId  = await getGLAccountId(conn, 'Accounts Receivable')
-        const revId = await getGLAccountId(conn, 'Revenue')
-        if (arId && revId) {
-          jeId = await postJournalEntry(conn, {
-            date: shipDate,
-            description: `Sales invoice — ${order.order_number} (${order.customer_name}) — dispatched`,
-            docType: 'CreditOrder',
-            docId: id,
-            userId,
-            lines: [
-              { accountId: arId,  debit: totalAmount, credit: 0, memo: order.order_number },
-              { accountId: revId, debit: 0, credit: totalAmount, memo: order.order_number },
-            ],
-          })
-        } else {
-          console.warn(`[ship] Missing GL accounts (AR=${arId}, Rev=${revId}) — ledger posted without JE`)
-        }
-        await postCustomerLedger(conn, {
-          customerId: order.customer_id,
-          date: shipDate,
-          transactionType: 'invoice',
-          referenceType: 'credit_order',
-          referenceId: id,
-          invoiceNumber: order.order_number,
-          description: `Invoice — ${order.order_number} dispatched (full order value)`,
-          debit: totalAmount,
-          credit: 0,
-          journalEntryId: jeId,
-          userId,
-        })
-        wfComment = `Dispatched — invoice ৳${totalAmount.toLocaleString()} posted to ledger · ${wfComment}`.trim()
-      }
-
-      telegramMsg =
-        `🚚 <b>Order Dispatched</b>\n` +
-        `${order.order_number} — ${order.customer_name}\n` +
-        `Invoice ৳${totalAmount.toLocaleString()} posted · balance due ৳${Number(order.balance_due ?? 0).toLocaleString()}\n` +
-        `by ${userName}`
+    // ── SHIPPED — truck has physically departed; no money logic ─────────────
+    if (to_status === 'shipped') {
+      wfComment = `Truck departed · ${wfComment}`.trim()
+      telegramMsg = `🛣️ <b>Order Shipped</b>\n${order.order_number} — ${order.customer_name}\nTruck has departed · by ${userName}`
     }
 
     // ── Apply the transition ─────────────────────────────────────────────────

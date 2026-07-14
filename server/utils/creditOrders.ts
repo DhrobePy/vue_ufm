@@ -86,24 +86,50 @@ export async function getUserApprovalLimit(
 }
 
 /**
- * Enforce the per-user transaction (payment) limit. Admins are exempt.
+ * Check the per-user transaction (payment) limit — never throws, so the
+ * caller can decide between hard-blocking and queuing for a checker
+ * (spec §2.4/§3 maker/checker gate). Admins are always allowed.
  * A personal max_transaction_amount > 0 caps every single payment the user
- * records; 0 / no row = no personal cap (role checks still apply).
- * Throws 403 when the amount exceeds the cap.
+ * records; 0 / no row = no personal cap (role checks still apply upstream).
  */
-export async function enforceTransactionLimit(
+export async function checkTransactionLimit(
   conn: any, userId: number, role: string, amount: number,
-): Promise<void> {
-  if (isAdminRole(role)) return
+): Promise<{ allowed: boolean; cap: number }> {
+  if (isAdminRole(role)) return { allowed: true, cap: Infinity }
   const [[row]] = await conn.query(
     `SELECT max_transaction_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
   )
   const cap = Number(row?.max_transaction_amount ?? 0)
-  if (cap > 0 && amount > cap)
-    throw createError({
-      statusCode: 403,
-      statusMessage: `৳${amount.toLocaleString()} exceeds your transaction limit of ৳${cap.toLocaleString()} — ask admin to record it`,
-    })
+  return { allowed: !(cap > 0 && amount > cap), cap }
+}
+
+/**
+ * Queue a payment that exceeded the maker's limit for a checker to review
+ * and re-submit under their own authority (spec §2.4 maker/checker gate).
+ * Caller must have done NO writes yet — call this, commit, and return; do
+ * not proceed with the original posting.
+ */
+export async function queuePendingRequest(conn: any, opts: {
+  requestType: 'payment' | 'collect_payment'
+  payload: unknown
+  orderId?: number | null
+  customerId?: number | null
+  amount: number
+  referenceLabel: string
+  requestedBy: number
+  requestedReason: string
+}): Promise<number> {
+  const [res] = await conn.query(
+    `INSERT INTO credit_pending_requests
+       (request_type, payload, order_id, customer_id, amount, reference_label,
+        requested_by_user_id, requested_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      opts.requestType, JSON.stringify(opts.payload), opts.orderId ?? null, opts.customerId ?? null,
+      opts.amount, opts.referenceLabel, opts.requestedBy, opts.requestedReason,
+    ],
+  )
+  return res.insertId
 }
 
 // ─── Order gates ──────────────────────────────────────────────────────────────
@@ -193,6 +219,107 @@ export async function getOrderGateState(conn: any, orderId: number): Promise<Gat
     currentValue,
     raw: c,
   }
+}
+
+/** Public/system-attributed writes use this — the established convention in this schema (see auditLog). */
+export const SYSTEM_USER_ID = 1
+
+/**
+ * Move an order to GOODS ON BOARD — the accounting pivot (spec §2.3). Posts
+ * the full invoice to customer_ledger + a balanced JE (Dr AR / Cr Revenue),
+ * exactly once (idempotent — checks for an existing invoice row first).
+ * Enforces the dispatch-hold gate, self-clearing it when auto-release
+ * applies and the condition is met.
+ *
+ * Caller must hold the order row FOR UPDATE inside its own transaction —
+ * this function does not begin/commit. Used by both the authenticated
+ * workflow endpoint and the public QR/PIN gate-scan endpoint so the ledger
+ * posts identically no matter which door the truck leaves through.
+ */
+export async function postGoodsOnBoardInvoice(conn: any, opts: {
+  orderId: number
+  orderNumber: string
+  customerId: number
+  customerName: string
+  totalAmount: number
+  balanceDue: number
+  userId: number
+  userName: string
+}): Promise<{ alreadyPosted: boolean; autoReleased: boolean; telegramMsg: string }> {
+  const gate = await getOrderGateState(conn, opts.orderId)
+  let autoReleased = false
+
+  if (gate.dispatchHold && !gate.dispatchCleared) {
+    if (gate.conditionMet && gate.autoRelease) {
+      await conn.query(
+        `UPDATE order_approval_conditions
+         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
+             dispatch_cleared_note = 'Auto-released: condition met at goods-on-board'
+         WHERE order_id = ?`,
+        [opts.userId, opts.orderId],
+      )
+      autoReleased = true
+    } else {
+      throw createError({
+        statusCode: 423,
+        statusMessage: gate.conditionMet
+          ? 'Payment condition met but clearance is manual — ask accounts to grant it (Payment Watch)'
+          : `Dispatch blocked — payment clearance pending (${gate.conditionType ?? 'manual'}${gate.conditionAmount ? ` ৳${gate.conditionAmount.toLocaleString()}` : ''})`,
+      })
+    }
+  }
+
+  const [[already]] = await conn.query(
+    `SELECT id FROM customer_ledger
+     WHERE reference_type = 'credit_order' AND reference_id = ? AND transaction_type = 'invoice'
+     LIMIT 1`,
+    [opts.orderId],
+  )
+  const alreadyPosted = !!already
+
+  if (!already) {
+    const postDate = new Date().toISOString().slice(0, 10)
+    let jeId: number | null = null
+    const arId  = await getGLAccountId(conn, 'Accounts Receivable')
+    const revId = await getGLAccountId(conn, 'Revenue')
+    if (arId && revId) {
+      jeId = await postJournalEntry(conn, {
+        date: postDate,
+        description: `Sales invoice — ${opts.orderNumber} (${opts.customerName}) — goods on board`,
+        docType: 'CreditOrder',
+        docId: opts.orderId,
+        userId: opts.userId,
+        lines: [
+          { accountId: arId,  debit: opts.totalAmount, credit: 0, memo: opts.orderNumber },
+          { accountId: revId, debit: 0, credit: opts.totalAmount, memo: opts.orderNumber },
+        ],
+      })
+    } else {
+      console.warn(`[goods_on_board] Missing GL accounts (AR=${arId}, Rev=${revId}) — ledger posted without JE`)
+    }
+    await postCustomerLedger(conn, {
+      customerId: opts.customerId,
+      date: postDate,
+      transactionType: 'invoice',
+      referenceType: 'credit_order',
+      referenceId: opts.orderId,
+      invoiceNumber: opts.orderNumber,
+      description: `Invoice — ${opts.orderNumber} goods on board (full order value)`,
+      debit: opts.totalAmount,
+      credit: 0,
+      journalEntryId: jeId,
+      userId: opts.userId,
+    })
+  }
+
+  const telegramMsg =
+    `🚚 <b>Goods on Board</b>\n` +
+    `${opts.orderNumber} — ${opts.customerName}\n` +
+    `Invoice ৳${opts.totalAmount.toLocaleString()} posted · balance due ৳${opts.balanceDue.toLocaleString()}\n` +
+    `by ${opts.userName}` +
+    (autoReleased ? '\n🟢 Dispatch clearance auto-released' : '')
+
+  return { alreadyPosted, autoReleased, telegramMsg }
 }
 
 // ─── GL posting helpers — the ONE way money is recorded ──────────────────────

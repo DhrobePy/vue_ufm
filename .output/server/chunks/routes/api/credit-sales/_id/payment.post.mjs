@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, i as createError, a4 as readBody, K as getUserSession, z as getRequestHeader, u as getDb, q as enforceTransactionLimit, x as getOrderGateState, e as auditLog, aa as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, j as createError, a7 as readBody, K as getUserSession, z as getRequestHeader, u as getDb, h as checkTransactionLimit, a6 as queuePendingRequest, ad as sendTelegram, x as getOrderGateState, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -18,7 +18,8 @@ const payment_post = defineEventHandler(async (event) => {
   if (!(session == null ? void 0 : session.user))
     throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
   const userId = Number(session.user.id);
-  const ipAddress = (_b = (_a = getRequestHeader(event, "x-forwarded-for")) != null ? _a : getRequestHeader(event, "x-real-ip")) != null ? _b : void 0;
+  const userName = (_a = session.user.name) != null ? _a : `User ${userId}`;
+  const ipAddress = (_c = (_b = getRequestHeader(event, "x-forwarded-for")) != null ? _b : getRequestHeader(event, "x-real-ip")) != null ? _c : void 0;
   const {
     amount,
     payment_method,
@@ -38,7 +39,7 @@ const payment_post = defineEventHandler(async (event) => {
     nagad: "Mobile Banking",
     bank: "Bank Transfer"
   };
-  const mappedMethod = (_d = (_c = methodMap[payment_method != null ? payment_method : ""]) != null ? _c : payment_method) != null ? _d : "Cash";
+  const mappedMethod = (_e = (_d = methodMap[payment_method != null ? payment_method : ""]) != null ? _d : payment_method) != null ? _e : "Cash";
   const db = getDb();
   const conn = await db.getConnection();
   const pmtDate = payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -52,11 +53,35 @@ const payment_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-    const role = ((_e = session.user.role) != null ? _e : "").toLowerCase();
-    await enforceTransactionLimit(conn, userId, role, Number(amount));
+    const role = ((_f = session.user.role) != null ? _f : "").toLowerCase();
+    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount));
+    if (!limitCheck.allowed) {
+      const reqId = await queuePendingRequest(conn, {
+        requestType: "payment",
+        payload: body,
+        orderId: id,
+        customerId: order.customer_id,
+        amount: Number(amount),
+        referenceLabel: `${order.order_number} \u2014 ${order.customer_name} \u2014 \u09F3${Number(amount).toLocaleString()}`,
+        requestedBy: userId,
+        requestedReason: `Exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}`
+      });
+      await conn.commit();
+      sendTelegram(
+        `\u23F3 <b>Payment Queued for Approval</b>
+${order.order_number} \u2014 ${order.customer_name}
+\u09F3${Number(amount).toLocaleString()} \xB7 Requested by ${userName} (over their \u09F3${limitCheck.cap.toLocaleString()} limit)`
+      );
+      return {
+        ok: true,
+        queued: true,
+        pending_request_id: reqId,
+        message: `\u09F3${Number(amount).toLocaleString()} exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()} \u2014 queued for a checker's approval.`
+      };
+    }
     const pmtAmount = Number(amount);
-    const newPaid = Number((_f = order.amount_paid) != null ? _f : 0) + pmtAmount;
-    const newBalance = Math.max(0, Number((_g = order.balance_due) != null ? _g : 0) - pmtAmount);
+    const newPaid = Number((_g = order.amount_paid) != null ? _g : 0) + pmtAmount;
+    const newBalance = Math.max(0, Number((_h = order.balance_due) != null ? _h : 0) - pmtAmount);
     const [[seq_row]] = await conn.query(
       `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
               COUNT(*) AS n
@@ -64,7 +89,7 @@ const payment_post = defineEventHandler(async (event) => {
        WHERE  DATE(created_at) = CURDATE()`
     );
     const today = seq_row.d;
-    const seq = String(((_h = seq_row.n) != null ? _h : 0) + 1).padStart(4, "0");
+    const seq = String(((_i = seq_row.n) != null ? _i : 0) + 1).padStart(4, "0");
     const payNo = `PAY-${today}-${seq}`;
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
@@ -108,7 +133,7 @@ const payment_post = defineEventHandler(async (event) => {
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
     );
-    const prevBal = Number((_i = lastLedger == null ? void 0 : lastLedger.bal) != null ? _i : 0);
+    const prevBal = Number((_j = lastLedger == null ? void 0 : lastLedger.bal) != null ? _j : 0);
     const newBal = Math.max(0, prevBal - pmtAmount);
     await conn.query(
       `INSERT INTO customer_ledger
@@ -135,26 +160,26 @@ const payment_post = defineEventHandler(async (event) => {
           `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
           [Number(cash_account_id)]
         );
-        drAccountId = (_j = ca == null ? void 0 : ca.chart_of_account_id) != null ? _j : null;
+        drAccountId = (_k = ca == null ? void 0 : ca.chart_of_account_id) != null ? _k : null;
       } else if (["Bank Transfer", "Cheque", "Card"].includes(mappedMethod) && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_k = ba == null ? void 0 : ba.chart_of_account_id) != null ? _k : null;
+        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
       } else if (mappedMethod === "Mobile Banking" && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
+        drAccountId = (_m = ba == null ? void 0 : ba.chart_of_account_id) != null ? _m : null;
       }
       const [[ar]] = await conn.query(
         `SELECT id FROM chart_of_accounts
          WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`
       );
-      const crAccountId = (_m = ar == null ? void 0 : ar.id) != null ? _m : null;
+      const crAccountId = (_n = ar == null ? void 0 : ar.id) != null ? _n : null;
       if (drAccountId && crAccountId) {
         const jeDesc = `Payment received \u2014 ${payNo} (Order ${id}, ${mappedMethod})`;
         const [jeRes] = await conn.query(
@@ -183,7 +208,7 @@ const payment_post = defineEventHandler(async (event) => {
             `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(cash_account_id)]
           );
-          const pcBal = Number((_n = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _n : 0);
+          const pcBal = Number((_o = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _o : 0);
           await conn.query(
             `INSERT INTO branch_petty_cash_transactions
                (account_id, branch_id, transaction_type, amount, balance_after,
@@ -191,7 +216,7 @@ const payment_post = defineEventHandler(async (event) => {
              VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
             [
               Number(cash_account_id),
-              (_o = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _o : null,
+              (_p = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _p : null,
               pmtAmount,
               pcBal + pmtAmount,
               paymentId,
@@ -268,7 +293,7 @@ ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
     console.error("[payment] Transaction failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno, "| code:", e == null ? void 0 : e.code);
     throw createError({
       statusCode: 500,
-      statusMessage: (_q = (_p = e == null ? void 0 : e.sqlMessage) != null ? _p : e == null ? void 0 : e.message) != null ? _q : "Payment transaction failed"
+      statusMessage: (_r = (_q = e == null ? void 0 : e.sqlMessage) != null ? _q : e == null ? void 0 : e.message) != null ? _r : "Payment transaction failed"
     });
   } finally {
     conn.release();

@@ -4,10 +4,10 @@ import { sendTelegram } from '~/server/utils/telegram'
 import {
   isAccountsRole, getOrderGateState, getGLAccountId,
   postJournalEntry, postCustomerLedger, nextDocNumber,
-  enforceTransactionLimit,
+  checkTransactionLimit, queuePendingRequest,
 } from '~/server/utils/creditOrders'
 
-const DISPATCHED = ['shipped', 'dispatched', 'delivered', 'completed']
+const DISPATCHED = ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed']
 
 /**
  * Record ONE payment against a customer and allocate it across orders.
@@ -55,7 +55,30 @@ export default defineEventHandler(async (event) => {
     )
     if (!customer) throw createError({ statusCode: 404, statusMessage: 'Customer not found' })
 
-    await enforceTransactionLimit(conn, userId, role, amount)
+    // Maker/checker gate (spec §2.4/§3): over the maker's personal limit ->
+    // queue for a checker instead of hard-blocking. No writes have happened
+    // yet, so committing here just persists the queued request.
+    const limitCheck = await checkTransactionLimit(conn, userId, role, amount)
+    if (!limitCheck.allowed) {
+      const reqId = await queuePendingRequest(conn, {
+        requestType: 'collect_payment',
+        payload: body,
+        customerId,
+        amount,
+        referenceLabel: `${customer.name} — ৳${amount.toLocaleString()} via ${method}`,
+        requestedBy: userId,
+        requestedReason: `Exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`,
+      })
+      await conn.commit()
+      sendTelegram(
+        `⏳ <b>Payment Queued for Approval</b>\n${customer.name} — ৳${amount.toLocaleString()} via ${method}\n` +
+        `Requested by ${userName} (over their ৳${limitCheck.cap.toLocaleString()} limit)`,
+      )
+      return {
+        ok: true, queued: true, pending_request_id: reqId,
+        message: `৳${amount.toLocaleString()} exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()} — queued for a checker's approval.`,
+      }
+    }
 
     const payNo = await nextDocNumber(conn, 'PAY', 'customer_payments')
 

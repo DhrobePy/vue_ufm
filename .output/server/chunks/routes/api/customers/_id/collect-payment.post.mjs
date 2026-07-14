@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, O as isAccountsRole, u as getDb, q as enforceTransactionLimit, T as nextDocNumber, x as getOrderGateState, v as getGLAccountId, a0 as postJournalEntry, _ as postCustomerLedger, e as auditLog, aa as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, a7 as readBody, K as getUserSession, j as createError, O as isAccountsRole, u as getDb, h as checkTransactionLimit, a6 as queuePendingRequest, ad as sendTelegram, U as nextDocNumber, x as getOrderGateState, v as getGLAccountId, a2 as postJournalEntry, a0 as postCustomerLedger, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -9,7 +9,7 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const DISPATCHED = ["shipped", "dispatched", "delivered", "completed"];
+const DISPATCHED = ["goods_on_board", "shipped", "dispatched", "delivered", "completed"];
 const collectPayment_post = defineEventHandler(async (event) => {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const customerId = Number(getRouterParam(event, "id"));
@@ -40,7 +40,30 @@ const collectPayment_post = defineEventHandler(async (event) => {
       [customerId]
     );
     if (!customer) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
-    await enforceTransactionLimit(conn, userId, role, amount);
+    const limitCheck = await checkTransactionLimit(conn, userId, role, amount);
+    if (!limitCheck.allowed) {
+      const reqId = await queuePendingRequest(conn, {
+        requestType: "collect_payment",
+        payload: body,
+        customerId,
+        amount,
+        referenceLabel: `${customer.name} \u2014 \u09F3${amount.toLocaleString()} via ${method}`,
+        requestedBy: userId,
+        requestedReason: `Exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}`
+      });
+      await conn.commit();
+      sendTelegram(
+        `\u23F3 <b>Payment Queued for Approval</b>
+${customer.name} \u2014 \u09F3${amount.toLocaleString()} via ${method}
+Requested by ${userName} (over their \u09F3${limitCheck.cap.toLocaleString()} limit)`
+      );
+      return {
+        ok: true,
+        queued: true,
+        pending_request_id: reqId,
+        message: `\u09F3${amount.toLocaleString()} exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()} \u2014 queued for a checker's approval.`
+      };
+    }
     const payNo = await nextDocNumber(conn, "PAY", "customer_payments");
     const [payRes] = await conn.query(
       `INSERT INTO customer_payments

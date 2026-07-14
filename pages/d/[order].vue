@@ -82,10 +82,10 @@
       </div>
 
       <!-- ── Dispatch confirmation panel ── -->
-      <div v-if="canConfirmDispatch || orderData.order.status === 'dispatched'" style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:20px;margin-bottom:16px;">
+      <div v-if="canConfirmDispatch || isDispatched" style="background:rgba(245,158,11,0.05);border:1px solid rgba(245,158,11,0.2);border-radius:16px;padding:20px;margin-bottom:16px;">
 
         <!-- Already dispatched -->
-        <div v-if="orderData.order.status === 'dispatched' && !confirmSuccess">
+        <div v-if="isDispatched && !confirmSuccess">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
             <div style="font-size:24px;">🚚</div>
             <div>
@@ -136,7 +136,7 @@
       </div>
 
       <!-- ── Final delivery confirmation (authorized staff only) ── -->
-      <div v-if="orderData.order.status === 'dispatched' && canDeliver && !deliverSuccess"
+      <div v-if="isDispatched && canDeliver && !deliverSuccess"
         style="background:rgba(74,222,128,0.05);border:1px solid rgba(74,222,128,0.2);border-radius:16px;padding:20px;margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
           <div style="font-size:24px;">✅</div>
@@ -173,7 +173,7 @@
       </div>
 
       <!-- PIN entry for re-scan (dispatched state) -->
-      <div v-if="orderData.order.status === 'dispatched' && showPinEntry && !confirmSuccess"
+      <div v-if="isDispatched && showPinEntry && !confirmSuccess"
         style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px;margin-bottom:16px;">
         <div style="display:flex;gap:8px;margin-bottom:12px;">
           <input v-model="pinInput" type="number" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="6-digit PIN"
@@ -268,6 +268,13 @@ const canConfirmDispatch = computed(() =>
   orderData.value?.order?.status === 'ready_to_ship' && orderData.value?.order?.has_dispatch_pin,
 )
 
+// 'goods_on_board' is the current name for "invoice posted, goods left the
+// warehouse" (formerly 'dispatched'); keep the old value too for any order
+// scanned before the pipeline split.
+const isDispatched = computed(() =>
+  ['goods_on_board', 'dispatched'].includes(orderData.value?.order?.status),
+)
+
 const totalBags = computed(() =>
   (orderData.value?.items ?? []).reduce((s: number, i: any) => s + Number(i.quantity ?? 0), 0),
 )
@@ -281,7 +288,9 @@ const statusLabel = computed(() => {
     in_production:     'In Production',
     produced:          'Produced',
     ready_to_ship:     'Ready to Ship',
-    dispatched:        'Dispatched',
+    goods_on_board:    'Goods on Board',
+    shipped:           'Shipped',
+    dispatched:        'Goods on Board',
     delivered:         'Delivered',
     completed:         'Completed',
     cancelled:         'Cancelled',
@@ -293,7 +302,7 @@ const statusLabel = computed(() => {
 const statusStyle = computed(() => {
   const s = orderData.value?.order?.status ?? ''
   if (s === 'delivered' || s === 'completed') return 'background:rgba(74,222,128,0.15);color:#4ade80;border:1px solid rgba(74,222,128,0.3);'
-  if (s === 'dispatched')                     return 'background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);'
+  if (s === 'goods_on_board' || s === 'dispatched' || s === 'shipped') return 'background:rgba(96,165,250,0.15);color:#60a5fa;border:1px solid rgba(96,165,250,0.3);'
   if (s === 'ready_to_ship')                  return 'background:rgba(167,139,250,0.15);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);'
   if (s === 'in_production' || s === 'produced') return 'background:rgba(251,191,36,0.15);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);'
   if (s === 'cancelled' || s === 'rejected')  return 'background:rgba(248,113,113,0.15);color:#f87171;border:1px solid rgba(248,113,113,0.3);'

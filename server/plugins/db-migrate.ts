@@ -700,5 +700,63 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'user_approval_limits', 'max_transaction_amount',
     "DECIMAL(14,2) NOT NULL DEFAULT 0 COMMENT 'Max single payment/transaction this user may record; 0 = no personal cap'")
 
+  // ── 42. Pipeline split: goods_on_board (accounting pivot) vs shipped ──────
+  // Per REBUILD_SPEC.md §2.3/§2.8, "shipped" used to double as the pivot
+  // (invoice posts) AND "truck departed". We split those into two real
+  // stages: ready_to_ship -> goods_on_board (ledger posts here) -> shipped
+  // (truck departed, no money) -> delivered. Every existing order whose
+  // status is literally 'shipped' or 'dispatched' already means "invoice
+  // posted" under the OLD scheme, so it must be relabelled to
+  // goods_on_board — but ONLY ONCE. Re-running this on every restart would
+  // wrongly relabel future, genuinely-shipped (post-goods-on-board) orders
+  // back to goods_on_board, so it's guarded by a one-shot settings flag.
+  try {
+    const [[flag]] = await db.query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'migrated_goods_on_board_split'`,
+    ) as any
+    if (!flag) {
+      const [result] = await db.query(
+        `UPDATE credit_orders SET status = 'goods_on_board' WHERE status IN ('shipped', 'dispatched')`,
+      ) as any
+      await db.query(
+        `INSERT INTO system_settings (setting_key, setting_value) VALUES ('migrated_goods_on_board_split', ?)
+         ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+        [String(result?.affectedRows ?? 0)],
+      )
+      console.log(`[db-migrate] goods_on_board split: relabelled ${result?.affectedRows ?? 0} order(s)`)
+    }
+  } catch (e) {
+    console.warn('[db-migrate] goods_on_board split backfill failed:', e)
+  }
+
+  // ── 43. credit_pending_requests — maker/checker queue (spec §2.4/§3) ──────
+  // A payment that exceeds the maker's personal transaction limit is queued
+  // here instead of hard-blocked; a checker with sufficient authority (or
+  // admin) reviews and re-submits it under their own limit.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_pending_requests (
+        id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        request_type        VARCHAR(30)  NOT NULL COMMENT 'payment | collect_payment',
+        payload              LONGTEXT     NOT NULL COMMENT 'JSON — exact original request body',
+        order_id             INT UNSIGNED NULL,
+        customer_id          INT UNSIGNED NULL,
+        amount               DECIMAL(14,2) NOT NULL,
+        reference_label      VARCHAR(255) NULL,
+        requested_by_user_id INT UNSIGNED NOT NULL,
+        requested_reason     VARCHAR(255) NULL COMMENT 'why it was queued, e.g. limit exceeded',
+        status               VARCHAR(20)  NOT NULL DEFAULT 'pending' COMMENT 'pending | approved | rejected',
+        decided_by_user_id   INT UNSIGNED NULL,
+        decided_at           DATETIME     NULL,
+        decision_note        VARCHAR(255) NULL,
+        result_payment_id    INT UNSIGNED NULL COMMENT 'customer_payments.id once posted',
+        created_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_cpr_status (status),
+        INDEX idx_cpr_customer (customer_id),
+        INDEX idx_cpr_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] credit_pending_requests failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })

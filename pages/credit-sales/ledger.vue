@@ -12,6 +12,10 @@
       <input type="date" v-model="dateTo"   class="input-glass w-40" />
       <button @click="applyFilter" class="btn-ghost text-xs">Filter</button>
       <button v-if="perms.canDo('credit_sales', 'ledger', 'export')" @click="exportLedger" class="btn-gold text-xs">Export</button>
+      <button v-if="isAdmin && selectedCustomerId" @click="openAdjustModal"
+              class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/25 hover:bg-violet-500/25 transition-colors ml-auto">
+        📝 Post Adjustment
+      </button>
     </div>
 
     <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
@@ -51,12 +55,61 @@
         </template>
       </UiDataTable>
     </template>
+
+    <!-- Admin — Manual Ledger Adjustment (spec §2.10, memo-level, no JE) -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="adjustModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+             @click.self="adjustModal = false">
+          <div class="w-full max-w-md rounded-2xl bg-[#161616] border border-violet-500/20 p-6 space-y-4">
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg font-bold text-gray-100">📝 Manual Ledger Adjustment</h3>
+              <button @click="adjustModal = false" class="text-gray-500 hover:text-gray-200">✕</button>
+            </div>
+            <p class="text-xs text-gray-500">
+              For <strong class="text-gray-300">{{ selectedCustomerName }}</strong>. Memo-level only — posts a ledger row and
+              syncs the customer balance, but does <strong class="text-amber-400">not</strong> create a journal entry.
+              Use for reconciliation, not routine transactions.
+            </p>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Direction</label>
+                <select v-model="adjustForm.direction" class="input-glass">
+                  <option value="debit">Debit (increases due)</option>
+                  <option value="credit">Credit (reduces due)</option>
+                </select>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount (৳)</label>
+                <input v-model.number="adjustForm.amount" type="number" min="0" step="1" class="input-glass font-mono" />
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reason *</label>
+              <textarea v-model="adjustForm.reason" rows="2" class="input-glass resize-none" placeholder="Required — why is this adjustment needed?" />
+            </div>
+            <div class="flex gap-3 pt-2">
+              <button @click="submitAdjustment" :disabled="!canSubmitAdjustment || adjusting"
+                      class="btn-gold text-xs flex-1 disabled:opacity-50">
+                {{ adjusting ? 'Posting…' : 'Post Adjustment' }}
+              </button>
+              <button @click="adjustModal = false" class="btn-ghost text-xs">Cancel</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 const perms = usePermissions()
 definePageMeta({ layout: 'default' })
+const { user } = useUserSession()
+const { success, error: toastError } = useToast()
+
+const isAdmin = computed(() =>
+  ['admin', 'superadmin'].includes((user.value?.role ?? '').toLowerCase()))
 
 const selectedCustomerId = ref('')
 const dateFrom = ref('')
@@ -100,6 +153,44 @@ function applyFilter() {
   appliedFrom.value       = dateFrom.value
   appliedTo.value         = dateTo.value
   refresh()
+}
+
+// ── Admin manual adjustment ────────────────────────────────────────────────
+const selectedCustomerName = computed(() =>
+  customerList.value.find((c: any) => String(c.id) === String(selectedCustomerId.value))?.name ?? '')
+
+const adjustModal = ref(false)
+const adjusting   = ref(false)
+const adjustForm  = reactive({ direction: 'debit', amount: null as number | null, reason: '' })
+
+function openAdjustModal() {
+  Object.assign(adjustForm, { direction: 'debit', amount: null, reason: '' })
+  adjustModal.value = true
+}
+
+const canSubmitAdjustment = computed(() =>
+  Number(adjustForm.amount) > 0 && adjustForm.reason.trim().length > 0)
+
+async function submitAdjustment() {
+  adjusting.value = true
+  try {
+    await $fetch('/api/credit-sales/ledger/adjustment', {
+      method: 'POST',
+      body: {
+        customer_id: Number(selectedCustomerId.value),
+        direction:   adjustForm.direction,
+        amount:      Number(adjustForm.amount),
+        reason:      adjustForm.reason.trim(),
+      },
+    })
+    success('Adjustment posted ✓')
+    adjustModal.value = false
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to post adjustment')
+  } finally {
+    adjusting.value = false
+  }
 }
 
 function exportLedger() {
@@ -146,3 +237,8 @@ function linkFor(row: any): { href: string; label: string } | null {
   }
 }
 </script>
+
+<style scoped>
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to       { opacity: 0; }
+</style>

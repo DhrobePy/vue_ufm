@@ -3,7 +3,7 @@ import {
 } from '~/server/utils/creditOrders'
 
 export const AMD_PRE_STATUSES  = ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship']
-export const AMD_POST_STATUSES = ['shipped', 'dispatched', 'delivered', 'completed']
+export const AMD_POST_STATUSES = ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed']
 
 /**
  * Apply an approved amendment. Caller holds the transaction + order lock.

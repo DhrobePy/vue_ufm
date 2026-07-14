@@ -437,10 +437,10 @@
                 <p class="text-sm font-semibold text-gray-200">Require Dispatch PIN <span class="text-[10px] font-normal text-emerald-400 ml-1.5">Active</span></p>
                 <p class="text-xs text-gray-500 mt-0.5">
                   Dispatcher must scan the invoice QR and enter the 6-digit PIN to mark an order as
-                  <span class="text-gray-300 font-mono text-[11px]">dispatched</span>.
+                  <span class="text-gray-300 font-mono text-[11px]">goods on board</span> — this posts the invoice to the ledger.
                   PIN is printed on the invoice footer and never expires.
                 </p>
-                <p class="text-xs text-gray-600 mt-1">Status transition: <span class="text-purple-400 font-mono text-[11px]">ready_to_ship → dispatched</span></p>
+                <p class="text-xs text-gray-600 mt-1">Status transition: <span class="text-purple-400 font-mono text-[11px]">ready_to_ship → goods_on_board</span></p>
               </div>
               <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
                 <input v-model="deliverySettings.require_dispatch_pin" type="checkbox" class="sr-only peer" />
@@ -455,7 +455,7 @@
                 <span class="text-[10px] font-normal text-emerald-400 ml-1.5">Active</span>
               </p>
               <p class="text-xs text-gray-500 mt-0.5">
-                Drivers do not confirm deliveries. When a <span class="text-gray-300 font-mono text-[11px]">dispatched</span>
+                Drivers do not confirm deliveries. When a <span class="text-gray-300 font-mono text-[11px]">goods on board</span>
                 order's QR is scanned by a logged-in authorized user, they get a one-tap
                 "Confirm Final Delivery" button that records the full delivery, posts the customer
                 ledger entry and marks the order <span class="text-gray-300 font-mono text-[11px]">delivered</span>.
@@ -486,7 +486,7 @@
                 <li>Invoice is printed with a QR code and 6-digit PIN in the footer.</li>
                 <li>When order is <span class="text-gray-300 font-mono">ready_to_ship</span>, dispatcher scans the QR with any phone camera.</li>
                 <li>Public page opens — no login needed. Dispatcher enters the PIN.</li>
-                <li>Status updates to <span class="text-gray-300 font-mono">dispatched</span> automatically.</li>
+                <li>Status updates to <span class="text-gray-300 font-mono">goods_on_board</span> automatically — the invoice posts to the ledger.</li>
                 <li>At handover, an authorized staff member (logged into the ERP on their phone) scans the same QR and taps <span class="text-gray-300">Confirm Final Delivery</span>.</li>
                 <li>Full delivery is recorded — ledger, journal entry and balances — and status becomes <span class="text-gray-300 font-mono">delivered</span>.</li>
                 <li>QR is rescanable — scanning again shows current status and audit trail.</li>

@@ -37,9 +37,14 @@
             class="btn-gold text-xs" :disabled="acting"
             :title="dispatchBlocked ? 'Dispatch is held — see banner above' : ''"
             @click="doDispatch">
-            🚚 Dispatch Now
+            📦 Goods on Board
           </button>
-          <button v-else-if="(order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')"
+          <button v-else-if="order.status === 'goods_on_board' && perms.canDo('credit_sales', 'dispatch', 'mark_shipped')"
+            class="btn-gold text-xs" :disabled="acting"
+            @click="advanceStatus('shipped', 'Truck departed')">
+            🚛 Mark Shipped
+          </button>
+          <button v-if="['goods_on_board', 'shipped', 'dispatched'].includes(order.status) && perms.canDo('credit_sales', 'all', 'record_delivery')"
             class="btn-gold text-xs"
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
@@ -500,7 +505,7 @@
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
             <button v-if="perms.canDo('credit_sales', 'all', 'print')" @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
             <NuxtLink v-if="canCollectPayment && perms.canDo('credit_sales', 'all', 'collect_payment')" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
-            <NuxtLink v-if="(order.status === 'ready_to_ship' || order.status === 'shipped' || order.status === 'dispatched') && perms.canDo('credit_sales', 'all', 'record_delivery')" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
+            <NuxtLink v-if="['goods_on_board', 'shipped', 'dispatched'].includes(order.status) && perms.canDo('credit_sales', 'all', 'record_delivery')" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
             <button v-if="perms.canDo('credit_sales', 'all', 'telegram')" @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
             <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
             <NuxtLink v-if="!['cancelled','rejected'].includes(order.status)" :to="`/credit-sales/${id}/amend`" class="btn-ghost w-full justify-start text-xs py-2">📝 Amend Order</NuxtLink>
@@ -896,7 +901,7 @@ const creditPct = computed(() => {
 })
 
 const canCollectPayment = computed(() =>
-  ['approved','in_production','ready_to_ship','dispatched','delivered','partial_delivery','completed']
+  ['approved','in_production','ready_to_ship','goods_on_board','shipped','dispatched','delivered','partial_delivery','completed']
     .includes(order.value.status),
 )
 
@@ -904,8 +909,10 @@ const canCollectPayment = computed(() =>
 const isAccountsFamily = computed(() =>
   ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra']
     .includes((sessionUser.value?.role ?? '').toLowerCase()))
+// Once goods_on_board is reached the gate has already been resolved
+// (cleared/auto-released) — holds no longer apply from here on.
 const isShippedOrLater = computed(() =>
-  ['shipped', 'dispatched', 'delivered', 'completed', 'cancelled', 'rejected']
+  ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed', 'cancelled', 'rejected']
     .includes(order.value?.status))
 
 const { data: gateData, refresh: refreshGate } = await useFetch(
@@ -1007,10 +1014,10 @@ async function doDispatch() {
       : `Dispatch blocked — ${gateConditionLabel.value}`)
     return
   }
-  if (!confirm(`Dispatch ${order.value.order_number}? This posts the invoice to the customer ledger.`)) return
+  if (!confirm(`Mark ${order.value.order_number} as goods on board? This posts the invoice to the customer ledger.`)) return
   try {
-    await callWorkflow('shipped', 'Dispatched from order page')
-    success(`${order.value.order_number} dispatched — invoice posted ✓`)
+    await callWorkflow('goods_on_board', 'Goods on board — from order page')
+    success(`${order.value.order_number} — goods on board, invoice posted ✓`)
   } catch {}
 }
 
@@ -1030,8 +1037,9 @@ const EVENT_MAP: Record<string, { icon: string; color: string; title: string }> 
   gate_auto_release:        { icon: 'unlock',      color: '#10b981', title: 'Auto-Released' },
   in_production:            { icon: 'play',        color: '#3b82f6', title: 'Production Started' },
   ready_to_ship:            { icon: 'checkDouble', color: '#06b6d4', title: 'Ready to Ship' },
-  shipped:                  { icon: 'truck',        color: '#f97316', title: 'Dispatched' },
-  dispatched:               { icon: 'truck',        color: '#f97316', title: 'Dispatched' },
+  goods_on_board:           { icon: 'package',      color: '#f59e0b', title: 'Goods on Board' },
+  shipped:                  { icon: 'truck',        color: '#f97316', title: 'Shipped' },
+  dispatched:               { icon: 'package',      color: '#f59e0b', title: 'Goods on Board' },
   delivered:                { icon: 'package',      color: '#14b8a6', title: 'Delivered' },
   partial_delivery:         { icon: 'package',      color: '#06b6d4', title: 'Partial Delivery' },
   payment_received:         { icon: 'money',        color: '#10b981', title: 'Payment Received' },

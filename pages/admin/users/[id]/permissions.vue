@@ -295,13 +295,18 @@ const moduleRegistry = [
         ] },
       { key: 'dispatch',  label: 'Dispatch Queue',    route: 'credit-sales/dispatch',
         actions: [
-          { key: 'mark_dispatched', label: 'Dispatch (posts invoice to ledger)' },
+          { key: 'mark_dispatched', label: 'Goods on Board (posts invoice to ledger)' },
+          { key: 'mark_shipped',    label: 'Mark Shipped (truck departed)' },
         ] },
       { key: 'payment-watch', label: 'Payment Watch', route: 'credit-sales/payment-watch',
         actions: [
           { key: 'set_conditions',  label: 'Set / Edit Hold Conditions' },
           { key: 'clear_dispatch',  label: 'Grant Dispatch Clearance' },
           { key: 'revoke_dispatch', label: 'Revoke Dispatch Clearance' },
+        ] },
+      { key: 'approval-requests', label: 'Approval Requests (maker/checker)', route: 'credit-sales/approval-requests',
+        actions: [
+          { key: 'decide', label: 'Approve / Reject Queued Payments' },
         ] },
       { key: 'collect',   label: 'Collect Payment (customer-level)', route: 'credit-sales/collect',
         actions: [

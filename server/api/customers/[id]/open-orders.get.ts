@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
   const orders = await query(
     `SELECT id, order_number, order_date, status, total_amount, amount_paid,
             advance_paid, balance_due,
-            status IN ('shipped','dispatched','delivered','completed') AS is_dispatched
+            status IN ('goods_on_board','shipped','dispatched','delivered','completed') AS is_dispatched
      FROM credit_orders
      WHERE customer_id = ?
        AND balance_due > 0

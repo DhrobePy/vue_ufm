@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, i as createError, a3 as queryOne } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, j as createError, a5 as queryOne } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -19,7 +19,7 @@ const creditExposure_get = defineEventHandler(async (event) => {
          SELECT SUM(o.balance_due)
          FROM credit_orders o
          WHERE o.customer_id = ?
-           AND o.status IN ('pending_approval','escalated','approved','in_production','produced','ready_to_ship','shipped','dispatched')
+           AND o.status IN ('pending_approval','escalated','approved','in_production','ready_to_ship')
        ), 0) AS pending
      FROM dual`,
     [id]

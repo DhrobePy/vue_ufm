@@ -1,4 +1,4 @@
-import { m as defineEventHandler, H as getRouterParam, a4 as readBody, K as getUserSession, i as createError, z as getRequestHeader, Q as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, ag as userCanAction, u as getDb, I as getUserApprovalLimit, t as getCustomerOutstanding, k as creditUsagePct, O as isAccountsRole, x as getOrderGateState, v as getGLAccountId, a0 as postJournalEntry, _ as postCustomerLedger, e as auditLog, aa as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, H as getRouterParam, a7 as readBody, K as getUserSession, j as createError, z as getRequestHeader, Q as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, aj as userCanAction, u as getDb, I as getUserApprovalLimit, t as getCustomerOutstanding, l as creditUsagePct, O as isAccountsRole, x as getOrderGateState, a1 as postGoodsOnBoardInvoice, e as auditLog, ad as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const STATUS_ALIAS = {
-  dispatched: "shipped",
+  dispatched: "goods_on_board",
   produced: "ready_to_ship"
 };
 const TRANSITIONS = {
@@ -20,14 +20,16 @@ const TRANSITIONS = {
   // flag up to admin
   in_production: { from: ["approved"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "production" },
   ready_to_ship: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
-  shipped: { from: ["ready_to_ship"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: "ship" },
+  goods_on_board: { from: ["ready_to_ship"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: "goods_on_board" },
+  shipped: { from: ["goods_on_board"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] },
+  // truck departed — no money logic
   completed: { from: ["delivered"], roles: [] },
   // admin only (payments auto-complete otherwise)
   cancelled: { from: ["pending_approval", "escalated", "approved", "in_production", "ready_to_ship"], roles: [] }
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -56,7 +58,8 @@ const workflow_post = defineEventHandler(async (event) => {
     escalated: { page: "approve", action: "escalate" },
     in_production: { page: "production", action: "start_production" },
     ready_to_ship: { page: "production", action: "mark_ready" },
-    shipped: { page: "dispatch", action: "mark_dispatched" }
+    goods_on_board: { page: "dispatch", action: "mark_dispatched" },
+    shipped: { page: "dispatch", action: "mark_shipped" }
   };
   const tp = TRANSITION_PERM[to_status];
   if (tp) {
@@ -183,70 +186,28 @@ Reason: ${comments}` : ""}`;
           statusMessage: `Production HOLD on this order${((_p = gate.raw) == null ? void 0 : _p.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
         });
     }
-    if (rule.enforce === "ship") {
-      const gate = await getOrderGateState(conn, id);
-      if (gate.dispatchHold && !gate.dispatchCleared) {
-        if (gate.conditionMet && gate.autoRelease) {
-          await conn.query(
-            `UPDATE order_approval_conditions
-             SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
-                 dispatch_cleared_note = 'Auto-released: condition met at dispatch'
-             WHERE order_id = ?`,
-            [userId, id]
-          );
-          wfComment += " \xB7 dispatch clearance auto-released (condition met)";
-        } else {
-          throw createError({
-            statusCode: 423,
-            statusMessage: gate.conditionMet ? "Payment condition met but clearance is manual \u2014 ask accounts to grant it (Payment Watch)" : `Dispatch blocked \u2014 payment clearance pending (${(_q = gate.conditionType) != null ? _q : "manual"}${gate.conditionAmount ? ` \u09F3${gate.conditionAmount.toLocaleString()}` : ""})`
-          });
-        }
-      }
-      const [[already]] = await conn.query(
-        `SELECT id FROM customer_ledger
-         WHERE reference_type = 'credit_order' AND reference_id = ? AND transaction_type = 'invoice'
-         LIMIT 1`,
-        [id]
-      );
-      if (!already) {
-        const shipDate = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-        let jeId = null;
-        const arId = await getGLAccountId(conn, "Accounts Receivable");
-        const revId = await getGLAccountId(conn, "Revenue");
-        if (arId && revId) {
-          jeId = await postJournalEntry(conn, {
-            date: shipDate,
-            description: `Sales invoice \u2014 ${order.order_number} (${order.customer_name}) \u2014 dispatched`,
-            docType: "CreditOrder",
-            docId: id,
-            userId,
-            lines: [
-              { accountId: arId, debit: totalAmount, credit: 0, memo: order.order_number },
-              { accountId: revId, debit: 0, credit: totalAmount, memo: order.order_number }
-            ]
-          });
-        } else {
-          console.warn(`[ship] Missing GL accounts (AR=${arId}, Rev=${revId}) \u2014 ledger posted without JE`);
-        }
-        await postCustomerLedger(conn, {
-          customerId: order.customer_id,
-          date: shipDate,
-          transactionType: "invoice",
-          referenceType: "credit_order",
-          referenceId: id,
-          invoiceNumber: order.order_number,
-          description: `Invoice \u2014 ${order.order_number} dispatched (full order value)`,
-          debit: totalAmount,
-          credit: 0,
-          journalEntryId: jeId,
-          userId
-        });
-        wfComment = `Dispatched \u2014 invoice \u09F3${totalAmount.toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
-      }
-      telegramMsg = `\u{1F69A} <b>Order Dispatched</b>
+    if (rule.enforce === "goods_on_board") {
+      const result = await postGoodsOnBoardInvoice(conn, {
+        orderId: id,
+        orderNumber: order.order_number,
+        customerId: order.customer_id,
+        customerName: order.customer_name,
+        totalAmount,
+        balanceDue: Number((_q = order.balance_due) != null ? _q : 0),
+        userId,
+        userName
+      });
+      if (!result.alreadyPosted)
+        wfComment = `Goods on board \u2014 invoice \u09F3${totalAmount.toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
+      if (result.autoReleased)
+        wfComment += " \xB7 dispatch clearance auto-released (condition met)";
+      telegramMsg = result.telegramMsg;
+    }
+    if (to_status === "shipped") {
+      wfComment = `Truck departed \xB7 ${wfComment}`.trim();
+      telegramMsg = `\u{1F6E3}\uFE0F <b>Order Shipped</b>
 ${order.order_number} \u2014 ${order.customer_name}
-Invoice \u09F3${totalAmount.toLocaleString()} posted \xB7 balance due \u09F3${Number((_r = order.balance_due) != null ? _r : 0).toLocaleString()}
-by ${userName}`;
+Truck has departed \xB7 by ${userName}`;
     }
     await conn.query(
       `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
@@ -278,7 +239,7 @@ by ${userName}`;
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_t = (_s = e == null ? void 0 : e.sqlMessage) != null ? _s : e == null ? void 0 : e.message) != null ? _t : "Workflow transition failed"
+      statusMessage: (_s = (_r = e == null ? void 0 : e.sqlMessage) != null ? _r : e == null ? void 0 : e.message) != null ? _s : "Workflow transition failed"
     });
   } finally {
     conn.release();

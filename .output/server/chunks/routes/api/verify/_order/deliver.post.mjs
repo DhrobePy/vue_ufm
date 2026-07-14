@@ -1,4 +1,4 @@
-import { m as defineEventHandler, K as getUserSession, i as createError, a2 as query, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getUserSession, j as createError, a4 as query, z as getRequestHeader, u as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -42,10 +42,10 @@ const deliver_post = defineEventHandler(async (event) => {
   );
   if (!orders.length) throw createError({ statusCode: 404, statusMessage: "Order not found" });
   const order = orders[0];
-  if (order.status !== "dispatched") {
+  if (!["goods_on_board", "shipped"].includes(order.status)) {
     throw createError({
       statusCode: 400,
-      statusMessage: order.status === "delivered" || order.status === "completed" ? "Order is already delivered" : `Order must be dispatched first (current status: ${order.status})`
+      statusMessage: order.status === "delivered" || order.status === "completed" ? "Order is already delivered" : `Order must be goods-on-board or shipped first (current status: ${order.status})`
     });
   }
   const items = await query(

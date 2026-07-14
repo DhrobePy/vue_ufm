@@ -8,7 +8,7 @@ import { userCanAction } from '~/server/utils/permissions'
  * Gate actions on one order:
  *  - set               (accounts/admin): create/update holds + conditions
  *  - clear_dispatch    (accounts/admin): grant dispatch clearance
- *  - revoke_dispatch   (accounts/admin): revoke clearance — only until shipped
+ *  - revoke_dispatch   (accounts/admin): revoke clearance — only until goods on board
  *  - release_production(admin only):     lift a production hold
  *
  * Clearance granting is hard-limited to the accounts family regardless of
@@ -102,8 +102,8 @@ export default defineEventHandler(async (event) => {
     }
 
     else if (action === 'revoke_dispatch') {
-      if (['shipped', 'dispatched', 'delivered', 'completed'].includes(order.status))
-        throw createError({ statusCode: 409, statusMessage: 'Order already dispatched — clearance can no longer be revoked' })
+      if (['goods_on_board', 'dispatched', 'shipped', 'delivered', 'completed'].includes(order.status))
+        throw createError({ statusCode: 409, statusMessage: 'Order already goods on board — clearance can no longer be revoked' })
       // Revoke also kills auto-release: a human said stop, the machine must not restart it
       await conn.query(
         `UPDATE order_approval_conditions

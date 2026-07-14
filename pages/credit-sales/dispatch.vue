@@ -12,7 +12,7 @@
           <p class="text-2xl font-bold text-orange-400">{{ stats.ready_count ?? orders.length }}</p>
         </div>
         <div class="glass-card p-4 text-center space-y-1">
-          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Dispatched Today</p>
+          <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold">Goods on Board Today</p>
           <p class="text-2xl font-bold text-emerald-400">{{ stats.dispatched_today ?? 0 }}</p>
         </div>
         <div class="glass-card p-4 text-center space-y-1">
@@ -26,7 +26,7 @@
       </div>
 
       <div class="glass-card p-5">
-        <h2 class="section-title mb-4">Ready for Dispatch</h2>
+        <h2 class="section-title mb-4">Ready for Dispatch <span class="text-xs font-normal text-gray-600">— mark Goods on Board (posts invoice)</span></h2>
         <UiDataTable :columns="cols" :rows="tableRows" :per-page="15" search-placeholder="Search orders…">
           <template #cell-order_number="{ value }"><span class="font-mono text-xs text-gold-400/80">{{ value }}</span></template>
           <template #cell-priority="{ value }"><UiStatusBadge :status="value" /></template>
@@ -51,9 +51,28 @@
                 class="btn-gold text-xs py-1 px-2.5"
                 :class="row.dispatch_hold && !(row.gate_met && row.gate_auto) ? 'opacity-40' : ''"
                 @click="dispatch(row)" :disabled="acting === row.id">
-                {{ acting === row.id ? '…' : 'Dispatch' }}
+                {{ acting === row.id ? '…' : 'Goods on Board' }}
               </button>
             </div>
+          </template>
+        </UiDataTable>
+      </div>
+
+      <!-- Goods on board, awaiting truck departure -->
+      <div v-if="onBoardRows.length" class="glass-card p-5">
+        <h2 class="section-title mb-4">Awaiting Departure <span class="text-xs font-normal text-gray-600">— invoice already posted, mark once the truck leaves</span></h2>
+        <UiDataTable :columns="onBoardCols" :rows="onBoardRows" :per-page="15" search-placeholder="Search orders…">
+          <template #cell-order_number="{ value }"><span class="font-mono text-xs text-gold-400/80">{{ value }}</span></template>
+          <template #cell-status="{ value }"><UiStatusBadge :status="value" /></template>
+          <template #cell-weight="{ value }">
+            <span class="font-mono text-xs text-gray-300">{{ value ? (Number(value)/1000).toFixed(2)+' MT' : '—' }}</span>
+          </template>
+          <template #actions="{ row }">
+            <button v-if="perms.canDo('credit_sales', 'dispatch', 'mark_shipped')"
+              class="btn-gold text-xs py-1 px-2.5"
+              @click="markShipped(row)" :disabled="acting === row.id">
+              {{ acting === row.id ? '…' : '🚛 Mark Shipped' }}
+            </button>
           </template>
         </UiDataTable>
       </div>
@@ -68,8 +87,9 @@ const { success, error: toastError } = useToast()
 
 const { data, pending, error, refresh } = await useFetch('/api/credit-sales/dispatch')
 
-const orders = computed(() => (data.value?.orders ?? []) as any[])
-const stats  = computed(() => (data.value?.stats  ?? {}) as any)
+const orders  = computed(() => (data.value?.orders  ?? []) as any[])
+const onBoard = computed(() => (data.value?.onBoard ?? []) as any[])
+const stats   = computed(() => (data.value?.stats   ?? {}) as any)
 
 const urgentCount = computed(() => orders.value.filter(o => o.priority === 'urgent').length)
 
@@ -89,12 +109,29 @@ const tableRows = computed(() => orders.value.map(o => ({
     : '',
 })))
 
+const onBoardRows = computed(() => onBoard.value.map(o => ({
+  id:           o.id,
+  order_number: o.order_number,
+  customer:     o.customer_name,
+  address:      o.delivery_address || '—',
+  weight:       o.total_weight_kg,
+  status:       o.status,
+})))
+
 const cols = [
   { key: 'order_number', label: 'Order #',  sortable: true },
   { key: 'customer',     label: 'Customer', sortable: true },
   { key: 'address',      label: 'Delivery Address' },
   { key: 'weight',       label: 'Weight' },
   { key: 'priority',     label: 'Priority' },
+  { key: 'status',       label: 'Status' },
+]
+
+const onBoardCols = [
+  { key: 'order_number', label: 'Order #',  sortable: true },
+  { key: 'customer',     label: 'Customer', sortable: true },
+  { key: 'address',      label: 'Delivery Address' },
+  { key: 'weight',       label: 'Weight' },
   { key: 'status',       label: 'Status' },
 ]
 
@@ -105,12 +142,28 @@ async function dispatch(row: any) {
   try {
     await $fetch(`/api/credit-sales/${row.id}/workflow`, {
       method: 'POST',
-      body: { to_status: 'dispatched', comments: 'Dispatched from dispatch queue' },
+      body: { to_status: 'goods_on_board', comments: 'Goods on board — from dispatch queue' },
     })
-    success(`Order ${row.order_number} dispatched`)
+    success(`Order ${row.order_number} — goods on board, invoice posted`)
     await refresh()
   } catch (e: any) {
-    toastError(e?.data?.statusMessage ?? 'Failed to dispatch order')
+    toastError(e?.data?.statusMessage ?? 'Failed to mark goods on board')
+  } finally {
+    acting.value = null
+  }
+}
+
+async function markShipped(row: any) {
+  acting.value = row.id
+  try {
+    await $fetch(`/api/credit-sales/${row.id}/workflow`, {
+      method: 'POST',
+      body: { to_status: 'shipped', comments: 'Truck departed — from dispatch queue' },
+    })
+    success(`Order ${row.order_number} marked shipped`)
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to mark shipped')
   } finally {
     acting.value = null
   }

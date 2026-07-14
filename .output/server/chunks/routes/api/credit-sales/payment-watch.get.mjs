@@ -1,4 +1,4 @@
-import { m as defineEventHandler, K as getUserSession, i as createError, O as isAccountsRole, u as getDb, x as getOrderGateState } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getUserSession, j as createError, O as isAccountsRole, u as getDb, x as getOrderGateState } from '../../../nitro/nitro.mjs';
 import 'node:http';
 import 'node:https';
 import 'node:crypto';
@@ -32,7 +32,7 @@ const paymentWatch_get = defineEventHandler(async (event) => {
        JOIN customers c ON c.id = o.customer_id
        LEFT JOIN users cu ON cu.id = oac.dispatch_cleared_by
        WHERE (oac.dispatch_hold = 1 OR oac.production_hold = 1)
-         AND o.status NOT IN ('shipped','dispatched','delivered','completed','cancelled','rejected')
+         AND o.status NOT IN ('goods_on_board','shipped','dispatched','delivered','completed','cancelled','rejected')
        ORDER BY o.required_date IS NULL, o.required_date ASC, o.id DESC`
     );
     const orders = [];
