@@ -44,7 +44,7 @@ const _id__patch = defineEventHandler(async (event) => {
         [id]
       );
       await conn.query(
-        `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, new_values, notes)
+        `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, new_values, notes)
          VALUES (?, 'unposted', ?, ?, ?, ?, ?, ?)`,
         [
           id,
@@ -119,7 +119,7 @@ const _id__patch = defineEventHandler(async (event) => {
         setParts.push("updated_at = NOW()");
         await conn.query(`UPDATE bank_transactions SET ${setParts.join(", ")} WHERE id = ?`, [...vals, id]);
         await conn.query(
-          `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, new_values)
+          `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, new_values)
            VALUES (?, 'updated', ?, ?, ?, ?, ?)`,
           [id, userId, userName, ip, JSON.stringify(old), JSON.stringify(nw)]
         );
@@ -180,7 +180,7 @@ const _id__patch = defineEventHandler(async (event) => {
       );
     }
     await conn.query(
-      `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, new_values, notes)
+      `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, new_values, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,

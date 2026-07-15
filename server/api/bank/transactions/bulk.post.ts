@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
 
       if (action === 'delete') {
         await conn.query(
-          `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, notes)
+          `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, notes)
            VALUES (?, 'deleted', ?, ?, ?, ?, ?)`,
           [id, userId, userName, ip, JSON.stringify(txn), reason ? `BULK DELETE: ${reason}` : 'BULK DELETE by Superadmin'],
         )
@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
           `UPDATE bank_transactions SET status = 'unposted', updated_at = NOW() WHERE id = ?`, [id],
         )
         await conn.query(
-          `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, new_values, notes)
+          `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, new_values, notes)
            VALUES (?, 'unposted', ?, ?, ?, ?, ?, ?)`,
           [id, userId, userName, ip,
             JSON.stringify({ status: txn.status }),

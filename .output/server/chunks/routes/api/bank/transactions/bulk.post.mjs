@@ -36,7 +36,7 @@ const bulk_post = defineEventHandler(async (event) => {
       if (!txn) continue;
       if (action === "delete") {
         await conn.query(
-          `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, notes)
+          `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, notes)
            VALUES (?, 'deleted', ?, ?, ?, ?, ?)`,
           [id, userId, userName, ip, JSON.stringify(txn), reason ? `BULK DELETE: ${reason}` : "BULK DELETE by Superadmin"]
         );
@@ -47,7 +47,7 @@ const bulk_post = defineEventHandler(async (event) => {
           [id]
         );
         await conn.query(
-          `INSERT INTO bank_tx_audit_log (tx_id, action, user_id, user_name, ip_address, old_values, new_values, notes)
+          `INSERT INTO bank_tx_audit_log (transaction_id, action, action_by_user_id, action_by_username, ip_address, old_values, new_values, notes)
            VALUES (?, 'unposted', ?, ?, ?, ?, ?, ?)`,
           [
             id,

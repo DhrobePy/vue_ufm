@@ -559,12 +559,17 @@ export default defineNitroPlugin(async () => {
   //   office       = administrative, never priced
   await addCol(db, 'branches', 'branch_type', "VARCHAR(20) NULL DEFAULT NULL COMMENT 'factory | sales_region | office'")
   await addCol(db, 'branches', 'source_branch_id', "INT UNSIGNED NULL DEFAULT NULL COMMENT 'Factory branch that feeds this sales region'")
+  // server/api/branches.post.ts / [id].put.ts write this denormalized flag
+  // alongside branch_type but this migration never created the column —
+  // a fresh/wiped database was missing it entirely until now.
+  await addCol(db, 'branches', 'is_factory', "TINYINT(1) NOT NULL DEFAULT 0")
 
   // Seed branch_type once — only rows still NULL are touched
   try {
     await db.query(`UPDATE branches SET branch_type = 'factory' WHERE branch_type IS NULL AND id IN (1, 2)`)
     await db.query(`UPDATE branches SET branch_type = 'office' WHERE branch_type IS NULL AND code = 'HO'`)
     await db.query(`UPDATE branches SET branch_type = 'sales_region' WHERE branch_type IS NULL`)
+    await db.query(`UPDATE branches SET is_factory = (branch_type = 'factory')`)
   } catch (e) {
     console.warn('[db-migrate] branch_type seed failed:', e)
   }
@@ -1121,6 +1126,10 @@ export default defineNitroPlugin(async () => {
   } catch (e) {
     console.warn('[db-migrate] bank account unification backfill failed:', e)
   }
+
+  // ── 54. product_variants.cost_price — written by variants.post.ts but
+  //    never had a migration creating it ─────────────────────────────────────
+  await addCol(db, 'product_variants', 'cost_price', "DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Purchase/production cost, for margin reporting'")
 
   console.log('[db-migrate] startup migrations complete')
 })
