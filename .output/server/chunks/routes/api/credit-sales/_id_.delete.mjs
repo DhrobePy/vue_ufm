@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, N as getUserSession, E as getRequestHeader, j as createError, v as getDb, e as auditLog } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, N as getUserSession, E as getRequestHeader, j as createError, v as getDb, e as auditLog, ag as recycleBegin, af as recycleArchiveDelete, ah as recycleFinalize } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,12 +10,13 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const id = Number(getRouterParam(event, "id"));
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   const userId = (_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.id) != null ? _d : 1;
-  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
+  const userName = (_f = (_e = session == null ? void 0 : session.user) == null ? void 0 : _e.name) != null ? _f : `User ${userId}`;
+  const ipAddress = (_h = (_g = getRequestHeader(event, "x-forwarded-for")) != null ? _g : getRequestHeader(event, "x-real-ip")) != null ? _h : void 0;
   if (!["admin", "superadmin"].includes(role)) {
     throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can delete orders" });
   }
@@ -46,7 +47,7 @@ const _id__delete = defineEventHandler(async (event) => {
       recordType: "credit_order",
       recordId: id,
       referenceNumber: order.order_number,
-      description: `Order ${order.order_number} deleted \u2014 ${order.customer_name} \xB7 \u09F3${auditAmt} \xB7 status was ${order.order_status}`,
+      description: `Order ${order.order_number} deleted \u2014 ${order.customer_name} \xB7 \u09F3${auditAmt} \xB7 status was ${order.order_status} \xB7 recoverable from Recycle Bin`,
       severity: "critical",
       ipAddress
     });
@@ -66,9 +67,16 @@ const _id__delete = defineEventHandler(async (event) => {
         order.balance_due,
         order.order_status,
         userId,
-        (_g = order.deleted_by_name) != null ? _g : null
+        (_i = order.deleted_by_name) != null ? _i : null
       ]
     );
+    const batchId = await recycleBegin(conn, {
+      entityType: "credit_order",
+      label: order.order_number,
+      customerId: order.customer_id,
+      userId,
+      userName
+    });
     const [deliveries] = await conn.query(
       `SELECT id FROM credit_order_deliveries WHERE order_id = ?`,
       [id]
@@ -83,33 +91,29 @@ const _id__delete = defineEventHandler(async (event) => {
     );
     const jeIds = ledgerRows.map((r) => r.journal_entry_id).filter(Boolean);
     for (const d of deliveries) {
-      await conn.query(`DELETE FROM credit_order_delivery_items WHERE delivery_id = ?`, [d.id]);
+      await recycleArchiveDelete(conn, batchId, "credit_order_delivery_items", "delivery_id", d.id);
     }
-    await conn.query(`DELETE FROM credit_order_deliveries WHERE order_id = ?`, [id]);
+    await recycleArchiveDelete(conn, batchId, "credit_order_deliveries", "order_id", id);
     const [returns] = await conn.query(
       `SELECT id FROM credit_order_returns WHERE order_id = ?`,
       [id]
     );
     for (const r of returns) {
-      await conn.query(`DELETE FROM credit_order_return_items WHERE return_id = ?`, [r.id]);
+      await recycleArchiveDelete(conn, batchId, "credit_order_return_items", "return_id", r.id);
     }
-    await conn.query(`DELETE FROM credit_order_returns WHERE order_id = ?`, [id]);
-    await conn.query(`DELETE FROM credit_order_workflow WHERE order_id = ?`, [id]);
-    await conn.query(`DELETE FROM credit_order_audit WHERE order_id = ?`, [id]);
-    if (ledgerRows.length) {
-      const lidPh = ledgerRows.map(() => "?").join(",");
-      await conn.query(
-        `DELETE FROM customer_ledger WHERE id IN (${lidPh})`,
-        ledgerRows.map((r) => r.id)
-      );
+    await recycleArchiveDelete(conn, batchId, "credit_order_returns", "order_id", id);
+    await recycleArchiveDelete(conn, batchId, "credit_order_workflow", "order_id", id);
+    await recycleArchiveDelete(conn, batchId, "credit_order_audit", "order_id", id);
+    for (const row of ledgerRows) {
+      await recycleArchiveDelete(conn, batchId, "customer_ledger", "id", row.id);
     }
-    if (jeIds.length) {
-      const jePh = jeIds.map(() => "?").join(",");
-      await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id IN (${jePh})`, jeIds);
-      await conn.query(`DELETE FROM journal_entries WHERE id IN (${jePh})`, jeIds);
+    for (const jeId of jeIds) {
+      await recycleArchiveDelete(conn, batchId, "transaction_lines", "journal_entry_id", jeId);
+      await recycleArchiveDelete(conn, batchId, "journal_entries", "id", jeId);
     }
-    await conn.query(`DELETE FROM credit_order_items WHERE order_id = ?`, [id]);
-    await conn.query(`DELETE FROM credit_orders WHERE id = ?`, [id]);
+    await recycleArchiveDelete(conn, batchId, "credit_order_items", "order_id", id);
+    await recycleArchiveDelete(conn, batchId, "credit_orders", "id", id);
+    await recycleFinalize(conn, batchId);
     await conn.query(
       `UPDATE customers
        SET current_balance = COALESCE(
@@ -121,7 +125,7 @@ const _id__delete = defineEventHandler(async (event) => {
       [order.customer_id, order.customer_id]
     );
     await conn.commit();
-    return { ok: true, deleted: order.order_number };
+    return { ok: true, deleted: order.order_number, recycle_bin_batch_id: batchId };
   } catch (e) {
     await conn.rollback();
     throw e;

@@ -1,11 +1,13 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleFinalize } from '~/server/utils/recycleBin'
 
 export default defineEventHandler(async (event) => {
   const id        = Number(getRouterParam(event, 'id'))
   const session   = await getUserSession(event)
   const role      = (session?.user?.role ?? '').toLowerCase()
   const userId    = session?.user?.id ?? 1
+  const userName  = (session?.user as any)?.name ?? `User ${userId}`
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
   if (!['admin', 'superadmin'].includes(role)) {
@@ -46,12 +48,13 @@ export default defineEventHandler(async (event) => {
       recordType:      'credit_order',
       recordId:        id,
       referenceNumber: order.order_number,
-      description:     `Order ${order.order_number} deleted — ${order.customer_name} · ৳${auditAmt} · status was ${order.order_status}`,
+      description:     `Order ${order.order_number} deleted — ${order.customer_name} · ৳${auditAmt} · status was ${order.order_status} · recoverable from Recycle Bin`,
       severity:        'critical',
       ipAddress,
     })
 
-    // ── Write tombstone BEFORE cascade delete ──────────────────────────────
+    // ── Write tombstone BEFORE cascade delete (powers the notification bell —
+    //    a lightweight summary, separate from the full recycle-bin snapshot) ──
     // Use UTC_TIMESTAMP() explicitly — avoids MySQL server-TZ drift that
     // causes negative "Xs ago" in the notification bell.
     await conn.query(
@@ -67,9 +70,18 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
-    // ── Cascade delete ─────────────────────────────────────────────────────
+    // ── Recycle-bin snapshot + cascade delete (spec §2.11) ──────────────────
+    // Every row gets fully archived (not just a summary) before it's
+    // removed, in child-first order — so a restore can put everything back
+    // exactly as it was, not just note that it once existed.
+    const batchId = await recycleBegin(conn, {
+      entityType: 'credit_order',
+      label:      order.order_number,
+      customerId: order.customer_id,
+      userId, userName,
+    })
 
-    // 0. Capture delivery ids + ledger-linked journal entries BEFORE deleting
+    // 0. Capture delivery ids + ledger-linked journal entries BEFORE archiving
     //    anything, so GL reversal and ledger cleanup see the full picture.
     const [deliveries] = await conn.query<any[]>(
       `SELECT id FROM credit_order_deliveries WHERE order_id = ?`, [id],
@@ -87,47 +99,44 @@ export default defineEventHandler(async (event) => {
     )
     const jeIds = (ledgerRows as any[]).map(r => r.journal_entry_id).filter(Boolean)
 
-    // 1. Delivery items
+    // 1. Delivery items, then deliveries
     for (const d of deliveries as any[]) {
-      await conn.query(`DELETE FROM credit_order_delivery_items WHERE delivery_id = ?`, [d.id])
+      await recycleArchiveDelete(conn, batchId, 'credit_order_delivery_items', 'delivery_id', d.id)
     }
-    await conn.query(`DELETE FROM credit_order_deliveries WHERE order_id = ?`, [id])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_deliveries', 'order_id', id)
 
-    // 2. Return items
+    // 2. Return items, then returns
     const [returns] = await conn.query<any[]>(
       `SELECT id FROM credit_order_returns WHERE order_id = ?`, [id],
     )
     for (const r of returns as any[]) {
-      await conn.query(`DELETE FROM credit_order_return_items WHERE return_id = ?`, [r.id])
+      await recycleArchiveDelete(conn, batchId, 'credit_order_return_items', 'return_id', r.id)
     }
-    await conn.query(`DELETE FROM credit_order_returns WHERE order_id = ?`, [id])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_returns', 'order_id', id)
 
     // 3. Workflow history
-    await conn.query(`DELETE FROM credit_order_workflow WHERE order_id = ?`, [id])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_workflow', 'order_id', id)
 
     // 4. Audit trail (order-level)
-    await conn.query(`DELETE FROM credit_order_audit WHERE order_id = ?`, [id])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_audit', 'order_id', id)
 
     // 5. Ledger entries + their GL journal entries (keep the GL balanced —
     //    an orphaned Dr AR / Cr Revenue would leave phantom revenue behind)
-    if (ledgerRows.length) {
-      const lidPh = (ledgerRows as any[]).map(() => '?').join(',')
-      await conn.query(
-        `DELETE FROM customer_ledger WHERE id IN (${lidPh})`,
-        (ledgerRows as any[]).map(r => r.id),
-      )
+    for (const row of ledgerRows as any[]) {
+      await recycleArchiveDelete(conn, batchId, 'customer_ledger', 'id', row.id)
     }
-    if (jeIds.length) {
-      const jePh = jeIds.map(() => '?').join(',')
-      await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id IN (${jePh})`, jeIds)
-      await conn.query(`DELETE FROM journal_entries WHERE id IN (${jePh})`, jeIds)
+    for (const jeId of jeIds) {
+      await recycleArchiveDelete(conn, batchId, 'transaction_lines', 'journal_entry_id', jeId)
+      await recycleArchiveDelete(conn, batchId, 'journal_entries', 'id', jeId)
     }
 
     // 6. Order items
-    await conn.query(`DELETE FROM credit_order_items WHERE order_id = ?`, [id])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_items', 'order_id', id)
 
-    // 7. The order itself
-    await conn.query(`DELETE FROM credit_orders WHERE id = ?`, [id])
+    // 7. The order itself — always last, so restore (reverse order) re-inserts it first
+    await recycleArchiveDelete(conn, batchId, 'credit_orders', 'id', id)
+
+    await recycleFinalize(conn, batchId)
 
     // 8. Recalculate customer balance from remaining ledger entries
     await conn.query(
@@ -142,7 +151,7 @@ export default defineEventHandler(async (event) => {
     )
 
     await conn.commit()
-    return { ok: true, deleted: order.order_number }
+    return { ok: true, deleted: order.order_number, recycle_bin_batch_id: batchId }
   } catch (e) {
     await conn.rollback()
     throw e

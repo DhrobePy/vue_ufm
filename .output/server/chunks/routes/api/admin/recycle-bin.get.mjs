@@ -1,0 +1,33 @@
+import { n as defineEventHandler, N as getUserSession, j as createError, C as getQuery, a7 as query } from '../../../nitro/nitro.mjs';
+import 'node:crypto';
+import 'node:http';
+import 'node:https';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'mysql2/promise';
+import 'node:url';
+
+const recycleBin_get = defineEventHandler(async (event) => {
+  var _a, _b;
+  const session = await getUserSession(event);
+  const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
+  if (!["admin", "superadmin"].includes(role))
+    throw createError({ statusCode: 403, statusMessage: "Admin access required" });
+  const q = getQuery(event);
+  const status = q.status ? String(q.status) : "active";
+  const batches = await query(
+    `SELECT b.*, c.name AS customer_name
+     FROM recycle_bin_batches b
+     LEFT JOIN customers c ON c.id = b.customer_id
+     WHERE (? = '' OR b.status = ?)
+     ORDER BY b.deleted_at DESC
+     LIMIT 300`,
+    [status, status]
+  );
+  return { batches };
+});
+
+export { recycleBin_get as default };
+//# sourceMappingURL=recycle-bin.get.mjs.map

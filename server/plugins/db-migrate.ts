@@ -924,5 +924,52 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] two-stage QR delivery tables failed:', e)
   }
 
+  // ── 49. Recycle Bin engine (spec §2.11) ────────────────────────────────────
+  // Generic snapshot/restore for deletes, replacing today's hard-cascade
+  // (which only kept a summary tombstone, not the actual row data — once
+  // gone it was gone). One batch per delete operation; one item row per
+  // captured table row, full JSON snapshot. Items insert in capture order
+  // (child rows first, mirroring the order things get deleted in) so
+  // restore can simply replay by id DESC — parent rows first, satisfying
+  // FK constraints, then children. See server/utils/recycleBin.ts.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS recycle_bin_batches (
+        id                  INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        entity_type         VARCHAR(50)  NOT NULL COMMENT 'credit_order | customer | ...',
+        label                VARCHAR(200) NOT NULL COMMENT 'human-readable — order number, customer name, etc.',
+        customer_id          INT UNSIGNED NULL,
+        item_count           INT UNSIGNED NOT NULL DEFAULT 0,
+        status               VARCHAR(20)  NOT NULL DEFAULT 'active' COMMENT 'active | restored | purged',
+        deleted_by_user_id   INT UNSIGNED NULL,
+        deleted_by_name      VARCHAR(120) NULL,
+        deleted_at           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        restored_by_user_id  INT UNSIGNED NULL,
+        restored_at          DATETIME     NULL,
+        purged_by_user_id    INT UNSIGNED NULL,
+        purged_at            DATETIME     NULL,
+        notes                VARCHAR(500) NULL,
+        INDEX idx_rbb_entity (entity_type),
+        INDEX idx_rbb_status (status),
+        INDEX idx_rbb_customer (customer_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS recycle_bin_items (
+        id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        batch_id       INT UNSIGNED NOT NULL,
+        table_name     VARCHAR(100) NOT NULL,
+        op             VARCHAR(10)  NOT NULL COMMENT 'delete | update — what restore must undo',
+        row_pk_col     VARCHAR(64)  NOT NULL,
+        row_pk_val     VARCHAR(64)  NOT NULL,
+        snapshot_json  LONGTEXT     NOT NULL,
+        created_at     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_rbi_batch (batch_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] recycle bin tables failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

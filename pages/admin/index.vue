@@ -1,6 +1,10 @@
 <template>
   <div class="space-y-6">
-    <UiPageHeader title="Admin" subtitle="Users · employees · audit trail · system settings" :breadcrumb="['Admin']" />
+    <UiPageHeader title="Admin" subtitle="Users · employees · audit trail · system settings" :breadcrumb="['Admin']">
+      <template #actions>
+        <NuxtLink to="/admin/recycle-bin" class="btn-ghost text-xs">🗑️ Recycle Bin</NuxtLink>
+      </template>
+    </UiPageHeader>
 
     <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
     <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
