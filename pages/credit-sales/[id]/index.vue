@@ -882,7 +882,9 @@ function methodIcon(method: string): string {
 }
 
 function isReversed(p: any): boolean {
-  return (p.notes ?? '').startsWith('REVERSED')
+  // reversed_at is the real signal; the notes-prefix fallback covers payments
+  // reversed before this column existed.
+  return !!p.reversed_at || (p.notes ?? '').startsWith('REVERSED')
 }
 
 const approvedReturns = computed(() => returns.value.filter((r: any) => r.status === 'approved'))

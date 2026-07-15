@@ -840,5 +840,22 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] stock_adjustments failed:', e) }
 
+  // ── 46. customer_payments / payment_allocations — proper reversal tracking ─
+  // Previously "reversed" was detected by string-matching notes for
+  // 'REVERSED' — fragile, and the old reverse endpoint didn't restore
+  // split/advance order balances or post a reversing JE. Real columns let
+  // the hardened endpoint (and any future reporting) tell reversed
+  // payments apart reliably.
+  await addCol(db, 'customer_payments', 'reversed_at',
+    "DATETIME NULL COMMENT 'set when this payment is reversed'")
+  await addCol(db, 'customer_payments', 'reversed_by_user_id',
+    "INT UNSIGNED NULL")
+  await addCol(db, 'customer_payments', 'reversal_reason',
+    "VARCHAR(255) NULL")
+  await addCol(db, 'customer_payments', 'reversal_journal_entry_id',
+    "INT UNSIGNED NULL COMMENT 'the reversing JE, distinct from journal_entry_id (the original posting)'")
+  await addCol(db, 'payment_allocations', 'reversed',
+    "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 once the parent payment has been reversed'")
+
   console.log('[db-migrate] startup migrations complete')
 })
