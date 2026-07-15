@@ -901,9 +901,13 @@ const creditPct = computed(() => {
   return Math.min(150, Math.round((totalExposure.value / limit) * 100))
 })
 
+// Escalated/pending orders can still take advance payments — e.g. an
+// escalated (over-credit-limit) order's own dispatch-hold condition often
+// requires receiving a specific amount before clearance is even possible,
+// so payment must be collectible before approval, not just after. Matches
+// what /credit-sales/collect (customer-level) already allows unrestricted.
 const canCollectPayment = computed(() =>
-  ['approved','in_production','ready_to_ship','goods_on_board','shipped','dispatched','delivered','partial_delivery','completed']
-    .includes(order.value.status),
+  !['rejected', 'cancelled'].includes(order.value.status),
 )
 
 // ── Dispatch gates (holds & payment conditions) ───────────────────────────────
