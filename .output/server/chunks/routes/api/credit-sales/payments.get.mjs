@@ -10,6 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payments_get = defineEventHandler(async (event) => {
+  var _a;
   const q = getQuery(event);
   const search = q.search || "";
   const status = q.status || "";
@@ -62,6 +63,29 @@ const payments_get = defineEventHandler(async (event) => {
       params
     )
   ]);
+  const splitIds = payments.filter((p) => !p.order_id).map((p) => p.id);
+  if (splitIds.length) {
+    const allocations = await query(
+      `SELECT pa.payment_id, pa.order_id, pa.allocated_amount, o.order_number
+       FROM   payment_allocations pa
+       JOIN   credit_orders o ON o.id = pa.order_id
+       WHERE  pa.payment_id IN (${splitIds.map(() => "?").join(",")})
+       ORDER BY pa.id`,
+      splitIds
+    );
+    const byPayment = /* @__PURE__ */ new Map();
+    for (const a of allocations) {
+      if (!byPayment.has(a.payment_id)) byPayment.set(a.payment_id, []);
+      byPayment.get(a.payment_id).push({
+        order_id: a.order_id,
+        order_number: a.order_number,
+        amount: a.allocated_amount
+      });
+    }
+    for (const p of payments) {
+      if (!p.order_id) p.allocations = (_a = byPayment.get(p.id)) != null ? _a : [];
+    }
+  }
   return { payments, total: cnt.total, page, perPage: per };
 });
 

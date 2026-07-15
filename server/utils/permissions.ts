@@ -7,6 +7,10 @@
  *  1. admin/superadmin → always allowed
  *  2. user_permissions row → module enabled? page whitelisted? action true?
  *     (module enabled with EMPTY pages list = module-level grant → all allowed)
+ *     (page whitelisted but this action key was never saved for it →
+ *      default allow; only an explicitly-unchecked `false` denies. Keeps a
+ *      page grant meaning "all its actions" even after new action keys are
+ *      added to the registry post-hoc — see usePermissions.ts canDo())
  *  3. no row at all → role-family fallback the caller provides
  *     (back-compat: users never configured keep their role's defaults)
  */
@@ -55,5 +59,7 @@ export async function userCanAction(opts: {
   if (!mod?.enabled) return false
   if (!Array.isArray(mod.pages) || mod.pages.length === 0) return true // module-level grant
   if (!mod.pages.includes(opts.page)) return false
-  return mod.actions?.[opts.page]?.[opts.action] === true
+  const pageActions = mod.actions?.[opts.page]
+  if (!pageActions || !(opts.action in pageActions)) return true // never configured — default allow
+  return pageActions[opts.action] === true
 }

@@ -147,6 +147,14 @@ export const usePermissions = () => {
   /**
    * Fine-grained action check.
    * E.g. canDo('credit_sales', 'all', 'create')
+   *
+   * Back-compat: when the page is already whitelisted but this specific
+   * action key is absent from the saved JSON, default to ALLOWED rather
+   * than denied. A page grant historically meant "all its actions" — an
+   * action key added to the registry after a user's profile was last
+   * saved would otherwise silently vanish for them with no way to notice,
+   * even though nothing about their actual entitlement changed. Only an
+   * action the admin explicitly unchecked (stored as `false`) is denied.
    */
   function canDo(module: string, page: string, action: string): boolean {
     if (sessionIsAdmin.value) return true
@@ -157,7 +165,9 @@ export const usePermissions = () => {
     // Module-level grant (no page whitelist) → all actions allowed
     if (!Array.isArray(mod.pages) || mod.pages.length === 0) return true
     if (!mod.pages.includes(page)) return false
-    return mod.actions?.[page]?.[action] === true
+    const pageActions = mod.actions?.[page]
+    if (!pageActions || !(action in pageActions)) return true // never configured — default allow
+    return pageActions[action] === true
   }
 
   /**

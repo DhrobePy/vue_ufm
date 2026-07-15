@@ -105,9 +105,21 @@
               <p class="text-gray-500 text-[11px]">{{ p.branch === 'srg' ? 'Sirajgonj' : 'Demra' }}</p>
             </td>
             <td class="py-2.5 px-3">
-              <NuxtLink :to="`/credit-sales/${p.orderId}`" class="font-mono text-blue-400 hover:text-blue-300 transition-colors">
+              <NuxtLink v-if="p.orderId" :to="`/credit-sales/${p.orderId}`" class="font-mono text-blue-400 hover:text-blue-300 transition-colors">
                 {{ p.orderRef }}
               </NuxtLink>
+              <span v-else-if="p.allocations.length === 1">
+                <NuxtLink :to="`/credit-sales/${p.allocations[0].order_id}`" class="font-mono text-blue-400 hover:text-blue-300 transition-colors">
+                  {{ p.allocations[0].order_number }}
+                </NuxtLink>
+              </span>
+              <span v-else-if="p.allocations.length > 1" class="inline-flex flex-wrap gap-x-1 gap-y-0.5">
+                <NuxtLink v-for="(a, i) in p.allocations" :key="a.order_id" :to="`/credit-sales/${a.order_id}`"
+                          class="font-mono text-blue-400 hover:text-blue-300 transition-colors">
+                  {{ a.order_number }}{{ i < p.allocations.length - 1 ? ',' : '' }}
+                </NuxtLink>
+              </span>
+              <span v-else class="text-gray-600">— unallocated</span>
             </td>
             <td class="py-2.5 px-3 text-right font-mono font-bold text-emerald-400">৳{{ p.amount.toLocaleString() }}</td>
             <td class="py-2.5 px-3">
@@ -182,7 +194,11 @@
                 </div>
                 <div class="glass-card p-3 space-y-0.5">
                   <p class="text-gray-500">Order Reference</p>
-                  <p class="text-blue-400 font-mono">{{ selected.orderRef }}</p>
+                  <p v-if="selected.orderId" class="text-blue-400 font-mono">{{ selected.orderRef }}</p>
+                  <p v-else-if="selected.allocations.length" class="text-blue-400 font-mono">
+                    {{ selected.allocations.map((a: any) => a.order_number).join(', ') }}
+                  </p>
+                  <p v-else class="text-gray-500">Unallocated</p>
                 </div>
                 <div class="glass-card p-3 space-y-0.5">
                   <p class="text-gray-500">Bank Reference</p>
@@ -222,7 +238,12 @@
               <button @click="markCleared(selected)" class="btn-ghost text-xs mt-2 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/10">↺ Re-verify as Cleared</button>
             </div>
             <div class="flex gap-3 pt-1">
-              <NuxtLink :to="`/credit-sales/${selected.orderId}`" class="btn-ghost text-xs flex-1 text-center">View Order</NuxtLink>
+              <NuxtLink v-if="selected.orderId" :to="`/credit-sales/${selected.orderId}`" class="btn-ghost text-xs flex-1 text-center">View Order</NuxtLink>
+              <NuxtLink v-else-if="selected.allocations.length === 1" :to="`/credit-sales/${selected.allocations[0].order_id}`" class="btn-ghost text-xs flex-1 text-center">View Order</NuxtLink>
+              <div v-else-if="selected.allocations.length > 1" class="flex-1 flex flex-wrap gap-2 items-center justify-center">
+                <NuxtLink v-for="a in selected.allocations" :key="a.order_id" :to="`/credit-sales/${a.order_id}`"
+                          class="btn-ghost text-xs">{{ a.order_number }}</NuxtLink>
+              </div>
               <button @click="selected = null" class="btn-ghost text-xs">Close</button>
             </div>
           </div>
@@ -264,6 +285,7 @@ const payments = computed(() =>
     customer:    p.customer_name ?? '—',
     orderId:     p.order_id ?? null,
     orderRef:    p.order_number ?? '—',
+    allocations: (p.allocations ?? []) as { order_id: number; order_number: string; amount: number }[],
     amount:      Number(p.amount ?? 0),
     method:      p.payment_method ?? '—',
     reference:   p.reference_number ?? '',

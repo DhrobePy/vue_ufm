@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
   const w = where.length ? 'WHERE ' + where.join(' AND ') : ''
 
   const [payments, [cnt]] = await Promise.all([
-    query(
+    query<any>(
       `SELECT p.id,
               p.payment_number,
               p.reference_number,
@@ -54,6 +54,31 @@ export default defineEventHandler(async (event) => {
       params,
     ) as any,
   ])
+
+  // customer-level collections (Task 21) split across multiple orders via
+  // payment_allocations and leave p.order_id NULL — resolve those here so
+  // the list/detail views always have something to link to.
+  const splitIds = payments.filter(p => !p.order_id).map(p => p.id)
+  if (splitIds.length) {
+    const allocations = await query<any>(
+      `SELECT pa.payment_id, pa.order_id, pa.allocated_amount, o.order_number
+       FROM   payment_allocations pa
+       JOIN   credit_orders o ON o.id = pa.order_id
+       WHERE  pa.payment_id IN (${splitIds.map(() => '?').join(',')})
+       ORDER BY pa.id`,
+      splitIds,
+    )
+    const byPayment = new Map<number, any[]>()
+    for (const a of allocations) {
+      if (!byPayment.has(a.payment_id)) byPayment.set(a.payment_id, [])
+      byPayment.get(a.payment_id)!.push({
+        order_id: a.order_id, order_number: a.order_number, amount: a.allocated_amount,
+      })
+    }
+    for (const p of payments) {
+      if (!p.order_id) (p as any).allocations = byPayment.get(p.id) ?? []
+    }
+  }
 
   return { payments, total: (cnt as any).total, page, perPage: per }
 })

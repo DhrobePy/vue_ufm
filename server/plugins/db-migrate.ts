@@ -473,6 +473,23 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] credit_orders.status ENUM widen failed:', e)
   }
 
+  // ── 26b. credit_orders.status ENUM → VARCHAR ─────────────────────────────────
+  //   Migration #42 below relabels 'dispatched'/'shipped' orders to the new
+  //   'goods_on_board' value, and workflow.post.ts / verify/confirm.post.ts
+  //   write 'goods_on_board' and 'shipped' directly — neither value was ever
+  //   in the ENUM widened just above, so every one of those writes fails with
+  //   "Data truncated for column 'status'" (or silently blanks the column
+  //   under non-strict SQL mode). Converting to VARCHAR removes this whole
+  //   class of bug — matches the fix already applied to payment_type.
+  //   MUST run before #42's backfill UPDATE, hence its placement here.
+  try {
+    await db.query(`
+      ALTER TABLE credit_orders MODIFY COLUMN status VARCHAR(30) NOT NULL DEFAULT 'pending_approval'
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] credit_orders.status VARCHAR widen failed:', e)
+  }
+
   // ── 27. Backfill dispatch_pin / delivery_pin for pre-QR-system orders ────────
   //   Orders created before migrations #23-24 ran have NULL dispatch_pin.
   //   Without a PIN they can never be confirmed via QR scan.
