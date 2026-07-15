@@ -1,7 +1,7 @@
-import { n as defineEventHandler, L as getUserSession, j as createError, a6 as query, B as getRequestHeader, u as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, aa as readBody, N as getUserSession, j as createError, a7 as query, E as getRequestHeader, ap as verifyDeliveryQrSignature, v as getDb, e as auditLog, ai as sendTelegram, ae as recordQrScan } from '../../../../nitro/nitro.mjs';
+import 'node:crypto';
 import 'node:http';
 import 'node:https';
-import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
 import 'node:fs';
@@ -10,21 +10,25 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const orderNumber = ((_b = (_a = event.context.params) == null ? void 0 : _a.order) != null ? _b : "").trim().toUpperCase();
+  const body = await readBody(event);
+  const sig = String((_c = body == null ? void 0 : body.sig) != null ? _c : "").trim();
+  const receivedBy = (body == null ? void 0 : body.received_by) ? String(body.received_by).trim().slice(0, 150) : null;
+  const note = (body == null ? void 0 : body.note) ? String(body.note).trim().slice(0, 500) : null;
   const session = await getUserSession(event);
   const user = session == null ? void 0 : session.user;
   if (!(user == null ? void 0 : user.id)) {
     throw createError({ statusCode: 401, statusMessage: "Login required to confirm delivery" });
   }
-  const role = ((_c = user.role) != null ? _c : "").toLowerCase();
+  const role = ((_d = user.role) != null ? _d : "").toLowerCase();
   if (!["admin", "superadmin"].includes(role)) {
     const rows = await query(
       `SELECT setting_value FROM system_settings WHERE setting_key = 'delivery_verification'`
     );
     let ids = [];
     try {
-      ids = ((_d = rows[0]) == null ? void 0 : _d.setting_value) ? (_e = JSON.parse(rows[0].setting_value).delivery_confirm_user_ids) != null ? _e : [] : [];
+      ids = ((_e = rows[0]) == null ? void 0 : _e.setting_value) ? (_f = JSON.parse(rows[0].setting_value).delivery_confirm_user_ids) != null ? _f : [] : [];
     } catch {
     }
     if (!ids.map(Number).includes(Number(user.id))) {
@@ -32,12 +36,15 @@ const deliver_post = defineEventHandler(async (event) => {
     }
   }
   const userId = Number(user.id);
-  const userName = (_g = (_f = user.display_name) != null ? _f : user.name) != null ? _g : `user #${userId}`;
-  const ip = (_i = (_h = getRequestHeader(event, "x-forwarded-for")) != null ? _h : getRequestHeader(event, "x-real-ip")) != null ? _i : void 0;
-  const ua = (_j = getRequestHeader(event, "user-agent")) != null ? _j : null;
+  const userName = (_h = (_g = user.display_name) != null ? _g : user.name) != null ? _h : `user #${userId}`;
+  const ip = (_j = (_i = getRequestHeader(event, "x-forwarded-for")) != null ? _i : getRequestHeader(event, "x-real-ip")) != null ? _j : void 0;
+  if (!sig) throw createError({ statusCode: 400, statusMessage: "Missing verification parameters" });
+  const sigValid = await verifyDeliveryQrSignature(getDb(), orderNumber, sig);
+  if (!sigValid) throw createError({ statusCode: 403, statusMessage: "Invalid or altered QR code" });
   const orders = await query(
-    `SELECT id, customer_id, status, order_number, order_date
-     FROM credit_orders WHERE order_number = ? LIMIT 1`,
+    `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date, c.name AS customer_name
+     FROM credit_orders o JOIN customers c ON c.id = o.customer_id
+     WHERE o.order_number = ? LIMIT 1`,
     [orderNumber]
   );
   if (!orders.length) throw createError({ statusCode: 404, statusMessage: "Order not found" });
@@ -48,6 +55,15 @@ const deliver_post = defineEventHandler(async (event) => {
       statusMessage: order.status === "delivered" || order.status === "completed" ? "Order is already delivered" : `Order must be goods-on-board or shipped first (current status: ${order.status})`
     });
   }
+  const [confRows] = await getDb().query(
+    `SELECT gate_out_at, confirmed_at FROM cr_delivery_confirmations WHERE order_id = ?`,
+    [order.id]
+  );
+  const conf = confRows == null ? void 0 : confRows[0];
+  if (!(conf == null ? void 0 : conf.gate_out_at))
+    throw createError({ statusCode: 409, statusMessage: "Gate pass has not been recorded for this order yet \u2014 scan at the gate first." });
+  if (conf.confirmed_at)
+    throw createError({ statusCode: 409, statusMessage: "Delivery already confirmed for this order" });
   const items = await query(
     `SELECT oi.id AS order_item_id, oi.product_id, oi.variant_id,
             oi.quantity, oi.unit_price,
@@ -126,6 +142,12 @@ const deliver_post = defineEventHandler(async (event) => {
         delNo ? `Final delivery ${delNo} confirmed via QR scan` : "Delivery confirmed via QR scan (all items already delivered)"
       ]
     );
+    await conn.query(
+      `UPDATE cr_delivery_confirmations
+       SET confirmed_at = NOW(), confirmed_by_user_id = ?, confirmed_by_name = ?, received_by = ?, note = ?
+       WHERE order_id = ? AND confirmed_at IS NULL`,
+      [userId, userName, receivedBy, note, order.id]
+    );
     await auditLog(conn, {
       userId,
       action: "delivered",
@@ -133,7 +155,7 @@ const deliver_post = defineEventHandler(async (event) => {
       recordType: "credit_order",
       recordId: order.id,
       referenceNumber: delNo != null ? delNo : order.order_number,
-      description: `Final delivery for Order ${order.order_number} confirmed via QR scan by ${userName}`,
+      description: `Final delivery for Order ${order.order_number} confirmed via QR scan by ${userName}` + (receivedBy ? ` \u2014 received by ${receivedBy}` : ""),
       severity: "info",
       ipAddress: ip
     });
@@ -144,19 +166,20 @@ const deliver_post = defineEventHandler(async (event) => {
   } finally {
     conn.release();
   }
+  sendTelegram(
+    `\u2705 <b>Delivery Confirmed</b>
+${order.order_number} \u2014 ${(_m = order.customer_name) != null ? _m : ""}
+By ${userName}${receivedBy ? ` \xB7 Received by ${receivedBy}` : ""}`
+  );
   try {
-    await getDb().query(
-      `INSERT INTO order_delivery_scans
-         (order_id, order_number, scan_type, pin_used, pin_correct, ip_address, user_agent, notes)
-       VALUES (?, ?, 'delivery', NULL, 1, ?, ?, ?)`,
-      [
-        order.id,
-        orderNumber,
-        ip != null ? ip : null,
-        ua ? ua.slice(0, 500) : null,
-        `Delivery confirmed by ${userName}`
-      ]
-    );
+    await recordQrScan(getDb(), {
+      orderId: order.id,
+      orderNumber,
+      stage: "delivery",
+      scannerId: userId,
+      scannerName: userName,
+      ip: ip != null ? ip : null
+    });
   } catch (scanErr) {
     console.warn("[verify/deliver] scan audit log skipped:", scanErr == null ? void 0 : scanErr.message);
   }

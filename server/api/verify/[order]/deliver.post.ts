@@ -1,21 +1,28 @@
 /**
  * POST /api/verify/:order_number/deliver
- * Confirms FINAL delivery from the QR scan page.
+ * Two-stage QR delivery, stage 2 (spec §2.8) — confirms FINAL delivery at
+ * the customer. Requires a logged-in ERP session, a valid HMAC signature,
+ * AND the gate stage already recorded for this order (goods must have
+ * actually left before they can be "delivered"). The user must be
+ * admin/superadmin or listed in delivery_confirm_user_ids (Settings →
+ * Delivery) — drivers never confirm delivery themselves.
  *
- * NOT public: requires a logged-in ERP session, and the user must be
- * admin/superadmin or listed in delivery_confirm_user_ids
- * (Settings → Delivery). Drivers never confirm delivery.
- *
- * Unlike the dispatch PIN flow, this performs the REAL delivery:
- * delivery record for all remaining undelivered items, customer ledger
- * debit, customer balance update, GL journal entry, status → delivered.
- * Mirrors /api/credit-sales/:id/deliver (is_final = true).
+ * Performs the REAL delivery: delivery record for all remaining
+ * undelivered items, status → delivered. NO ledger/JE here — the invoice
+ * posted at Goods on Board, the accounting pivot; this only confirms
+ * physical handover. Mirrors /api/credit-sales/:id/deliver (is_final = true).
  */
 import { query, getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { sendTelegram } from '~/server/utils/telegram'
+import { verifyDeliveryQrSignature, recordQrScan } from '~/server/utils/qrDelivery'
 
 export default defineEventHandler(async (event) => {
   const orderNumber = (event.context.params?.order ?? '').trim().toUpperCase()
+  const body = await readBody(event)
+  const sig        = String(body?.sig ?? '').trim()
+  const receivedBy = body?.received_by ? String(body.received_by).trim().slice(0, 150) : null
+  const note        = body?.note ? String(body.note).trim().slice(0, 500) : null
 
   // ── Authorization ─────────────────────────────────────────────────────────
   const session = await getUserSession(event)
@@ -41,12 +48,16 @@ export default defineEventHandler(async (event) => {
   const userId   = Number(user.id)
   const userName = user.display_name ?? user.name ?? `user #${userId}`
   const ip = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
-  const ua = getRequestHeader(event, 'user-agent') ?? null
+
+  if (!sig) throw createError({ statusCode: 400, statusMessage: 'Missing verification parameters' })
+  const sigValid = await verifyDeliveryQrSignature(getDb(), orderNumber, sig)
+  if (!sigValid) throw createError({ statusCode: 403, statusMessage: 'Invalid or altered QR code' })
 
   // ── Load order ────────────────────────────────────────────────────────────
   const orders = await query(
-    `SELECT id, customer_id, status, order_number, order_date
-     FROM credit_orders WHERE order_number = ? LIMIT 1`,
+    `SELECT o.id, o.customer_id, o.status, o.order_number, o.order_date, c.name AS customer_name
+     FROM credit_orders o JOIN customers c ON c.id = o.customer_id
+     WHERE o.order_number = ? LIMIT 1`,
     [orderNumber],
   ) as any[]
   if (!orders.length) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
@@ -60,6 +71,15 @@ export default defineEventHandler(async (event) => {
         : `Order must be goods-on-board or shipped first (current status: ${order.status})`,
     })
   }
+
+  const [confRows] = await getDb().query<any>(
+    `SELECT gate_out_at, confirmed_at FROM cr_delivery_confirmations WHERE order_id = ?`, [order.id],
+  )
+  const conf = confRows?.[0]
+  if (!conf?.gate_out_at)
+    throw createError({ statusCode: 409, statusMessage: 'Gate pass has not been recorded for this order yet — scan at the gate first.' })
+  if (conf.confirmed_at)
+    throw createError({ statusCode: 409, statusMessage: 'Delivery already confirmed for this order' })
 
   // ── Remaining undelivered items ───────────────────────────────────────────
   const items = await query(
@@ -137,6 +157,13 @@ export default defineEventHandler(async (event) => {
        delNo ? `Final delivery ${delNo} confirmed via QR scan` : 'Delivery confirmed via QR scan (all items already delivered)'],
     )
 
+    await conn.query(
+      `UPDATE cr_delivery_confirmations
+       SET confirmed_at = NOW(), confirmed_by_user_id = ?, confirmed_by_name = ?, received_by = ?, note = ?
+       WHERE order_id = ? AND confirmed_at IS NULL`,
+      [userId, userName, receivedBy, note, order.id],
+    )
+
     await auditLog(conn, {
       userId,
       action:          'delivered',
@@ -144,7 +171,7 @@ export default defineEventHandler(async (event) => {
       recordType:      'credit_order',
       recordId:        order.id,
       referenceNumber: delNo ?? order.order_number,
-      description:     `Final delivery for Order ${order.order_number} confirmed via QR scan by ${userName}`,
+      description:     `Final delivery for Order ${order.order_number} confirmed via QR scan by ${userName}` + (receivedBy ? ` — received by ${receivedBy}` : ''),
       severity:        'info',
       ipAddress:       ip,
     })
@@ -157,15 +184,17 @@ export default defineEventHandler(async (event) => {
     conn.release()
   }
 
+  sendTelegram(
+    `✅ <b>Delivery Confirmed</b>\n${order.order_number} — ${order.customer_name ?? ''}\n` +
+    `By ${userName}${receivedBy ? ` · Received by ${receivedBy}` : ''}`,
+  )
+
   // Scan audit trail (non-fatal)
   try {
-    await getDb().query(
-      `INSERT INTO order_delivery_scans
-         (order_id, order_number, scan_type, pin_used, pin_correct, ip_address, user_agent, notes)
-       VALUES (?, ?, 'delivery', NULL, 1, ?, ?, ?)`,
-      [order.id, orderNumber, ip ?? null, ua ? ua.slice(0, 500) : null,
-       `Delivery confirmed by ${userName}`],
-    )
+    await recordQrScan(getDb(), {
+      orderId: order.id, orderNumber, stage: 'delivery',
+      scannerId: userId, scannerName: userName, ip: ip ?? null,
+    })
   } catch (scanErr) {
     console.warn('[verify/deliver] scan audit log skipped:', (scanErr as any)?.message)
   }

@@ -878,5 +878,51 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] customer_ledger invoice_number backfill failed:', e)
   }
 
+  // ── 48. Two-stage QR delivery (spec §2.8) ──────────────────────────────────
+  // Replaces the single-stage, unauthenticated PIN scan with the spec's
+  // gate-scan → delivery-scan state machine: goods_on_board -> [gate scan,
+  // driver+vehicle captured, login required] -> shipped -> [delivery scan] ->
+  // delivered. One row per order (UNIQUE order_id) makes double-delivery
+  // impossible at the DB level; every scan (including a reuse after
+  // delivered) is logged separately in cr_qr_scan_log.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS cr_delivery_confirmations (
+        id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        order_id              INT UNSIGNED NOT NULL,
+        order_number          VARCHAR(50)  NULL,
+        gate_out_at           DATETIME     NULL,
+        gate_out_by_user_id   INT UNSIGNED NULL,
+        gate_out_by_name      VARCHAR(120) NULL,
+        driver_name           VARCHAR(150) NULL,
+        vehicle_number        VARCHAR(100) NULL,
+        gate_note             VARCHAR(500) NULL,
+        confirmed_at          DATETIME     NULL,
+        confirmed_by_user_id  INT UNSIGNED NULL,
+        confirmed_by_name     VARCHAR(120) NULL,
+        received_by           VARCHAR(150) NULL,
+        note                  VARCHAR(500) NULL,
+        created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_dc_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS cr_qr_scan_log (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        order_id           INT UNSIGNED NOT NULL,
+        order_number       VARCHAR(50)  NULL,
+        stage              VARCHAR(20)  NULL,
+        reused             TINYINT(1)   NOT NULL DEFAULT 0,
+        scanned_by_user_id INT UNSIGNED NULL,
+        scanned_by_name    VARCHAR(120) NULL,
+        ip                 VARCHAR(64)  NULL,
+        scanned_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_qsl_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] two-stage QR delivery tables failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

@@ -1,7 +1,7 @@
-import { n as defineEventHandler, I as getRouterParam, j as createError, a7 as queryOne, a6 as query } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, a8 as queryOne, a7 as query, w as getDeliveryQrSecret, v as getDb, q as deliveryQrSignature } from '../../../nitro/nitro.mjs';
+import 'node:crypto';
 import 'node:http';
 import 'node:https';
-import 'node:crypto';
 import 'node:events';
 import 'node:buffer';
 import 'node:fs';
@@ -140,6 +140,12 @@ const _id__get = defineEventHandler(async (event) => {
   const ord = order;
   if (ord.status === "delivered" && Number(ord.balance_due) === 0) {
     ord.status = "completed";
+  }
+  try {
+    const secret = await getDeliveryQrSecret(getDb());
+    ord.qr_sig = deliveryQrSignature(ord.order_number, secret);
+  } catch (e) {
+    console.warn("[credit-sales/:id] qr_sig generation failed:", e);
   }
   for (const ret of returns) {
     ret.items = await query(

@@ -16,6 +16,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   if (!loggedIn.value) {
-    return navigateTo('/auth/login', { replace: true })
+    // Deep-link: remember where they were headed (e.g. scanning the QR
+    // gate-pass/delivery link without a session) so login returns them here.
+    return navigateTo({ path: '/auth/login', query: { return_to: to.fullPath } }, { replace: true })
   }
 })

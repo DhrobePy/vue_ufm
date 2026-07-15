@@ -128,11 +128,21 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 
+const route = useRoute()
 const form = reactive({ email: '', password: '', remember: false })
 const errors = reactive({ email: '', password: '' })
 const loading = ref(false)
 const loginError = ref('')
 const showPassword = ref(false)
+
+// Deep-link redirect (e.g. a QR gate-pass/delivery scan while logged out) —
+// only ever a same-origin relative path since it comes from Vue Router's
+// to.fullPath in the auth middleware, never attacker-supplied.
+function safeReturnTo(): string | null {
+  const rt = route.query.return_to
+  if (typeof rt !== 'string' || !rt.startsWith('/') || rt.startsWith('//') || rt.startsWith('/auth')) return null
+  return rt
+}
 
 async function handleLogin() {
   errors.email = ''
@@ -153,7 +163,7 @@ async function handleLogin() {
     // This avoids any client-side loggedIn state race with the auth middleware.
     // Root (/) resolves the user's permissions and lands them on their first
     // allowed page — admins get /dashboard, restricted users their module.
-    window.location.href = '/'
+    window.location.href = safeReturnTo() ?? '/'
   } catch (e: any) {
     loading.value = false
     loginError.value = e?.data?.statusMessage || e?.data?.message || 'Invalid email or password'

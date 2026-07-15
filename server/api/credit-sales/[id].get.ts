@@ -1,4 +1,5 @@
-import { queryOne, query } from '~/server/utils/db'
+import { queryOne, query, getDb } from '~/server/utils/db'
+import { getDeliveryQrSecret, deliveryQrSignature } from '~/server/utils/qrDelivery'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -137,6 +138,15 @@ export default defineEventHandler(async (event) => {
   const ord = order as any
   if (ord.status === 'delivered' && Number(ord.balance_due) === 0) {
     ord.status = 'completed'
+  }
+
+  // Signs the gate-pass/delivery QR printed on the invoice (spec §2.8) —
+  // computed server-side so the secret never reaches the client.
+  try {
+    const secret = await getDeliveryQrSecret(getDb())
+    ord.qr_sig = deliveryQrSignature(ord.order_number, secret)
+  } catch (e) {
+    console.warn('[credit-sales/:id] qr_sig generation failed:', e)
   }
 
   // Attach items to each return

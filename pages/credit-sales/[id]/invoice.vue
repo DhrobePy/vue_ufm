@@ -251,16 +251,11 @@
             when processed through the ERP system.
           </div>
           <div style="text-align:right;">
-            <!-- Real QR code — generated client-side from order URL -->
+            <!-- Real QR code — signed gate-pass/delivery URL (spec §2.8) -->
             <img v-if="qrDataUrl" :src="qrDataUrl"
               style="width:72px;height:72px;border-radius:6px;border:1px solid #e5e7eb;display:block;margin-left:auto;" />
             <div v-else style="width:72px;height:72px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;margin-left:auto;"></div>
-            <!-- Dispatch PIN — 6-digit code for the dispatcher to enter on scan page -->
-            <div v-if="dispatchPin"
-              style="margin-top:4px;font-family:monospace;font-size:12px;font-weight:800;color:#111827;letter-spacing:3px;text-align:center;">
-              {{ dispatchPin }}
-            </div>
-            <div style="font-size:8px;color:#9ca3af;margin-top:2px;text-align:center;">Scan · PIN to confirm dispatch</div>
+            <div style="font-size:8px;color:#9ca3af;margin-top:4px;text-align:center;">Scan for gate pass &amp; delivery</div>
           </div>
         </div>
 
@@ -337,9 +332,8 @@ const generatedAt = new Date().toLocaleString('en-BD', {
   hour: '2-digit', minute: '2-digit',
 })
 
-// ── QR code + dispatch PIN ───────────────────────────────────────────────────
-const qrDataUrl   = ref('')
-const dispatchPin = computed(() => (data.value?.order as any)?.dispatch_pin ?? null)
+// ── QR code (two-stage gate-pass/delivery, spec §2.8) ───────────────────────
+const qrDataUrl = ref('')
 
 // ── Role & T&C editor ────────────────────────────────────────────────────────
 const { user: sessionUser } = useUserSession()
@@ -390,10 +384,11 @@ onMounted(async () => {
   }
   // Generate QR — dynamic import keeps qrcode out of the SSR bundle entirely
   const orderNumber = (data.value?.order as any)?.order_number
-  if (orderNumber) {
+  const qrSig       = (data.value?.order as any)?.qr_sig
+  if (orderNumber && qrSig) {
     try {
       const { default: QRCode } = await import('qrcode')
-      const url = `${window.location.origin}/d/${orderNumber}`
+      const url = `${window.location.origin}/d/${orderNumber}?sig=${qrSig}`
       qrDataUrl.value = await QRCode.toDataURL(url, {
         width:  96,
         margin: 1,
