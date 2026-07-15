@@ -68,7 +68,14 @@
         <UiStatusBadge :status="value" />
       </template>
       <template #actions="{ row }">
-        <NuxtLink :to="`/customers/${row.id}`" class="btn-ghost text-xs py-1 px-2.5">View</NuxtLink>
+        <div class="flex gap-1.5">
+          <NuxtLink :to="`/customers/${row.id}`" class="btn-ghost text-xs py-1 px-2.5">View</NuxtLink>
+          <button v-if="isAdminUser && perms.canDo('customers', 'list', 'delete')"
+            @click.stop="confirmDelete(row)" :disabled="deletingId === row.id"
+            class="btn-ghost text-xs py-1 px-2.5 text-red-400 hover:bg-red-500/10 disabled:opacity-40">
+            {{ deletingId === row.id ? '…' : 'Delete' }}
+          </button>
+        </div>
       </template>
     </UiDataTable>
 
@@ -86,6 +93,9 @@
 <script setup lang="ts">
 const perms = usePermissions()
 definePageMeta({ layout: 'default' })
+const { success, error: toastError } = useToast()
+const { user: sessionUser } = useUserSession()
+const isAdminUser = computed(() => ['admin', 'superadmin'].includes((sessionUser.value?.role ?? '').toLowerCase()))
 
 const search     = ref('')
 const typeFilter = ref('')
@@ -115,6 +125,23 @@ function fmtLakh(val: any): string {
   if (n >= 10_000_000) return '৳' + (n / 10_000_000).toFixed(1) + 'Cr'
   if (n >= 100_000)    return '৳' + (n / 100_000).toFixed(1) + 'L'
   return '৳' + n.toLocaleString()
+}
+
+const deletingId = ref<number | null>(null)
+
+async function confirmDelete(row: any) {
+  const label = row.business_name ? `${row.name} (${row.business_name})` : row.name
+  if (!confirm(`Delete "${label}"? All their orders, payments, and ledger history are archived to the Recycle Bin and can be restored. Blocked if they have an outstanding balance.`)) return
+  deletingId.value = row.id
+  try {
+    await $fetch(`/api/customers/${row.id}`, { method: 'DELETE' })
+    success(`${label} deleted — recoverable from Recycle Bin`)
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to delete customer')
+  } finally {
+    deletingId.value = null
+  }
 }
 
 const cols = [

@@ -787,7 +787,7 @@ const _routes = [
     name: "customers",
     path: "/customers",
     meta: __nuxt_page_meta$21 || {},
-    component: () => import('./index-Cva3gZ_G.mjs')
+    component: () => import('./index-CdSMw7w-.mjs')
   },
   {
     name: "dashboard",
@@ -871,7 +871,7 @@ const _routes = [
     name: "admin-recycle-bin",
     path: "/admin/recycle-bin",
     meta: __nuxt_page_meta$1P || {},
-    component: () => import('./recycle-bin-DaT1UcOj.mjs')
+    component: () => import('./recycle-bin-BClzNpoM.mjs')
   },
   {
     name: "admin-users",

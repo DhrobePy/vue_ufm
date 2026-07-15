@@ -155,6 +155,7 @@ function entityLabel(t: string) {
     maintenance_rule:    'Maintenance Rule',
     purchase_order:      'Purchase Order',
     purchase_payment:    'Purchase Payment',
+    customer:            'Customer',
   } as Record<string, string>)[t] ?? t.replace(/_/g, ' ')
 }
 
