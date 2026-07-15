@@ -62,7 +62,7 @@
       <div id="invoice-paper" style="background:#fff;box-shadow:0 4px 32px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.12);border-radius:4px;overflow:hidden;">
 
         <!-- ═══ HEADER BAND ══════════════════════════════ -->
-        <div style="background:linear-gradient(135deg,#1a1208 0%,#2d1f0a 60%,#1a1208 100%);padding:32px 40px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
+        <div style="background:linear-gradient(135deg,#1a1208 0%,#2d1f0a 60%,#1a1208 100%);padding:24px 40px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
           <!-- Company identity -->
           <div style="display:flex;align-items:flex-start;gap:16px;">
             <div style="width:52px;height:52px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#000;flex-shrink:0;box-shadow:0 4px 16px rgba(245,158,11,0.4);">U</div>
@@ -102,7 +102,7 @@
 
         <!-- ═══ BILL-TO / SHIP-TO ════════════════════════ -->
         <div style="display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #f0ede8;">
-          <div style="padding:24px 40px;border-right:1px solid #f0ede8;">
+          <div style="padding:17px 40px;border-right:1px solid #f0ede8;">
             <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">Bill To</div>
             <div style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px;">{{ order.customer }}</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
@@ -111,7 +111,7 @@
               <div>Outstanding: <span style="font-weight:700;color:#dc2626;">৳{{ (order?.currentBalance ?? 0).toLocaleString() }}</span></div>
             </div>
           </div>
-          <div style="padding:24px 40px;">
+          <div style="padding:17px 40px;">
             <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">Ship To</div>
             <div style="font-size:13px;font-weight:600;color:#111;margin-bottom:4px;">{{ order.customer }}</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
@@ -137,17 +137,17 @@
             <tbody>
               <tr v-for="(item, i) in items" :key="item.id"
                   :style="`border-bottom:1px solid #f5f3f0;background:${i%2===0?'#fff':'#fefcfa'}`">
-                <td style="padding:13px 10px;font-size:11px;color:#9ca3af;font-weight:600;">{{ i + 1 }}</td>
-                <td style="padding:13px 10px;">
+                <td style="padding:9px 10px;font-size:11px;color:#9ca3af;font-weight:600;">{{ i + 1 }}</td>
+                <td style="padding:9px 10px;">
                   <div style="font-size:13px;font-weight:700;color:#111;">{{ item.product }}</div>
                   <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Premium wheat flour · Ujjal FMC brand</div>
                 </td>
-                <td style="padding:13px 10px;text-align:center;font-size:13px;font-weight:700;color:#374151;">{{ item.qty.toLocaleString() }}</td>
-                <td style="padding:13px 10px;text-align:right;font-size:13px;color:#374151;font-family:monospace;">৳{{ item.price.toLocaleString() }}</td>
-                <td style="padding:13px 10px;text-align:right;font-size:12px;color:#dc2626;font-family:monospace;">
+                <td style="padding:9px 10px;text-align:center;font-size:13px;font-weight:700;color:#374151;">{{ item.qty.toLocaleString() }}</td>
+                <td style="padding:9px 10px;text-align:right;font-size:13px;color:#374151;font-family:monospace;">৳{{ item.price.toLocaleString() }}</td>
+                <td style="padding:9px 10px;text-align:right;font-size:12px;color:#dc2626;font-family:monospace;">
                   {{ item.discount > 0 ? `-৳${item.discount.toLocaleString()}` : '—' }}
                 </td>
-                <td style="padding:13px 10px;text-align:right;font-size:13px;font-weight:700;color:#111;font-family:monospace;">
+                <td style="padding:9px 10px;text-align:right;font-size:13px;font-weight:700;color:#111;font-family:monospace;">
                   ৳{{ ((item.qty * item.price) - item.discount).toLocaleString() }}
                 </td>
               </tr>
@@ -156,7 +156,7 @@
         </div>
 
         <!-- ═══ TOTALS ════════════════════════════════════ -->
-        <div style="display:grid;grid-template-columns:1fr 300px;gap:0;border-top:2px solid #f0ede8;margin:0 40px 0 40px;padding-top:24px;padding-bottom:24px;">
+        <div style="display:grid;grid-template-columns:1fr 300px;gap:0;border-top:2px solid #f0ede8;margin:0 40px 0 40px;padding-top:16px;padding-bottom:16px;">
           <!-- Notes + terms -->
           <div style="padding-right:32px;">
             <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">Notes &amp; Terms</div>
@@ -166,8 +166,8 @@
             </div>
           </div>
           <!-- Totals block -->
-          <div style="background:#faf8f5;border-radius:12px;padding:20px;border:1px solid #f0ede8;">
-            <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;">
+          <div style="background:#faf8f5;border-radius:12px;padding:14px 20px;border:1px solid #f0ede8;">
+            <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:12px;">
               <span style="color:#6b7280;">Subtotal</span>
               <span style="font-family:monospace;color:#374151;">৳{{ subtotal.toLocaleString() }}</span>
             </div>
@@ -199,8 +199,8 @@
         </div>
 
         <!-- ═══ PAYMENT HISTORY ══════════════════════════ -->
-        <div v-if="payments.length" style="margin:0 40px 24px;padding:20px;border-radius:12px;background:#f9fafb;border:1px solid #f0ede8;">
-          <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">
+        <div v-if="payments.length" style="margin:0 40px 14px;padding:14px 20px;border-radius:12px;background:#f9fafb;border:1px solid #f0ede8;">
+          <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">
             Payment History
           </div>
           <table style="width:100%;border-collapse:collapse;">
@@ -215,34 +215,50 @@
             </thead>
             <tbody>
               <tr v-for="p in payments" :key="p.id" style="border-bottom:1px solid #f3f4f6;">
-                <td style="padding:6px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ String(p.payment_date).slice(0,10) }}</td>
-                <td style="padding:6px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ p.payment_number }}</td>
-                <td style="padding:6px 8px;font-size:11px;color:#6b7280;">{{ p.payment_method }}</td>
-                <td style="padding:6px 8px;font-size:10px;color:#9ca3af;font-style:italic;">{{ p.notes || '—' }}</td>
-                <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;font-family:monospace;">৳{{ Number(p.amount).toLocaleString() }}</td>
+                <td style="padding:4px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ String(p.payment_date).slice(0,10) }}</td>
+                <td style="padding:4px 8px;font-size:11px;color:#374151;font-family:monospace;">{{ p.payment_number }}</td>
+                <td style="padding:4px 8px;font-size:11px;color:#6b7280;">{{ p.payment_method }}</td>
+                <td style="padding:4px 8px;font-size:10px;color:#9ca3af;font-style:italic;">{{ p.notes || '—' }}</td>
+                <td style="padding:4px 8px;text-align:right;font-size:12px;font-weight:700;color:#16a34a;font-family:monospace;">৳{{ Number(p.amount).toLocaleString() }}</td>
               </tr>
             </tbody>
             <tfoot>
               <tr style="border-top:2px solid #e5e7eb;">
-                <td colspan="4" style="padding:8px 8px;font-size:12px;font-weight:700;color:#374151;">Total Paid</td>
-                <td style="padding:8px 8px;text-align:right;font-size:13px;font-weight:800;color:#16a34a;font-family:monospace;">৳{{ totalPaid.toLocaleString() }}</td>
+                <td colspan="4" style="padding:5px 8px;font-size:12px;font-weight:700;color:#374151;">Total Paid</td>
+                <td style="padding:5px 8px;text-align:right;font-size:13px;font-weight:800;color:#16a34a;font-family:monospace;">৳{{ totalPaid.toLocaleString() }}</td>
               </tr>
             </tfoot>
           </table>
         </div>
 
-        <!-- ═══ SIGNATURE STRIP ══════════════════════════ -->
-        <div style="margin:0 40px;padding:24px 0 0;border-top:1px solid #f0ede8;display:grid;grid-template-columns:1fr 1fr 1fr;gap:32px;">
-          <div v-for="sig in ['Sales Officer', 'Accounts & Finance', 'Customer / Receiver']" :key="sig"
-               style="text-align:center;">
-            <div style="height:48px;border-bottom:1.5px solid #d1d5db;margin-bottom:8px;"></div>
-            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">{{ sig }}</div>
-            <div style="font-size:9px;color:#9ca3af;margin-top:3px;">Signature &amp; Stamp</div>
+        <!-- ═══ SIGNATURES + GOODS RECEIPT NOTE (GRN) ═════
+             Third column is the customer's GRN counter-signature — the
+             invoice doubles as the delivery challan, single page. Kept to
+             one compact strip (not a separate box) so orders with a long
+             payment history still fit on one A4 page. -->
+        <div style="margin:0 40px;padding:10px 0 0;border-top:1px solid #f0ede8;display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:24px;">
+          <div style="text-align:center;">
+            <div style="height:32px;border-bottom:1.5px solid #d1d5db;margin-bottom:6px;"></div>
+            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">Sales Officer</div>
+            <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Signature &amp; Stamp</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="height:32px;border-bottom:1.5px solid #d1d5db;margin-bottom:6px;"></div>
+            <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">Accounts &amp; Finance</div>
+            <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Signature &amp; Stamp</div>
+          </div>
+          <div style="text-align:center;padding:6px 10px 4px;border:1.5px solid #d97706;border-radius:8px;background:#fffbeb;">
+            <div style="height:26px;border-bottom:1.5px solid #b45309;margin-bottom:5px;"></div>
+            <div style="font-size:10px;font-weight:800;color:#92400e;letter-spacing:0.05em;">GRN — Received By (Customer)</div>
+            <div style="font-size:8.5px;color:#92400e;margin-top:2px;">
+              Qty received: <span style="display:inline-block;min-width:26px;border-bottom:1px solid #b45309;">&nbsp;</span>/{{ totalBags }} bags ·
+              Condition: Good ☐ Damaged ☐ · Date: <span style="display:inline-block;min-width:50px;border-bottom:1px solid #b45309;">&nbsp;</span>
+            </div>
           </div>
         </div>
 
         <!-- ═══ FOOTER BAND ══════════════════════════════ -->
-        <div style="margin-top:28px;background:#faf8f5;border-top:1px solid #f0ede8;padding:16px 40px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="margin-top:8px;background:#faf8f5;border-top:1px solid #f0ede8;padding:8px 40px;display:flex;align-items:center;justify-content:space-between;">
           <div style="font-size:10px;color:#9ca3af;">
             Generated by Ujjal FMC ERP · {{ generatedAt }}
           </div>
@@ -250,12 +266,13 @@
             This is a computer-generated invoice and is valid without signature<br>
             when processed through the ERP system.
           </div>
-          <div style="text-align:right;">
-            <!-- Real QR code — signed gate-pass/delivery URL (spec §2.8) -->
+          <!-- QR is only for gate-pass/delivery scanning (spec §2.8) — once the
+               order is delivered there's nothing left to scan it for. -->
+          <div v-if="!isDelivered" style="text-align:right;">
             <img v-if="qrDataUrl" :src="qrDataUrl"
-              style="width:72px;height:72px;border-radius:6px;border:1px solid #e5e7eb;display:block;margin-left:auto;" />
-            <div v-else style="width:72px;height:72px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;margin-left:auto;"></div>
-            <div style="font-size:8px;color:#9ca3af;margin-top:4px;text-align:center;">Scan for gate pass &amp; delivery</div>
+              style="width:52px;height:52px;border-radius:6px;border:1px solid #e5e7eb;display:block;margin-left:auto;" />
+            <div v-else style="width:52px;height:52px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;margin-left:auto;"></div>
+            <div style="font-size:7px;color:#9ca3af;margin-top:2px;text-align:center;">Scan for gate pass &amp; delivery</div>
           </div>
         </div>
 
@@ -317,6 +334,11 @@ const totalPaid = computed(() => payments.value.reduce((s: number, p: any) => s 
 
 const subtotal      = computed(() => items.value.reduce((s: number, i: any) => s + i.qty * i.price, 0))
 const totalDiscount = computed(() => items.value.reduce((s: number, i: any) => s + i.discount, 0))
+const totalBags     = computed(() => items.value.reduce((s: number, i: any) => s + i.qty, 0))
+
+// QR is only needed pre-delivery (gate-pass/delivery scanning, spec §2.8) —
+// a delivered order has nothing left for the QR to confirm.
+const isDelivered = computed(() => ['delivered', 'completed'].includes(order.value?.status ?? ''))
 
 const statusStyle = computed(() => {
   const s = order.value?.status ?? ''
@@ -382,10 +404,11 @@ onMounted(async () => {
   if (useRoute().query.print === '1') {
     setTimeout(() => window.print(), 600)
   }
-  // Generate QR — dynamic import keeps qrcode out of the SSR bundle entirely
+  // Generate QR — dynamic import keeps qrcode out of the SSR bundle entirely.
+  // Skipped once delivered: nothing left for the gate-pass/delivery QR to confirm.
   const orderNumber = (data.value?.order as any)?.order_number
   const qrSig       = (data.value?.order as any)?.qr_sig
-  if (orderNumber && qrSig) {
+  if (orderNumber && qrSig && !isDelivered.value) {
     try {
       const { default: QRCode } = await import('qrcode')
       const url = `${window.location.origin}/d/${orderNumber}?sig=${qrSig}`
