@@ -146,7 +146,16 @@ async function doPurge(b: any) {
 }
 
 function entityLabel(t: string) {
-  return ({ credit_order: 'Credit Order' } as Record<string, string>)[t] ?? t.replace(/_/g, ' ')
+  return ({
+    credit_order:       'Credit Order',
+    credit_order_return: 'Return',
+    journal_entry:       'Journal Entry',
+    bank_transaction:    'Bank Transaction',
+    expense_voucher:     'Expense Voucher',
+    maintenance_rule:    'Maintenance Rule',
+    purchase_order:      'Purchase Order',
+    purchase_payment:    'Purchase Payment',
+  } as Record<string, string>)[t] ?? t.replace(/_/g, ' ')
 }
 
 function timeAgo(dateStr: string) {

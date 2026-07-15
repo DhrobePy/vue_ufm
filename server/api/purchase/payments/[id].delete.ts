@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleFinalize } from '~/server/utils/recycleBin'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -37,7 +38,11 @@ export default defineEventHandler(async (event) => {
       )
     } else {
       // Hard delete — unposted payment
-      await conn.query(`DELETE FROM purchase_payments_adnan WHERE id = ?`, [id])
+      const batchId = await recycleBegin(conn, {
+        entityType: 'purchase_payment', label: pmt.payment_voucher_number, userId, userName,
+      })
+      await recycleArchiveDelete(conn, batchId, 'purchase_payments_adnan', 'id', id)
+      await recycleFinalize(conn, batchId)
     }
 
     await recalcPO(conn, pmt.purchase_order_id)

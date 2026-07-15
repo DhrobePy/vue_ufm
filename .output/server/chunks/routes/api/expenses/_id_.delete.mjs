@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, v as getDb, e as auditLog } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, v as getDb, ah as recycleBegin, ag as recycleArchiveDelete, ai as recycleFinalize, e as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -27,7 +27,14 @@ const _id__delete = defineEventHandler(async (event) => {
     if (!expense) throw createError({ statusCode: 404, statusMessage: "Expense not found" });
     if (expense.status !== "pending")
       throw createError({ statusCode: 400, statusMessage: `Only pending expenses can be deleted (current status: ${expense.status})` });
-    await conn.query(`DELETE FROM expense_vouchers WHERE id = ?`, [id]);
+    const batchId = await recycleBegin(conn, {
+      entityType: "expense_voucher",
+      label: expense.voucher_number,
+      userId: actorId,
+      userName: actorName
+    });
+    await recycleArchiveDelete(conn, batchId, "expense_vouchers", "id", id);
+    await recycleFinalize(conn, batchId);
     await auditLog(conn, {
       userId: actorId,
       action: "deleted",

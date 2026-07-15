@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, v as getDb, ae as recalcPO, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, v as getDb, ah as recycleBegin, ag as recycleArchiveDelete, ai as recycleFinalize, ae as recalcPO, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -40,7 +40,14 @@ const _id__delete = defineEventHandler(async (event) => {
         [newNote, id]
       );
     } else {
-      await conn.query(`DELETE FROM purchase_payments_adnan WHERE id = ?`, [id]);
+      const batchId = await recycleBegin(conn, {
+        entityType: "purchase_payment",
+        label: pmt.payment_voucher_number,
+        userId,
+        userName
+      });
+      await recycleArchiveDelete(conn, batchId, "purchase_payments_adnan", "id", id);
+      await recycleFinalize(conn, batchId);
     }
     await recalcPO(conn, pmt.purchase_order_id);
     const typeNote = pmt.is_posted ? " (was posted \u2014 soft deleted)" : " (hard deleted)";

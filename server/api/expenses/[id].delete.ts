@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleFinalize } from '~/server/utils/recycleBin'
 
 /**
  * DELETE /api/expenses/:id
@@ -27,7 +28,11 @@ export default defineEventHandler(async (event) => {
     if (expense.status !== 'pending')
       throw createError({ statusCode: 400, statusMessage: `Only pending expenses can be deleted (current status: ${expense.status})` })
 
-    await conn.query(`DELETE FROM expense_vouchers WHERE id = ?`, [id])
+    const batchId = await recycleBegin(conn, {
+      entityType: 'expense_voucher', label: expense.voucher_number, userId: actorId, userName: actorName,
+    })
+    await recycleArchiveDelete(conn, batchId, 'expense_vouchers', 'id', id)
+    await recycleFinalize(conn, batchId)
 
     await auditLog(conn, {
       userId:          actorId,

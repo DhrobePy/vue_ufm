@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { j as createError$1, a3 as parseURL, r as encodePath, m as decodePath, O as hasProtocol, V as isScriptProtocol, W as joinURL, aw as withQuery, p as defu, am as sanitizeStatusCode, t as getContext, $ as $fetch$1, f as baseURL, k as createHooks, s as executeAsync } from '../nitro/nitro.mjs';
+import { j as createError$1, a3 as parseURL, r as encodePath, m as decodePath, O as hasProtocol, V as isScriptProtocol, W as joinURL, ay as withQuery, p as defu, an as sanitizeStatusCode, t as getContext, $ as $fetch$1, f as baseURL, k as createHooks, s as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'node:crypto';
@@ -869,7 +869,7 @@ const _routes = [
     name: "admin-recycle-bin",
     path: "/admin/recycle-bin",
     meta: __nuxt_page_meta$1N || {},
-    component: () => import('./recycle-bin-CkJfrjS5.mjs')
+    component: () => import('./recycle-bin-DaT1UcOj.mjs')
   },
   {
     name: "admin-users",

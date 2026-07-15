@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, N as getUserSession, j as createError, v as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, N as getUserSession, j as createError, v as getDb, ah as recycleBegin, ag as recycleArchiveDelete, al as recycleSnapshotBefore, ai as recycleFinalize, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const id = Number(getRouterParam(event, "id"));
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -30,14 +30,22 @@ const _id__delete = defineEventHandler(async (event) => {
       [id]
     );
     if (linked) throw createError({ statusCode: 400, statusMessage: "Cannot delete \u2014 this entry has been reversed" });
-    await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id = ?`, [id]);
-    await conn.query(`DELETE FROM journal_entries WHERE id = ?`, [id]);
+    const batchId = await recycleBegin(conn, {
+      entityType: "journal_entry",
+      label: je.description ? `JE-${id}: ${je.description}` : `JE-${id}`,
+      userId,
+      userName: (_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.name) != null ? _d : `User ${userId}`
+    });
+    await recycleArchiveDelete(conn, batchId, "transaction_lines", "journal_entry_id", id);
+    await recycleArchiveDelete(conn, batchId, "journal_entries", "id", id);
     if (je.related_document_type === "ExpenseVoucher" && je.related_document_id) {
+      await recycleSnapshotBefore(conn, batchId, "expense_vouchers", "id", je.related_document_id);
       await conn.query(
         `UPDATE expense_vouchers SET journal_entry_id = NULL WHERE id = ? AND journal_entry_id = ?`,
         [je.related_document_id, id]
       );
     }
+    await recycleFinalize(conn, batchId);
     await auditLog(conn, {
       userId,
       action: "deleted",

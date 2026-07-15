@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleFinalize } from '~/server/utils/recycleBin'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -29,10 +30,14 @@ export default defineEventHandler(async (event) => {
     }
 
     if (force) {
-      // Admin hard-delete: remove payments, GRNs, then the PO
-      await conn.query(`DELETE FROM purchase_payments_adnan WHERE purchase_order_id = ?`, [id])
-      await conn.query(`DELETE FROM goods_received_adnan WHERE purchase_order_id = ?`, [id])
-      await conn.query(`DELETE FROM purchase_orders_adnan WHERE id = ?`, [id])
+      // Admin hard-delete: remove payments, GRNs, then the PO — archived first
+      const batchId = await recycleBegin(conn, {
+        entityType: 'purchase_order', label: po.po_number, userId, userName: (session?.user as any)?.name ?? `User ${userId}`,
+      })
+      await recycleArchiveDelete(conn, batchId, 'purchase_payments_adnan', 'purchase_order_id', id)
+      await recycleArchiveDelete(conn, batchId, 'goods_received_adnan', 'purchase_order_id', id)
+      await recycleArchiveDelete(conn, batchId, 'purchase_orders_adnan', 'id', id)
+      await recycleFinalize(conn, batchId)
     } else {
       // Soft delete — set po_status = 'cancelled'
       await conn.query(

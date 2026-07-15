@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleSnapshotBefore, recycleFinalize, serializeRow } from '~/server/utils/recycleBin'
 
 /**
  * DELETE /api/credit-sales/returns/:returnId
@@ -40,17 +41,36 @@ export default defineEventHandler(async (event) => {
 
     const retAmount = Number(ret.total_returned_amount)
 
+    const batchId = await recycleBegin(conn, {
+      entityType: 'credit_order_return', label: ret.return_number ?? `Return-${returnId}`,
+      customerId: ret.customer_id, userId, userName: (session?.user as any)?.name ?? `User ${userId}`,
+    })
+
     // ── Approved returns need full reversal before deletion ──────────────────
     if (ret.status === 'approved') {
       // 1. Remove the credit note from customer_ledger
-      //    (reference_type = 'credit_order_return', reference_id = returnId)
+      //    (reference_type = 'credit_order_return', reference_id = returnId) —
+      //    recycleArchiveDelete only matches a single column, and reference_id
+      //    alone isn't unique across doc types, so snapshot+delete inline here
+      //    with the same compound WHERE the original query used.
+      const [ledgerRows] = await conn.query<any>(
+        `SELECT * FROM customer_ledger WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
+        [returnId],
+      )
+      for (const row of ledgerRows) {
+        await conn.query(
+          `INSERT INTO recycle_bin_items (batch_id, table_name, op, row_pk_col, row_pk_val, snapshot_json)
+           VALUES (?, 'customer_ledger', 'delete', 'id', ?, ?)`,
+          [batchId, String(row.id), JSON.stringify(serializeRow(row))],
+        )
+      }
       await conn.query(
-        `DELETE FROM customer_ledger
-         WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
+        `DELETE FROM customer_ledger WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
         [returnId],
       )
 
       // 2. Restore credit_orders.total_amount and balance_due
+      await recycleSnapshotBefore(conn, batchId, 'credit_orders', 'id', ret.order_id)
       await conn.query(
         `UPDATE credit_orders
          SET total_amount = total_amount + ?,
@@ -61,6 +81,7 @@ export default defineEventHandler(async (event) => {
       )
 
       // 3. Restore customer running balance
+      await recycleSnapshotBefore(conn, batchId, 'customers', 'id', ret.customer_id)
       await conn.query(
         `UPDATE customers
          SET current_balance = current_balance + ?, updated_at = NOW()
@@ -70,8 +91,9 @@ export default defineEventHandler(async (event) => {
     }
 
     // ── Delete return items, then the return header ──────────────────────────
-    await conn.query(`DELETE FROM credit_order_return_items WHERE return_id = ?`, [returnId])
-    await conn.query(`DELETE FROM credit_order_returns WHERE id = ?`, [returnId])
+    await recycleArchiveDelete(conn, batchId, 'credit_order_return_items', 'return_id', returnId)
+    await recycleArchiveDelete(conn, batchId, 'credit_order_returns', 'id', returnId)
+    await recycleFinalize(conn, batchId)
 
     // ── Audit log ────────────────────────────────────────────────────────────
     await auditLog(conn, {

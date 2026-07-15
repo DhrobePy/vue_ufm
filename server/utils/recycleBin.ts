@@ -24,7 +24,9 @@ function mysqlDateTimeString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
 }
 
-function serializeRow(row: Record<string, any>): Record<string, any> {
+/** Exported for the rare delete endpoint that needs a compound WHERE
+ *  recycleArchiveDelete's single-column signature can't express. */
+export function serializeRow(row: Record<string, any>): Record<string, any> {
   const out: Record<string, any> = {}
   for (const [k, v] of Object.entries(row)) {
     out[k] = v instanceof Date ? mysqlDateTimeString(v) : v

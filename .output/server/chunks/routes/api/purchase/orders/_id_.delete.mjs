@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, ab as readBody, v as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, ab as readBody, v as getDb, ah as recycleBegin, ag as recycleArchiveDelete, ai as recycleFinalize, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid PO ID" });
   const session = await getUserSession(event);
@@ -33,9 +33,16 @@ const _id__delete = defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: "PO is already cancelled" });
     }
     if (force) {
-      await conn.query(`DELETE FROM purchase_payments_adnan WHERE purchase_order_id = ?`, [id]);
-      await conn.query(`DELETE FROM goods_received_adnan WHERE purchase_order_id = ?`, [id]);
-      await conn.query(`DELETE FROM purchase_orders_adnan WHERE id = ?`, [id]);
+      const batchId = await recycleBegin(conn, {
+        entityType: "purchase_order",
+        label: po.po_number,
+        userId,
+        userName: (_f = (_e = session == null ? void 0 : session.user) == null ? void 0 : _e.name) != null ? _f : `User ${userId}`
+      });
+      await recycleArchiveDelete(conn, batchId, "purchase_payments_adnan", "purchase_order_id", id);
+      await recycleArchiveDelete(conn, batchId, "goods_received_adnan", "purchase_order_id", id);
+      await recycleArchiveDelete(conn, batchId, "purchase_orders_adnan", "id", id);
+      await recycleFinalize(conn, batchId);
     } else {
       await conn.query(
         `UPDATE purchase_orders_adnan SET po_status = 'cancelled', updated_at = NOW() WHERE id = ?`,

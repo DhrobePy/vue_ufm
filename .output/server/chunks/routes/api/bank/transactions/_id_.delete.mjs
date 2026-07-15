@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, N as getUserSession, F as getRequestIP, j as createError, v as getDb } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, N as getUserSession, F as getRequestIP, j as createError, v as getDb, ah as recycleBegin, ag as recycleArchiveDelete, ai as recycleFinalize } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const id = Number(getRouterParam(event, "id"));
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
@@ -31,7 +31,14 @@ const _id__delete = defineEventHandler(async (event) => {
        VALUES (?, 'deleted', ?, ?, ?, ?, 'PERMANENTLY DELETED by Superadmin')`,
       [id, userId, userName, ip, JSON.stringify(txn)]
     );
-    await conn.query(`DELETE FROM bank_transactions WHERE id = ?`, [id]);
+    const batchId = await recycleBegin(conn, {
+      entityType: "bank_transaction",
+      label: (_h = txn.transaction_number) != null ? _h : `TXN-${id}`,
+      userId,
+      userName
+    });
+    await recycleArchiveDelete(conn, batchId, "bank_transactions", "id", id);
+    await recycleFinalize(conn, batchId);
     await conn.commit();
     return { message: `Transaction ${txn.transaction_number} permanently deleted` };
   } catch (err) {

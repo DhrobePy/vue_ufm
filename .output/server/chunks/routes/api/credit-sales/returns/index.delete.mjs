@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, E as getRequestHeader, v as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, N as getUserSession, E as getRequestHeader, v as getDb, ah as recycleBegin, aq as serializeRow, al as recycleSnapshotBefore, ag as recycleArchiveDelete, ai as recycleFinalize, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const returnId = Number(getRouterParam(event, "returnId"));
   if (!returnId) throw createError({ statusCode: 400, statusMessage: "Invalid return ID" });
   const session = await getUserSession(event);
@@ -33,12 +33,30 @@ const index_delete = defineEventHandler(async (event) => {
     );
     if (!ret) throw createError({ statusCode: 404, statusMessage: "Return not found" });
     const retAmount = Number(ret.total_returned_amount);
+    const batchId = await recycleBegin(conn, {
+      entityType: "credit_order_return",
+      label: (_g = ret.return_number) != null ? _g : `Return-${returnId}`,
+      customerId: ret.customer_id,
+      userId,
+      userName: (_i = (_h = session == null ? void 0 : session.user) == null ? void 0 : _h.name) != null ? _i : `User ${userId}`
+    });
     if (ret.status === "approved") {
-      await conn.query(
-        `DELETE FROM customer_ledger
-         WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
+      const [ledgerRows] = await conn.query(
+        `SELECT * FROM customer_ledger WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
         [returnId]
       );
+      for (const row of ledgerRows) {
+        await conn.query(
+          `INSERT INTO recycle_bin_items (batch_id, table_name, op, row_pk_col, row_pk_val, snapshot_json)
+           VALUES (?, 'customer_ledger', 'delete', 'id', ?, ?)`,
+          [batchId, String(row.id), JSON.stringify(serializeRow(row))]
+        );
+      }
+      await conn.query(
+        `DELETE FROM customer_ledger WHERE reference_type = 'credit_order_return' AND reference_id = ?`,
+        [returnId]
+      );
+      await recycleSnapshotBefore(conn, batchId, "credit_orders", "id", ret.order_id);
       await conn.query(
         `UPDATE credit_orders
          SET total_amount = total_amount + ?,
@@ -47,6 +65,7 @@ const index_delete = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [retAmount, retAmount, ret.order_id]
       );
+      await recycleSnapshotBefore(conn, batchId, "customers", "id", ret.customer_id);
       await conn.query(
         `UPDATE customers
          SET current_balance = current_balance + ?, updated_at = NOW()
@@ -54,8 +73,9 @@ const index_delete = defineEventHandler(async (event) => {
         [retAmount, ret.customer_id]
       );
     }
-    await conn.query(`DELETE FROM credit_order_return_items WHERE return_id = ?`, [returnId]);
-    await conn.query(`DELETE FROM credit_order_returns WHERE id = ?`, [returnId]);
+    await recycleArchiveDelete(conn, batchId, "credit_order_return_items", "return_id", returnId);
+    await recycleArchiveDelete(conn, batchId, "credit_order_returns", "id", returnId);
+    await recycleFinalize(conn, batchId);
     await auditLog(conn, {
       userId,
       action: "deleted",

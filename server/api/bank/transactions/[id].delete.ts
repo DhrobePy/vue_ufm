@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { recycleBegin, recycleArchiveDelete, recycleFinalize } from '~/server/utils/recycleBin'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -24,7 +25,14 @@ export default defineEventHandler(async (event) => {
        VALUES (?, 'deleted', ?, ?, ?, ?, 'PERMANENTLY DELETED by Superadmin')`,
       [id, userId, userName, ip, JSON.stringify(txn)],
     )
-    await conn.query(`DELETE FROM bank_transactions WHERE id = ?`, [id])
+
+    const batchId = await recycleBegin(conn, {
+      entityType: 'bank_transaction', label: txn.transaction_number ?? `TXN-${id}`,
+      userId, userName,
+    })
+    await recycleArchiveDelete(conn, batchId, 'bank_transactions', 'id', id)
+    await recycleFinalize(conn, batchId)
+
     await conn.commit()
     return { message: `Transaction ${txn.transaction_number} permanently deleted` }
   } catch (err) {

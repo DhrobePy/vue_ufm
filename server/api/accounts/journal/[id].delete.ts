@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { recycleBegin, recycleArchiveDelete, recycleSnapshotBefore, recycleFinalize } from '~/server/utils/recycleBin'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -24,16 +25,24 @@ export default defineEventHandler(async (event) => {
     )
     if (linked) throw createError({ statusCode: 400, statusMessage: 'Cannot delete — this entry has been reversed' })
 
-    await conn.query(`DELETE FROM transaction_lines WHERE journal_entry_id = ?`, [id])
-    await conn.query(`DELETE FROM journal_entries WHERE id = ?`, [id])
+    const batchId = await recycleBegin(conn, {
+      entityType: 'journal_entry', label: je.description ? `JE-${id}: ${je.description}` : `JE-${id}`,
+      userId, userName: (session?.user as any)?.name ?? `User ${userId}`,
+    })
+
+    await recycleArchiveDelete(conn, batchId, 'transaction_lines', 'journal_entry_id', id)
+    await recycleArchiveDelete(conn, batchId, 'journal_entries', 'id', id)
 
     // If linked to an expense, clear the journal_entry_id
     if (je.related_document_type === 'ExpenseVoucher' && je.related_document_id) {
+      await recycleSnapshotBefore(conn, batchId, 'expense_vouchers', 'id', je.related_document_id)
       await conn.query(
         `UPDATE expense_vouchers SET journal_entry_id = NULL WHERE id = ? AND journal_entry_id = ?`,
         [je.related_document_id, id]
       )
     }
+
+    await recycleFinalize(conn, batchId)
 
     await auditLog(conn, {
       userId, action: 'deleted', module: 'accounts', recordType: 'journal_entry',
