@@ -1054,5 +1054,11 @@ export default defineNitroPlugin(async () => {
   //    customer_payments row that created it (spec §2.4 step 9 / §4.6) ──────
   await addCol(db, 'bank_transactions', 'source_payment_id', 'INT UNSIGNED NULL DEFAULT NULL')
 
+  // ── 52. Bank reconciliation — mark individual bank_transactions rows as
+  //    cleared against the real bank statement, independent of their
+  //    approval status ──────────────────────────────────────────────────────
+  await addCol(db, 'bank_transactions', 'reconciled_at',         'DATETIME NULL DEFAULT NULL')
+  await addCol(db, 'bank_transactions', 'reconciled_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

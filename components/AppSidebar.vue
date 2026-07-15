@@ -141,6 +141,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/bank/transaction/create')" label="New Transaction" route="/bank/transaction/create"    :collapsed="collapsed" icon-type="plus"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/bank/transfer')" label="Transfer"        route="/bank/transfer"              :collapsed="collapsed" icon-type="arrows"    sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/bank/statement')" label="Statement"       route="/bank/statement"             :collapsed="collapsed" icon-type="file"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/bank/reconciliation')" label="Reconciliation"  route="/bank/reconciliation"        :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/bank/accounts')" label="Accounts"        route="/bank/accounts"              :collapsed="collapsed" icon-type="bank"      sub />
       </SidebarGroup>
 

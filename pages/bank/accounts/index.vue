@@ -41,9 +41,16 @@
           <p class="text-xl font-bold font-mono" :style="`color: ${cardColor(idx)}`">৳{{ Number(acc.balance ?? 0).toLocaleString() }}</p>
         </div>
 
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <NuxtLink to="/bank/transaction/create" class="btn-ghost text-xs flex-1 justify-center">Transact</NuxtLink>
           <button @click.stop="openEdit(acc)" class="btn-ghost text-xs px-3">Edit</button>
+        </div>
+        <div class="flex gap-2">
+          <NuxtLink v-if="glMatchFor(acc)" :to="`/bank/statement?account=${glMatchFor(acc).id}`" @click.stop
+            class="btn-ghost text-xs flex-1 justify-center">📒 Statement</NuxtLink>
+          <span v-else class="text-[10px] text-gray-700 flex-1 flex items-center justify-center border border-white/[0.06] rounded-lg" title="No GL-linked account matches this account number">No GL link</span>
+          <NuxtLink :to="`/bank/reconciliation?account=${acc.id}`" @click.stop
+            class="btn-ghost text-xs flex-1 justify-center">⚖️ Reconcile</NuxtLink>
         </div>
       </div>
     </div>
@@ -235,6 +242,14 @@ const { data: glData } = await useFetch('/api/bank-accounts')
 const glAccounts = computed(() =>
   ((glData.value as any)?.accounts ?? []).filter((a: any) => a.chart_of_account_id),
 )
+
+// bank_tx_accounts (this page's cards) and bank_accounts (GL-linked) are two
+// separate tables tracking the same real-world accounts, matched only by
+// account_number — no shared id.
+function glMatchFor(acc: any) {
+  if (!acc.account_number) return null
+  return glAccounts.value.find((g: any) => g.account_number === acc.account_number) ?? null
+}
 
 const newAccount = reactive({
   bank_name: '', account_name: '', branch_name: '',

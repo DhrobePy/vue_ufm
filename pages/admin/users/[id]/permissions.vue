@@ -505,6 +505,10 @@ const moduleRegistry = [
         actions: [
           { key: 'export', label: 'Export' },
         ] },
+      { key: 'reconciliation', label: 'Bank Reconciliation', route: 'bank/reconciliation',
+        actions: [
+          { key: 'reconcile', label: 'Mark Transactions Reconciled' },
+        ] },
       { key: 'accounts',    label: 'Bank Accounts',     route: 'bank/accounts',
         actions: [
           { key: 'create', label: 'Add Account' },
