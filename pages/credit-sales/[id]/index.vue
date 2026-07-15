@@ -506,6 +506,7 @@
           <div class="glass-card p-4 space-y-2">
             <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Actions</h3>
             <button v-if="perms.canDo('credit_sales', 'all', 'print')" @click="printInvoice" class="btn-ghost w-full justify-start text-xs py-2">🖨️ Print Invoice</button>
+            <button v-if="['ready_to_ship','goods_on_board','shipped','dispatched','delivered','completed'].includes(order.status) && perms.canDo('credit_sales', 'all', 'print')" @click="printDispatchSlip" class="btn-ghost w-full justify-start text-xs py-2">🚚 Print Dispatch Slip</button>
             <NuxtLink v-if="canCollectPayment && perms.canDo('credit_sales', 'all', 'collect_payment')" :to="`/credit-sales/${id}/payment`" class="btn-ghost w-full justify-start text-xs py-2">💰 Collect Payment</NuxtLink>
             <NuxtLink v-if="['goods_on_board', 'shipped', 'dispatched'].includes(order.status) && perms.canDo('credit_sales', 'all', 'record_delivery')" :to="`/credit-sales/${id}/deliver`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Delivery</NuxtLink>
             <button v-if="perms.canDo('credit_sales', 'all', 'telegram')" @click="sendAlert" class="btn-ghost w-full justify-start text-xs py-2">📱 Send Telegram Alert</button>
@@ -1278,6 +1279,10 @@ function sendAlert() {
 
 function printInvoice() {
   navigateTo(`/credit-sales/${id.value}/invoice`)
+}
+
+function printDispatchSlip() {
+  navigateTo(`/credit-sales/${id.value}/dispatch-slip`)
 }
 </script>
 
