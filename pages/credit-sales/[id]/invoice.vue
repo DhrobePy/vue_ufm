@@ -13,7 +13,7 @@
       </NuxtLink>
       <div style="flex:1;text-align:center;">
         <span style="font-size:13px;color:#d1d5db;font-weight:600;">{{ invoiceNo }}</span>
-        <span style="font-size:11px;color:#6b7280;margin-left:8px;">Preview — click Print to generate PDF</span>
+        <span style="font-size:11px;color:#6b7280;margin-left:8px;">Preview — prints as 2 pages: Customer Copy + Office Copy (gate pass QR &amp; tear-off GRN)</span>
       </div>
       <!-- Admin: edit T&C toggle -->
       <button v-if="isAdmin" @click="tcEditorOpen = !tcEditorOpen"
@@ -57,9 +57,11 @@
       </div>
     </div>
 
-    <!-- ── A4 Paper ───────────────────────────────────── -->
-    <div style="max-width:794px;margin:32px auto;padding-bottom:48px;" class="no-print-margin">
-      <div id="invoice-paper" style="background:#fff;box-shadow:0 4px 32px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.12);border-radius:4px;overflow:hidden;">
+    <!-- ── A4 Paper — two sheets: Customer Copy, then Office Copy
+         (gate pass QR + tear-off GRN for the driver to bring back) ── -->
+    <div v-for="copyType in ['customer', 'office']" :key="copyType"
+         style="max-width:794px;margin:32px auto;padding-bottom:48px;" class="no-print-margin invoice-sheet">
+      <div class="invoice-paper" style="background:#fff;box-shadow:0 4px 32px rgba(0,0,0,0.18),0 1px 4px rgba(0,0,0,0.12);border-radius:4px;overflow:hidden;">
 
         <!-- ═══ HEADER BAND ══════════════════════════════ -->
         <div style="background:linear-gradient(135deg,#1a1208 0%,#2d1f0a 60%,#1a1208 100%);padding:24px 40px;display:flex;align-items:flex-start;justify-content:space-between;gap:24px;">
@@ -78,7 +80,12 @@
           </div>
           <!-- Invoice badge -->
           <div style="text-align:right;flex-shrink:0;">
-            <div style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:6px;">Credit Invoice</div>
+            <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;margin-bottom:6px;">
+              <span style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:0.15em;text-transform:uppercase;">Credit Invoice</span>
+              <span :style="`font-size:9px;font-weight:800;letter-spacing:0.08em;padding:2px 8px;border-radius:4px;${copyType === 'customer' ? 'background:rgba(96,165,250,0.18);color:#93c5fd;' : 'background:rgba(245,158,11,0.2);color:#fbbf24;'}`">
+                {{ copyType === 'customer' ? 'CUSTOMER COPY' : 'OFFICE COPY' }}
+              </span>
+            </div>
             <div style="font-size:24px;font-weight:900;color:#fff;letter-spacing:-0.5px;">{{ invoiceNo }}</div>
             <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
               <div style="display:flex;gap:8px;align-items:center;">
@@ -157,12 +164,29 @@
 
         <!-- ═══ TOTALS ════════════════════════════════════ -->
         <div style="display:grid;grid-template-columns:1fr 300px;gap:0;border-top:2px solid #f0ede8;margin:0 40px 0 40px;padding-top:16px;padding-bottom:16px;">
-          <!-- Notes + terms -->
-          <div style="padding-right:32px;">
+          <!-- Notes + terms (customer copy) — swapped for the Gate Pass QR on
+               the office copy, which needs the vertical room for the GRN
+               tear-off stub further down this same page. -->
+          <div v-if="copyType === 'customer'" style="padding-right:32px;">
             <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">Notes &amp; Terms</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
               <div v-if="order.notes" style="margin-bottom:6px;font-style:italic;color:#374151;">{{ order.notes }}</div>
               <div v-for="(clause, ci) in tcClauses" :key="ci">• {{ clause }}</div>
+            </div>
+          </div>
+          <div v-else style="padding-right:32px;display:flex;gap:16px;align-items:flex-start;">
+            <template v-if="!isDelivered">
+              <img v-if="qrDataUrl" :src="qrDataUrl"
+                style="width:64px;height:64px;border-radius:6px;border:1px solid #e5e7eb;flex-shrink:0;" />
+              <div v-else style="width:64px;height:64px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">Gate Pass</div>
+                <div style="font-size:10.5px;color:#6b7280;line-height:1.6;">Scan to record the gate-out and delivery confirmation for this order (spec §2.8). Login required for every scan.</div>
+              </div>
+            </template>
+            <div v-else>
+              <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;">Gate Pass</div>
+              <div style="font-size:10.5px;color:#16a34a;font-weight:600;">✓ Delivery already confirmed — see GRN below.</div>
             </div>
           </div>
           <!-- Totals block -->
@@ -198,8 +222,11 @@
           </div>
         </div>
 
-        <!-- ═══ PAYMENT HISTORY ══════════════════════════ -->
-        <div v-if="payments.length" style="margin:0 40px 14px;padding:14px 20px;border-radius:12px;background:#f9fafb;border:1px solid #f0ede8;">
+        <!-- ═══ PAYMENT HISTORY (customer copy only) ══════
+             Office copy already shows "Total Paid" in the totals block —
+             the full ledger detail is redundant there and the space is
+             needed for the gate-pass QR + tear-off GRN below. -->
+        <div v-if="payments.length && copyType === 'customer'" style="margin:0 40px 14px;padding:14px 20px;border-radius:12px;background:#f9fafb;border:1px solid #f0ede8;">
           <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;">
             Payment History
           </div>
@@ -231,12 +258,8 @@
           </table>
         </div>
 
-        <!-- ═══ SIGNATURES + GOODS RECEIPT NOTE (GRN) ═════
-             Third column is the customer's GRN counter-signature — the
-             invoice doubles as the delivery challan, single page. Kept to
-             one compact strip (not a separate box) so orders with a long
-             payment history still fit on one A4 page. -->
-        <div style="margin:0 40px;padding:10px 0 0;border-top:1px solid #f0ede8;display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:24px;">
+        <!-- ═══ INTERNAL SIGNATURES ═══════════════════════ -->
+        <div style="margin:0 40px;padding:10px 0 0;border-top:1px solid #f0ede8;display:grid;grid-template-columns:1fr 1fr;gap:32px;">
           <div style="text-align:center;">
             <div style="height:32px;border-bottom:1.5px solid #d1d5db;margin-bottom:6px;"></div>
             <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">Sales Officer</div>
@@ -247,34 +270,60 @@
             <div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:0.05em;">Accounts &amp; Finance</div>
             <div style="font-size:9px;color:#9ca3af;margin-top:2px;">Signature &amp; Stamp</div>
           </div>
-          <div style="text-align:center;padding:6px 10px 4px;border:1.5px solid #d97706;border-radius:8px;background:#fffbeb;">
-            <div style="height:26px;border-bottom:1.5px solid #b45309;margin-bottom:5px;"></div>
-            <div style="font-size:10px;font-weight:800;color:#92400e;letter-spacing:0.05em;">GRN — Received By (Customer)</div>
-            <div style="font-size:8.5px;color:#92400e;margin-top:2px;">
-              Qty received: <span style="display:inline-block;min-width:26px;border-bottom:1px solid #b45309;">&nbsp;</span>/{{ totalBags }} bags ·
-              Condition: Good ☐ Damaged ☐ · Date: <span style="display:inline-block;min-width:50px;border-bottom:1px solid #b45309;">&nbsp;</span>
-            </div>
-          </div>
         </div>
 
         <!-- ═══ FOOTER BAND ══════════════════════════════ -->
-        <div style="margin-top:8px;background:#faf8f5;border-top:1px solid #f0ede8;padding:8px 40px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="margin-top:8px;background:#faf8f5;border-top:1px solid #f0ede8;padding:8px 40px;">
           <div style="font-size:10px;color:#9ca3af;">
             Generated by Ujjal FMC ERP · {{ generatedAt }}
           </div>
-          <div style="font-size:10px;color:#9ca3af;text-align:center;">
-            This is a computer-generated invoice and is valid without signature<br>
-            when processed through the ERP system.
-          </div>
-          <!-- QR is only for gate-pass/delivery scanning (spec §2.8) — once the
-               order is delivered there's nothing left to scan it for. -->
-          <div v-if="!isDelivered" style="text-align:right;">
-            <img v-if="qrDataUrl" :src="qrDataUrl"
-              style="width:52px;height:52px;border-radius:6px;border:1px solid #e5e7eb;display:block;margin-left:auto;" />
-            <div v-else style="width:52px;height:52px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:6px;margin-left:auto;"></div>
-            <div style="font-size:7px;color:#9ca3af;margin-top:2px;text-align:center;">Scan for gate pass &amp; delivery</div>
+          <div style="font-size:10px;color:#9ca3af;margin-top:2px;">
+            {{ copyType === 'customer'
+              ? 'Customer Copy — this is a computer-generated invoice and is valid without signature when processed through the ERP system.'
+              : 'Office Copy — retain for company records.' }}
           </div>
         </div>
+
+        <!-- ═══ TEAR-OFF GOODS RECEIPT NOTE (GRN) — office copy only ═════
+             The driver detaches this strip after the customer signs it on
+             delivery and returns it to the office as proof of delivery;
+             everything above the tear line (office copy + gate pass QR)
+             is the company's own file record. -->
+        <template v-if="copyType === 'office'">
+          <div style="margin:14px 40px 0;display:flex;align-items:center;gap:10px;color:#9ca3af;">
+            <span style="font-size:13px;">✂</span>
+            <div style="flex:1;border-top:1.5px dashed #d1d5db;"></div>
+            <span style="font-size:8.5px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;">Detach &amp; return signed GRN to office</span>
+            <div style="flex:1;border-top:1.5px dashed #d1d5db;"></div>
+          </div>
+          <div style="margin:10px 40px 0;padding:12px 18px 14px;border:1.5px solid #d97706;border-radius:10px;background:#fffbeb;">
+            <div style="font-size:10px;font-weight:800;color:#92400e;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">
+              📋 Goods Receipt Note (GRN) — {{ invoiceNo }}
+            </div>
+            <div style="font-size:10.5px;color:#78350f;line-height:1.6;margin-bottom:10px;">
+              I acknowledge receipt of
+              <span style="display:inline-block;min-width:40px;border-bottom:1px solid #b45309;font-weight:700;text-align:center;">&nbsp;</span>
+              of {{ totalBags }} bags ordered, in
+              <span style="display:inline-block;min-width:80px;border-bottom:1px solid #b45309;">&nbsp;</span>
+              condition. Remarks:
+              <span style="display:inline-block;min-width:120px;border-bottom:1px solid #b45309;">&nbsp;</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+              <div>
+                <div style="height:28px;border-bottom:1.5px solid #b45309;"></div>
+                <div style="font-size:9px;color:#92400e;margin-top:3px;">Received By (Name)</div>
+              </div>
+              <div>
+                <div style="height:28px;border-bottom:1.5px solid #b45309;"></div>
+                <div style="font-size:9px;color:#92400e;margin-top:3px;">Date &amp; Time</div>
+              </div>
+              <div>
+                <div style="height:28px;border-bottom:1.5px solid #b45309;"></div>
+                <div style="font-size:9px;color:#92400e;margin-top:3px;">Signature &amp; Stamp</div>
+              </div>
+            </div>
+          </div>
+        </template>
 
       </div><!-- end invoice-paper -->
     </div><!-- end A4 wrapper -->
@@ -429,8 +478,13 @@ onMounted(async () => {
 @media print {
   .no-print { display: none !important; }
   body { background: #fff !important; margin: 0; padding: 0; }
-  #invoice-paper { box-shadow: none !important; border-radius: 0 !important; }
+  .invoice-paper { box-shadow: none !important; border-radius: 0 !important; }
   .no-print-margin { margin: 0 !important; padding: 0 !important; max-width: 100% !important; }
+  /* Customer Copy and Office Copy are each their own printed page. */
+  .invoice-sheet + .invoice-sheet { break-before: page; page-break-before: always; }
   @page { margin: 0; size: A4 portrait; }
 }
+/* Screen preview: a visible gap + divider between the two sheets so it's
+   clear they're separate pages, without affecting print. */
+.invoice-sheet + .invoice-sheet { margin-top: 8px !important; }
 </style>
