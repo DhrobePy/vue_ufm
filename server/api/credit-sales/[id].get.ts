@@ -77,9 +77,13 @@ export default defineEventHandler(async (event) => {
       [id],
     ),
 
-    // Payments linked to this specific order
+    // Payments linked to this specific order — either directly (single-order
+    // payments) or via payment_allocations (customer-level collections split
+    // across multiple orders, e.g. advance payments on an unapproved order —
+    // those leave customer_payments.order_id NULL by design, see collect-payment.post.ts).
     query(
       `SELECT p.id, p.order_id, p.payment_number, p.payment_date, p.amount,
+              p.amount AS allocated_amount, 0 AS as_advance,
               p.payment_method, p.payment_type, p.reference_number,
               p.bank_account_id, p.cash_account_id,
               p.cheque_number, p.cheque_date, p.bank_transaction_type,
@@ -96,8 +100,31 @@ export default defineEventHandler(async (event) => {
        LEFT JOIN bank_accounts ba ON ba.id = p.bank_account_id
        LEFT JOIN branch_petty_cash_accounts ca ON ca.id = p.cash_account_id
        WHERE p.order_id = ?
-       ORDER BY p.payment_date ASC, p.created_at ASC`,
-      [id],
+
+       UNION ALL
+
+       SELECT p.id, pa.order_id, p.payment_number, p.payment_date, p.amount,
+              pa.allocated_amount, pa.as_advance,
+              p.payment_method, p.payment_type, p.reference_number,
+              p.bank_account_id, p.cash_account_id,
+              p.cheque_number, p.cheque_date, p.bank_transaction_type,
+              p.journal_entry_id, p.notes, p.created_at,
+              u.display_name  AS collected_by,
+              e.first_name    AS collector_first_name,
+              e.last_name     AS collector_last_name,
+              ba.bank_name    AS bank_name,
+              ba.account_number AS bank_account_number,
+              ca.account_name AS cash_account_name
+       FROM payment_allocations pa
+       JOIN customer_payments p ON p.id = pa.payment_id
+       LEFT JOIN users u     ON u.id = p.created_by_user_id
+       LEFT JOIN employees e ON e.id = p.collected_by_employee_id
+       LEFT JOIN bank_accounts ba ON ba.id = p.bank_account_id
+       LEFT JOIN branch_petty_cash_accounts ca ON ca.id = p.cash_account_id
+       WHERE pa.order_id = ? AND p.order_id IS NULL
+
+       ORDER BY payment_date ASC, created_at ASC`,
+      [id, id],
     ),
   ])
 

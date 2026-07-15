@@ -294,7 +294,9 @@
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center gap-2 flex-wrap">
                       <p class="text-xs font-mono font-semibold text-gray-300">{{ p.payment_number }}</p>
-                      <span v-if="p.payment_type === 'advance'" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20">ADVANCE</span>
+                      <span v-if="p.payment_type === 'advance' || Number(p.as_advance)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20">ADVANCE</span>
+                      <span v-if="Number(p.allocated_amount) !== Number(p.amount)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/20"
+                            :title="`Part of a ৳${Number(p.amount).toLocaleString()} payment split across multiple orders`">SPLIT</span>
                       <span v-if="isReversed(p)" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400 border border-red-500/20">REVERSED</span>
                     </div>
                     <!-- Method + account info -->
@@ -330,7 +332,7 @@
                   <!-- Date + Amount + Reverse -->
                   <div class="flex items-center gap-3 shrink-0">
                     <div class="text-right">
-                      <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.amount).toLocaleString() }}</p>
+                      <p class="text-sm font-bold text-emerald-400">৳{{ Number(p.allocated_amount ?? p.amount).toLocaleString() }}</p>
                       <p class="text-[10px] text-gray-600 mt-0.5">{{ String(p.payment_date).slice(0,10) }}</p>
                     </div>
                     <button v-if="isAdmin && !isReversed(p)"
@@ -864,8 +866,10 @@ const returns   = computed(() => (data.value?.returns   ?? []) as any[])
 const payments  = computed(() => (data.value?.payments  ?? []) as any[])
 const apiWorkflow = computed(() => (data.value?.workflow ?? []) as any[])
 
+// allocated_amount is this order's share of the payment — equals p.amount
+// for direct (single-order) payments, but only the slice for split ones.
 const totalPaid = computed(() =>
-  payments.value.reduce((s: number, p: any) => s + Number(p.amount), 0),
+  payments.value.reduce((s: number, p: any) => s + Number(p.allocated_amount ?? p.amount), 0),
 )
 
 function methodIcon(method: string): string {
