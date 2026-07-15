@@ -35,6 +35,11 @@
             {{ t.nature }}
           </span>
         </div>
+        <div class="text-xs">
+          <span class="text-gray-600">GL Account: </span>
+          <span v-if="t.gl_account_name" class="text-blue-400">{{ t.gl_account_name }}</span>
+          <span v-else class="text-red-400">Not mapped — approvals blocked</span>
+        </div>
         <div class="flex gap-2 pt-1">
           <button @click="openEdit(t)" class="btn-ghost text-xs flex-1 justify-center py-1.5">Edit</button>
         </div>
@@ -68,6 +73,16 @@
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
                 <textarea v-model="form.description" rows="2" class="input-glass resize-none" placeholder="Optional description…" />
               </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">GL Account *</label>
+                <select v-model="form.chart_of_account_id" class="input-glass">
+                  <option value="">— Select GL account —</option>
+                  <option v-for="a in glAccounts" :key="a.id" :value="a.id">
+                    {{ a.name }} ({{ a.account_type }})
+                  </option>
+                </select>
+                <p class="text-[11px] text-gray-600">The offsetting account posted whenever a transaction of this type is approved.</p>
+              </div>
             </div>
             <div class="flex gap-3 pt-2">
               <button @click="save" :disabled="!form.name.trim() || saving" class="btn-gold text-xs flex-1 disabled:opacity-50">
@@ -90,10 +105,13 @@ const showModal = ref(false)
 const saving    = ref(false)
 const editingId = ref<number | null>(null)
 
-const form = reactive({ name: '', nature: 'income' as string, description: '' })
+const form = reactive({ name: '', nature: 'income' as string, description: '', chart_of_account_id: '' as any })
 
 const { data, pending, refresh } = await useFetch('/api/bank/transaction-types')
 const types = computed(() => (data.value as any)?.types ?? [])
+
+const { data: coaData } = await useFetch('/api/accounts/coa')
+const glAccounts = computed(() => (coaData.value as any)?.accounts ?? [])
 
 const NATURE_COLORS: Record<string, string> = {
   income:   '#10b981',
@@ -112,13 +130,13 @@ function natureIcon(n: string)  { return NATURE_ICONS[n] ?? NATURE_ICONS.other }
 
 function openAdd() {
   editingId.value = null
-  Object.assign(form, { name: '', nature: 'income', description: '' })
+  Object.assign(form, { name: '', nature: 'income', description: '', chart_of_account_id: '' })
   showModal.value = true
 }
 
 function openEdit(t: any) {
   editingId.value = t.id
-  Object.assign(form, { name: t.name, nature: t.nature ?? 'other', description: t.description ?? '' })
+  Object.assign(form, { name: t.name, nature: t.nature ?? 'other', description: t.description ?? '', chart_of_account_id: t.chart_of_account_id ?? '' })
   showModal.value = true
 }
 
@@ -129,13 +147,13 @@ async function save() {
     if (editingId.value) {
       await $fetch(`/api/bank/transaction-types/${editingId.value}`, {
         method: 'PATCH',
-        body: { name: form.name.trim(), nature: form.nature, description: form.description },
+        body: { name: form.name.trim(), nature: form.nature, description: form.description, chart_of_account_id: form.chart_of_account_id || null },
       })
       success('Type updated')
     } else {
       await $fetch('/api/bank/transaction-types', {
         method: 'POST',
-        body: { name: form.name.trim(), nature: form.nature, description: form.description },
+        body: { name: form.name.trim(), nature: form.nature, description: form.description, chart_of_account_id: form.chart_of_account_id || null },
       })
       success(`Type "${form.name}" added`)
     }

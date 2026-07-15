@@ -7,6 +7,7 @@ export default defineEventHandler(async (event) => {
     description: string
     entry_type: 'credit' | 'debit'
     amount: number
+    transaction_type_id?: number
     reference_number?: string
     cheque_number?: string
     payee_payer_name?: string
@@ -14,13 +15,16 @@ export default defineEventHandler(async (event) => {
   }
 
   const {
-    bank_tx_account_id, transaction_date, description, entry_type, amount,
+    bank_tx_account_id, transaction_date, description, entry_type, amount, transaction_type_id,
     reference_number, cheque_number, payee_payer_name, special_note,
   } = body
 
   if (!bank_tx_account_id || !transaction_date || !description || !entry_type || !amount) {
     throw createError({ statusCode: 422, statusMessage: 'bank_tx_account_id, transaction_date, description, entry_type and amount are required' })
   }
+
+  const session = await getUserSession(event)
+  const userId  = Number((session?.user as any)?.id ?? 1)
 
   const db   = getDb()
   const conn = await db.getConnection()
@@ -42,12 +46,12 @@ export default defineEventHandler(async (event) => {
     const [result] = await conn.query<any>(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
-          entry_type, amount, reference_number, cheque_number, payee_payer_name,
+          entry_type, amount, transaction_type_id, reference_number, cheque_number, payee_payer_name,
           special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`,
       [txnNo, bank_tx_account_id, transaction_date, description,
-       entry_type, amount, reference_number || null,
-       cheque_number || null, payee_payer_name || null, special_note || null],
+       entry_type, amount, transaction_type_id || null, reference_number || null,
+       cheque_number || null, payee_payer_name || null, special_note || null, userId],
     )
 
     await conn.commit()

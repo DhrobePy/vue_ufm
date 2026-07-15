@@ -1060,5 +1060,67 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'bank_transactions', 'reconciled_at',         'DATETIME NULL DEFAULT NULL')
   await addCol(db, 'bank_transactions', 'reconciled_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
 
+  // ── 53. Unify the two bank-account lists ────────────────────────────────────
+  // bank_accounts (GL-linked, chart_of_account_id) and bank_tx_accounts (the
+  // standalone day-to-day module the Bank > Accounts cards actually manage)
+  // are two separate tables tracking the same real-world accounts, matched
+  // only by account_number. Users saw two lists and neither side ever posted
+  // a journal entry for transactions entered through the transaction module.
+  //
+  // Fix: bank_accounts becomes the ONE user-facing account list (create/edit
+  // goes through it from now on); bank_tx_accounts stays as an internal
+  // mirror so the existing transaction/reconciliation/dashboard code (all
+  // keyed to bank_tx_account_id) keeps working unchanged — linked via
+  // bank_accounts.legacy_tx_account_id. Every bank_tx_accounts row without a
+  // matching bank_accounts row (by account_number) gets one auto-created here
+  // (+ a chart_of_accounts entry) so no existing account silently disappears
+  // from the unified list.
+  await addCol(db, 'bank_accounts', 'legacy_tx_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'bank_tx_transaction_types', 'chart_of_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'bank_transactions', 'journal_entry_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'bank_transactions', 'transfer_pair_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
+  try {
+    const [txAccounts] = await db.query<any>(`SELECT * FROM bank_tx_accounts`)
+    for (const txAcc of txAccounts as any[]) {
+      const [[match]] = await db.query<any>(
+        `SELECT id, legacy_tx_account_id FROM bank_accounts WHERE account_number = ? LIMIT 1`,
+        [txAcc.account_number],
+      )
+      if (match) {
+        if (!match.legacy_tx_account_id) {
+          await db.query(`UPDATE bank_accounts SET legacy_tx_account_id = ? WHERE id = ?`, [txAcc.id, match.id])
+        }
+        continue
+      }
+
+      // No matching GL-linked account — create both a chart_of_accounts row
+      // and a bank_accounts row so this account survives in the unified list.
+      const [coaRes] = await db.query<any>(
+        `INSERT INTO chart_of_accounts
+           (account_number, account_type, account_type_group, normal_balance, status, is_active, description, name)
+         VALUES (?, 'Bank', 'Asset', 'Debit', 'active', 1, ?, ?)`,
+        [
+          txAcc.account_number || null,
+          `Auto-created from bank account "${txAcc.bank_name}" during account-list unification`,
+          `${txAcc.bank_name} — ${txAcc.account_name}`.slice(0, 255),
+        ],
+      )
+      await db.query(
+        `INSERT INTO bank_accounts
+           (chart_of_account_id, bank_name, branch_name, account_name, account_number,
+            account_type, initial_balance, current_balance, status, legacy_tx_account_id)
+         VALUES (?, ?, ?, ?, ?, 'Other', ?, ?, ?, ?)`,
+        [
+          coaRes.insertId, txAcc.bank_name, txAcc.branch_name || null, txAcc.account_name, txAcc.account_number,
+          Number(txAcc.opening_balance ?? 0), Number(txAcc.opening_balance ?? 0),
+          txAcc.status === 'active' ? 'active' : 'inactive', txAcc.id,
+        ],
+      )
+    }
+  } catch (e) {
+    console.warn('[db-migrate] bank account unification backfill failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

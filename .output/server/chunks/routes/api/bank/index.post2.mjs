@@ -1,4 +1,4 @@
-import { o as defineEventHandler, ac as readBody, k as createError, w as getDb } from '../../../nitro/nitro.mjs';
+import { o as defineEventHandler, ae as readBody, k as createError, O as getUserSession, w as getDb } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,61 +10,20 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a;
+  var _a, _b, _c, _d, _e;
   const body = await readBody(event);
-  const {
-    bank_tx_account_id,
-    transaction_date,
-    description,
-    entry_type,
-    amount,
-    reference_number,
-    cheque_number,
-    payee_payer_name,
-    special_note
-  } = body;
-  if (!bank_tx_account_id || !transaction_date || !description || !entry_type || !amount) {
-    throw createError({ statusCode: 422, statusMessage: "bank_tx_account_id, transaction_date, description, entry_type and amount are required" });
-  }
+  if (!((_a = body.name) == null ? void 0 : _a.trim())) throw createError({ statusCode: 422, statusMessage: "Type name is required" });
+  const session = await getUserSession(event);
+  const userId = (_c = (_b = session == null ? void 0 : session.user) == null ? void 0 : _b.id) != null ? _c : 1;
+  const role = ((_e = (_d = session == null ? void 0 : session.user) == null ? void 0 : _d.role) != null ? _e : "").toLowerCase();
+  if (!["admin", "superadmin"].includes(role)) throw createError({ statusCode: 403, statusMessage: "Admin only" });
   const db = getDb();
-  const conn = await db.getConnection();
-  try {
-    await conn.beginTransaction();
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_a = cnt.n) != null ? _a : 0) + 1).padStart(4, "0");
-    const txnNo = `BTX-${today}-${seq}`;
-    const [[acct]] = await conn.query(`SELECT id FROM bank_tx_accounts WHERE id = ? AND status = 'active'`, [bank_tx_account_id]);
-    if (!acct) throw createError({ statusCode: 404, statusMessage: "Bank account not found or inactive" });
-    const [result] = await conn.query(
-      `INSERT INTO bank_transactions
-         (transaction_number, bank_tx_account_id, transaction_date, description,
-          entry_type, amount, reference_number, cheque_number, payee_payer_name,
-          special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1)`,
-      [
-        txnNo,
-        bank_tx_account_id,
-        transaction_date,
-        description,
-        entry_type,
-        amount,
-        reference_number || null,
-        cheque_number || null,
-        payee_payer_name || null,
-        special_note || null
-      ]
-    );
-    await conn.commit();
-    return { id: result.insertId, transaction_number: txnNo, message: "Transaction created \u2014 pending approval" };
-  } catch (err) {
-    await conn.rollback();
-    throw err;
-  } finally {
-    conn.release();
-  }
+  const [result] = await db.query(
+    `INSERT INTO bank_tx_transaction_types (name, nature, description, chart_of_account_id, is_active, created_by_user_id)
+     VALUES (?, ?, ?, ?, 1, ?)`,
+    [body.name.trim(), body.nature || "other", body.description || null, body.chart_of_account_id || null, userId]
+  );
+  return { id: result.insertId, message: "Transaction type created" };
 });
 
 export { index_post as default };

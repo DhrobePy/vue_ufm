@@ -19,6 +19,9 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, statusMessage: 'Source and destination accounts must differ' })
   }
 
+  const session = await getUserSession(event)
+  const userId  = Number((session?.user as any)?.id ?? 1)
+
   const db   = getDb()
   const conn = await db.getConnection()
   try {
@@ -49,8 +52,8 @@ export default defineEventHandler(async (event) => {
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
           entry_type, amount, reference_number, special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, 'debit', ?, ?, ?, 'pending', 1)`,
-      [txnNo1, from_account_id, transfer_date, desc1, xferAmt, reference_number || null, notes || null],
+       VALUES (?, ?, ?, ?, 'debit', ?, ?, ?, 'pending', ?)`,
+      [txnNo1, from_account_id, transfer_date, desc1, xferAmt, reference_number || null, notes || null, userId],
     )
 
     // Credit to destination
@@ -58,9 +61,14 @@ export default defineEventHandler(async (event) => {
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
           entry_type, amount, reference_number, special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, 'credit', ?, ?, ?, 'pending', 1)`,
-      [txnNo2, to_account_id, transfer_date, desc2, xferAmt, reference_number || null, notes || null],
+       VALUES (?, ?, ?, ?, 'credit', ?, ?, ?, 'pending', ?)`,
+      [txnNo2, to_account_id, transfer_date, desc2, xferAmt, reference_number || null, notes || null, userId],
     )
+
+    // Link the two legs — both get GL-posted together as one balanced JE
+    // whenever either is approved (see [id].patch.ts).
+    await conn.query(`UPDATE bank_transactions SET transfer_pair_id = ? WHERE id = ?`, [r2.insertId, r1.insertId])
+    await conn.query(`UPDATE bank_transactions SET transfer_pair_id = ? WHERE id = ?`, [r1.insertId, r2.insertId])
 
     await conn.commit()
     return {

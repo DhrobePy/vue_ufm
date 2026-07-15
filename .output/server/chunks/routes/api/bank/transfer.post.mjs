@@ -1,4 +1,4 @@
-import { o as defineEventHandler, ac as readBody, k as createError, w as getDb } from '../../../nitro/nitro.mjs';
+import { o as defineEventHandler, ae as readBody, k as createError, O as getUserSession, w as getDb } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const transfer_post = defineEventHandler(async (event) => {
-  var _a, _b;
+  var _a, _b, _c, _d;
   const body = await readBody(event);
   const { from_account_id, to_account_id, amount, transfer_date, reference_number, notes } = body;
   if (!from_account_id || !to_account_id || !amount || !transfer_date) {
@@ -19,6 +19,8 @@ const transfer_post = defineEventHandler(async (event) => {
   if (from_account_id === to_account_id) {
     throw createError({ statusCode: 422, statusMessage: "Source and destination accounts must differ" });
   }
+  const session = await getUserSession(event);
+  const userId = Number((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1);
   const db = getDb();
   const conn = await db.getConnection();
   try {
@@ -31,8 +33,8 @@ const transfer_post = defineEventHandler(async (event) => {
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`
     );
-    const seq1 = String(((_a = cnt.n) != null ? _a : 0) + 1).padStart(4, "0");
-    const seq2 = String(((_b = cnt.n) != null ? _b : 0) + 2).padStart(4, "0");
+    const seq1 = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
+    const seq2 = String(((_d = cnt.n) != null ? _d : 0) + 2).padStart(4, "0");
     const txnNo1 = `BTX-${today}-${seq1}`;
     const txnNo2 = `BTX-${today}-${seq2}`;
     const xferAmt = Number(amount);
@@ -42,16 +44,18 @@ const transfer_post = defineEventHandler(async (event) => {
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
           entry_type, amount, reference_number, special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, 'debit', ?, ?, ?, 'pending', 1)`,
-      [txnNo1, from_account_id, transfer_date, desc1, xferAmt, reference_number || null, notes || null]
+       VALUES (?, ?, ?, ?, 'debit', ?, ?, ?, 'pending', ?)`,
+      [txnNo1, from_account_id, transfer_date, desc1, xferAmt, reference_number || null, notes || null, userId]
     );
     const [r2] = await conn.query(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
           entry_type, amount, reference_number, special_note, status, created_by_user_id)
-       VALUES (?, ?, ?, ?, 'credit', ?, ?, ?, 'pending', 1)`,
-      [txnNo2, to_account_id, transfer_date, desc2, xferAmt, reference_number || null, notes || null]
+       VALUES (?, ?, ?, ?, 'credit', ?, ?, ?, 'pending', ?)`,
+      [txnNo2, to_account_id, transfer_date, desc2, xferAmt, reference_number || null, notes || null, userId]
     );
+    await conn.query(`UPDATE bank_transactions SET transfer_pair_id = ? WHERE id = ?`, [r2.insertId, r1.insertId]);
+    await conn.query(`UPDATE bank_transactions SET transfer_pair_id = ? WHERE id = ?`, [r1.insertId, r2.insertId]);
     await conn.commit();
     return {
       debit_id: r1.insertId,

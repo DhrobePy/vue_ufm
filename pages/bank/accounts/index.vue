@@ -1,21 +1,23 @@
 <template>
   <div class="space-y-6">
-    <UiPageHeader title="Bank Accounts" subtitle="All registered company bank accounts"
+    <UiPageHeader title="Bank Accounts" subtitle="All registered company bank accounts — one list, GL-linked from creation"
                   :breadcrumb="['Bank', 'Accounts']">
       <template #actions>
+        <NuxtLink to="/bank/accounts/types" class="btn-ghost text-xs">Transaction Types</NuxtLink>
         <button @click="showAddModal = true" class="btn-gold text-xs">+ Add Account</button>
       </template>
     </UiPageHeader>
 
     <!-- Loading -->
     <div v-if="pending" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-      <div v-for="i in 3" :key="i" class="glass-card p-5 h-48 animate-pulse" />
+      <div v-for="i in 3" :key="i" class="glass-card p-5 h-56 animate-pulse" />
     </div>
+    <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
 
     <!-- Account cards -->
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
       <div v-for="(acc, idx) in accounts" :key="acc.id"
-        class="glass-card-hover p-5 space-y-4 cursor-pointer">
+        class="glass-card-hover p-5 space-y-4">
         <div class="flex items-start justify-between">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-xl flex items-center justify-center text-lg"
@@ -24,7 +26,7 @@
             </div>
             <div>
               <p class="text-sm font-semibold text-gray-200">{{ acc.bank_name }}</p>
-              <p class="text-xs text-gray-500">{{ acc.branch_name || '—' }}</p>
+              <p class="text-xs text-gray-500">{{ acc.branch_name || acc.account_name || '—' }}</p>
             </div>
           </div>
           <UiStatusBadge :status="acc.status" />
@@ -33,7 +35,11 @@
         <div class="space-y-1.5 text-xs">
           <div class="flex justify-between"><span class="text-gray-600">Account No.</span><span class="font-mono text-gray-300">{{ acc.account_number }}</span></div>
           <div class="flex justify-between"><span class="text-gray-600">Account Type</span><span class="text-gray-400">{{ acc.account_type }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-600">Currency</span><span class="text-gray-400">BDT</span></div>
+          <div class="flex justify-between">
+            <span class="text-gray-600">GL Link</span>
+            <span v-if="acc.chart_of_account_id" class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium">Linked</span>
+            <span v-else class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">Not linked</span>
+          </div>
         </div>
 
         <div class="border-t border-white/[0.06] pt-3">
@@ -43,48 +49,16 @@
 
         <div class="flex flex-wrap gap-2">
           <NuxtLink to="/bank/transaction/create" class="btn-ghost text-xs flex-1 justify-center">Transact</NuxtLink>
-          <button @click.stop="openEdit(acc)" class="btn-ghost text-xs px-3">Edit</button>
+          <button @click="openEdit(acc)" class="btn-ghost text-xs px-3">Edit</button>
         </div>
         <div class="flex gap-2">
-          <NuxtLink v-if="glMatchFor(acc)" :to="`/bank/statement?account=${glMatchFor(acc).id}`" @click.stop
-            class="btn-ghost text-xs flex-1 justify-center">📒 Statement</NuxtLink>
-          <span v-else class="text-[10px] text-gray-700 flex-1 flex items-center justify-center border border-white/[0.06] rounded-lg" title="No GL-linked account matches this account number">No GL link</span>
-          <NuxtLink :to="`/bank/reconciliation?account=${acc.id}`" @click.stop
-            class="btn-ghost text-xs flex-1 justify-center">⚖️ Reconcile</NuxtLink>
+          <NuxtLink :to="`/bank/statement?account=${acc.id}`" class="btn-ghost text-xs flex-1 justify-center">📒 Statement</NuxtLink>
+          <NuxtLink v-if="acc.tx_account_id" :to="`/bank/reconciliation?account=${acc.tx_account_id}`" class="btn-ghost text-xs flex-1 justify-center">⚖️ Reconcile</NuxtLink>
         </div>
       </div>
-    </div>
 
-    <!-- ── GL-Linked Accounts ────────────────────────────────────────────── -->
-    <div v-if="glAccounts.length" class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h2 class="section-title">GL-Linked Accounts</h2>
-        <p class="text-xs text-gray-600">Accounts with journal-entry history — click Statement to see full passbook</p>
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="(acc, idx) in glAccounts" :key="acc.id"
-             class="glass-card p-4 space-y-3">
-          <div class="flex items-start justify-between">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-lg flex items-center justify-center text-base"
-                   :style="`background: ${cardColor(idx)}15; border: 1px solid ${cardColor(idx)}30`">
-                🏦
-              </div>
-              <div>
-                <p class="text-sm font-semibold text-gray-200">{{ acc.bank_name }}</p>
-                <p class="text-xs text-gray-500">{{ acc.account_name }}</p>
-              </div>
-            </div>
-            <span class="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-medium">GL</span>
-          </div>
-          <p class="text-xs text-gray-600 font-mono">{{ acc.account_number || '—' }}</p>
-          <div class="flex gap-2 pt-1">
-            <NuxtLink :to="`/bank/statement?account=${acc.id}`"
-                      class="btn-gold text-[11px] py-1.5 px-3 flex-1 text-center">
-              📒 View Statement
-            </NuxtLink>
-          </div>
-        </div>
+      <div v-if="!accounts.length" class="sm:col-span-2 lg:col-span-3 glass-card p-14 text-center text-gray-500 text-sm">
+        No bank accounts yet — add one to get started.
       </div>
     </div>
 
@@ -111,6 +85,7 @@
               <h3 class="text-lg font-bold text-gray-100">Add Bank Account</h3>
               <button @click="showAddModal = false" class="text-gray-500 hover:text-gray-200">✕</button>
             </div>
+            <p class="text-xs text-gray-600 -mt-2">Automatically linked to the chart of accounts — ready for journal-entry posting from creation.</p>
             <div class="grid grid-cols-1 gap-4">
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bank Name *</label>
@@ -135,17 +110,12 @@
                   <option value="Savings">Savings</option>
                   <option value="Loan">Loan</option>
                   <option value="Credit">Credit</option>
-                  <option value="FDR">FDR</option>
-                  <option value="Other">Other / Cash</option>
+                  <option value="Other">Other / Cash / MFS</option>
                 </select>
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Opening Balance (৳)</label>
                 <input v-model.number="newAccount.opening_balance" type="number" class="input-glass font-mono" />
-              </div>
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Notes</label>
-                <textarea v-model="newAccount.notes" rows="2" class="input-glass resize-none" placeholder="Optional notes…" />
               </div>
             </div>
             <div class="flex gap-3 pt-2">
@@ -192,8 +162,7 @@
                   <option value="Savings">Savings</option>
                   <option value="Loan">Loan</option>
                   <option value="Credit">Credit</option>
-                  <option value="FDR">FDR</option>
-                  <option value="Other">Other / Cash</option>
+                  <option value="Other">Other / Cash / MFS</option>
                 </select>
               </div>
               <div class="space-y-1.5">
@@ -203,10 +172,6 @@
                   <option value="inactive">Inactive</option>
                   <option value="closed">Closed</option>
                 </select>
-              </div>
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Notes</label>
-                <textarea v-model="editForm.notes" rows="2" class="input-glass resize-none" />
               </div>
             </div>
             <div class="flex gap-3 pt-2">
@@ -224,41 +189,28 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-const { success, error } = useToast()
+const { success, error: toastError } = useToast()
 
 const showAddModal  = ref(false)
 const showEditModal = ref(false)
 const saving        = ref(false)
-const editingId     = ref<number | null>(null)
+const editingId      = ref<number | null>(null)
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4']
 const cardColor = (idx: number) => COLORS[idx % COLORS.length]
 
-const { data, pending, refresh } = await useFetch('/api/bank/dashboard')
+const { data, pending, error, refresh } = await useFetch('/api/bank/accounts')
 const accounts     = computed(() => (data.value as any)?.accounts ?? [])
-const totalBalance = computed(() => (data.value as any)?.stats?.total_balance ?? 0)
-
-const { data: glData } = await useFetch('/api/bank-accounts')
-const glAccounts = computed(() =>
-  ((glData.value as any)?.accounts ?? []).filter((a: any) => a.chart_of_account_id),
-)
-
-// bank_tx_accounts (this page's cards) and bank_accounts (GL-linked) are two
-// separate tables tracking the same real-world accounts, matched only by
-// account_number — no shared id.
-function glMatchFor(acc: any) {
-  if (!acc.account_number) return null
-  return glAccounts.value.find((g: any) => g.account_number === acc.account_number) ?? null
-}
+const totalBalance = computed(() => (data.value as any)?.total_balance ?? 0)
 
 const newAccount = reactive({
   bank_name: '', account_name: '', branch_name: '',
-  account_number: '', account_type: 'Checking', opening_balance: 0, notes: '',
+  account_number: '', account_type: 'Checking', opening_balance: 0,
 })
 
 const editForm = reactive({
   bank_name: '', account_name: '', branch_name: '',
-  account_number: '', account_type: 'Checking', status: 'active', notes: '',
+  account_number: '', account_type: 'Checking', status: 'active',
 })
 
 function openEdit(acc: any) {
@@ -270,7 +222,6 @@ function openEdit(acc: any) {
     account_number: acc.account_number ?? '',
     account_type:   acc.account_type   ?? 'Checking',
     status:         acc.status         ?? 'active',
-    notes:          acc.notes          ?? '',
   })
   showEditModal.value = true
 }
@@ -282,10 +233,10 @@ async function addAccount() {
     await $fetch('/api/bank/accounts', { method: 'POST', body: { ...newAccount } })
     success(`Account "${newAccount.bank_name}" added`)
     showAddModal.value = false
-    Object.assign(newAccount, { bank_name: '', account_name: '', branch_name: '', account_number: '', account_type: 'Checking', opening_balance: 0, notes: '' })
+    Object.assign(newAccount, { bank_name: '', account_name: '', branch_name: '', account_number: '', account_type: 'Checking', opening_balance: 0 })
     await refresh()
   } catch (e: any) {
-    error(e?.data?.statusMessage ?? 'Failed to add account')
+    toastError(e?.data?.statusMessage ?? 'Failed to add account')
   } finally {
     saving.value = false
   }
@@ -300,7 +251,7 @@ async function saveEdit() {
     showEditModal.value = false
     await refresh()
   } catch (e: any) {
-    error(e?.data?.statusMessage ?? 'Failed to update account')
+    toastError(e?.data?.statusMessage ?? 'Failed to update account')
   } finally {
     saving.value = false
   }

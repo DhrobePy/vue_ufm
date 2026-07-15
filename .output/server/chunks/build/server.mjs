@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { k as createError$1, a4 as parseURL, s as encodePath, n as decodePath, Q as hasProtocol, W as isScriptProtocol, X as joinURL, aA as withQuery, q as defu, ao as sanitizeStatusCode, u as getContext, $ as $fetch$1, f as baseURL, l as createHooks, t as executeAsync } from '../nitro/nitro.mjs';
+import { k as createError$1, a4 as parseURL, s as encodePath, n as decodePath, Q as hasProtocol, W as isScriptProtocol, X as joinURL, aD as withQuery, q as defu, ar as sanitizeStatusCode, u as getContext, $ as $fetch$1, f as baseURL, l as createHooks, t as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'node:crypto';
@@ -800,7 +800,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$20 || {},
-    component: () => import('./create-Bryn_Yld.mjs')
+    component: () => import('./create-B24E5tjM.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -884,7 +884,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$1O || {},
-    component: () => import('./vouchers-Byax4Ql0.mjs')
+    component: () => import('./vouchers-CeLHevcR.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -950,13 +950,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1D || {},
-    component: () => import('./create-DlOmSA7H.mjs')
+    component: () => import('./create-BR9BhkDt.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1C || {},
-    component: () => import('./index-BWO0OmlL.mjs')
+    component: () => import('./index-Ts7CehNj.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -992,13 +992,13 @@ const _routes = [
     name: "bank-accounts",
     path: "/bank/accounts",
     meta: __nuxt_page_meta$1w || {},
-    component: () => import('./index-DfNQpx4N.mjs')
+    component: () => import('./index-BRzqFP-o.mjs')
   },
   {
     name: "bank-accounts-types",
     path: "/bank/accounts/types",
     meta: __nuxt_page_meta$1v || {},
-    component: () => import('./types-8RXczxVS.mjs')
+    component: () => import('./types-DRNnbrvE.mjs')
   },
   {
     name: "bank-reconciliation",
@@ -1124,7 +1124,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1a || {},
-    component: () => import('./edit-Bx_cqwkb.mjs')
+    component: () => import('./edit-BZjS3t7U.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1280,7 +1280,7 @@ const _routes = [
     name: "bank-transaction-create",
     path: "/bank/transaction/create",
     meta: __nuxt_page_meta$M || {},
-    component: () => import('./create-B0EVptxs.mjs')
+    component: () => import('./create-Ba_SSUMD.mjs')
   },
   {
     name: "credit-sales-id-amend",

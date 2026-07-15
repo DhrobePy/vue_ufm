@@ -52,17 +52,17 @@
           <input v-model.number="form.amount" type="number" min="1" class="field-input text-lg font-bold" placeholder="0.00" />
         </div>
 
-        <!-- Category -->
+        <!-- Transaction Type -->
         <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Category</label>
-          <select v-model="form.category" class="field-input">
-            <option value="receipt">Customer Receipt</option>
-            <option value="payment">Supplier Payment</option>
-            <option value="salary">Salary / Wages</option>
-            <option value="utility">Utility / Bill</option>
-            <option value="transfer">Internal Transfer</option>
-            <option value="other">Other</option>
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Transaction Type *</label>
+          <select v-model="form.transactionTypeId" class="field-input">
+            <option value="">Select type…</option>
+            <option v-for="t in types" :key="t.id" :value="t.id">{{ t.name }}</option>
           </select>
+          <p class="text-[11px] text-gray-600">
+            Determines which GL account this posts against when approved.
+            <NuxtLink to="/bank/accounts/types" class="text-gold-500 hover:text-gold-400">Manage types →</NuxtLink>
+          </p>
         </div>
 
         <!-- Reference No. -->
@@ -128,12 +128,15 @@ const loadingEdit = ref(editMode)
 const { data: acctData } = await useFetch('/api/bank/dashboard')
 const accounts = computed(() => (acctData.value?.accounts ?? []) as any[])
 
+const { data: typeData } = await useFetch('/api/bank/transaction-types')
+const types = computed(() => ((typeData.value as any)?.types ?? []).filter((t: any) => t.is_active))
+
 const form = reactive({
   type:             'credit' as 'credit' | 'debit',
   accountId:        '' as any,
   date:             new Date().toISOString().slice(0, 10),
   amount:           null as number | null,
-  category:         'receipt',
+  transactionTypeId: '' as any,
   reference:        '',
   cheque_number:    '',
   payee_payer_name: '',
@@ -151,6 +154,7 @@ if (editMode) {
       accountId:        t.bank_tx_account_id,
       date:             String(t.transaction_date).slice(0, 10),
       amount:           Number(t.amount),
+      transactionTypeId: t.transaction_type_id || '',
       reference:        t.reference_number || '',
       cheque_number:    t.cheque_number    || '',
       payee_payer_name: t.payee_payer_name || '',
@@ -171,7 +175,8 @@ const isValid = computed(() =>
   form.date &&
   form.amount &&
   Number(form.amount) > 0 &&
-  form.description.trim(),
+  form.description.trim() &&
+  form.transactionTypeId,
 )
 
 async function submit() {
@@ -186,6 +191,7 @@ async function submit() {
           transaction_date:  form.date,
           description:       form.description.trim(),
           amount:            form.amount,
+          transaction_type_id: Number(form.transactionTypeId),
           reference_number:  form.reference    || undefined,
           cheque_number:     form.cheque_number || undefined,
           payee_payer_name:  form.payee_payer_name || undefined,
@@ -202,6 +208,7 @@ async function submit() {
           description:        form.description.trim(),
           entry_type:         form.type,
           amount:             form.amount,
+          transaction_type_id: Number(form.transactionTypeId),
           reference_number:   form.reference        || undefined,
           cheque_number:      form.cheque_number     || undefined,
           payee_payer_name:   form.payee_payer_name  || undefined,

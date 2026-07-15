@@ -1,4 +1,4 @@
-import { o as defineEventHandler, L as getRouterParam, ac as readBody, O as getUserSession, k as createError, w as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, L as getRouterParam, ae as readBody, O as getUserSession, k as createError, w as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -23,23 +23,67 @@ const _id__patch = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const [[old]] = await conn.query(`SELECT * FROM bank_tx_accounts WHERE id = ?`, [id]);
+    const [[old]] = await conn.query(`SELECT * FROM bank_accounts WHERE id = ?`, [id]);
     if (!old) throw createError({ statusCode: 404, statusMessage: "Account not found" });
     const sets = [];
     const vals = [];
-    const fields = ["bank_name", "account_name", "branch_name", "account_number", "account_type", "opening_balance", "status"];
+    const fields = ["bank_name", "account_name", "branch_name", "account_number", "account_type", "status"];
     for (const f of fields) {
       if (body[f] !== void 0) {
         sets.push(`${f} = ?`);
         vals.push(body[f]);
       }
     }
+    if (body.opening_balance !== void 0) {
+      sets.push("initial_balance = ?");
+      vals.push(Number(body.opening_balance));
+    }
     if (!sets.length) {
       await conn.rollback();
       return { message: "Nothing to update" };
     }
     sets.push("updated_at = NOW()");
-    await conn.query(`UPDATE bank_tx_accounts SET ${sets.join(", ")} WHERE id = ?`, [...vals, id]);
+    await conn.query(`UPDATE bank_accounts SET ${sets.join(", ")} WHERE id = ?`, [...vals, id]);
+    if (old.legacy_tx_account_id) {
+      const mirrorSets = [];
+      const mirrorVals = [];
+      if (body.bank_name !== void 0) {
+        mirrorSets.push("bank_name = ?");
+        mirrorVals.push(body.bank_name);
+      }
+      if (body.account_name !== void 0) {
+        mirrorSets.push("account_name = ?");
+        mirrorVals.push(body.account_name);
+      }
+      if (body.branch_name !== void 0) {
+        mirrorSets.push("branch_name = ?");
+        mirrorVals.push(body.branch_name);
+      }
+      if (body.account_number !== void 0) {
+        mirrorSets.push("account_number = ?");
+        mirrorVals.push(body.account_number);
+      }
+      if (body.opening_balance !== void 0) {
+        mirrorSets.push("opening_balance = ?");
+        mirrorVals.push(Number(body.opening_balance));
+      }
+      if (body.status !== void 0) {
+        mirrorSets.push("status = ?");
+        mirrorVals.push(body.status === "closed" ? "inactive" : body.status);
+      }
+      if (mirrorSets.length) {
+        mirrorSets.push("updated_at = NOW()");
+        await conn.query(`UPDATE bank_tx_accounts SET ${mirrorSets.join(", ")} WHERE id = ?`, [...mirrorVals, old.legacy_tx_account_id]);
+      }
+    }
+    if ((body.bank_name !== void 0 || body.account_name !== void 0) && old.chart_of_account_id) {
+      const newBankName = (_e = body.bank_name) != null ? _e : old.bank_name;
+      const newAccountName = (_f = body.account_name) != null ? _f : old.account_name;
+      await conn.query(
+        `UPDATE chart_of_accounts SET name = ? WHERE id = ?`,
+        [`${newBankName} \u2014 ${newAccountName}`.slice(0, 255), old.chart_of_account_id]
+      );
+    }
     await auditLog(conn, { userId, action: "user_updated", module: "bank", recordType: "bank_account", recordId: id, description: `Bank account "${old.bank_name}" updated` });
     await conn.commit();
     return { message: "Account updated successfully" };

@@ -1,4 +1,4 @@
-import { o as defineEventHandler, L as getRouterParam, ac as readBody, O as getUserSession, k as createError, w as getDb } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, L as getRouterParam, ae as readBody, O as getUserSession, k as createError, w as getDb } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -43,6 +43,10 @@ const _id__patch = defineEventHandler(async (event) => {
     if (body.is_active !== void 0) {
       sets.push("is_active = ?");
       vals.push(body.is_active ? 1 : 0);
+    }
+    if (body.chart_of_account_id !== void 0) {
+      sets.push("chart_of_account_id = ?");
+      vals.push(body.chart_of_account_id || null);
     }
     if (sets.length) {
       await conn.query(`UPDATE bank_tx_transaction_types SET ${sets.join(", ")} WHERE id = ?`, [...vals, id]);
