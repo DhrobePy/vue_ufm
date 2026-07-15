@@ -3,6 +3,7 @@ import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
+import { bridgeCustomerPayment } from '~/server/utils/bankBridge'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -335,6 +336,14 @@ export default defineEventHandler(async (event) => {
       (isNowComplete ? '\n✅ Order fully paid & completed' : '') +
       (autoReleased ? '\n🟢 Dispatch clearance auto-released' : ''),
     )
+
+    if (mappedMethod !== 'Cash' && bank_account_id) {
+      bridgeCustomerPayment(getDb(), {
+        paymentId: paymentId, bankAccountId: Number(bank_account_id), method: mappedMethod,
+        amount: pmtAmount, date: pmtDate, payerName: order.customer_name,
+        referenceNumber: reference_number, userId,
+      })
+    }
 
     return {
       ok: true,

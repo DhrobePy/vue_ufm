@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, ab as readBody, N as getUserSession, E as getRequestHeader, aw as userCanAction, A as ACCOUNTS_ROLES, v as getDb, h as checkTransactionLimit, aa as queuePendingRequest, ap as sendTelegram, B as getOrderGateState, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, L as getRouterParam, k as createError, ac as readBody, O as getUserSession, F as getRequestHeader, ax as userCanAction, A as ACCOUNTS_ROLES, w as getDb, i as checkTransactionLimit, ab as queuePendingRequest, aq as sendTelegram, C as getOrderGateState, e as auditLog, g as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -292,6 +292,18 @@ ${order.order_number} \u2014 ${order.customer_name}
 ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
 \u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()}` + (isNowComplete ? "\n\u2705 Order fully paid & completed" : "") + (autoReleased ? "\n\u{1F7E2} Dispatch clearance auto-released" : "")
     );
+    if (mappedMethod !== "Cash" && bank_account_id) {
+      bridgeCustomerPayment(getDb(), {
+        paymentId,
+        bankAccountId: Number(bank_account_id),
+        method: mappedMethod,
+        amount: pmtAmount,
+        date: pmtDate,
+        payerName: order.customer_name,
+        referenceNumber: reference_number,
+        userId
+      });
+    }
     return {
       ok: true,
       id: paymentId,

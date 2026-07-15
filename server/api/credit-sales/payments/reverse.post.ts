@@ -2,6 +2,7 @@ import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { ADMIN_ROLES, postJournalEntry, postCustomerLedger } from '~/server/utils/creditOrders'
+import { voidBridgedTransaction } from '~/server/utils/bankBridge'
 
 /**
  * POST /api/credit-sales/payments/reverse
@@ -171,6 +172,9 @@ export default defineEventHandler(async (event) => {
        WHERE id = ?`,
       [userId, reason ?? null, reversalJeId, payment_id],
     )
+
+    // 6b. Void any still-pending bank-bridge row this payment created
+    await voidBridgedTransaction(conn, Number(payment_id))
 
     // 7. Audit log
     await auditLog(conn, {

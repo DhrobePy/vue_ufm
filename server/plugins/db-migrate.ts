@@ -1050,5 +1050,9 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] wheat commodity seed failed:', e)
   }
 
+  // ── 51. Bank auto-bridge — link a bank_transactions row back to the
+  //    customer_payments row that created it (spec §2.4 step 9 / §4.6) ──────
+  await addCol(db, 'bank_transactions', 'source_payment_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

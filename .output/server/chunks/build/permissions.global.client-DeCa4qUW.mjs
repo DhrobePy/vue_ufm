@@ -1,4 +1,4 @@
-import { s as executeAsync } from '../nitro/nitro.mjs';
+import { t as executeAsync } from '../nitro/nitro.mjs';
 import { f as defineNuxtRouteMiddleware, p as useUserSession, n as navigateTo } from './server.mjs';
 import { u as usePermissions } from './usePermissions-1JHq5yCv.mjs';
 import 'node:crypto';

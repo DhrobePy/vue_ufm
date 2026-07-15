@@ -6,6 +6,7 @@ import {
   postJournalEntry, postCustomerLedger, nextDocNumber,
   checkTransactionLimit, queuePendingRequest,
 } from '~/server/utils/creditOrders'
+import { bridgeCustomerPayment } from '~/server/utils/bankBridge'
 
 const DISPATCHED = ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed']
 
@@ -241,6 +242,15 @@ export default defineEventHandler(async (event) => {
       (autoReleasedOrders.length ? `\n🟢 Auto-released: ${autoReleasedOrders.join(', ')}` : '') +
       `\nby ${userName}`,
     )
+
+    if (method !== 'Cash' && body?.bank_account_id) {
+      bridgeCustomerPayment(getDb(), {
+        paymentId, bankAccountId: Number(body.bank_account_id), method,
+        amount, date: pmtDate, payerName: customer.name,
+        referenceNumber: body?.reference_number, chequeNumber: body?.cheque_number, userId,
+      })
+    }
+
     return { ok: true, id: paymentId, payment_number: payNo, auto_released: autoReleasedOrders }
   } catch (e) {
     await conn.rollback()

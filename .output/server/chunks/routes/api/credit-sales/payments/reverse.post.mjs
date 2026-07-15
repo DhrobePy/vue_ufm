@@ -1,4 +1,4 @@
-import { n as defineEventHandler, ab as readBody, N as getUserSession, j as createError, E as getRequestHeader, a as ADMIN_ROLES, v as getDb, a6 as postJournalEntry, a4 as postCustomerLedger, e as auditLog, ap as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, ac as readBody, O as getUserSession, k as createError, F as getRequestHeader, a as ADMIN_ROLES, w as getDb, a7 as postJournalEntry, a5 as postCustomerLedger, az as voidBridgedTransaction, e as auditLog, aq as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -152,6 +152,7 @@ const reverse_post = defineEventHandler(async (event) => {
        WHERE id = ?`,
       [userId, reason != null ? reason : null, reversalJeId, payment_id]
     );
+    await voidBridgedTransaction(conn, Number(payment_id));
     await auditLog(conn, {
       userId,
       action: "other",

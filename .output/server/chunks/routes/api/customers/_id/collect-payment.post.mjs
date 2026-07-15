@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, ab as readBody, N as getUserSession, j as createError, T as isAccountsRole, v as getDb, h as checkTransactionLimit, aa as queuePendingRequest, ap as sendTelegram, Y as nextDocNumber, B as getOrderGateState, y as getGLAccountId, a6 as postJournalEntry, a4 as postCustomerLedger, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, L as getRouterParam, ac as readBody, O as getUserSession, k as createError, U as isAccountsRole, w as getDb, i as checkTransactionLimit, ab as queuePendingRequest, aq as sendTelegram, Z as nextDocNumber, C as getOrderGateState, z as getGLAccountId, a7 as postJournalEntry, a5 as postCustomerLedger, e as auditLog, g as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -233,6 +233,19 @@ ${payNo} \u2014 ${customer.name}
 \u{1F7E2} Auto-released: ${autoReleasedOrders.join(", ")}` : "") + `
 by ${userName}`
     );
+    if (method !== "Cash" && (body == null ? void 0 : body.bank_account_id)) {
+      bridgeCustomerPayment(getDb(), {
+        paymentId,
+        bankAccountId: Number(body.bank_account_id),
+        method,
+        amount,
+        date: pmtDate,
+        payerName: customer.name,
+        referenceNumber: body == null ? void 0 : body.reference_number,
+        chequeNumber: body == null ? void 0 : body.cheque_number,
+        userId
+      });
+    }
     return { ok: true, id: paymentId, payment_number: payNo, auto_released: autoReleasedOrders };
   } catch (e) {
     await conn.rollback();
