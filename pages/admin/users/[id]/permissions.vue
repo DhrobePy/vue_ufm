@@ -341,6 +341,8 @@ const moduleRegistry = [
         actions: [
           { key: 'edit_limits', label: 'Edit Customer Credit Limits' },
         ] },
+      { key: 'order_status', label: 'Order Status Override (admin)', route: 'credit-sales/order-status',
+        actions: [] },
     ],
   },
   {

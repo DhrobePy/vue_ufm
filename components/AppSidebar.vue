@@ -86,6 +86,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/over-deliveries')" label="Over-Deliveries"   route="/credit-sales/over-deliveries" :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/collect')" label="Collect Payment"   route="/credit-sales/collect"      :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ageing')" label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="isAdminUser" label="Status Override"  route="/credit-sales/order-status" :collapsed="collapsed" icon-type="cog"       sub />
       </SidebarGroup>
 
       <!-- Fleet Management -->
