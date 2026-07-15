@@ -145,8 +145,9 @@ ${order.order_number} \u2014 ${order.customer_name}
         order.customer_id,
         pmtDate,
         paymentId,
-        autoRef.slice(0, 50),
-        // invoice_number VARCHAR(50) — truncate long refs
+        payNo,
+        // always the system PAY-number — autoRef may be a customer-typed bank slip
+        // reference (reference_number), which belongs on the payment row, not here
         `Payment received \u2014 ${payNo} (${mappedMethod})`,
         pmtAmount,
         newBal,

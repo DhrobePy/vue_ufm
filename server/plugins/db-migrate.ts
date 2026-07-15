@@ -857,5 +857,26 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'payment_allocations', 'reversed',
     "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 once the parent payment has been reversed'")
 
+  // ── 47. Backfill: customer_ledger.invoice_number for payment rows ─────────
+  // credit-sales/[id]/payment.post.ts used to write whatever the collector
+  // typed into "Reference Number" (a bank slip number, e.g. "1232") into the
+  // ledger's invoice_number/reference column instead of the system's own
+  // PAY-YYYYMMDD-#### number — every other ledger writer uses the system
+  // number there. Cosmetic only (balances were never wrong), but it made the
+  // Customer Ledger page's Reference column show raw bank slips instead of
+  // something a user could trace back to the payment. Safe to re-run: only
+  // touches rows that still disagree with the real payment_number.
+  try {
+    await db.query(`
+      UPDATE customer_ledger l
+      JOIN customer_payments p ON p.id = l.reference_id
+      SET l.invoice_number = p.payment_number
+      WHERE l.reference_type = 'customer_payment'
+        AND (l.invoice_number IS NULL OR l.invoice_number <> p.payment_number)
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] customer_ledger invoice_number backfill failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })
