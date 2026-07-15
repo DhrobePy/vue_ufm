@@ -971,5 +971,84 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] recycle bin tables failed:', e)
   }
 
+  // ── 50. Multi-commodity procurement (spec §2.12) ───────────────────────────
+  // Purchase was hardcoded to wheat (a free-text `wheat_origin` + fixed
+  // MT-denominated quantity/price). This adds a real commodity catalog —
+  // one commodity per PO, each with its own unit, allowed origins, and
+  // optionally-scoped supplier list ("no links = show all" — see
+  // server/api/purchase/commodities.get.ts). `quantity_kg`/`unit_price_per_kg`
+  // stay the underlying storage columns for every commodity (renaming them
+  // across ~15 read sites wasn't worth the risk to a money-critical table);
+  // only the 'MT' unit gets the existing MT-entry ×1000-to-kg UX — every
+  // other unit stores what the user typed 1:1. Wheat is seeded as the
+  // default commodity and every existing PO is backfilled onto it, so
+  // current wheat flows are byte-for-byte unchanged.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS purchase_commodities (
+        id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name                  VARCHAR(100) NOT NULL,
+        unit                  VARCHAR(10)  NOT NULL DEFAULT 'KG' COMMENT 'KG|MT|pcs|bag|litre|ton|box',
+        inventory_account_id  INT UNSIGNED NULL COMMENT 'chart_of_accounts.id — reserved for future GRN GL posting',
+        status                VARCHAR(20)  NOT NULL DEFAULT 'active' COMMENT 'active | inactive',
+        sort_order            INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_commodity_name (name)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS purchase_commodity_origins (
+        id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        commodity_id  INT UNSIGNED NOT NULL,
+        origin_name   VARCHAR(100) NOT NULL,
+        sort_order    INT UNSIGNED NOT NULL DEFAULT 0,
+        INDEX idx_pco_commodity (commodity_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS supplier_commodities (
+        id            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        supplier_id   INT UNSIGNED NOT NULL,
+        commodity_id  INT UNSIGNED NOT NULL,
+        UNIQUE KEY uq_supplier_commodity (supplier_id, commodity_id),
+        INDEX idx_sc_commodity (commodity_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) {
+    console.warn('[db-migrate] purchase commodity tables failed:', e)
+  }
+
+  await addCol(db, 'purchase_orders_adnan', 'commodity_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
+  // Seed "Wheat" as commodity #1 (idempotent) and backfill every PO that
+  // predates this migration onto it, then seed its historical origin list
+  // (the values that used to be hardcoded in create.vue / edit.vue).
+  try {
+    await db.query(
+      `INSERT IGNORE INTO purchase_commodities (name, unit, status, sort_order) VALUES ('Wheat', 'MT', 'active', 0)`,
+    )
+    const [[wheat]] = await db.query<any>(`SELECT id FROM purchase_commodities WHERE name = 'Wheat'`)
+    if (wheat?.id) {
+      await db.query(
+        `UPDATE purchase_orders_adnan SET commodity_id = ? WHERE commodity_id IS NULL`, [wheat.id],
+      )
+      const [[originCnt]] = await db.query<any>(
+        `SELECT COUNT(*) AS n FROM purchase_commodity_origins WHERE commodity_id = ?`, [wheat.id],
+      )
+      if (!originCnt.n) {
+        const origins = ['কানাডা', 'রাশিয়া', 'Australia', 'Ukraine', 'India', 'USA', 'Argentina', 'Local', 'Brazil', 'Other']
+        for (let i = 0; i < origins.length; i++) {
+          await db.query(
+            `INSERT INTO purchase_commodity_origins (commodity_id, origin_name, sort_order) VALUES (?, ?, ?)`,
+            [wheat.id, origins[i], i],
+          )
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[db-migrate] wheat commodity seed failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

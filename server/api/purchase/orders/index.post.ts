@@ -7,19 +7,25 @@ export default defineEventHandler(async (event) => {
   const userId  = session?.user?.id ?? 1
 
   const {
+    commodity_id,
     supplier_id,
     po_date,
-    wheat_origin,
+    origin,
+    wheat_origin,   // back-compat alias — older client build / direct API callers
     expected_delivery_date,
     payment_terms = 'Credit 30',
-    quantity_mt,    // metric tonnes
-    unit_price_per_mt,
+    quantity, quantity_mt,           // quantity_mt = back-compat alias (implies MT)
+    unit_price, unit_price_per_mt,   // unit_price_per_mt = back-compat alias
     remarks,
     branch_id,
   } = body ?? {}
 
-  if (!supplier_id || !po_date || !quantity_mt || !unit_price_per_mt) {
-    throw createError({ statusCode: 400, statusMessage: 'supplier_id, po_date, quantity_mt and unit_price_per_mt are required' })
+  const qty       = quantity ?? quantity_mt
+  const price     = unit_price ?? unit_price_per_mt
+  const originVal = origin ?? wheat_origin
+
+  if (!supplier_id || !po_date || !qty || !price) {
+    throw createError({ statusCode: 400, statusMessage: 'supplier_id, po_date, quantity and unit_price are required' })
   }
 
   const db   = getDb()
@@ -36,6 +42,19 @@ export default defineEventHandler(async (event) => {
     )
     const supplierName = sup?.company_name ?? ''
 
+    // Resolve the commodity — default to Wheat (seeded by db-migrate) when
+    // omitted, so pre-catalog callers keep working unchanged.
+    let commodityId = commodity_id ? Number(commodity_id) : null
+    let commodityUnit = 'MT'
+    if (commodityId) {
+      const [[comm]] = await conn.query<any>(`SELECT unit FROM purchase_commodities WHERE id = ?`, [commodityId])
+      commodityUnit = comm?.unit ?? 'MT'
+    } else {
+      const [[wheat]] = await conn.query<any>(`SELECT id, unit FROM purchase_commodities WHERE name = 'Wheat'`)
+      commodityId = wheat?.id ?? null
+      commodityUnit = wheat?.unit ?? 'MT'
+    }
+
     // Generate PO number: PO-YYYYMMDD-NNNN
     const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const [[cnt]] = await conn.query<any>(
@@ -44,20 +63,22 @@ export default defineEventHandler(async (event) => {
     const seq    = String((cnt.n ?? 0) + 1).padStart(4, '0')
     const poNo   = `PO-${today}-${seq}`
 
-    // Convert MT → kg  (1 MT = 1000 kg)
-    const quantity_kg        = Number(quantity_mt) * 1000
-    const unit_price_per_kg  = Number(unit_price_per_mt) / 1000
+    // 'MT' keeps the historical MT-entry → kg-storage conversion (1 MT = 1000 kg);
+    // every other commodity unit stores exactly what was entered, 1:1.
+    const isMt               = commodityUnit === 'MT'
+    const quantity_kg        = isMt ? Number(qty) * 1000 : Number(qty)
+    const unit_price_per_kg  = isMt ? Number(price) / 1000 : Number(price)
     const total_order_value  = quantity_kg * unit_price_per_kg
 
     const [result] = await conn.query<any>(
       `INSERT INTO purchase_orders_adnan
-         (po_number, po_date, supplier_id, supplier_name, wheat_origin,
+         (po_number, po_date, supplier_id, supplier_name, wheat_origin, commodity_id,
           expected_delivery_date, po_payment_terms, quantity_kg, unit_price_per_kg,
           total_order_value, balance_payable,
           po_status, delivery_status, payment_status,
           branch_id, created_by_user_id, remarks,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?,
                ?, ?,
                'approved', 'pending', 'unpaid',
@@ -65,7 +86,7 @@ export default defineEventHandler(async (event) => {
                NOW(), NOW())`,
       [
         poNo, po_date, Number(supplier_id), supplierName,
-        wheat_origin || 'Other',
+        originVal || 'Other', commodityId,
         expected_delivery_date ?? null, payment_terms || 'Credit 30', quantity_kg, unit_price_per_kg,
         total_order_value, total_order_value,
         branch_id ? Number(branch_id) : null, userId, remarks ?? null,

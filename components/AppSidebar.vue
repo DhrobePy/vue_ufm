@@ -114,6 +114,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/adjustments')" label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/suppliers')" label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/suppliers/summary')" label="Supplier Summary" route="/purchase/suppliers/summary" :collapsed="collapsed" icon-type="chart"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/commodities')" label="Commodities"     route="/purchase/commodities"       :collapsed="collapsed" icon-type="box"       sub />
       </SidebarGroup>
 
       <!-- Finance section ────────────────────────────── -->

@@ -58,7 +58,7 @@
                 <p class="text-gray-300">Expected: <span class="text-gray-200 font-semibold">{{ fmtDate(po.expected_delivery_date) }}</span></p>
                 <p class="text-gray-300">To: <span class="text-gray-200">{{ po.branch_name || '—' }}</span></p>
                 <p class="text-gray-300">Payment Terms: <span class="text-gray-200 font-semibold">{{ ptLabel(po.po_payment_terms || po.supplier_payment_terms || '') }}</span></p>
-                <p class="text-gray-300">Wheat Origin: <span class="text-gray-200">{{ po.wheat_origin || '—' }}</span></p>
+                <p class="text-gray-300">{{ po.commodity_name ?? 'Wheat' }} Origin: <span class="text-gray-200">{{ po.wheat_origin || '—' }}</span></p>
               </div>
             </div>
 
@@ -67,14 +67,14 @@
               <thead>
                 <tr class="border-b border-white/[0.06]">
                   <th class="pb-2 px-3 text-left text-gray-600 font-semibold uppercase tracking-wider">Product</th>
-                  <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Qty (kg)</th>
-                  <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Rate / kg</th>
+                  <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Qty ({{ poUnitLabel }})</th>
+                  <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Rate / {{ poUnitLabel }}</th>
                   <th class="pb-2 px-3 text-right text-gray-600 font-semibold uppercase tracking-wider">Total Value</th>
                 </tr>
               </thead>
               <tbody>
                 <tr>
-                  <td class="py-3 px-3 text-gray-200">{{ po.wheat_origin ? po.wheat_origin + ' Wheat' : 'Wheat' }}</td>
+                  <td class="py-3 px-3 text-gray-200">{{ po.wheat_origin ? po.wheat_origin + ' ' + (po.commodity_name ?? 'Wheat') : (po.commodity_name ?? 'Wheat') }}</td>
                   <td class="py-3 px-3 text-right font-mono text-gray-300">{{ Number(po.quantity_kg).toLocaleString() }}</td>
                   <td class="py-3 px-3 text-right font-mono text-gray-300">৳{{ Number(po.unit_price_per_kg || 0).toLocaleString() }}</td>
                   <td class="py-3 px-3 text-right font-mono font-bold text-gray-200">৳{{ Number(po.total_order_value).toLocaleString() }}</td>
@@ -256,6 +256,13 @@ const { data, pending, error, refresh } = await useFetch(
 const po       = computed(() => (data.value?.po       ?? {}) as any)
 const grns     = computed(() => (data.value?.grns     ?? []) as any[])
 const payments = computed(() => (data.value?.payments ?? []) as any[])
+
+// MT-quoted commodities (wheat) are stored/received in KG; everything else
+// stores 1:1 in its own catalog unit.
+const poUnitLabel = computed(() => {
+  const u = po.value?.commodity_unit
+  return (!u || u === 'MT') ? 'KG' : u
+})
 
 // Supplier credit
 const availableCredit = ref(0)

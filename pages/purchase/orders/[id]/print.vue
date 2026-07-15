@@ -132,8 +132,8 @@
                 <th style="padding:11px 10px;text-align:left;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">#</th>
                 <th style="padding:11px 10px;text-align:left;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Product Description</th>
                 <th style="padding:11px 10px;text-align:center;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Origin</th>
-                <th style="padding:11px 10px;text-align:right;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Quantity (MT)</th>
-                <th style="padding:11px 10px;text-align:right;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Unit Price/MT</th>
+                <th style="padding:11px 10px;text-align:right;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Quantity ({{ printUnit }})</th>
+                <th style="padding:11px 10px;text-align:right;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Unit Price/{{ printUnit }}</th>
                 <th style="padding:11px 10px;text-align:right;font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;">Line Total</th>
               </tr>
             </thead>
@@ -143,7 +143,7 @@
                 <td style="padding:12px 10px;font-size:11px;color:#9ca3af;font-weight:600;">{{ i + 1 }}</td>
                 <td style="padding:12px 10px;">
                   <div style="font-size:13px;font-weight:700;color:#111;">{{ item.product }}</div>
-                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Wheat flour raw material · Ujjal FMC procurement</div>
+                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">{{ commodityName }} · Ujjal FMC procurement</div>
                 </td>
                 <td style="padding:12px 10px;text-align:center;font-size:12px;color:#374151;font-weight:600;">{{ po.origin }}</td>
                 <td style="padding:12px 10px;text-align:right;font-size:13px;font-weight:700;color:#374151;font-family:monospace;">{{ item.qty.toLocaleString() }}</td>
@@ -170,7 +170,7 @@
           <div style="background:#faf8f5;border-radius:12px;padding:18px;border:1px solid #f0ede8;align-self:start;">
             <div v-for="item in po.items" :key="item.product"
                  style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid #f0ede8;margin-bottom:4px;">
-              <span style="color:#6b7280;">{{ item.qty }} MT × ৳{{ item.unitPrice.toLocaleString() }}</span>
+              <span style="color:#6b7280;">{{ item.qty }} {{ printUnit }} × ৳{{ item.unitPrice.toLocaleString() }}</span>
               <span style="font-family:monospace;color:#374151;">৳{{ (item.qty * item.unitPrice).toLocaleString() }}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px;">
@@ -195,9 +195,9 @@
              style="margin:0 40px;padding:18px 20px;background:#f0fdf4;border-radius:10px;border:1px solid #bbf7d0;margin-bottom:20px;">
           <div style="font-size:9px;font-weight:800;color:#166534;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:12px;">Delivery Progress</div>
           <div style="display:flex;gap:32px;margin-bottom:12px;">
-            <div><div style="font-size:10px;color:#6b7280;">Ordered</div><div style="font-size:16px;font-weight:800;color:#111;font-family:monospace;">{{ totalOrdered }} MT</div></div>
-            <div><div style="font-size:10px;color:#6b7280;">Received</div><div style="font-size:16px;font-weight:800;color:#16a34a;font-family:monospace;">{{ totalReceived }} MT</div></div>
-            <div><div style="font-size:10px;color:#6b7280;">Pending</div><div style="font-size:16px;font-weight:800;color:#ca8a04;font-family:monospace;">{{ totalOrdered - totalReceived }} MT</div></div>
+            <div><div style="font-size:10px;color:#6b7280;">Ordered</div><div style="font-size:16px;font-weight:800;color:#111;font-family:monospace;">{{ totalOrdered }} {{ printUnit }}</div></div>
+            <div><div style="font-size:10px;color:#6b7280;">Received</div><div style="font-size:16px;font-weight:800;color:#16a34a;font-family:monospace;">{{ totalReceived }} {{ printUnit }}</div></div>
+            <div><div style="font-size:10px;color:#6b7280;">Pending</div><div style="font-size:16px;font-weight:800;color:#ca8a04;font-family:monospace;">{{ totalOrdered - totalReceived }} {{ printUnit }}</div></div>
             <div><div style="font-size:10px;color:#6b7280;">Completion</div><div style="font-size:16px;font-weight:800;color:#374151;font-family:monospace;">{{ Math.round(totalReceived/totalOrdered*100) }}%</div></div>
           </div>
           <!-- Progress bar -->
@@ -210,7 +210,7 @@
               <tr style="border-bottom:1px solid #bbf7d0;">
                 <th style="padding:4px 8px;text-align:left;font-size:9px;color:#166534;font-weight:700;text-transform:uppercase;">GRN No.</th>
                 <th style="padding:4px 8px;text-align:left;font-size:9px;color:#166534;font-weight:700;text-transform:uppercase;">Date</th>
-                <th style="padding:4px 8px;text-align:right;font-size:9px;color:#166534;font-weight:700;text-transform:uppercase;">Qty (MT)</th>
+                <th style="padding:4px 8px;text-align:right;font-size:9px;color:#166534;font-weight:700;text-transform:uppercase;">Qty ({{ printUnit }})</th>
                 <th style="padding:4px 8px;text-align:center;font-size:9px;color:#166534;font-weight:700;text-transform:uppercase;">Grade</th>
               </tr>
             </thead>
@@ -393,10 +393,18 @@ function ptLabel(raw: string): string {
   return raw  // pass through anything custom
 }
 
+// MT-quoted commodities (wheat) store/receive in KG; the print unit and
+// figures convert back to MT for display. Every other commodity's
+// quantity_kg column already holds the raw figure in its own unit, so no
+// conversion is applied.
+const isMt         = computed(() => !rawPo.commodity_unit || rawPo.commodity_unit === 'MT')
+const commodityName = computed(() => rawPo.commodity_name ?? 'Wheat')
+const printUnit     = computed(() => isMt.value ? 'MT' : rawPo.commodity_unit)
+
 // Map API fields → template-expected shape
 const po = computed(() => {
-  const qtyMT      = Number(rawPo.quantity_kg || 0) / 1000
-  const pricePerMT = Number(rawPo.unit_price_per_kg || 0) * 1000
+  const qtyDisplay   = isMt.value ? Number(rawPo.quantity_kg || 0) / 1000 : Number(rawPo.quantity_kg || 0)
+  const priceDisplay = isMt.value ? Number(rawPo.unit_price_per_kg || 0) * 1000 : Number(rawPo.unit_price_per_kg || 0)
   // po_payment_terms (per-PO) takes priority; fall back to supplier default
   const rawTermsStr      = String(rawPo.po_payment_terms ?? rawPo.supplier_payment_terms ?? rawPo.payment_terms ?? '')
   const paymentTermsLabel = ptLabel(rawTermsStr) || '—'
@@ -421,15 +429,15 @@ const po = computed(() => {
     totalAmount:      Number(rawPo.total_order_value || 0),
     paid:             Number(rawPo.total_paid || 0),
     items: [{
-      product:   `Wheat (${rawPo.wheat_origin ?? 'Imported'})`,
-      qty:       qtyMT,
-      unitPrice: pricePerMT,
+      product:   `${commodityName.value}${rawPo.wheat_origin ? ` (${rawPo.wheat_origin})` : ''}`,
+      qty:       qtyDisplay,
+      unitPrice: priceDisplay,
     }],
     grns: rawGrns.map((g: any) => ({
       id:    g.id,
       grnNo: g.grn_number,
       date:  fmtDate(g.grn_date),
-      qty:   +(Number(g.quantity_received_kg || 0) / 1000).toFixed(2),
+      qty:   isMt.value ? +(Number(g.quantity_received_kg || 0) / 1000).toFixed(2) : Number(g.quantity_received_kg || 0),
       grade: g.grn_status === 'verified' || g.grn_status === 'posted' ? 'A' : '—',
     })).filter((g: any) => g.qty > 0),
     payments: rawPayments.map((p: any) => ({

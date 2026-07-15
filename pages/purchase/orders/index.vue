@@ -33,12 +33,7 @@
         </select>
         <select v-model="originFilter" class="field-input text-xs py-1.5 w-36" @change="page=1;refresh()">
           <option value="">All Origins</option>
-          <option value="India">India</option>
-          <option value="Ukraine">Ukraine</option>
-          <option value="Russia">Russia</option>
-          <option value="Australia">Australia</option>
-          <option value="Local">Local</option>
-          <option value="Other">Other</option>
+          <option v-for="o in allOrigins" :key="o" :value="o">{{ o }}</option>
         </select>
       </div>
       <div class="flex flex-wrap items-center gap-3">
@@ -102,6 +97,13 @@ const dateTo         = ref('')
 const page           = ref(1)
 const perPage        = 25
 
+const { data: commData } = await useFetch('/api/purchase/commodities')
+const allOrigins = computed(() => {
+  const set = new Set<string>()
+  for (const c of (commData.value?.commodities ?? []) as any[]) for (const o of c.origins) set.add(o)
+  return [...set].sort()
+})
+
 const { data, pending, error, refresh } = await useFetch('/api/purchase/orders', {
   query: computed(() => ({
     search:          search.value,
@@ -147,6 +149,7 @@ const cols = [
   { key: 'po_number',         label: 'PO #',         sortable: true },
   { key: 'supplier_name',     label: 'Supplier',     sortable: true },
   { key: 'po_date',           label: 'Date',         sortable: true },
+  { key: 'commodity_name',    label: 'Commodity' },
   { key: 'wheat_origin',      label: 'Origin' },
   { key: 'quantity_kg',       label: 'Qty (kg)' },
   { key: 'total_order_value', label: 'Total Value',  sortable: true },

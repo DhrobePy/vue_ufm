@@ -37,9 +37,11 @@ export default defineEventHandler(async (event) => {
               o.total_paid, o.balance_payable,
               o.po_status, o.delivery_status, o.payment_status,
               o.is_delivery_locked, o.expected_delivery_date,
-              b.name AS branch_name
+              b.name AS branch_name,
+              c.name AS commodity_name, c.unit AS commodity_unit
        FROM purchase_orders_adnan o
        LEFT JOIN branches b ON b.id = o.branch_id
+       LEFT JOIN purchase_commodities c ON c.id = o.commodity_id
        ${w}
        ORDER BY o.po_date DESC, o.id DESC
        LIMIT ? OFFSET ?`,

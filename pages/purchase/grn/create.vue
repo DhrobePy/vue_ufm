@@ -21,8 +21,8 @@
             <select v-model="form.po_id" class="input-glass" @change="onPoSelect">
               <option value="">— Select Purchase Order —</option>
               <option v-for="po in openPOs" :key="po.id" :value="po.id">
-                PO #{{ po.po_number }} — {{ po.supplier_name }} — {{ po.wheat_origin }}
-                (Pending: {{ Number(po.qty_yet_to_receive).toLocaleString() }} KG)
+                PO #{{ po.po_number }} — {{ po.supplier_name }} — {{ po.commodity_name ?? 'Wheat' }} ({{ po.wheat_origin }})
+                (Pending: {{ Number(po.qty_yet_to_receive).toLocaleString() }} {{ po.commodity_unit ?? 'KG' }})
               </option>
             </select>
           </div>
@@ -31,17 +31,18 @@
           <div v-if="selectedPO" class="rounded-xl bg-blue-500/[0.05] border border-blue-500/20 p-4 text-xs space-y-2">
             <div class="grid grid-cols-2 gap-2">
               <div class="space-y-1.5">
+                <div class="flex justify-between"><span class="text-gray-500">Commodity</span><span class="text-gray-200">{{ selectedPO.commodity_name ?? 'Wheat' }}</span></div>
                 <div class="flex justify-between"><span class="text-gray-500">Supplier</span><span class="text-gray-200">{{ selectedPO.supplier_name }}</span></div>
                 <div class="flex justify-between"><span class="text-gray-500">Origin</span><span class="text-gray-200">{{ selectedPO.wheat_origin || '—' }}</span></div>
-                <div class="flex justify-between"><span class="text-gray-500">Unit Price</span><span class="text-gray-200 font-mono">৳{{ Number(selectedPO.unit_price_per_kg).toLocaleString() }}/KG</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Unit Price</span><span class="text-gray-200 font-mono">৳{{ Number(selectedPO.unit_price_per_kg).toLocaleString() }}/{{ unitLabel }}</span></div>
               </div>
               <div class="space-y-1.5">
-                <div class="flex justify-between"><span class="text-gray-500">Ordered</span><span class="text-gray-200 font-mono">{{ Number(selectedPO.quantity_kg).toLocaleString() }} KG</span></div>
-                <div class="flex justify-between"><span class="text-gray-500">Already Received</span><span class="text-gray-200 font-mono">{{ Number(selectedPO.total_received_qty ?? 0).toLocaleString() }} KG</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Ordered</span><span class="text-gray-200 font-mono">{{ Number(selectedPO.quantity_kg).toLocaleString() }} {{ unitLabel }}</span></div>
+                <div class="flex justify-between"><span class="text-gray-500">Already Received</span><span class="text-gray-200 font-mono">{{ Number(selectedPO.total_received_qty ?? 0).toLocaleString() }} {{ unitLabel }}</span></div>
                 <div class="flex justify-between">
                   <span class="text-gray-500">Yet to Receive</span>
                   <span class="font-mono font-semibold" :class="Number(selectedPO.qty_yet_to_receive) > 0 ? 'text-orange-300' : 'text-emerald-400'">
-                    {{ Number(selectedPO.qty_yet_to_receive).toLocaleString() }} KG
+                    {{ Number(selectedPO.qty_yet_to_receive).toLocaleString() }} {{ unitLabel }}
                   </span>
                 </div>
               </div>
@@ -66,24 +67,24 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                Quantity Received (KG) <span class="text-red-500">*</span>
+                Quantity Received ({{ unitLabel }}) <span class="text-red-500">*</span>
               </label>
               <input v-model.number="form.quantity_received_kg" type="number" step="0.01" min="0.01"
                 class="input-glass font-mono text-lg" @input="onQtyChange" />
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Expected Quantity (KG)</label>
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Expected Quantity ({{ unitLabel }})</label>
               <input v-model.number="form.expected_quantity" type="number" step="0.01" min="0"
                 class="input-glass font-mono" @input="onQtyChange" />
-              <p class="text-[10px] text-gray-600">Optional — for weight variance tracking (as per truck challan)</p>
+              <p class="text-[10px] text-gray-600">Optional — for variance tracking (as per truck challan)</p>
             </div>
           </div>
 
           <!-- Variance Display -->
           <div v-if="showVariance" class="rounded-xl px-4 py-3 text-xs font-semibold border"
                :class="varianceBg">
-            <span class="font-bold">Weight Variance:</span>
-            {{ varianceKg > 0 ? '+' : '' }}{{ varianceKg.toFixed(2) }} KG
+            <span class="font-bold">Variance:</span>
+            {{ varianceKg > 0 ? '+' : '' }}{{ varianceKg.toFixed(2) }} {{ unitLabel }}
             ({{ varianceKg > 0 ? '+' : '' }}{{ variancePct.toFixed(2) }}%)
           </div>
 
@@ -94,9 +95,9 @@
               <div class="flex-1 space-y-1">
                 <p class="font-semibold text-orange-300 text-sm">Over-Delivery Detected</p>
                 <p class="text-xs text-orange-200/80">
-                  Remaining on PO: <strong>{{ overDelivery.pending.toFixed(2) }}</strong> KG |
-                  Recording: <strong>{{ form.quantity_received_kg.toFixed(2) }}</strong> KG |
-                  Excess: <strong class="text-red-400">{{ overDelivery.excess.toFixed(2) }}</strong> KG
+                  Remaining on PO: <strong>{{ overDelivery.pending.toFixed(2) }}</strong> {{ unitLabel }} |
+                  Recording: <strong>{{ form.quantity_received_kg.toFixed(2) }}</strong> {{ unitLabel }} |
+                  Excess: <strong class="text-red-400">{{ overDelivery.excess.toFixed(2) }}</strong> {{ unitLabel }}
                 </p>
                 <p class="text-xs text-orange-200/70">How would you like to handle the excess?</p>
               </div>
@@ -189,7 +190,7 @@
           <h3 class="text-sm font-semibold text-gray-300">GRN Summary</h3>
           <div class="flex justify-between"><span class="text-gray-600">PO #</span><span class="font-mono text-gold-400/80">{{ selectedPO.po_number }}</span></div>
           <div class="flex justify-between"><span class="text-gray-600">Supplier</span><span class="text-gray-300">{{ selectedPO.supplier_name }}</span></div>
-          <div class="flex justify-between"><span class="text-gray-600">Unit Price</span><span class="font-mono text-gray-300">৳{{ Number(selectedPO.unit_price_per_kg).toLocaleString() }}/kg</span></div>
+          <div class="flex justify-between"><span class="text-gray-600">Unit Price</span><span class="font-mono text-gray-300">৳{{ Number(selectedPO.unit_price_per_kg).toLocaleString() }}/{{ unitLabel }}</span></div>
           <div class="h-px bg-white/[0.06]" />
           <div class="flex justify-between">
             <span class="text-gray-600 font-semibold">Expected Value</span>
@@ -224,6 +225,14 @@ const form = reactive({
 
 const saving = ref(false)
 const selectedPO = computed(() => openPOs.value.find((p: any) => p.id === Number(form.po_id)) ?? null)
+
+// MT-quoted commodities (wheat) are physically weighed and stored in KG at
+// the gate regardless of the PO's unit; every other commodity is received
+// 1:1 in its own catalog unit.
+const unitLabel = computed(() => {
+  const u = selectedPO.value?.commodity_unit
+  return (!u || u === 'MT') ? 'KG' : u
+})
 
 function onPoSelect() {
   if (!selectedPO.value) return

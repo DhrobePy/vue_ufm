@@ -44,6 +44,7 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/purchase/adjustments':       { module: 'purchase',     page: 'adjustments' },
   '/purchase/suppliers':         { module: 'purchase',     page: 'suppliers' },
   '/purchase/suppliers/summary': { module: 'purchase',     page: 'suppliers_summary' },
+  '/purchase/commodities':       { module: 'purchase',     page: 'commodities' },
 
   '/expenses':                   { module: 'expenses',     page: 'dashboard' },
   '/expenses/create':            { module: 'expenses',     page: 'create' },

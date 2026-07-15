@@ -10,12 +10,14 @@ export default defineEventHandler(async (event) => {
               s.payment_terms AS supplier_payment_terms,
               b.name AS branch_name,
               cr.display_name AS created_by_name,
-              lk.display_name AS locked_by_name
+              lk.display_name AS locked_by_name,
+              c.name AS commodity_name, c.unit AS commodity_unit
        FROM purchase_orders_adnan o
        LEFT JOIN suppliers s ON s.id = o.supplier_id
        LEFT JOIN branches b  ON b.id = o.branch_id
        LEFT JOIN users cr    ON cr.id = o.created_by_user_id
        LEFT JOIN users lk    ON lk.id = o.delivery_locked_by_user_id
+       LEFT JOIN purchase_commodities c ON c.id = o.commodity_id
        WHERE o.id = ?`,
       [id],
     ),

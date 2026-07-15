@@ -445,6 +445,11 @@ const moduleRegistry = [
           { key: 'edit',   label: 'Edit' },
           { key: 'delete', label: 'Delete' },
         ] },
+      { key: 'commodities',      label: 'Commodities',         route: 'purchase/commodities',
+        actions: [
+          { key: 'create', label: 'Add Commodity' },
+          { key: 'edit',   label: 'Edit' },
+        ] },
       { key: 'suppliers_summary', label: 'Supplier Summary',  route: 'purchase/suppliers/summary',
         actions: [
           { key: 'export', label: 'Export' },

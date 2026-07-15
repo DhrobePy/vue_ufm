@@ -10,24 +10,33 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e, _f, _g;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const {
+    commodity_id,
     supplier_id,
     po_date,
+    origin,
     wheat_origin,
+    // back-compat alias — older client build / direct API callers
     expected_delivery_date,
     payment_terms = "Credit 30",
+    quantity,
     quantity_mt,
-    // metric tonnes
+    // quantity_mt = back-compat alias (implies MT)
+    unit_price,
     unit_price_per_mt,
+    // unit_price_per_mt = back-compat alias
     remarks,
     branch_id
   } = body != null ? body : {};
-  if (!supplier_id || !po_date || !quantity_mt || !unit_price_per_mt) {
-    throw createError({ statusCode: 400, statusMessage: "supplier_id, po_date, quantity_mt and unit_price_per_mt are required" });
+  const qty = quantity != null ? quantity : quantity_mt;
+  const price = unit_price != null ? unit_price : unit_price_per_mt;
+  const originVal = origin != null ? origin : wheat_origin;
+  if (!supplier_id || !po_date || !qty || !price) {
+    throw createError({ statusCode: 400, statusMessage: "supplier_id, po_date, quantity and unit_price are required" });
   }
   const db = getDb();
   const conn = await db.getConnection();
@@ -38,24 +47,35 @@ const index_post = defineEventHandler(async (event) => {
       [supplier_id]
     );
     const supplierName = (_c = sup == null ? void 0 : sup.company_name) != null ? _c : "";
+    let commodityId = commodity_id ? Number(commodity_id) : null;
+    let commodityUnit = "MT";
+    if (commodityId) {
+      const [[comm]] = await conn.query(`SELECT unit FROM purchase_commodities WHERE id = ?`, [commodityId]);
+      commodityUnit = (_d = comm == null ? void 0 : comm.unit) != null ? _d : "MT";
+    } else {
+      const [[wheat]] = await conn.query(`SELECT id, unit FROM purchase_commodities WHERE name = 'Wheat'`);
+      commodityId = (_e = wheat == null ? void 0 : wheat.id) != null ? _e : null;
+      commodityUnit = (_f = wheat == null ? void 0 : wheat.unit) != null ? _f : "MT";
+    }
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM purchase_orders_adnan WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_d = cnt.n) != null ? _d : 0) + 1).padStart(4, "0");
+    const seq = String(((_g = cnt.n) != null ? _g : 0) + 1).padStart(4, "0");
     const poNo = `PO-${today}-${seq}`;
-    const quantity_kg = Number(quantity_mt) * 1e3;
-    const unit_price_per_kg = Number(unit_price_per_mt) / 1e3;
+    const isMt = commodityUnit === "MT";
+    const quantity_kg = isMt ? Number(qty) * 1e3 : Number(qty);
+    const unit_price_per_kg = isMt ? Number(price) / 1e3 : Number(price);
     const total_order_value = quantity_kg * unit_price_per_kg;
     const [result] = await conn.query(
       `INSERT INTO purchase_orders_adnan
-         (po_number, po_date, supplier_id, supplier_name, wheat_origin,
+         (po_number, po_date, supplier_id, supplier_name, wheat_origin, commodity_id,
           expected_delivery_date, po_payment_terms, quantity_kg, unit_price_per_kg,
           total_order_value, balance_payable,
           po_status, delivery_status, payment_status,
           branch_id, created_by_user_id, remarks,
           created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?,
                ?, ?,
                'approved', 'pending', 'unpaid',
@@ -66,7 +86,8 @@ const index_post = defineEventHandler(async (event) => {
         po_date,
         Number(supplier_id),
         supplierName,
-        wheat_origin || "Other",
+        originVal || "Other",
+        commodityId,
         expected_delivery_date != null ? expected_delivery_date : null,
         payment_terms || "Credit 30",
         quantity_kg,

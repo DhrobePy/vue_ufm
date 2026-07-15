@@ -37,8 +37,8 @@
           <div><p class="text-gray-600 mb-0.5">PO Date</p><p class="text-gray-200">{{ original.poDate }}</p></div>
           <div><p class="text-gray-600 mb-0.5">Supplier</p><p class="text-gray-200">{{ original.supplier }}</p></div>
           <div><p class="text-gray-600 mb-0.5">Origin</p><p class="text-gray-200">{{ original.origin }}</p></div>
-          <div><p class="text-gray-600 mb-0.5">Quantity</p><p class="font-mono text-gray-200">{{ Number(original.qty).toLocaleString() }} KG</p></div>
-          <div><p class="text-gray-600 mb-0.5">Unit Price</p><p class="font-mono text-gray-200">৳{{ fmtPrice(original.unitPrice) }}/KG</p></div>
+          <div><p class="text-gray-600 mb-0.5">Quantity</p><p class="font-mono text-gray-200">{{ Number(original.qty).toLocaleString() }} {{ unitLabel }}</p></div>
+          <div><p class="text-gray-600 mb-0.5">Unit Price</p><p class="font-mono text-gray-200">৳{{ fmtPrice(original.unitPrice) }}/{{ unitLabel }}</p></div>
           <div><p class="text-gray-600 mb-0.5">Total Value</p><p class="font-mono font-bold text-gold-400">৳{{ (original.qty * original.unitPrice).toLocaleString() }}</p></div>
           <div><p class="text-gray-600 mb-0.5">Expected Delivery</p><p class="text-gray-200">{{ original.expectedDelivery || 'Not set' }}</p></div>
         </div>
@@ -100,6 +100,12 @@
           <h3 class="section-title">Supplier &amp; Product</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Commodity <span class="text-gray-600 font-normal normal-case ml-1">(fixed at creation)</span>
+              </label>
+              <div class="input-glass opacity-70 cursor-not-allowed">{{ original.commodityName }}</div>
+            </div>
+            <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Supplier *</label>
               <select v-model="form.supplierId" class="input-glass">
                 <option value="">— Select supplier —</option>
@@ -107,19 +113,12 @@
               </select>
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Wheat Origin *</label>
-              <select v-model="form.origin" class="input-glass">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origin *</label>
+              <select v-if="originOptions.length" v-model="form.origin" class="input-glass">
                 <option value="">Select origin</option>
-                <option value="কানাডা">কানাডা (Canada)</option>
-                <option value="রাশিয়া">রাশিয়া (Russia)</option>
-                <option value="Australia">Australia</option>
-                <option value="Ukraine">Ukraine</option>
-                <option value="India">India</option>
-                <option value="USA">USA</option>
-                <option value="Argentina">Argentina</option>
-                <option value="Local">Local</option>
-                <option value="Other">Other</option>
+                <option v-for="o in originOptions" :key="o" :value="o">{{ o }}</option>
               </select>
+              <input v-else v-model="form.origin" class="input-glass" placeholder="Optional" />
             </div>
           </div>
         </div>
@@ -129,14 +128,14 @@
           <h3 class="section-title">Pricing &amp; Quantity</h3>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity (KG) *</label>
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity ({{ unitLabel }}) *</label>
               <input v-model.number="form.qty" type="number" step="any" min="0.001" class="input-glass font-mono" placeholder="0.00" />
-              <p class="text-[11px] text-gray-600">Original: <strong>{{ Number(original.qty).toLocaleString() }} KG</strong></p>
+              <p class="text-[11px] text-gray-600">Original: <strong>{{ Number(original.qty).toLocaleString() }} {{ unitLabel }}</strong></p>
             </div>
             <div class="space-y-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price (৳/KG) *</label>
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price (৳/{{ unitLabel }}) *</label>
               <input v-model.number="form.unitPrice" type="number" step="any" min="0.0001" class="input-glass font-mono" placeholder="0.00" />
-              <p class="text-[11px] text-gray-600">Original: <strong>৳{{ fmtPrice(original.unitPrice) }}/KG</strong></p>
+              <p class="text-[11px] text-gray-600">Original: <strong>৳{{ fmtPrice(original.unitPrice) }}/{{ unitLabel }}</strong></p>
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Expected Delivery</label>
@@ -268,6 +267,21 @@ const suppliers = computed(() => (supData.value?.suppliers ?? []) as any[])
 const po    = computed(() => (poData.value?.po ?? {}) as any)
 const poNo  = computed(() => po.value.po_number ?? `PO-${poId}`)
 
+// Commodity catalog — used only to resolve this PO's (immutable) commodity's
+// origin list; the commodity itself can't change post-creation.
+const { data: commData } = await useFetch('/api/purchase/commodities')
+const originOptions = computed(() => {
+  const c = (commData.value?.commodities ?? []).find((c: any) => c.id === po.value.commodity_id)
+  return c?.origins ?? []
+})
+
+// MT-quoted commodities (wheat) store/receive in KG; every other commodity
+// stores 1:1 in its own catalog unit.
+const unitLabel = computed(() => {
+  const u = po.value.commodity_unit
+  return (!u || u === 'MT') ? 'KG' : u
+})
+
 // Build original snapshot once PO loads
 const original = computed(() => ({
   poNumber:         po.value.po_number        ?? '',
@@ -275,6 +289,7 @@ const original = computed(() => ({
   supplierId:       po.value.supplier_id      ? String(po.value.supplier_id) : '',
   supplier:         po.value.supplier_name    ?? po.value.company_name ?? '',
   origin:           po.value.wheat_origin     ?? '',
+  commodityName:    po.value.commodity_name   ?? 'Wheat',
   qty:              Number(po.value.quantity_kg  ?? 0),
   unitPrice:        Number(po.value.unit_price_per_kg ?? 0),
   expectedDelivery: po.value.expected_delivery_date ? String(po.value.expected_delivery_date).slice(0, 10) : '',
@@ -327,9 +342,9 @@ const changes = computed(() => {
   if (form.origin !== o.origin)
     list.push({ key: 'origin', label: 'Origin', old: o.origin, new: form.origin })
   if (Math.abs((form.qty || 0) - o.qty) > 0.001)
-    list.push({ key: 'qty', label: 'Quantity', old: `${Number(o.qty).toLocaleString()} KG`, new: `${Number(form.qty || 0).toLocaleString()} KG` })
+    list.push({ key: 'qty', label: 'Quantity', old: `${Number(o.qty).toLocaleString()} ${unitLabel.value}`, new: `${Number(form.qty || 0).toLocaleString()} ${unitLabel.value}` })
   if (Math.abs((form.unitPrice || 0) - o.unitPrice) > 1e-9)
-    list.push({ key: 'unitPrice', label: 'Unit Price', old: `৳${fmtPrice(o.unitPrice)}/KG`, new: `৳${fmtPrice(form.unitPrice || 0)}/KG` })
+    list.push({ key: 'unitPrice', label: 'Unit Price', old: `৳${fmtPrice(o.unitPrice)}/${unitLabel.value}`, new: `৳${fmtPrice(form.unitPrice || 0)}/${unitLabel.value}` })
   if (totalChanged.value)
     list.push({ key: 'total', label: 'Total Value', old: `৳${(o.qty * o.unitPrice).toLocaleString()}`, new: `৳${totalValue.value.toLocaleString()}` })
   if (form.expectedDelivery !== o.expectedDelivery)
@@ -350,7 +365,7 @@ function validate(): string | null {
   if (!form.poNumber.trim()) return 'PO Number is required'
   if (!form.poDate)          return 'PO Date is required'
   if (!form.supplierId)      return 'Supplier is required'
-  if (!form.origin)          return 'Wheat origin is required'
+  if (!form.origin)          return 'Origin is required'
   if ((form.qty || 0) <= 0)       return 'Quantity must be greater than zero'
   if ((form.unitPrice || 0) <= 0) return 'Unit price must be greater than zero'
   if (lockAction.value && !lockReason.value.trim()) return 'A reason is required when changing delivery lock status'
