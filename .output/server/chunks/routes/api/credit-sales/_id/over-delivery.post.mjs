@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, aa as readBody, N as getUserSession, v as getDb, X as nextDocNumber, e as auditLog, an as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, ab as readBody, N as getUserSession, au as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, v as getDb, Y as nextDocNumber, e as auditLog, ao as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -11,13 +11,24 @@ import 'node:url';
 
 const ELIGIBLE = ["goods_on_board", "shipped", "dispatched", "delivered"];
 const overDelivery_post = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b, _c, _d;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
   if (!(session == null ? void 0 : session.user)) throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
   const userId = Number(session.user.id);
+  const role = ((_a = session.user.role) != null ? _a : "").toLowerCase();
+  const canRecord = await userCanAction({
+    userId,
+    role,
+    module: "credit_sales",
+    page: "all",
+    action: "record_over_delivery",
+    roleFallback: [...ACCOUNTS_ROLES, ...DISPATCH_ROLES]
+  });
+  if (!canRecord)
+    throw createError({ statusCode: 403, statusMessage: "Your account is not allowed to record over-deliveries" });
   const {
     od_date,
     resolution = "bill",
@@ -60,9 +71,9 @@ const overDelivery_post = defineEventHandler(async (event) => {
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           odId,
-          (_a = it.order_item_id) != null ? _a : null,
-          (_b = it.product_id) != null ? _b : null,
-          (_c = it.variant_id) != null ? _c : null,
+          (_b = it.order_item_id) != null ? _b : null,
+          (_c = it.product_id) != null ? _c : null,
+          (_d = it.variant_id) != null ? _d : null,
           Number(it.extra_qty),
           Number(it.unit_price),
           Number(it.extra_qty) * Number(it.unit_price)

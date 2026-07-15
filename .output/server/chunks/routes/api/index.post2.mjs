@@ -1,4 +1,4 @@
-import { n as defineEventHandler, aa as readBody, j as createError, v as getDb } from '../../nitro/nitro.mjs';
+import { n as defineEventHandler, N as getUserSession, j as createError, au as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, ab as readBody, v as getDb } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,6 +10,22 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
+  var _a;
+  const session = await getUserSession(event);
+  if (!(session == null ? void 0 : session.user))
+    throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
+  const userId = Number(session.user.id);
+  const role = ((_a = session.user.role) != null ? _a : "").toLowerCase();
+  const canCreate = await userCanAction({
+    userId,
+    role,
+    module: "customers",
+    page: "list",
+    action: "create",
+    roleFallback: [...ACCOUNTS_ROLES, ...SALES_ROLES, "collector"]
+  });
+  if (!canCreate)
+    throw createError({ statusCode: 403, statusMessage: "Your account is not allowed to create customers" });
   const body = await readBody(event);
   const { name, business_name, phone_number, email, business_address, customer_type, credit_limit } = body;
   if (!name || !name.trim()) {

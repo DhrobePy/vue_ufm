@@ -1,15 +1,25 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getCustomerOutstanding } from '~/server/utils/creditOrders'
+import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
   const session   = await getUserSession(event)
-  const userId    = session?.user?.id ?? 1
-  const role      = (session?.user?.role ?? '').toLowerCase()
+  if (!session?.user)
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId    = Number(session.user.id)
+  const role      = (session.user.role ?? '').toLowerCase()
   const isAdmin   = ['admin', 'superadmin'].includes(role)
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
+
+  const canCreate = await userCanAction({
+    userId, role, module: 'credit_sales', page: 'all', action: 'create',
+    roleFallback: [...ACCOUNTS_ROLES, ...SALES_ROLES],
+  })
+  if (!canCreate)
+    throw createError({ statusCode: 403, statusMessage: 'Your account is not allowed to create orders' })
 
   const {
     customer_id,

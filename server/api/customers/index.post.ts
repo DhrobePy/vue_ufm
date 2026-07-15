@@ -1,6 +1,21 @@
 import { getDb } from '~/server/utils/db'
+import { ACCOUNTS_ROLES, SALES_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  if (!session?.user)
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId = Number((session.user as any).id)
+  const role   = ((session.user as any).role ?? '').toLowerCase()
+
+  const canCreate = await userCanAction({
+    userId, role, module: 'customers', page: 'list', action: 'create',
+    roleFallback: [...ACCOUNTS_ROLES, ...SALES_ROLES, 'collector'],
+  })
+  if (!canCreate)
+    throw createError({ statusCode: 403, statusMessage: 'Your account is not allowed to create customers' })
+
   const body = await readBody(event) as {
     name: string
     business_name?: string

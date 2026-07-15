@@ -1,4 +1,4 @@
-import { n as defineEventHandler, N as getUserSession, j as createError, S as isAccountsRole, C as getQuery, a7 as query } from '../../../nitro/nitro.mjs';
+import { n as defineEventHandler, N as getUserSession, j as createError, T as isAccountsRole, C as getQuery, a8 as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

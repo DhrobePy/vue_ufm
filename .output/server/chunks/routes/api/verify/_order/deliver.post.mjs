@@ -1,4 +1,4 @@
-import { n as defineEventHandler, aa as readBody, N as getUserSession, j as createError, a7 as query, E as getRequestHeader, au as verifyDeliveryQrSignature, v as getDb, e as auditLog, an as sendTelegram, ae as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, ab as readBody, N as getUserSession, j as createError, a8 as query, E as getRequestHeader, av as verifyDeliveryQrSignature, v as getDb, e as auditLog, ao as sendTelegram, af as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

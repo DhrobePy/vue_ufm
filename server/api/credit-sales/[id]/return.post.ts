@@ -1,5 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { ACCOUNTS_ROLES, DISPATCH_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -10,7 +12,15 @@ export default defineEventHandler(async (event) => {
   if (!session?.user)
     throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
   const userId    = Number((session.user as any).id)
+  const role      = ((session.user as any).role ?? '').toLowerCase()
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
+
+  const canRecord = await userCanAction({
+    userId, role, module: 'credit_sales', page: 'all', action: 'record_return',
+    roleFallback: [...ACCOUNTS_ROLES, ...DISPATCH_ROLES],
+  })
+  if (!canRecord)
+    throw createError({ statusCode: 403, statusMessage: 'Your account is not allowed to record returns' })
 
   const {
     return_date,

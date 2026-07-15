@@ -1,4 +1,4 @@
-import { n as defineEventHandler, K as getRouterParam, j as createError, aa as readBody, N as getUserSession, E as getRequestHeader, v as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { n as defineEventHandler, K as getRouterParam, j as createError, ab as readBody, N as getUserSession, E as getRequestHeader, au as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, v as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const return_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -18,7 +18,18 @@ const return_post = defineEventHandler(async (event) => {
   if (!(session == null ? void 0 : session.user))
     throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
   const userId = Number(session.user.id);
-  const ipAddress = (_b = (_a = getRequestHeader(event, "x-forwarded-for")) != null ? _a : getRequestHeader(event, "x-real-ip")) != null ? _b : void 0;
+  const role = ((_a = session.user.role) != null ? _a : "").toLowerCase();
+  const ipAddress = (_c = (_b = getRequestHeader(event, "x-forwarded-for")) != null ? _b : getRequestHeader(event, "x-real-ip")) != null ? _c : void 0;
+  const canRecord = await userCanAction({
+    userId,
+    role,
+    module: "credit_sales",
+    page: "all",
+    action: "record_return",
+    roleFallback: [...ACCOUNTS_ROLES, ...DISPATCH_ROLES]
+  });
+  if (!canRecord)
+    throw createError({ statusCode: 403, statusMessage: "Your account is not allowed to record returns" });
   const {
     return_date,
     return_type = "partial",
@@ -44,7 +55,7 @@ const return_post = defineEventHandler(async (event) => {
     const [[cnt]] = await conn.query(
       `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`
     );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
+    const seq = String(((_d = cnt.n) != null ? _d : 0) + 1).padStart(4, "0");
     const retNo = `RET-${today}-${seq}`;
     const retDate = return_date != null ? return_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const totalRetQty = items.reduce((s, i) => s + Number(i.returned_qty), 0);
@@ -87,8 +98,8 @@ const return_post = defineEventHandler(async (event) => {
           returnId,
           item.order_item_id,
           item.product_id,
-          (_d = item.variant_id) != null ? _d : null,
-          Number((_e = item.original_qty) != null ? _e : 0),
+          (_e = item.variant_id) != null ? _e : null,
+          Number((_f = item.original_qty) != null ? _f : 0),
           Number(item.returned_qty),
           Number(item.unit_price),
           Number(item.returned_qty) * Number(item.unit_price)
@@ -102,7 +113,7 @@ const return_post = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, (_g = order.status) != null ? _g : "delivered", (_h = order.status) != null ? _h : "delivered", wfAction, userId, wfComment]
+      [id, (_h = order.status) != null ? _h : "delivered", (_i = order.status) != null ? _i : "delivered", wfAction, userId, wfComment]
     );
     await auditLog(conn, {
       userId,

@@ -1,7 +1,8 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getOrderGateState, checkTransactionLimit, queuePendingRequest } from '~/server/utils/creditOrders'
+import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -13,7 +14,15 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
   const userId    = Number((session.user as any).id)
   const userName  = (session.user as any).name ?? `User ${userId}`
+  const userRole  = ((session.user as any).role ?? '').toLowerCase()
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
+
+  const canCollect = await userCanAction({
+    userId, role: userRole, module: 'credit_sales', page: 'all', action: 'collect_payment',
+    roleFallback: [...ACCOUNTS_ROLES, 'collector'],
+  })
+  if (!canCollect)
+    throw createError({ statusCode: 403, statusMessage: 'Your account is not allowed to collect payments' })
 
   const {
     amount,

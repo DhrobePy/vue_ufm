@@ -1,7 +1,8 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { nextDocNumber } from '~/server/utils/creditOrders'
+import { nextDocNumber, ACCOUNTS_ROLES, DISPATCH_ROLES } from '~/server/utils/creditOrders'
+import { userCanAction } from '~/server/utils/permissions'
 
 const ELIGIBLE = ['goods_on_board', 'shipped', 'dispatched', 'delivered']
 
@@ -19,6 +20,14 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
   if (!session?.user) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
   const userId = Number((session.user as any).id)
+  const role   = ((session.user as any).role ?? '').toLowerCase()
+
+  const canRecord = await userCanAction({
+    userId, role, module: 'credit_sales', page: 'all', action: 'record_over_delivery',
+    roleFallback: [...ACCOUNTS_ROLES, ...DISPATCH_ROLES],
+  })
+  if (!canRecord)
+    throw createError({ statusCode: 403, statusMessage: 'Your account is not allowed to record over-deliveries' })
 
   const {
     od_date,
