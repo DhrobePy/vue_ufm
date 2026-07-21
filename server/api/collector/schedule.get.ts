@@ -6,7 +6,7 @@ export default defineEventHandler(async () => {
     `SELECT
        c.id,
        c.name,
-       c.area         AS area,
+       c.business_address AS area,
        SUM(co.balance_due) AS outstanding
      FROM customers c
      JOIN credit_orders co ON co.customer_id = c.id

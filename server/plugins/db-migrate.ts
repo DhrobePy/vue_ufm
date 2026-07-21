@@ -456,31 +456,20 @@ export default defineNitroPlugin(async () => {
     console.warn('[db-migrate] order_delivery_scans create failed:', e)
   }
 
-  // ── 26. Ensure credit_orders.status ENUM includes 'dispatched' ───────────────
-  //   If the production DB was seeded before 'dispatched' was added to the ENUM,
-  //   any attempt to SET status = 'dispatched' fails with "Data truncated".
-  //   MODIFY COLUMN replaces the ENUM definition with the full current set.
-  //   Safe: includes every value from schema_seed.sql — no existing data is lost.
-  try {
-    await db.query(`
-      ALTER TABLE credit_orders MODIFY COLUMN status
-      ENUM('pending_approval','escalated','approved','in_production',
-           'ready_to_ship','partial_delivery','delivered','completed',
-           'rejected','cancelled','dispatched')
-      DEFAULT 'pending_approval'
-    `)
-  } catch (e) {
-    console.warn('[db-migrate] credit_orders.status ENUM widen failed:', e)
-  }
-
-  // ── 26b. credit_orders.status ENUM → VARCHAR ─────────────────────────────────
+  // ── 26. credit_orders.status ENUM → VARCHAR ─────────────────────────────────
   //   Migration #42 below relabels 'dispatched'/'shipped' orders to the new
   //   'goods_on_board' value, and workflow.post.ts / verify/confirm.post.ts
   //   write 'goods_on_board' and 'shipped' directly — neither value was ever
-  //   in the ENUM widened just above, so every one of those writes fails with
-  //   "Data truncated for column 'status'" (or silently blanks the column
-  //   under non-strict SQL mode). Converting to VARCHAR removes this whole
-  //   class of bug — matches the fix already applied to payment_type.
+  //   in status's original restrictive ENUM, so every one of those writes
+  //   failed with "Data truncated for column 'status'" (or silently blanked
+  //   the column under non-strict SQL mode). Converting to VARCHAR removes
+  //   this whole class of bug — matches the fix already applied to
+  //   payment_type. (An earlier version of this migration first widened the
+  //   ENUM to a fixed value list before converting to VARCHAR — pointless
+  //   and, once this VARCHAR conversion has run once, actively broken: it
+  //   permanently fails every restart after, since existing rows already
+  //   hold values like 'goods_on_board' that the fixed list never included.
+  //   Removed; this VARCHAR conversion alone is sufficient and idempotent.)
   //   MUST run before #42's backfill UPDATE, hence its placement here.
   try {
     await db.query(`
@@ -652,6 +641,13 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'order_approval_conditions', 'created_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
   // approved_by_user_id was NOT NULL with no default in the old table — our
   // code never populates it, so every insert failed. Make it optional.
+  // On an install where CREATE TABLE above actually ran (this column was
+  // never in that definition), the bare MODIFY always failed with "Unknown
+  // column" — forever, every restart, since the column plain doesn't exist
+  // to widen. addCol first so both cases converge: already-present (old
+  // table) -> addCol no-ops, MODIFY widens it; absent (fresh table) ->
+  // addCol creates it nullable outright, MODIFY is a harmless no-op.
+  await addCol(db, 'order_approval_conditions', 'approved_by_user_id', 'BIGINT UNSIGNED NULL DEFAULT NULL')
   try {
     await db.query(`ALTER TABLE order_approval_conditions MODIFY COLUMN approved_by_user_id BIGINT UNSIGNED NULL DEFAULT NULL`)
   } catch (e) { console.warn('[db-migrate] order_approval_conditions.approved_by_user_id widen failed:', e) }
@@ -1130,6 +1126,13 @@ export default defineNitroPlugin(async () => {
   // ── 54. product_variants.cost_price — written by variants.post.ts but
   //    never had a migration creating it ─────────────────────────────────────
   await addCol(db, 'product_variants', 'cost_price', "DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Purchase/production cost, for margin reporting'")
+
+  // ── 55. customers.business_address — read/written by customers create/edit,
+  //    credit-limits report, and the payment receipt, but schema_seed.sql only
+  //    ever defined a plain `address` column, and no migration ever added
+  //    this one. Caused "Unknown column 'c.address'"/'business_address' 500s
+  //    on every one of those pages.
+  await addCol(db, 'customers', 'business_address', 'VARCHAR(255) NULL DEFAULT NULL')
 
   console.log('[db-migrate] startup migrations complete')
 })

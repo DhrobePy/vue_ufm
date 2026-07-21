@@ -16,7 +16,7 @@ const approvalLimits_get = defineEventHandler(async (event) => {
   if (!ADMIN_ROLES.includes(role))
     throw createError({ statusCode: 403, statusMessage: "Admin only" });
   const users = await query(
-    `SELECT u.id, u.display_name, u.username, u.role,
+    `SELECT u.id, u.display_name, u.role,
             ual.max_order_amount, ual.max_transaction_amount,
             ual.updated_at AS limit_updated_at
      FROM users u

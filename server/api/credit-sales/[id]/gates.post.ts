@@ -91,12 +91,18 @@ export default defineEventHandler(async (event) => {
     }
 
     else if (action === 'clear_dispatch') {
+      // Upsert — under the global-hold policy most orders reach this point
+      // with NO order_approval_conditions row yet (the hold is synthesized,
+      // not stored); a plain UPDATE would silently affect zero rows.
       await conn.query(
-        `UPDATE order_approval_conditions
-         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
-             dispatch_cleared_note = ?
-         WHERE order_id = ?`,
-        [userId, note ?? 'Cleared by accounts', id],
+        `INSERT INTO order_approval_conditions
+           (order_id, dispatch_hold, condition_type, dispatch_cleared,
+            dispatch_cleared_by, dispatch_cleared_at, dispatch_cleared_note, created_by_user_id)
+         VALUES (?, 1, 'manual', 1, ?, NOW(), ?, ?)
+         ON DUPLICATE KEY UPDATE
+           dispatch_cleared = 1, dispatch_cleared_by = VALUES(dispatch_cleared_by),
+           dispatch_cleared_at = NOW(), dispatch_cleared_note = VALUES(dispatch_cleared_note)`,
+        [id, userId, note ?? 'Cleared by accounts', userId],
       )
       telegramMsg = `🟢 <b>Dispatch Clearance GRANTED</b>\n${order.order_number} — ${order.customer_name}\nby ${userName}${note ? `\nNote: ${note}` : ''}`
     }

@@ -148,6 +148,46 @@
         <!-- Order settings -->
         <div v-if="activeTab === 'orders'" class="space-y-5">
           <div class="glass-card p-6 space-y-5">
+            <h3 class="section-title">Dispatch &amp; Credit Policy</h3>
+
+            <div class="flex items-start justify-between gap-4 py-3 border-b border-white/[0.04]">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-200">Dispatch Hold Policy</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  When ON, every order is held from reaching <span class="text-gray-300 font-mono text-[11px]">goods on board</span>
+                  until Accounts or Admin explicitly grants clearance on Payment Watch — regardless of any payment condition.
+                  When OFF, orders dispatch freely unless a specific hold/condition was set.
+                </p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="creditWorkflow.dispatch_global_hold" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+
+            <div class="flex items-start justify-between gap-4 py-3 border-b border-white/[0.04]">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-200">Auto-release over-limit orders once paid within limit</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  When ON, approving an order that breaches the customer's credit limit force-sets a dispatch hold
+                  that auto-clears the instant their ledger balance (incl. this invoice) comes back within limit —
+                  no manual re-check needed. Who can approve the breach itself is unchanged.
+                </p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="creditWorkflow.credit_limit_auto_release" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+
+            <div class="flex justify-end">
+              <button @click="saveCreditWorkflow" :disabled="creditWorkflowSaving" class="btn-gold text-xs disabled:opacity-50">
+                {{ creditWorkflowSaving ? 'Saving…' : 'Save Dispatch & Credit Policy' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card p-6 space-y-5">
             <h3 class="section-title">Order Settings</h3>
             <div class="space-y-4">
               <div v-for="opt in orderOptions" :key="opt.key"
@@ -689,6 +729,26 @@ async function saveDocSettings() {
     toastError(e?.data?.statusMessage ?? 'Failed to save document settings')
   } finally {
     docSaving.value = false
+  }
+}
+
+// ── Dispatch & credit workflow policy ────────────────────────────────────────
+const { data: cwData } = await useFetch('/api/settings/credit-workflow')
+const creditWorkflow = reactive({
+  dispatch_global_hold:      (cwData.value as any)?.settings?.dispatch_global_hold ?? true,
+  credit_limit_auto_release: (cwData.value as any)?.settings?.credit_limit_auto_release ?? false,
+})
+const creditWorkflowSaving = ref(false)
+
+async function saveCreditWorkflow() {
+  creditWorkflowSaving.value = true
+  try {
+    await $fetch('/api/settings/credit-workflow', { method: 'PUT', body: { ...creditWorkflow } })
+    success('Dispatch & credit policy saved')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save')
+  } finally {
+    creditWorkflowSaving.value = false
   }
 }
 
