@@ -5,7 +5,7 @@ import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
   getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
-  getOrderGateState, postGoodsOnBoardInvoice,
+  getOrderGateState, postGoodsOnBoardInvoice, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
@@ -164,6 +164,39 @@ export default defineEventHandler(async (event) => {
         wfComment = `Approved under 80% rule · usage ${usageAfter}% · ${wfComment}`.trim()
       }
 
+      // Credit-limit auto-release (opt-in policy): approving an over-limit
+      // order — without the approver setting their own manual conditions —
+      // force-sets a self-clearing dispatch hold, so it can't leave until the
+      // customer's ledger balance is back within their credit limit. Only
+      // admin/personal-limit approvals can even reach here over 100% usage
+      // (the 80% rule above never lets an over-limit order through).
+      let autoHoldApplied = false
+      if (!conditions && usageAfter > 100) {
+        const { creditLimitAutoRelease } = await getCreditWorkflowSettings(conn)
+        if (creditLimitAutoRelease) {
+          await conn.query(
+            `INSERT INTO order_approval_conditions
+               (order_id, dispatch_hold, condition_type, condition_amount, auto_release,
+                accounts_note, created_by_user_id)
+             VALUES (?, 1, 'outstanding_after_ship', ?, 1, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               dispatch_hold = 1, condition_type = 'outstanding_after_ship',
+               condition_amount = VALUES(condition_amount), auto_release = 1,
+               accounts_note = VALUES(accounts_note),
+               dispatch_cleared = 0, dispatch_cleared_by = NULL,
+               dispatch_cleared_at = NULL, dispatch_cleared_note = NULL`,
+            [
+              id,
+              Number(order.credit_limit ?? 0),
+              `Auto dispatch hold: approved at ${usageAfter}% credit usage — releases once balance is back within the ৳${Number(order.credit_limit ?? 0).toLocaleString()} limit`,
+              userId,
+            ],
+          )
+          autoHoldApplied = true
+          wfComment += ' · AUTO dispatch hold set (over credit limit, self-releases)'
+        }
+      }
+
       // Optional special instructions (gates) — accounts/admin only
       if (conditions && isAccountsRole(role)) {
         const ct = ['manual', 'outstanding_below', 'outstanding_after_ship', 'amount_received']
@@ -206,7 +239,8 @@ export default defineEventHandler(async (event) => {
         `${order.order_number} — ${order.customer_name}\n` +
         `৳${totalAmount.toLocaleString()} · by ${userName}` +
         (conditions?.production_hold ? `\n⛔ Production HOLD: ${conditions.production_hold_note ?? 'see order'}` : '') +
-        (conditions?.dispatch_hold ? `\n🚫 Dispatch hold: ${conditions.condition_type ?? 'manual'}${conditions.condition_amount ? ` ৳${Number(conditions.condition_amount).toLocaleString()}` : ''}` : '')
+        (conditions?.dispatch_hold ? `\n🚫 Dispatch hold: ${conditions.condition_type ?? 'manual'}${conditions.condition_amount ? ` ৳${Number(conditions.condition_amount).toLocaleString()}` : ''}` : '') +
+        (autoHoldApplied ? `\n🔒 AUTO dispatch hold — over credit limit, self-releases when balance is back within ৳${Number(order.credit_limit ?? 0).toLocaleString()}` : '')
     }
 
     if (rule.enforce === 'approve' && to_status === 'rejected') {

@@ -1,4 +1,4 @@
-import { o as defineEventHandler, L as getRouterParam, ae as readBody, O as getUserSession, k as createError, F as getRequestHeader, V as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, aA as userCanAction, w as getDb, M as getUserApprovalLimit, v as getCustomerOutstanding, m as creditUsagePct, U as isAccountsRole, C as getOrderGateState, a8 as postGoodsOnBoardInvoice, e as auditLog, at as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { o as defineEventHandler, M as getRouterParam, af as readBody, Q as getUserSession, k as createError, G as getRequestHeader, W as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, aB as userCanAction, x as getDb, N as getUserApprovalLimit, w as getCustomerOutstanding, m as creditUsagePct, v as getCreditWorkflowSettings, V as isAccountsRole, E as getOrderGateState, a9 as postGoodsOnBoardInvoice, e as auditLog, au as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -29,7 +29,7 @@ const TRANSITIONS = {
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -132,6 +132,32 @@ const workflow_post = defineEventHandler(async (event) => {
           });
         wfComment = `Approved under 80% rule \xB7 usage ${usageAfter}% \xB7 ${wfComment}`.trim();
       }
+      let autoHoldApplied = false;
+      if (!conditions && usageAfter > 100) {
+        const { creditLimitAutoRelease } = await getCreditWorkflowSettings(conn);
+        if (creditLimitAutoRelease) {
+          await conn.query(
+            `INSERT INTO order_approval_conditions
+               (order_id, dispatch_hold, condition_type, condition_amount, auto_release,
+                accounts_note, created_by_user_id)
+             VALUES (?, 1, 'outstanding_after_ship', ?, 1, ?, ?)
+             ON DUPLICATE KEY UPDATE
+               dispatch_hold = 1, condition_type = 'outstanding_after_ship',
+               condition_amount = VALUES(condition_amount), auto_release = 1,
+               accounts_note = VALUES(accounts_note),
+               dispatch_cleared = 0, dispatch_cleared_by = NULL,
+               dispatch_cleared_at = NULL, dispatch_cleared_note = NULL`,
+            [
+              id,
+              Number((_l = order.credit_limit) != null ? _l : 0),
+              `Auto dispatch hold: approved at ${usageAfter}% credit usage \u2014 releases once balance is back within the \u09F3${Number((_m = order.credit_limit) != null ? _m : 0).toLocaleString()} limit`,
+              userId
+            ]
+          );
+          autoHoldApplied = true;
+          wfComment += " \xB7 AUTO dispatch hold set (over credit limit, self-releases)";
+        }
+      }
       if (conditions && isAccountsRole(role)) {
         const ct = ["manual", "outstanding_below", "outstanding_after_ship", "amount_received"].includes(conditions.condition_type) ? conditions.condition_type : null;
         await conn.query(
@@ -153,12 +179,12 @@ const workflow_post = defineEventHandler(async (event) => {
           [
             id,
             conditions.production_hold ? 1 : 0,
-            (_l = conditions.production_hold_note) != null ? _l : null,
+            (_n = conditions.production_hold_note) != null ? _n : null,
             conditions.dispatch_hold ? 1 : 0,
             ct,
             conditions.condition_amount != null ? Number(conditions.condition_amount) : null,
             conditions.auto_release ? 1 : 0,
-            (_m = conditions.accounts_note) != null ? _m : null,
+            (_o = conditions.accounts_note) != null ? _o : null,
             userId
           ]
         );
@@ -169,8 +195,9 @@ const workflow_post = defineEventHandler(async (event) => {
       telegramMsg = `\u2705 <b>Order Approved</b>
 ${order.order_number} \u2014 ${order.customer_name}
 \u09F3${totalAmount.toLocaleString()} \xB7 by ${userName}` + ((conditions == null ? void 0 : conditions.production_hold) ? `
-\u26D4 Production HOLD: ${(_n = conditions.production_hold_note) != null ? _n : "see order"}` : "") + ((conditions == null ? void 0 : conditions.dispatch_hold) ? `
-\u{1F6AB} Dispatch hold: ${(_o = conditions.condition_type) != null ? _o : "manual"}${conditions.condition_amount ? ` \u09F3${Number(conditions.condition_amount).toLocaleString()}` : ""}` : "");
+\u26D4 Production HOLD: ${(_p = conditions.production_hold_note) != null ? _p : "see order"}` : "") + ((conditions == null ? void 0 : conditions.dispatch_hold) ? `
+\u{1F6AB} Dispatch hold: ${(_q = conditions.condition_type) != null ? _q : "manual"}${conditions.condition_amount ? ` \u09F3${Number(conditions.condition_amount).toLocaleString()}` : ""}` : "") + (autoHoldApplied ? `
+\u{1F512} AUTO dispatch hold \u2014 over credit limit, self-releases when balance is back within \u09F3${Number((_r = order.credit_limit) != null ? _r : 0).toLocaleString()}` : "");
     }
     if (rule.enforce === "approve" && to_status === "rejected") {
       telegramMsg = `\u274C <b>Order Rejected</b>
@@ -183,7 +210,7 @@ Reason: ${comments}` : ""}`;
       if (gate.productionHold && !gate.productionReleased)
         throw createError({
           statusCode: 423,
-          statusMessage: `Production HOLD on this order${((_p = gate.raw) == null ? void 0 : _p.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
+          statusMessage: `Production HOLD on this order${((_s = gate.raw) == null ? void 0 : _s.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
         });
     }
     if (rule.enforce === "goods_on_board") {
@@ -193,7 +220,7 @@ Reason: ${comments}` : ""}`;
         customerId: order.customer_id,
         customerName: order.customer_name,
         totalAmount,
-        balanceDue: Number((_q = order.balance_due) != null ? _q : 0),
+        balanceDue: Number((_t = order.balance_due) != null ? _t : 0),
         userId,
         userName
       });
@@ -239,7 +266,7 @@ Truck has departed \xB7 by ${userName}`;
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_s = (_r = e == null ? void 0 : e.sqlMessage) != null ? _r : e == null ? void 0 : e.message) != null ? _s : "Workflow transition failed"
+      statusMessage: (_v = (_u = e == null ? void 0 : e.sqlMessage) != null ? _u : e == null ? void 0 : e.message) != null ? _v : "Workflow transition failed"
     });
   } finally {
     conn.release();
