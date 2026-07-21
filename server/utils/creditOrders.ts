@@ -300,6 +300,8 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
   balanceDue: number
   userId: number
   userName: string
+  /** Backdated entries post with a historical date instead of today. */
+  postDate?: string
 }): Promise<{ alreadyPosted: boolean; autoReleased: boolean; telegramMsg: string }> {
   const gate = await getOrderGateState(conn, opts.orderId)
   let autoReleased = false
@@ -333,7 +335,7 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
   const alreadyPosted = !!already
 
   if (!already) {
-    const postDate = new Date().toISOString().slice(0, 10)
+    const postDate = opts.postDate ?? new Date().toISOString().slice(0, 10)
     let jeId: number | null = null
     const arId  = await getGLAccountId(conn, 'Accounts Receivable')
     const revId = await getGLAccountId(conn, 'Revenue')
