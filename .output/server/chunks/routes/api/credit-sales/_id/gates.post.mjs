@@ -84,11 +84,14 @@ const gates_post = defineEventHandler(async (event) => {
       );
     } else if (action === "clear_dispatch") {
       await conn.query(
-        `UPDATE order_approval_conditions
-         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
-             dispatch_cleared_note = ?
-         WHERE order_id = ?`,
-        [userId, note != null ? note : "Cleared by accounts", id]
+        `INSERT INTO order_approval_conditions
+           (order_id, dispatch_hold, condition_type, dispatch_cleared,
+            dispatch_cleared_by, dispatch_cleared_at, dispatch_cleared_note, created_by_user_id)
+         VALUES (?, 1, 'manual', 1, ?, NOW(), ?, ?)
+         ON DUPLICATE KEY UPDATE
+           dispatch_cleared = 1, dispatch_cleared_by = VALUES(dispatch_cleared_by),
+           dispatch_cleared_at = NOW(), dispatch_cleared_note = VALUES(dispatch_cleared_note)`,
+        [id, userId, note != null ? note : "Cleared by accounts", userId]
       );
       telegramMsg = `\u{1F7E2} <b>Dispatch Clearance GRANTED</b>
 ${order.order_number} \u2014 ${order.customer_name}

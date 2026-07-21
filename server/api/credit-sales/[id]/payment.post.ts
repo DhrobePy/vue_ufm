@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
     cash_account_id,   // petty cash account when method = cash
     payment_date,
     notes,
+    is_checker_review,  // true when Approval Requests is re-posting an already-queued request
   } = body ?? {}
 
   if (!amount || Number(amount) <= 0) {
@@ -69,8 +70,11 @@ export default defineEventHandler(async (event) => {
     // Maker/checker gate (spec §2.4/§3): over the maker's personal limit ->
     // queue for a checker instead of hard-blocking. No writes have happened
     // yet, so committing here just persists the queued request.
-    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount))
+    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount), Boolean(is_checker_review))
     if (!limitCheck.allowed) {
+      const limitDesc = limitCheck.cap > 0
+        ? `exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`
+        : 'no transaction limit has been delegated to your account yet'
       const reqId = await queuePendingRequest(conn, {
         requestType: 'payment',
         payload: body,
@@ -79,16 +83,16 @@ export default defineEventHandler(async (event) => {
         amount: Number(amount),
         referenceLabel: `${order.order_number} — ${order.customer_name} — ৳${Number(amount).toLocaleString()}`,
         requestedBy: userId,
-        requestedReason: `Exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`,
+        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of ৳${limitCheck.cap.toLocaleString()}` : 'No transaction limit configured',
       })
       await conn.commit()
       sendTelegram(
         `⏳ <b>Payment Queued for Approval</b>\n${order.order_number} — ${order.customer_name}\n` +
-        `৳${Number(amount).toLocaleString()} · Requested by ${userName} (over their ৳${limitCheck.cap.toLocaleString()} limit)`,
+        `৳${Number(amount).toLocaleString()} · Requested by ${userName} (${limitDesc})`,
       )
       return {
         ok: true, queued: true, pending_request_id: reqId,
-        message: `৳${Number(amount).toLocaleString()} exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()} — queued for a checker's approval.`,
+        message: `৳${Number(amount).toLocaleString()} ${limitDesc} — queued for a checker's approval.`,
       }
     }
 

@@ -740,7 +740,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$2a || {},
-    component: () => import('./settings-DKfnQa2E.mjs')
+    component: () => import('./settings-Bcc0u22I.mjs')
   },
   {
     name: "bank-statement",

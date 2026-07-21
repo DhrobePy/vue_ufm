@@ -89,7 +89,7 @@ async function approve(r: any) {
     const url = r.request_type === 'payment'
       ? `/api/credit-sales/${r.order_id}/payment`
       : `/api/customers/${r.customer_id}/collect-payment`
-    const res: any = await $fetch(url, { method: 'POST', body: r.payload })
+    const res: any = await $fetch(url, { method: 'POST', body: { ...r.payload, is_checker_review: true } })
 
     if (res.queued) {
       // Checker's own limit is also insufficient — leave the original

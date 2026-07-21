@@ -40,8 +40,9 @@ const collectPayment_post = defineEventHandler(async (event) => {
       [customerId]
     );
     if (!customer) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
-    const limitCheck = await checkTransactionLimit(conn, userId, role, amount);
+    const limitCheck = await checkTransactionLimit(conn, userId, role, amount, Boolean(body == null ? void 0 : body.is_checker_review));
     if (!limitCheck.allowed) {
+      const limitDesc = limitCheck.cap > 0 ? `exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "no transaction limit has been delegated to your account yet";
       const reqId = await queuePendingRequest(conn, {
         requestType: "collect_payment",
         payload: body,
@@ -49,19 +50,19 @@ const collectPayment_post = defineEventHandler(async (event) => {
         amount,
         referenceLabel: `${customer.name} \u2014 \u09F3${amount.toLocaleString()} via ${method}`,
         requestedBy: userId,
-        requestedReason: `Exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}`
+        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "No transaction limit configured"
       });
       await conn.commit();
       sendTelegram(
         `\u23F3 <b>Payment Queued for Approval</b>
 ${customer.name} \u2014 \u09F3${amount.toLocaleString()} via ${method}
-Requested by ${userName} (over their \u09F3${limitCheck.cap.toLocaleString()} limit)`
+Requested by ${userName} (${limitDesc})`
       );
       return {
         ok: true,
         queued: true,
         pending_request_id: reqId,
-        message: `\u09F3${amount.toLocaleString()} exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()} \u2014 queued for a checker's approval.`
+        message: `\u09F3${amount.toLocaleString()} ${limitDesc} \u2014 queued for a checker's approval.`
       };
     }
     const payNo = await nextDocNumber(conn, "PAY", "customer_payments");

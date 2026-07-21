@@ -39,7 +39,9 @@ const payment_post = defineEventHandler(async (event) => {
     cash_account_id,
     // petty cash account when method = cash
     payment_date,
-    notes
+    notes,
+    is_checker_review
+    // true when Approval Requests is re-posting an already-queued request
   } = body != null ? body : {};
   if (!amount || Number(amount) <= 0) {
     throw createError({ statusCode: 400, statusMessage: "Payment amount must be greater than zero" });
@@ -65,8 +67,9 @@ const payment_post = defineEventHandler(async (event) => {
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
     const role = ((_g = session.user.role) != null ? _g : "").toLowerCase();
-    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount));
+    const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount), Boolean(is_checker_review));
     if (!limitCheck.allowed) {
+      const limitDesc = limitCheck.cap > 0 ? `exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "no transaction limit has been delegated to your account yet";
       const reqId = await queuePendingRequest(conn, {
         requestType: "payment",
         payload: body,
@@ -75,19 +78,19 @@ const payment_post = defineEventHandler(async (event) => {
         amount: Number(amount),
         referenceLabel: `${order.order_number} \u2014 ${order.customer_name} \u2014 \u09F3${Number(amount).toLocaleString()}`,
         requestedBy: userId,
-        requestedReason: `Exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}`
+        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "No transaction limit configured"
       });
       await conn.commit();
       sendTelegram(
         `\u23F3 <b>Payment Queued for Approval</b>
 ${order.order_number} \u2014 ${order.customer_name}
-\u09F3${Number(amount).toLocaleString()} \xB7 Requested by ${userName} (over their \u09F3${limitCheck.cap.toLocaleString()} limit)`
+\u09F3${Number(amount).toLocaleString()} \xB7 Requested by ${userName} (${limitDesc})`
       );
       return {
         ok: true,
         queued: true,
         pending_request_id: reqId,
-        message: `\u09F3${Number(amount).toLocaleString()} exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()} \u2014 queued for a checker's approval.`
+        message: `\u09F3${Number(amount).toLocaleString()} ${limitDesc} \u2014 queued for a checker's approval.`
       };
     }
     const pmtAmount = Number(amount);

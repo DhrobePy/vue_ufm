@@ -89,18 +89,28 @@ export async function getUserApprovalLimit(
  * Check the per-user transaction (payment) limit — never throws, so the
  * caller can decide between hard-blocking and queuing for a checker
  * (spec §2.4/§3 maker/checker gate). Admins are always allowed.
- * A personal max_transaction_amount > 0 caps every single payment the user
- * records; 0 / no row = no personal cap (role checks still apply upstream).
+ *
+ * "No limit configured" (no row / 0) is NOT unlimited — it means the maker
+ * hasn't been delegated any personal authority yet, so a fresh submission
+ * always queues for a checker. (Previously this defaulted to unlimited/
+ * fully-trusted, silently bypassing maker/checker for anyone nobody had
+ * gotten around to configuring — the exact gap the legacy app's Jul 2026
+ * fix closed.) The one exception: a CHECKER re-posting a request they're
+ * reviewing (isCheckerReview=true) is trusted regardless of their own
+ * configured cap — the act of being the second, different reviewer with
+ * Approval Requests access is itself sufficient authority; the strict
+ * "needs a configured limit" rule only applies to the original maker.
  */
 export async function checkTransactionLimit(
-  conn: any, userId: number, role: string, amount: number,
+  conn: any, userId: number, role: string, amount: number, isCheckerReview = false,
 ): Promise<{ allowed: boolean; cap: number }> {
   if (isAdminRole(role)) return { allowed: true, cap: Infinity }
   const [[row]] = await conn.query(
     `SELECT max_transaction_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
   )
   const cap = Number(row?.max_transaction_amount ?? 0)
-  return { allowed: !(cap > 0 && amount > cap), cap }
+  if (cap <= 0) return { allowed: isCheckerReview, cap: 0 }
+  return { allowed: amount <= cap, cap }
 }
 
 /**
@@ -150,6 +160,36 @@ export interface GateState {
   raw: any
 }
 
+/**
+ * Credit-workflow policy toggles (system_settings key 'credit_workflow_policy'):
+ *  - dispatchGlobalHold: every order is dispatch-held by default until Accounts/
+ *    Admin explicitly clears it, independent of any payment condition. ON by
+ *    default (matches the legacy app's Jul 2026 feature — safety-first default).
+ *  - creditLimitAutoRelease: approving an over-limit order force-sets a
+ *    dispatch hold that self-clears once the customer's ledger balance comes
+ *    back within their credit limit. OFF by default (opt-in).
+ */
+export async function getCreditWorkflowSettings(conn: any): Promise<{ dispatchGlobalHold: boolean; creditLimitAutoRelease: boolean }> {
+  const defaults = { dispatchGlobalHold: true, creditLimitAutoRelease: false }
+  try {
+    const [[row]] = await conn.query(
+      `SELECT setting_value FROM system_settings WHERE setting_key = 'credit_workflow_policy'`,
+    )
+    if (row?.setting_value) {
+      const parsed = JSON.parse(row.setting_value)
+      return { ...defaults, ...parsed }
+    }
+  } catch { /* table/row missing — defaults stand */ }
+  return defaults
+}
+
+// Orders that have already left the pre-dispatch pipeline — a default hold
+// synthesized for display/enforcement is meaningless once past this point.
+const PRE_DISPATCH_STATUSES = [
+  'draft', 'pending_approval', 'escalated', 'approved',
+  'in_production', 'produced', 'ready_to_ship',
+]
+
 export async function getOrderGateState(conn: any, orderId: number): Promise<GateState> {
   const none: GateState = {
     exists: false, productionHold: false, productionReleased: false,
@@ -169,7 +209,22 @@ export async function getOrderGateState(conn: any, orderId: number): Promise<Gat
     console.warn('[gates] order_approval_conditions unavailable:', e?.message)
     return none
   }
-  if (!c) return none
+  if (!c) {
+    // No explicit condition row — under the global-hold policy, a pre-dispatch
+    // order is held by default (requires explicit Accounts/Admin clearance)
+    // rather than free to ship. gates.post.ts's clear_dispatch upserts a real
+    // row the first time someone clears it, so this synthesis only matters
+    // before that ever happens.
+    const { dispatchGlobalHold } = await getCreditWorkflowSettings(conn)
+    if (!dispatchGlobalHold) return none
+    const [[ord]] = await conn.query(`SELECT status FROM credit_orders WHERE id = ?`, [orderId])
+    if (!ord || !PRE_DISPATCH_STATUSES.includes(ord.status)) return none
+    return {
+      ...none,
+      dispatchHold: true, conditionType: 'manual', conditionMet: false,
+      accountsNote: 'Held by default dispatch policy — no explicit clearance yet',
+    }
+  }
 
   const [[order]] = await conn.query(
     `SELECT customer_id, total_amount, amount_paid, advance_paid, balance_due
