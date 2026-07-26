@@ -167,6 +167,21 @@
 
             <div class="flex items-start justify-between gap-4 py-3 border-b border-white/[0.04]">
               <div class="flex-1">
+                <p class="text-sm font-medium text-gray-200">Payment Approval Policy</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  When ON, <strong>every</strong> payment recorded by a non-admin queues for a checker's approval
+                  on Approval Requests — regardless of the maker's personal transaction limit.
+                  When OFF, only payments over the maker's limit (or from makers with no limit configured) queue.
+                </p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="creditWorkflow.payment_require_approval" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+
+            <div class="flex items-start justify-between gap-4 py-3 border-b border-white/[0.04]">
+              <div class="flex-1">
                 <p class="text-sm font-medium text-gray-200">Auto-release over-limit orders once paid within limit</p>
                 <p class="text-xs text-gray-500 mt-0.5">
                   When ON, approving an order that breaches the customer's credit limit force-sets a dispatch hold
@@ -230,6 +245,21 @@
               <textarea v-model="docSettings.tc_credit_invoice" rows="7"
                 class="input-glass resize-y font-mono text-xs leading-relaxed"
                 placeholder="One clause per line…" />
+            </div>
+
+            <!-- Show credit standing on printed invoice -->
+            <div class="flex items-start justify-between gap-4 py-3 border-t border-white/[0.06]">
+              <div class="flex-1">
+                <p class="text-sm font-medium text-gray-200">Show Customer Outstanding on Invoice</p>
+                <p class="text-xs text-gray-500 mt-0.5">
+                  When ON, the printed invoice's Bill-To block shows the customer's credit limit and outstanding balance.
+                  Turn OFF to keep account standing off paper handed to drivers/customers.
+                </p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5 shrink-0">
+                <input v-model="docShowOutstanding" type="checkbox" class="sr-only peer" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
             </div>
 
             <div class="flex items-center justify-between pt-2">
@@ -397,6 +427,21 @@
               <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Group / Admin Chat ID</label>
               <input v-model="notifSettings.adminChatId" type="text" class="input-glass font-mono" placeholder="-100xxxxx" />
             </div>
+
+            <!-- Per-category routing groups -->
+            <div class="space-y-2 pt-2 border-t border-white/[0.06]">
+              <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category Routing (optional)</p>
+              <p class="text-[11px] text-gray-600 leading-snug">
+                Route each event category to its own Telegram group. Leave a category blank to send it to the general group above.
+              </p>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                <div v-for="cat in telegramCategories" :key="cat.key" class="flex items-center gap-2">
+                  <span class="text-[11px] text-gray-500 w-36 shrink-0 capitalize">{{ cat.key.replace(/_/g, ' ') }}</span>
+                  <input v-model="cat.chat_id" type="text" class="input-glass font-mono text-xs py-1.5 flex-1" placeholder="general group" />
+                </div>
+              </div>
+            </div>
+
             <div class="flex justify-end gap-3">
               <button @click="saveTelegram(true)" :disabled="savingTelegram" class="btn-ghost text-xs disabled:opacity-50">
                 Save &amp; Send Test
@@ -707,11 +752,13 @@ const docSettings = reactive({
   tc_purchase_order: (docData.value as any)?.settings?.tc_purchase_order ?? TC_DEFAULTS.tc_purchase_order,
   tc_credit_invoice: (docData.value as any)?.settings?.tc_credit_invoice ?? TC_DEFAULTS.tc_credit_invoice,
 })
+const docShowOutstanding = ref(((docData.value as any)?.settings?.show_invoice_outstanding ?? '1') !== '0')
 const docSaving = ref(false)
 
 function resetDocSettings() {
   docSettings.tc_purchase_order = TC_DEFAULTS.tc_purchase_order
   docSettings.tc_credit_invoice = TC_DEFAULTS.tc_credit_invoice
+  docShowOutstanding.value = true
 }
 
 async function saveDocSettings() {
@@ -722,6 +769,7 @@ async function saveDocSettings() {
       body: {
         tc_purchase_order: docSettings.tc_purchase_order,
         tc_credit_invoice: docSettings.tc_credit_invoice,
+        show_invoice_outstanding: docShowOutstanding.value ? '1' : '0',
       },
     })
     success('Document T&C settings saved successfully')
@@ -737,6 +785,7 @@ const { data: cwData } = await useFetch('/api/settings/credit-workflow')
 const creditWorkflow = reactive({
   dispatch_global_hold:      (cwData.value as any)?.settings?.dispatch_global_hold ?? true,
   credit_limit_auto_release: (cwData.value as any)?.settings?.credit_limit_auto_release ?? false,
+  payment_require_approval:  (cwData.value as any)?.settings?.payment_require_approval ?? true,
 })
 const creditWorkflowSaving = ref(false)
 
@@ -932,6 +981,7 @@ const notifChannels = reactive([
 ])
 
 const notifSettings  = reactive({ telegramToken: '', adminChatId: '', tokenMasked: '' })
+const telegramCategories = ref<Array<{ key: string; chat_id: string }>>([])
 const savingTelegram = ref(false)
 
 // Load saved Telegram settings (masked token)
@@ -943,6 +993,7 @@ watch(tgData, (d: any) => {
   if (!d) return
   notifSettings.adminChatId = d.chat_id ?? ''
   notifSettings.tokenMasked = d.token_masked ?? ''
+  telegramCategories.value  = d.categories ?? []
 }, { immediate: true })
 
 async function saveTelegram(sendTest: boolean) {
@@ -953,6 +1004,7 @@ async function saveTelegram(sendTest: boolean) {
       body: {
         chat_id:   notifSettings.adminChatId,
         ...(notifSettings.telegramToken ? { token: notifSettings.telegramToken } : {}),
+        categories: Object.fromEntries(telegramCategories.value.map(c => [c.key, c.chat_id])),
         send_test: sendTest,
       },
     })

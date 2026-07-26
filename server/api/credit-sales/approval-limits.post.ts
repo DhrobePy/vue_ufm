@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { ADMIN_ROLES } from '~/server/utils/creditOrders'
+import { ADMIN_ROLES, ACTION_LIMIT_KEYS } from '~/server/utils/creditOrders'
 
 /** Set / clear one user's delegated approval limit (admin only). */
 export default defineEventHandler(async (event) => {
@@ -31,6 +31,24 @@ export default defineEventHandler(async (event) => {
         [userId, orderCap, txnCap, adminId],
       )
     }
+    // Per-action overrides — 0/blank clears an action back to the defaults
+    if (body?.action_limits && typeof body.action_limits === 'object') {
+      for (const key of ACTION_LIMIT_KEYS) {
+        if (body.action_limits[key] === undefined) continue
+        const amt = Math.max(0, Number(body.action_limits[key]) || 0)
+        if (amt <= 0) {
+          await conn.query(`DELETE FROM user_action_limits WHERE user_id = ? AND action_key = ?`, [userId, key])
+        } else {
+          await conn.query(
+            `INSERT INTO user_action_limits (user_id, action_key, max_amount, set_by_user_id)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE max_amount = VALUES(max_amount), set_by_user_id = VALUES(set_by_user_id)`,
+            [userId, key, amt, adminId],
+          )
+        }
+      }
+    }
+
     await auditLog(conn, {
       userId: adminId,
       action: 'user_updated',

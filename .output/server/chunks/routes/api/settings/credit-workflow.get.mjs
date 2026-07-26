@@ -1,4 +1,4 @@
-import { o as defineEventHandler, ac as query } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, aj as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -12,8 +12,10 @@ import 'node:url';
 const DEFAULTS = {
   dispatch_global_hold: true,
   // every order held from dispatch until Accounts/Admin explicitly clears it
-  credit_limit_auto_release: false
+  credit_limit_auto_release: false,
   // over-limit orders auto-clear once the customer's balance is back within limit
+  payment_require_approval: true
+  // every non-admin receipt queues for a checker regardless of limits
 };
 const creditWorkflow_get = defineEventHandler(async () => {
   var _a;

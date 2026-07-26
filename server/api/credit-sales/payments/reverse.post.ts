@@ -196,7 +196,7 @@ export default defineEventHandler(async (event) => {
       `↩️ <b>Payment Reversed</b>\n${pmt.payment_number} — ৳${pmtAmount.toLocaleString()} for ${pmt.customer_name}\n` +
       (orderSummaries.length ? `${orderSummaries.join(', ')}\n` : '') +
       `by ${userName}${reason ? `\nReason: ${reason}` : ''}`,
-    )
+    'payment_received')
     return { ok: true, reversed_amount: pmtAmount, reference: refNo, reversal_journal_entry_id: reversalJeId }
   } catch (e) {
     await conn.rollback()

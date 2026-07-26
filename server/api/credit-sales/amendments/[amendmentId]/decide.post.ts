@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getUserApprovalLimit } from '~/server/utils/creditOrders'
+import { getUserApprovalLimit, getUserActionLimit } from '~/server/utils/creditOrders'
 import { applyAmendment } from '~/server/utils/amendments'
 
 /**
@@ -45,7 +45,12 @@ export default defineEventHandler(async (event) => {
     const delta = amd.regime === 'pre'
       ? Number(newValues.total_amount ?? 0) - Number(JSON.parse(amd.old_values ?? '{}').total_amount ?? 0)
       : Number(amd.flat_amount ?? 0)
-    const { limit, source } = await getUserApprovalLimit(conn, userId, role)
+    // Per-action amend_order cap wins over the general order-approval limit
+    let { limit, source } = await getUserApprovalLimit(conn, userId, role)
+    if (source !== 'admin') {
+      const amendCap = await getUserActionLimit(conn, userId, 'amend_order')
+      if (amendCap !== null) { limit = amendCap; source = 'personal' }
+    }
     const mayDecide = source === 'admin' || (source === 'personal' && (delta <= 0 || delta <= limit))
     if (!mayDecide)
       throw createError({ statusCode: 403, statusMessage: `You need admin authority or a delegated limit ≥ ৳${delta.toLocaleString()}` })

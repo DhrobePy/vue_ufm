@@ -38,6 +38,22 @@ export default defineEventHandler(async (event) => {
        WHERE id = ?`,
       [userId, note, id],
     )
+
+    // commodity_sale_edit is the only request type with its own durable
+    // tracking row — rejecting the queue entry must also close that row.
+    if (req.request_type === 'commodity_sale_edit') {
+      try {
+        const payload = typeof req.payload === 'string' ? JSON.parse(req.payload) : req.payload
+        if (payload?.edit_id) {
+          await conn.query(
+            `UPDATE commodity_sale_edits
+             SET status = 'rejected', decided_by_user_id = ?, decided_at = NOW()
+             WHERE id = ? AND status = 'pending_approval'`,
+            [userId, Number(payload.edit_id)],
+          )
+        }
+      } catch { /* malformed payload — queue entry is still closed */ }
+    }
     await auditLog(conn, {
       userId, action: 'rejected', module: 'credit_sales',
       recordType: 'credit_pending_request', recordId: id,

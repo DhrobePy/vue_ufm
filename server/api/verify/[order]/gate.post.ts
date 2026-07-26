@@ -125,7 +125,7 @@ export default defineEventHandler(async (event) => {
   sendTelegram(
     `🚪 <b>Gate Pass — Goods Released</b>\n${committedOrder.order_number}\n` +
     `Driver: ${driverName} · Vehicle: ${vehicleNumber}\nBy ${userName}`,
-  )
+  'dispatch')
 
   return { ok: true, message: 'Gate pass recorded — goods released. Scan again at the customer to confirm delivery.' }
 })

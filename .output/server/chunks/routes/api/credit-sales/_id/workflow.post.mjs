@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, af as readBody, Q as getUserSession, k as createError, G as getRequestHeader, W as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, aB as userCanAction, x as getDb, N as getUserApprovalLimit, w as getCustomerOutstanding, m as creditUsagePct, v as getCreditWorkflowSettings, V as isAccountsRole, E as getOrderGateState, a9 as postGoodsOnBoardInvoice, e as auditLog, au as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, am as readBody, V as getUserSession, l as createError, I as getRequestHeader, _ as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, P as PRODUCTION_ROLES, aJ as userCanAction, y as getDb, R as getUserApprovalLimit, x as getCustomerOutstanding, n as creditUsagePct, w as getCreditWorkflowSettings, Z as isAccountsRole, G as getOrderGateState, af as postGoodsOnBoardInvoice, ah as postOtherSalesCOGS, f as auditLog, aC as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -29,7 +29,7 @@ const TRANSITIONS = {
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -99,7 +99,11 @@ const workflow_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-    if (!rule.from.includes(order.status))
+    const isOtherSales = !!order.is_other_sales;
+    if (isOtherSales && ["in_production"].includes(to_status))
+      throw createError({ statusCode: 409, statusMessage: "Other Sales orders skip production \u2014 move it straight to Ready to Ship" });
+    const allowedFrom = isOtherSales && to_status === "ready_to_ship" ? [...rule.from, "approved"] : rule.from;
+    if (!allowedFrom.includes(order.status))
       throw createError({
         statusCode: 409,
         statusMessage: `Order is "${order.status}" \u2014 cannot move to "${to_status}" from there`
@@ -229,6 +233,15 @@ Reason: ${comments}` : ""}`;
       if (result.autoReleased)
         wfComment += " \xB7 dispatch clearance auto-released (condition met)";
       telegramMsg = result.telegramMsg;
+      if (order.is_other_sales) {
+        const cogs = await postOtherSalesCOGS(conn, {
+          orderId: id,
+          orderNumber: order.order_number,
+          branchId: (_u = order.assigned_branch_id) != null ? _u : null,
+          userId
+        });
+        if (cogs > 0) wfComment += ` \xB7 trading COGS \u09F3${cogs.toLocaleString()} posted`;
+      }
     }
     if (to_status === "shipped") {
       wfComment = `Truck departed \xB7 ${wfComment}`.trim();
@@ -258,7 +271,10 @@ Truck has departed \xB7 by ${userName}`;
       ipAddress
     });
     await conn.commit();
-    if (telegramMsg) sendTelegram(telegramMsg);
+    if (telegramMsg) {
+      const cat = ["approved", "rejected", "escalated"].includes(to_status) ? "orders" : ["in_production", "ready_to_ship"].includes(to_status) ? "production" : ["goods_on_board", "shipped"].includes(to_status) ? "dispatch" : void 0;
+      sendTelegram(telegramMsg, cat);
+    }
     return { ok: true, newStatus: to_status };
   } catch (e) {
     await conn.rollback();
@@ -266,7 +282,7 @@ Truck has departed \xB7 by ${userName}`;
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_v = (_u = e == null ? void 0 : e.sqlMessage) != null ? _u : e == null ? void 0 : e.message) != null ? _v : "Workflow transition failed"
+      statusMessage: (_w = (_v = e == null ? void 0 : e.sqlMessage) != null ? _v : e == null ? void 0 : e.message) != null ? _w : "Workflow transition failed"
     });
   } finally {
     conn.release();

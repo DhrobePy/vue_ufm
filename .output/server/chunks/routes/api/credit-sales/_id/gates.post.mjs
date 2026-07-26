@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, af as readBody, Q as getUserSession, k as createError, V as isAccountsRole, W as isAdminRole, aB as userCanAction, x as getDb, e as auditLog, E as getOrderGateState, au as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, am as readBody, V as getUserSession, l as createError, _ as isAdminRole, aJ as userCanAction, Z as isAccountsRole, y as getDb, f as auditLog, G as getOrderGateState, aC as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -21,8 +21,6 @@ const gates_post = defineEventHandler(async (event) => {
   const action = String((_c = body == null ? void 0 : body.action) != null ? _c : "");
   const note = (body == null ? void 0 : body.note) ? String(body.note).slice(0, 255) : null;
   if (!id || !action) throw createError({ statusCode: 400, statusMessage: "id and action required" });
-  if (!isAccountsRole(role))
-    throw createError({ statusCode: 403, statusMessage: "Accounts family or admin only" });
   if (action === "release_production" && !isAdminRole(role))
     throw createError({ statusCode: 403, statusMessage: "Only admin can release a production hold" });
   const ACTION_PERM = {
@@ -41,6 +39,8 @@ const gates_post = defineEventHandler(async (event) => {
     });
     if (!allowed)
       throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${ACTION_PERM[action].replace("_", " ")}` });
+  } else if (!isAccountsRole(role)) {
+    throw createError({ statusCode: 403, statusMessage: "Accounts family or admin only" });
   }
   const db = getDb();
   const conn = await db.getConnection();
@@ -142,7 +142,7 @@ by ${userName}`;
     });
     const state = await getOrderGateState(conn, id);
     await conn.commit();
-    if (telegramMsg) sendTelegram(telegramMsg);
+    if (telegramMsg) sendTelegram(telegramMsg, "dispatch");
     return { ok: true, gate: state };
   } catch (e) {
     await conn.rollback();

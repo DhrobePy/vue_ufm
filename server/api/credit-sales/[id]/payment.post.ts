@@ -72,9 +72,11 @@ export default defineEventHandler(async (event) => {
     // yet, so committing here just persists the queued request.
     const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount), Boolean(is_checker_review))
     if (!limitCheck.allowed) {
-      const limitDesc = limitCheck.cap > 0
-        ? `exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`
-        : 'no transaction limit has been delegated to your account yet'
+      const limitDesc = limitCheck.reason === 'policy'
+        ? 'payment approval policy — every payment needs a checker'
+        : limitCheck.cap > 0
+          ? `exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`
+          : 'no transaction limit has been delegated to your account yet'
       const reqId = await queuePendingRequest(conn, {
         requestType: 'payment',
         payload: body,
@@ -83,13 +85,13 @@ export default defineEventHandler(async (event) => {
         amount: Number(amount),
         referenceLabel: `${order.order_number} — ${order.customer_name} — ৳${Number(amount).toLocaleString()}`,
         requestedBy: userId,
-        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of ৳${limitCheck.cap.toLocaleString()}` : 'No transaction limit configured',
+        requestedReason: limitCheck.reason === 'policy' ? 'Payment approval policy (all payments)' : limitCheck.cap > 0 ? `Exceeds transaction limit of ৳${limitCheck.cap.toLocaleString()}` : 'No transaction limit configured',
       })
       await conn.commit()
       sendTelegram(
         `⏳ <b>Payment Queued for Approval</b>\n${order.order_number} — ${order.customer_name}\n` +
         `৳${Number(amount).toLocaleString()} · Requested by ${userName} (${limitDesc})`,
-      )
+      'payment_received')
       return {
         ok: true, queued: true, pending_request_id: reqId,
         message: `৳${Number(amount).toLocaleString()} ${limitDesc} — queued for a checker's approval.`,
@@ -339,7 +341,7 @@ export default defineEventHandler(async (event) => {
       `৳${pmtAmount.toLocaleString()} via ${mappedMethod} · balance ৳${newBalance.toLocaleString()}` +
       (isNowComplete ? '\n✅ Order fully paid & completed' : '') +
       (autoReleased ? '\n🟢 Dispatch clearance auto-released' : ''),
-    )
+    'payment_received')
 
     if (mappedMethod !== 'Cash' && bank_account_id) {
       bridgeCustomerPayment(getDb(), {

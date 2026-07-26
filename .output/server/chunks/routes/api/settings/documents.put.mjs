@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, af as readBody, x as getDb, e as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, am as readBody, y as getDb, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -9,7 +9,7 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const ALLOWED_KEYS = ["tc_purchase_order", "tc_credit_invoice"];
+const ALLOWED_KEYS = ["tc_purchase_order", "tc_credit_invoice", "show_invoice_outstanding"];
 const documents_put = defineEventHandler(async (event) => {
   var _a, _b, _c, _d;
   const session = await getUserSession(event);

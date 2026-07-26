@@ -114,8 +114,8 @@
             <div style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px;">{{ order.customer }}</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
               <div>{{ order.customerType }} Customer · {{ order.branch }} Territory</div>
-              <div>Credit Limit: <span style="font-weight:700;color:#d97706;">৳{{ (order?.creditLimit ?? 0).toLocaleString() }}</span></div>
-              <div>Outstanding: <span style="font-weight:700;color:#dc2626;">৳{{ (order?.currentBalance ?? 0).toLocaleString() }}</span></div>
+              <div v-if="showOutstanding">Credit Limit: <span style="font-weight:700;color:#d97706;">৳{{ (order?.creditLimit ?? 0).toLocaleString() }}</span></div>
+              <div v-if="showOutstanding">Outstanding: <span style="font-weight:700;color:#dc2626;">৳{{ (order?.currentBalance ?? 0).toLocaleString() }}</span></div>
             </div>
           </div>
           <div style="padding:17px 40px;">
@@ -345,6 +345,11 @@ const [{ data, error }, { data: settingsData }] = await Promise.all([
 ])
 
 const invoiceNo = computed(() => data.value?.order?.order_number ?? `INV-${orderId.value}`)
+
+// Admin toggle (Settings → Documents): hide the customer's credit standing
+// (limit + outstanding) on the printed invoice when '0'.
+const showOutstanding = computed(() =>
+  ((settingsData.value as any)?.settings?.show_invoice_outstanding ?? '1') !== '0')
 
 const order = computed(() => {
   const o = data.value?.order

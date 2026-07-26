@@ -65,16 +65,50 @@ export function creditUsagePct(exposure: number, creditLimit: number): number {
 }
 
 // ─── Delegated approval limits ────────────────────────────────────────────────
+
+/** Per-action ৳-limit keys (legacy user_action_limits parity). */
+export const ACTION_LIMIT_KEYS = [
+  'approve_order', 'amend_order', 'collect_payment', 'partial_delivery',
+  'commodity_sale', 'loan_disbursement',
+] as const
+export type ActionLimitKey = typeof ACTION_LIMIT_KEYS[number]
+
+/**
+ * Per-user per-action ৳ cap from user_action_limits. Returns null when the
+ * action has no explicit row for this user — the caller decides the fallback
+ * (approve_order/amend_order fall back to user_approval_limits.max_order_amount,
+ * collect_payment to max_transaction_amount, partial_delivery to nothing).
+ * A row with amount 0 is treated the same as no row (unset), matching the
+ * inline-limit editor's "blank/0 clears" convention.
+ */
+export async function getUserActionLimit(
+  conn: any, userId: number, key: ActionLimitKey,
+): Promise<number | null> {
+  try {
+    const [[row]] = await conn.query(
+      `SELECT max_amount FROM user_action_limits WHERE user_id = ? AND action_key = ?`,
+      [userId, key],
+    )
+    const amt = Number(row?.max_amount ?? 0)
+    return amt > 0 ? amt : null
+  } catch {
+    return null // table missing (pre-migration restart) — behave as unset
+  }
+}
+
 /**
  * Max order amount this user may approve.
- * Precedence: admin → Infinity; personal row in user_approval_limits →
- * that amount (decides EVERYTHING); accounts family without a row → 0
- * (falls back to the 80% rule evaluated by the caller); others → 0.
+ * Precedence: admin → Infinity; per-action approve_order limit → that amount;
+ * personal row in user_approval_limits → that amount (decides EVERYTHING);
+ * accounts family without either → 0 (falls back to the 80% rule evaluated
+ * by the caller); others → 0.
  */
 export async function getUserApprovalLimit(
   conn: any, userId: number, role: string,
 ): Promise<{ limit: number; source: 'admin' | 'personal' | 'none' }> {
   if (isAdminRole(role)) return { limit: Infinity, source: 'admin' }
+  const actionCap = await getUserActionLimit(conn, userId, 'approve_order')
+  if (actionCap !== null) return { limit: actionCap, source: 'personal' }
   const [[row]] = await conn.query(
     `SELECT max_order_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
   )
@@ -103,14 +137,25 @@ export async function getUserApprovalLimit(
  */
 export async function checkTransactionLimit(
   conn: any, userId: number, role: string, amount: number, isCheckerReview = false,
-): Promise<{ allowed: boolean; cap: number }> {
+): Promise<{ allowed: boolean; cap: number; reason?: 'policy' | 'over_cap' | 'no_cap' }> {
   if (isAdminRole(role)) return { allowed: true, cap: Infinity }
-  const [[row]] = await conn.query(
-    `SELECT max_transaction_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
-  )
-  const cap = Number(row?.max_transaction_amount ?? 0)
-  if (cap <= 0) return { allowed: isCheckerReview, cap: 0 }
-  return { allowed: amount <= cap, cap }
+  // Per-action collect_payment cap wins; legacy max_transaction_amount is the fallback
+  const actionCap = await getUserActionLimit(conn, userId, 'collect_payment')
+  let cap = actionCap ?? 0
+  if (cap <= 0) {
+    const [[row]] = await conn.query(
+      `SELECT max_transaction_amount FROM user_approval_limits WHERE user_id = ?`, [userId],
+    )
+    cap = Number(row?.max_transaction_amount ?? 0)
+  }
+  if (isCheckerReview) return { allowed: true, cap }
+  // Global policy (legacy "Payment Approval Policy", default ON): EVERY
+  // non-admin maker's receipt queues for a checker regardless of their
+  // configured limit. Checker re-posting above is exempt by definition.
+  const { paymentRequireApproval } = await getCreditWorkflowSettings(conn)
+  if (paymentRequireApproval) return { allowed: false, cap, reason: 'policy' }
+  if (cap <= 0) return { allowed: false, cap: 0, reason: 'no_cap' }
+  return { allowed: amount <= cap, cap, reason: amount <= cap ? undefined : 'over_cap' }
 }
 
 /**
@@ -120,7 +165,7 @@ export async function checkTransactionLimit(
  * not proceed with the original posting.
  */
 export async function queuePendingRequest(conn: any, opts: {
-  requestType: 'payment' | 'collect_payment'
+  requestType: 'payment' | 'collect_payment' | 'commodity_sale' | 'commodity_payment' | 'commodity_sale_edit' | 'loan_disbursement' | 'loan_repayment'
   payload: unknown
   orderId?: number | null
   customerId?: number | null
@@ -169,15 +214,24 @@ export interface GateState {
  *    dispatch hold that self-clears once the customer's ledger balance comes
  *    back within their credit limit. OFF by default (opt-in).
  */
-export async function getCreditWorkflowSettings(conn: any): Promise<{ dispatchGlobalHold: boolean; creditLimitAutoRelease: boolean }> {
-  const defaults = { dispatchGlobalHold: true, creditLimitAutoRelease: false }
+export async function getCreditWorkflowSettings(conn: any): Promise<{ dispatchGlobalHold: boolean; creditLimitAutoRelease: boolean; paymentRequireApproval: boolean }> {
+  // paymentRequireApproval ON by default — matches the legacy app's
+  // "Payment Approval Policy" (every non-admin receipt queues for a checker).
+  const defaults = { dispatchGlobalHold: true, creditLimitAutoRelease: false, paymentRequireApproval: true }
   try {
     const [[row]] = await conn.query(
       `SELECT setting_value FROM system_settings WHERE setting_key = 'credit_workflow_policy'`,
     )
     if (row?.setting_value) {
+      // The settings API stores snake_case keys — map them explicitly.
+      // (A plain {...defaults, ...parsed} spread would leave the camelCase
+      // defaults untouched and silently ignore every stored value.)
       const parsed = JSON.parse(row.setting_value)
-      return { ...defaults, ...parsed }
+      return {
+        dispatchGlobalHold:     parsed.dispatch_global_hold      !== undefined ? Boolean(parsed.dispatch_global_hold)      : defaults.dispatchGlobalHold,
+        creditLimitAutoRelease: parsed.credit_limit_auto_release !== undefined ? Boolean(parsed.credit_limit_auto_release) : defaults.creditLimitAutoRelease,
+        paymentRequireApproval: parsed.payment_require_approval  !== undefined ? Boolean(parsed.payment_require_approval)  : defaults.paymentRequireApproval,
+      }
     }
   } catch { /* table/row missing — defaults stand */ }
   return defaults

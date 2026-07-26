@@ -1,5 +1,5 @@
 import { query } from '~/server/utils/db'
-import { resetTelegramCache, sendTelegram } from '~/server/utils/telegram'
+import { resetTelegramCache, sendTelegram, TELEGRAM_CATEGORIES } from '~/server/utils/telegram'
 
 /** Save Telegram notifier settings + optional test message (admin only). */
 export default defineEventHandler(async (event) => {
@@ -20,6 +20,16 @@ export default defineEventHandler(async (event) => {
 
   if (token !== undefined && token !== '') await upsert('telegram_bot_token', token)
   await upsert('telegram_chat_id', chatId)
+
+  // Per-category routing groups — empty string clears a category back to
+  // the general-group fallback.
+  if (body?.categories && typeof body.categories === 'object') {
+    for (const c of TELEGRAM_CATEGORIES) {
+      if (body.categories[c] !== undefined) {
+        await upsert(`telegram_chat_id_${c}`, String(body.categories[c]).trim())
+      }
+    }
+  }
   resetTelegramCache()
 
   if (body?.send_test) {

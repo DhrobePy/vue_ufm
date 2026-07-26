@@ -72,7 +72,7 @@ export async function recordQrScan(conn: any, opts: {
       `Already delivered — scanned again by ${opts.scannerName}\n` +
       `Total scans on this QR: ${total}\n\n` +
       `Possible duplicate-delivery attempt — please verify.`,
-    )
+    'dispatch')
   }
   return total
 }

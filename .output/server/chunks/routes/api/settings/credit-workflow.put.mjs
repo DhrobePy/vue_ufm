@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, af as readBody, ac as query } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, am as readBody, aj as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -19,7 +19,8 @@ const creditWorkflow_put = defineEventHandler(async (event) => {
   const body = await readBody(event);
   const settings = {
     dispatch_global_hold: (body == null ? void 0 : body.dispatch_global_hold) !== void 0 ? Boolean(body.dispatch_global_hold) : true,
-    credit_limit_auto_release: Boolean(body == null ? void 0 : body.credit_limit_auto_release)
+    credit_limit_auto_release: Boolean(body == null ? void 0 : body.credit_limit_auto_release),
+    payment_require_approval: (body == null ? void 0 : body.payment_require_approval) !== void 0 ? Boolean(body.payment_require_approval) : true
   };
   await query(
     `INSERT INTO system_settings (setting_key, setting_value)

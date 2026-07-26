@@ -1127,12 +1127,288 @@ export default defineNitroPlugin(async () => {
   //    never had a migration creating it ─────────────────────────────────────
   await addCol(db, 'product_variants', 'cost_price', "DECIMAL(12,2) NULL DEFAULT NULL COMMENT 'Purchase/production cost, for margin reporting'")
 
+  // ── 56. user_action_limits — per-action delegated ৳ caps (legacy parity).
+  //    Finer-grained than user_approval_limits' two columns: one row per
+  //    user × action_key (approve_order | amend_order | collect_payment |
+  //    partial_delivery, + trading/loan keys later). approve_order/
+  //    collect_payment fall back to the legacy columns when no row exists.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS user_action_limits (
+        id             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id        INT UNSIGNED NOT NULL,
+        action_key     VARCHAR(40)  NOT NULL,
+        max_amount     DECIMAL(14,2) NOT NULL DEFAULT 0,
+        set_by_user_id INT UNSIGNED NULL,
+        created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ual_user_action (user_id, action_key),
+        INDEX idx_ual_user (user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] user_action_limits create failed:', e) }
+
   // ── 55. customers.business_address — read/written by customers create/edit,
   //    credit-limits report, and the payment receipt, but schema_seed.sql only
   //    ever defined a plain `address` column, and no migration ever added
   //    this one. Caused "Unknown column 'c.address'"/'business_address' 500s
   //    on every one of those pages.
   await addCol(db, 'customers', 'business_address', 'VARCHAR(255) NULL DEFAULT NULL')
+
+  // ── 57. Commodity Trading module (legacy Phases 0-9 parity) ─────────────────
+  // Business partners: link one customer + one supplier as a single real-world
+  // party. Additive only — customers/suppliers keep their own rows/FKs.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS business_partners (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        name               VARCHAR(180) NOT NULL,
+        notes              VARCHAR(500) NULL,
+        created_by_user_id INT UNSIGNED NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] business_partners create failed:', e) }
+  await addCol(db, 'customers', 'business_partner_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'suppliers', 'business_partner_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
+  // Sellable flag on the procurement commodity catalog
+  await addCol(db, 'purchase_commodities', 'is_sellable', 'TINYINT(1) NOT NULL DEFAULT 0')
+
+  // Weighted-average-cost inventory, split per origin ('' = untracked bucket —
+  // deliberately NOT NULL: MySQL unique keys treat NULLs as distinct, which
+  // would silently allow duplicate commodity×branch rows).
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_inventory (
+        id                INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        commodity_id      INT UNSIGNED NOT NULL,
+        branch_id         INT UNSIGNED NOT NULL DEFAULT 0,
+        origin            VARCHAR(100) NOT NULL DEFAULT '',
+        qty_on_hand       DECIMAL(14,3) NOT NULL DEFAULT 0,
+        weighted_avg_cost DECIMAL(14,4) NOT NULL DEFAULT 0,
+        updated_at        DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uq_ci_commodity_branch_origin (commodity_id, branch_id, origin)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] commodity_inventory create failed:', e) }
+
+  // Commodity sales — own table, deliberately NOT overloaded onto credit_orders
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_sales (
+        id                       INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        sale_number              VARCHAR(30)  NOT NULL UNIQUE,
+        customer_id              INT UNSIGNED NOT NULL,
+        commodity_id             INT UNSIGNED NOT NULL,
+        branch_id                INT UNSIGNED NULL,
+        origin                   VARCHAR(100) NOT NULL DEFAULT '',
+        source_purchase_order_id INT UNSIGNED NULL COMMENT 'optional traceability tag, no FK by convention',
+        sale_date                DATE NOT NULL,
+        quantity                 DECIMAL(14,3) NOT NULL,
+        unit                     VARCHAR(10) NOT NULL DEFAULT 'KG',
+        unit_price               DECIMAL(14,4) NOT NULL,
+        total_amount             DECIMAL(14,2) NOT NULL,
+        advance_paid             DECIMAL(14,2) NOT NULL DEFAULT 0,
+        amount_paid              DECIMAL(14,2) NOT NULL DEFAULT 0,
+        balance_due              DECIMAL(14,2) NOT NULL DEFAULT 0,
+        cogs_amount              DECIMAL(14,2) NOT NULL DEFAULT 0,
+        stock_override           TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'sold past on-hand stock with explicit override',
+        status                   VARCHAR(20) NOT NULL DEFAULT 'posted' COMMENT 'posted | pending_approval | rejected',
+        journal_entry_id         INT UNSIGNED NULL,
+        customer_ledger_id       INT UNSIGNED NULL COMMENT 'the invoice ledger row this sale created',
+        notes                    VARCHAR(500) NULL,
+        created_by_user_id       INT UNSIGNED NOT NULL,
+        created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_cs_customer (customer_id),
+        INDEX idx_cs_commodity (commodity_id),
+        INDEX idx_cs_date (sale_date)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] commodity_sales create failed:', e) }
+
+  // Payments against commodity sales — own table, deliberately NOT
+  // customer_payments (whose reversal paths parse allocations as
+  // credit-order maps). customer_ledger_id pins the exact ledger row this
+  // payment created, so a reversal targets precisely that row.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_sale_payments (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        payment_number     VARCHAR(30) NOT NULL UNIQUE,
+        sale_id            INT UNSIGNED NOT NULL,
+        customer_id        INT UNSIGNED NOT NULL,
+        payment_date       DATE NOT NULL,
+        amount             DECIMAL(14,2) NOT NULL,
+        payment_method     VARCHAR(50) NOT NULL DEFAULT 'Cash',
+        bank_account_id    INT UNSIGNED NULL,
+        cash_account_id    INT UNSIGNED NULL,
+        reference_number   VARCHAR(80) NULL,
+        journal_entry_id   INT UNSIGNED NULL,
+        customer_ledger_id INT UNSIGNED NULL,
+        notes              VARCHAR(500) NULL,
+        created_by_user_id INT UNSIGNED NOT NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_csp_sale (sale_id),
+        INDEX idx_csp_customer (customer_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] commodity_sale_payments create failed:', e) }
+
+  // Edit chain — one row per edit attempt; links old sale -> replacement so
+  // the view page can reconstruct a timeline and forward old links.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_sale_edits (
+        id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        old_sale_id          INT UNSIGNED NOT NULL,
+        old_sale_number      VARCHAR(30) NOT NULL,
+        new_sale_id          INT UNSIGNED NULL,
+        new_sale_number      VARCHAR(30) NULL,
+        change_summary       LONGTEXT NULL COMMENT 'JSON field diff',
+        reason               VARCHAR(500) NOT NULL,
+        status               VARCHAR(20) NOT NULL DEFAULT 'pending_approval' COMMENT 'pending_approval | approved | rejected',
+        requested_by_user_id INT UNSIGNED NOT NULL,
+        decided_by_user_id   INT UNSIGNED NULL,
+        decided_at           DATETIME NULL,
+        created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_cse_old (old_sale_id),
+        INDEX idx_cse_new (new_sale_id),
+        INDEX idx_cse_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] commodity_sale_edits create failed:', e) }
+
+  // Partner settlements — netting a linked partner's AR against their AP
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS business_partner_settlements (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        settlement_number  VARCHAR(30) NOT NULL UNIQUE,
+        partner_id         INT UNSIGNED NOT NULL,
+        customer_id        INT UNSIGNED NOT NULL,
+        supplier_id        INT UNSIGNED NOT NULL,
+        amount             DECIMAL(14,2) NOT NULL,
+        settlement_date    DATE NOT NULL,
+        journal_entry_id   INT UNSIGNED NULL,
+        customer_ledger_id INT UNSIGNED NULL,
+        supplier_ledger_id INT UNSIGNED NULL,
+        status             VARCHAR(20) NOT NULL DEFAULT 'posted' COMMENT 'posted | reversed',
+        notes              VARCHAR(500) NULL,
+        created_by_user_id INT UNSIGNED NOT NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_bps_partner (partner_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] business_partner_settlements create failed:', e) }
+
+  // Dedicated dispatch subsystem (own tables + own HMAC namespace, mirrors
+  // cr_delivery_confirmations / cr_qr_scan_log)
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_dispatch_confirmations (
+        id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        sale_id              INT UNSIGNED NOT NULL,
+        sale_number          VARCHAR(30) NULL,
+        gate_out_at          DATETIME NULL,
+        gate_out_by_user_id  INT UNSIGNED NULL,
+        gate_out_by_name     VARCHAR(120) NULL,
+        driver_name          VARCHAR(150) NULL,
+        vehicle_number       VARCHAR(100) NULL,
+        gate_note            VARCHAR(500) NULL,
+        confirmed_at         DATETIME NULL,
+        confirmed_by_user_id INT UNSIGNED NULL,
+        confirmed_by_name    VARCHAR(120) NULL,
+        received_by          VARCHAR(150) NULL,
+        note                 VARCHAR(500) NULL,
+        created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_cdc_sale (sale_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS commodity_qr_scan_log (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        sale_id            INT UNSIGNED NOT NULL,
+        sale_number        VARCHAR(30) NULL,
+        stage              VARCHAR(20) NULL,
+        reused             TINYINT(1) NOT NULL DEFAULT 0,
+        scanned_by_user_id INT UNSIGNED NULL,
+        scanned_by_name    VARCHAR(120) NULL,
+        ip                 VARCHAR(64) NULL,
+        scanned_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_cqsl_sale (sale_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] commodity dispatch tables failed:', e) }
+
+  // GRN branch — costing needs to know WHICH branch received the goods.
+  // (Legacy found its costing silently dead because this was missing.)
+  await addCol(db, 'goods_received_adnan', 'unload_point_branch_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
+  // ── 58. Loans module (related-party cash advances) ──────────────────────────
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS loans (
+        id                   INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        loan_number          VARCHAR(30) NOT NULL UNIQUE,
+        customer_id          INT UNSIGNED NULL,
+        supplier_id          INT UNSIGNED NULL,
+        principal_amount     DECIMAL(14,2) NOT NULL,
+        amount_repaid        DECIMAL(14,2) NOT NULL DEFAULT 0,
+        balance_due          DECIMAL(14,2) NOT NULL DEFAULT 0,
+        loan_date            DATE NOT NULL,
+        expected_return_date DATE NULL,
+        purpose              VARCHAR(500) NULL,
+        payment_method       VARCHAR(50) NOT NULL DEFAULT 'Cash',
+        bank_account_id      INT UNSIGNED NULL,
+        cash_account_id      INT UNSIGNED NULL,
+        reference_number     VARCHAR(80) NULL,
+        status               VARCHAR(20) NOT NULL DEFAULT 'active' COMMENT 'pending_approval | active | closed | rejected',
+        journal_entry_id     INT UNSIGNED NULL,
+        created_by_user_id   INT UNSIGNED NOT NULL,
+        created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_loans_customer (customer_id),
+        INDEX idx_loans_supplier (supplier_id),
+        INDEX idx_loans_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS loan_repayments (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        repayment_number   VARCHAR(30) NOT NULL UNIQUE,
+        loan_id            INT UNSIGNED NOT NULL,
+        customer_id        INT UNSIGNED NULL,
+        supplier_id        INT UNSIGNED NULL,
+        amount             DECIMAL(14,2) NOT NULL,
+        repayment_date     DATE NOT NULL,
+        payment_method     VARCHAR(50) NOT NULL DEFAULT 'Cash',
+        bank_account_id    INT UNSIGNED NULL,
+        cash_account_id    INT UNSIGNED NULL,
+        reference_number   VARCHAR(80) NULL,
+        journal_entry_id   INT UNSIGNED NULL,
+        notes              VARCHAR(500) NULL,
+        created_by_user_id INT UNSIGNED NOT NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_lr_loan (loan_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] loans tables failed:', e) }
+
+  // ── 59. Other Sales — Trading commodities through the credit-order flow ─────
+  await addCol(db, 'credit_orders', 'is_other_sales', "TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'Trading commodity sale via credit-order flow — skips production'")
+  await addCol(db, 'credit_order_items', 'commodity_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'credit_order_items', 'commodity_origin', 'VARCHAR(100) NULL DEFAULT NULL')
+  // Commodity line items have no product_id — the original NOT NULL must go.
+  // Type unknown across deployments (INT vs INT UNSIGNED) — try both.
+  try {
+    await db.query(`ALTER TABLE credit_order_items MODIFY COLUMN product_id INT UNSIGNED NULL DEFAULT NULL`)
+  } catch {
+    try {
+      await db.query(`ALTER TABLE credit_order_items MODIFY COLUMN product_id INT NULL DEFAULT NULL`)
+    } catch (e) { console.warn('[db-migrate] credit_order_items.product_id nullable failed:', e) }
+  }
 
   console.log('[db-migrate] startup migrations complete')
 })

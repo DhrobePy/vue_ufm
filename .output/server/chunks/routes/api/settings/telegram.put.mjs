@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, af as readBody, au as sendTelegram, ac as query, aq as resetTelegramCache } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, am as readBody, T as TELEGRAM_CATEGORIES, aC as sendTelegram, aj as query, ax as resetTelegramCache } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -25,6 +25,13 @@ const telegram_put = defineEventHandler(async (event) => {
   );
   if (token !== void 0 && token !== "") await upsert("telegram_bot_token", token);
   await upsert("telegram_chat_id", chatId);
+  if ((body == null ? void 0 : body.categories) && typeof body.categories === "object") {
+    for (const c of TELEGRAM_CATEGORIES) {
+      if (body.categories[c] !== void 0) {
+        await upsert(`telegram_chat_id_${c}`, String(body.categories[c]).trim());
+      }
+    }
+  }
   resetTelegramCache();
   if (body == null ? void 0 : body.send_test) {
     await sendTelegram("\u{1F514} <b>Ujjal FMC ERP</b> \u2014 Telegram notifications are connected.");

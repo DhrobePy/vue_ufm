@@ -1,4 +1,4 @@
-import { o as defineEventHandler, af as readBody, Q as getUserSession, k as createError, G as getRequestHeader, aB as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, x as getDb, w as getCustomerOutstanding, e as auditLog, au as sendTelegram } from '../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, y as getDb, x as getCustomerOutstanding, f as auditLog, aC as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C;
   const body = await readBody(event);
   const session = await getUserSession(event);
   if (!(session == null ? void 0 : session.user))
@@ -60,8 +60,11 @@ const index_post = defineEventHandler(async (event) => {
     advance_collected_by_employee_id,
     delivery_type,
     // 'big_truck' (default) | 'mini_truck'
+    is_other_sales,
+    // true = Trading commodity sale via this flow (skips production)
     items
     // [{ product_id, variant_id, qty_bags→quantity, unit_price, discount_amount }]
+    // Other Sales items instead carry { commodity_id, commodity_origin, ... }
   } = body != null ? body : {};
   if (!customer_id || !(items == null ? void 0 : items.length)) {
     throw createError({ statusCode: 400, statusMessage: "customer_id and items are required" });
@@ -154,12 +157,12 @@ const index_post = defineEventHandler(async (event) => {
          (order_number, customer_id, assigned_branch_id, order_date, required_date, priority,
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
-          delivery_type, mini_truck_surcharge,
+          delivery_type, mini_truck_surcharge, is_other_sales,
           dispatch_pin, delivery_pin,
           created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
-               ?, ?,
+               ?, ?, ?,
                ?, ?,
                ?, NOW(), NOW())`,
       [
@@ -179,6 +182,7 @@ const index_post = defineEventHandler(async (event) => {
         balanceDue,
         deliveryType,
         miniTruckSurcharge,
+        is_other_sales ? 1 : 0,
         dispatchPin,
         deliveryPin,
         userId
@@ -190,16 +194,19 @@ const index_post = defineEventHandler(async (event) => {
       const lineTotal = qty * Number(it.unit_price) - Number((_q = it.discount_amount) != null ? _q : 0);
       await conn.query(
         `INSERT INTO credit_order_items
-           (order_id, product_id, variant_id, quantity, unit_price, discount_amount, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (order_id, product_id, variant_id, commodity_id, commodity_origin,
+            quantity, unit_price, discount_amount, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
-          it.product_id,
-          // NOT NULL in DB — looked up above if missing
-          (_r = it.variant_id) != null ? _r : null,
+          (_r = it.product_id) != null ? _r : null,
+          // nullable since Other Sales (migration #59)
+          (_s = it.variant_id) != null ? _s : null,
+          it.commodity_id ? Number(it.commodity_id) : null,
+          (_t = it.commodity_origin) != null ? _t : null,
           qty,
           Number(it.unit_price),
-          Number((_s = it.discount_amount) != null ? _s : 0),
+          Number((_u = it.discount_amount) != null ? _u : 0),
           lineTotal
         ]
       );
@@ -217,7 +224,7 @@ const index_post = defineEventHandler(async (event) => {
       const [[acnt]] = await conn.query(
         `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`
       );
-      const advSeq = String(((_t = acnt.n) != null ? _t : 0) + 1).padStart(4, "0");
+      const advSeq = String(((_v = acnt.n) != null ? _v : 0) + 1).padStart(4, "0");
       const advNo = `PAY-${advDay}-${advSeq}`;
       const [advResult] = await conn.query(
         `INSERT INTO customer_payments
@@ -260,7 +267,7 @@ const index_post = defineEventHandler(async (event) => {
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [customer_id]
       );
-      const prevBal = Number((_u = lastLedger == null ? void 0 : lastLedger.bal) != null ? _u : 0);
+      const prevBal = Number((_w = lastLedger == null ? void 0 : lastLedger.bal) != null ? _w : 0);
       const newBal = Math.max(0, prevBal - advancePaid);
       let advJeId = null;
       try {
@@ -270,13 +277,13 @@ const index_post = defineEventHandler(async (event) => {
             `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(advance_cash_account_id)]
           );
-          drAccountId = (_v = ca == null ? void 0 : ca.chart_of_account_id) != null ? _v : null;
+          drAccountId = (_x = ca == null ? void 0 : ca.chart_of_account_id) != null ? _x : null;
         } else if (["Bank Transfer", "Cheque", "Card"].includes(payMethod) && advance_bank_account_id) {
           const [[ba]] = await conn.query(
             `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
             [Number(advance_bank_account_id)]
           );
-          drAccountId = (_w = ba == null ? void 0 : ba.chart_of_account_id) != null ? _w : null;
+          drAccountId = (_y = ba == null ? void 0 : ba.chart_of_account_id) != null ? _y : null;
         }
         let crAccountId = null;
         const [[ar]] = await conn.query(
@@ -284,7 +291,7 @@ const index_post = defineEventHandler(async (event) => {
            WHERE account_type = 'Accounts Receivable'
            ORDER BY id ASC LIMIT 1`
         );
-        crAccountId = (_x = ar == null ? void 0 : ar.id) != null ? _x : null;
+        crAccountId = (_z = ar == null ? void 0 : ar.id) != null ? _z : null;
         if (drAccountId && crAccountId) {
           const jeDesc = `Advance received \u2014 ${advNo} (Order ${orderNo}, ${customer_id})`;
           const [jeRes] = await conn.query(
@@ -313,7 +320,7 @@ const index_post = defineEventHandler(async (event) => {
               `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
               [Number(advance_cash_account_id)]
             );
-            const pcBal = Number((_y = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _y : 0);
+            const pcBal = Number((_A = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _A : 0);
             await conn.query(
               `INSERT INTO branch_petty_cash_transactions
                  (account_id, branch_id, transaction_type, amount, balance_after,
@@ -321,7 +328,7 @@ const index_post = defineEventHandler(async (event) => {
                VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
               [
                 Number(advance_cash_account_id),
-                (_z = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _z : null,
+                (_B = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _B : null,
                 advancePaid,
                 pcBal + advancePaid,
                 advPaymentId,
@@ -382,10 +389,11 @@ const index_post = defineEventHandler(async (event) => {
     await conn.commit();
     sendTelegram(
       `${overLimit ? "\u26A0\uFE0F" : "\u{1F9FE}"} <b>New Credit Order${overLimit ? " \u2014 ESCALATED" : ""}</b>
-${orderNo} \u2014 ${(_A = customer == null ? void 0 : customer.customer_name) != null ? _A : `Customer ${customer_id}`}
+${orderNo} \u2014 ${(_C = customer == null ? void 0 : customer.customer_name) != null ? _C : `Customer ${customer_id}`}
 \u09F3${totalAmount.toLocaleString()} \xB7 ${items.length} item(s)` + (deliveryType === "mini_truck" ? ` \xB7 Mini truck (+\u09F3${miniTruckSurcharge.toLocaleString()})` : "") + (advancePaid > 0 ? `
 Advance \u09F3${advancePaid.toLocaleString()} received` : "") + (overLimit ? `
-Credit limit exceeded by \u09F3${excessAmount.toLocaleString()} \u2014 needs senior approval` : "")
+Credit limit exceeded by \u09F3${excessAmount.toLocaleString()} \u2014 needs senior approval` : ""),
+      "orders"
     );
     return {
       ok: true,

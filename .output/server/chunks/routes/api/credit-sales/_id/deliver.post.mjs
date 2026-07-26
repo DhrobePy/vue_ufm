@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, k as createError, af as readBody, Q as getUserSession, G as getRequestHeader, x as getDb, e as auditLog } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, y as getDb, Q as getUserActionLimit, f as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -70,6 +70,15 @@ const deliver_post = defineEventHandler(async (event) => {
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
     const delivDate = delivery_date != null ? delivery_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    if (!["admin", "superadmin"].includes(role)) {
+      const deliveryCap = await getUserActionLimit(conn, userId, "partial_delivery");
+      if (deliveryCap !== null && totalAmount > deliveryCap) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: `Delivery value \u09F3${totalAmount.toLocaleString()} exceeds your partial-delivery limit of \u09F3${deliveryCap.toLocaleString()} \u2014 ask a user with higher authority to record it`
+        });
+      }
+    }
     const [result] = await conn.query(
       `INSERT INTO credit_order_deliveries
          (delivery_number, order_id, customer_id, delivery_date,

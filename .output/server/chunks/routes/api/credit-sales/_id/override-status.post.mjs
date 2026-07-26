@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, k as createError, Q as getUserSession, a as ADMIN_ROLES, af as readBody, x as getDb, B as getGLAccountId, aa as postJournalEntry, a8 as postCustomerLedger, a9 as postGoodsOnBoardInvoice, e as auditLog, au as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, V as getUserSession, b as ADMIN_ROLES, am as readBody, y as getDb, C as getGLAccountId, ag as postJournalEntry, ae as postCustomerLedger, af as postGoodsOnBoardInvoice, ah as postOtherSalesCOGS, f as auditLog, aC as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -17,7 +17,7 @@ const OVERRIDE_TRANSITIONS = {
   delivered: ["cancelled"]
 };
 const overrideStatus_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const session = await getUserSession(event);
@@ -120,6 +120,14 @@ by ${userName}`;
         userId,
         userName
       });
+      if (order.is_other_sales) {
+        await postOtherSalesCOGS(conn, {
+          orderId: id,
+          orderNumber: order.order_number,
+          branchId: (_f = order.assigned_branch_id) != null ? _f : null,
+          userId
+        });
+      }
       await conn.query(`UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`, [to_status, id]);
       telegramMsg = `\u{1F6E0}\uFE0F <b>Manual Status Override</b>
 ${order.order_number} \u2014 ${order.customer_name}

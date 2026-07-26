@@ -8,6 +8,7 @@ import {
   getOrderGateState, postGoodsOnBoardInvoice, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
+import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
 
 /**
  * The ONLY endpoint that moves an order through the status pipeline.
@@ -124,7 +125,16 @@ export default defineEventHandler(async (event) => {
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
-    if (!rule.from.includes(order.status))
+    // Other Sales (Trading commodities via this flow) skip production
+    // entirely: approved → ready_to_ship directly, and the production
+    // stages are refused outright.
+    const isOtherSales = !!order.is_other_sales
+    if (isOtherSales && ['in_production'].includes(to_status))
+      throw createError({ statusCode: 409, statusMessage: 'Other Sales orders skip production — move it straight to Ready to Ship' })
+    const allowedFrom = isOtherSales && to_status === 'ready_to_ship'
+      ? [...rule.from, 'approved']
+      : rule.from
+    if (!allowedFrom.includes(order.status))
       throw createError({
         statusCode: 409,
         statusMessage: `Order is "${order.status}" — cannot move to "${to_status}" from there`,
@@ -274,6 +284,16 @@ export default defineEventHandler(async (event) => {
       if (result.autoReleased)
         wfComment += ' · dispatch clearance auto-released (condition met)'
       telegramMsg = result.telegramMsg
+
+      // Other Sales: trading stock leaves NOW — post COGS + decrement the
+      // commodity pools (idempotent, keyed per order).
+      if (order.is_other_sales) {
+        const cogs = await postOtherSalesCOGS(conn, {
+          orderId: id, orderNumber: order.order_number,
+          branchId: order.assigned_branch_id ?? null, userId,
+        })
+        if (cogs > 0) wfComment += ` · trading COGS ৳${cogs.toLocaleString()} posted`
+      }
     }
 
     // ── SHIPPED — truck has physically departed; no money logic ─────────────
@@ -308,7 +328,15 @@ export default defineEventHandler(async (event) => {
 
     await conn.commit()
 
-    if (telegramMsg) sendTelegram(telegramMsg)  // fire-and-forget, after commit
+    if (telegramMsg) {
+      // Route to the matching category group: approval decisions → orders,
+      // production stages → production, movement stages → dispatch.
+      const cat = ['approved', 'rejected', 'escalated'].includes(to_status) ? 'orders'
+        : ['in_production', 'ready_to_ship'].includes(to_status) ? 'production'
+        : ['goods_on_board', 'shipped'].includes(to_status) ? 'dispatch'
+        : undefined
+      sendTelegram(telegramMsg, cat as any)  // fire-and-forget, after commit
+    }
 
     return { ok: true, newStatus: to_status }
   } catch (e: any) {

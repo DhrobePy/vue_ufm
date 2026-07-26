@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, a as ADMIN_ROLES, G as getRequestHeader, af as readBody, x as getDb, _ as nextDocNumber, a9 as postGoodsOnBoardInvoice, B as getGLAccountId, aa as postJournalEntry, a8 as postCustomerLedger, e as auditLog, au as sendTelegram } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, b as ADMIN_ROLES, I as getRequestHeader, am as readBody, y as getDb, a3 as nextDocNumber, af as postGoodsOnBoardInvoice, C as getGLAccountId, ag as postJournalEntry, ae as postCustomerLedger, f as auditLog, aC as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -278,7 +278,8 @@ const backdated_post = defineEventHandler(async (event) => {
       `\u{1F570}\uFE0F <b>Backdated Order Entry</b>
 ${orderNo} \u2014 ${customer.name}
 \u09F3${totalAmount.toLocaleString()} dated ${transaction_date} \xB7 by ${userName}` + (paidAmount > 0 ? `
-\u{1F4B0} \u09F3${paidAmount.toLocaleString()} already collected` : "") + (goResult.alreadyPosted ? "" : "\n\u{1F4D2} Invoice posted to ledger + journal entry")
+\u{1F4B0} \u09F3${paidAmount.toLocaleString()} already collected` : "") + (goResult.alreadyPosted ? "" : "\n\u{1F4D2} Invoice posted to ledger + journal entry"),
+      "orders"
     );
     return {
       ok: true,

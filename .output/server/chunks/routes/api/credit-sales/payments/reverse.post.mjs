@@ -1,4 +1,4 @@
-import { o as defineEventHandler, af as readBody, Q as getUserSession, k as createError, G as getRequestHeader, a as ADMIN_ROLES, x as getDb, aa as postJournalEntry, a8 as postCustomerLedger, aD as voidBridgedTransaction, e as auditLog, au as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, I as getRequestHeader, b as ADMIN_ROLES, y as getDb, ag as postJournalEntry, ae as postCustomerLedger, aL as voidBridgedTransaction, f as auditLog, aC as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -170,7 +170,8 @@ const reverse_post = defineEventHandler(async (event) => {
 ${pmt.payment_number} \u2014 \u09F3${pmtAmount.toLocaleString()} for ${pmt.customer_name}
 ` + (orderSummaries.length ? `${orderSummaries.join(", ")}
 ` : "") + `by ${userName}${reason ? `
-Reason: ${reason}` : ""}`
+Reason: ${reason}` : ""}`,
+      "payment_received"
     );
     return { ok: true, reversed_amount: pmtAmount, reference: refNo, reversal_journal_entry_id: reversalJeId };
   } catch (e) {

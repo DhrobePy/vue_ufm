@@ -18,6 +18,10 @@ const DEFAULTS: Record<string, string> = {
     'All disputes subject to Sirajgonj jurisdiction.',
     'This invoice is valid only with authorised company stamp.',
   ].join('\n'),
+
+  // '1' = show the customer's credit limit + outstanding balance block on
+  // the printed invoice; '0' hides it (legacy show_invoice_outstanding).
+  show_invoice_outstanding: '1',
 }
 
 /**
@@ -32,7 +36,7 @@ export default defineEventHandler(async () => {
     // system_settings table guaranteed by db-migrate startup plugin.
     const [rows] = await conn.query<any>(
       `SELECT setting_key, setting_value FROM system_settings
-       WHERE setting_key IN ('tc_purchase_order','tc_credit_invoice')`,
+       WHERE setting_key IN ('tc_purchase_order','tc_credit_invoice','show_invoice_outstanding')`,
     )
 
     const result: Record<string, string> = { ...DEFAULTS }

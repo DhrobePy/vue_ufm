@@ -90,6 +90,19 @@
         <SidebarNavItem v-if="isAdminUser" label="Backdated Entry"  route="/credit-sales/backdated-entry" :collapsed="collapsed" icon-type="clock"     sub />
       </SidebarGroup>
 
+      <!-- Commodity Trading -->
+      <SidebarGroup v-if="isAdminUser || perms.canAccessModule('trading')" label="Trading" route="/trading" :collapsed="collapsed" icon-type="sales" color="green">
+        <SidebarNavItem label="Dashboard"      route="/trading"                :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem label="Sales"          route="/trading/sales"          :collapsed="collapsed" icon-type="cart"      sub />
+        <SidebarNavItem label="Partners"       route="/trading/partners"       :collapsed="collapsed" icon-type="users"     sub />
+        <SidebarNavItem label="Margin Report"  route="/trading/margin-report"  :collapsed="collapsed" icon-type="chart"     sub />
+      </SidebarGroup>
+
+      <!-- Loans -->
+      <SidebarGroup v-if="isAdminUser || perms.canAccessModule('loans')" label="Loans" route="/loans" :collapsed="collapsed" icon-type="money" color="amber">
+        <SidebarNavItem label="Loans & Advances" route="/loans" :collapsed="collapsed" icon-type="money" sub />
+      </SidebarGroup>
+
       <!-- Fleet Management -->
       <SidebarGroup v-if="perms.canAccessModule('fleet')" label="Fleet" route="/fleet" :collapsed="collapsed" icon-type="truck" color="teal">
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet')" label="Dashboard"    route="/fleet"                       :collapsed="collapsed" icon-type="dashboard" sub />

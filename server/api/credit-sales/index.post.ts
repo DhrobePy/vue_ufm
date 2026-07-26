@@ -40,7 +40,9 @@ export default defineEventHandler(async (event) => {
     advance_bank_tx_type,        // RTGS|BEFTN|NPSB|Online|Deposit
     advance_collected_by_employee_id,
     delivery_type,    // 'big_truck' (default) | 'mini_truck'
+    is_other_sales,   // true = Trading commodity sale via this flow (skips production)
     items,            // [{ product_id, variant_id, qty_bags→quantity, unit_price, discount_amount }]
+                      // Other Sales items instead carry { commodity_id, commodity_origin, ... }
   } = body ?? {}
 
   if (!customer_id || !items?.length) {
@@ -158,12 +160,12 @@ export default defineEventHandler(async (event) => {
          (order_number, customer_id, assigned_branch_id, order_date, required_date, priority,
           status, shipping_address, special_instructions,
           subtotal, total_amount, amount_paid, advance_paid, balance_due,
-          delivery_type, mini_truck_surcharge,
+          delivery_type, mini_truck_surcharge, is_other_sales,
           dispatch_pin, delivery_pin,
           created_by_user_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?,
-               ?, ?,
+               ?, ?, ?,
                ?, ?,
                ?, NOW(), NOW())`,
       [
@@ -183,6 +185,7 @@ export default defineEventHandler(async (event) => {
         balanceDue,
         deliveryType,
         miniTruckSurcharge,
+        is_other_sales ? 1 : 0,
         dispatchPin,
         deliveryPin,
         userId,
@@ -191,19 +194,23 @@ export default defineEventHandler(async (event) => {
 
     const orderId = result.insertId
 
-    // Insert line items — DB column is `quantity`, not `qty_bags`
+    // Insert line items — DB column is `quantity`, not `qty_bags`.
+    // Other Sales items carry commodity_id/commodity_origin, no product.
     for (const it of items) {
       const qty       = Number(it.qty_bags ?? it.quantity ?? 0)
       const lineTotal = qty * Number(it.unit_price) - Number(it.discount_amount ?? 0)
 
       await conn.query(
         `INSERT INTO credit_order_items
-           (order_id, product_id, variant_id, quantity, unit_price, discount_amount, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+           (order_id, product_id, variant_id, commodity_id, commodity_origin,
+            quantity, unit_price, discount_amount, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
-          it.product_id,            // NOT NULL in DB — looked up above if missing
+          it.product_id ?? null,    // nullable since Other Sales (migration #59)
           it.variant_id ?? null,
+          it.commodity_id ? Number(it.commodity_id) : null,
+          it.commodity_origin ?? null,
           qty,
           Number(it.unit_price),
           Number(it.discount_amount ?? 0),
@@ -415,7 +422,7 @@ export default defineEventHandler(async (event) => {
       (deliveryType === 'mini_truck' ? ` · Mini truck (+৳${miniTruckSurcharge.toLocaleString()})` : '') +
       (advancePaid > 0 ? `\nAdvance ৳${advancePaid.toLocaleString()} received` : '') +
       (overLimit ? `\nCredit limit exceeded by ৳${excessAmount.toLocaleString()} — needs senior approval` : ''),
-    )
+    'orders')
 
     return {
       ok:         true,

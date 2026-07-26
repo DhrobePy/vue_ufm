@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, a as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, P as PRODUCTION_ROLES, af as readBody, G as getRequestHeader, x as getDb, aC as verifyDeliveryQrSignature, E as getOrderGateState, e as auditLog, aj as recordQrScan, au as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, P as PRODUCTION_ROLES, am as readBody, I as getRequestHeader, y as getDb, aK as verifyDeliveryQrSignature, G as getOrderGateState, f as auditLog, aq as recordQrScan, aC as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -107,7 +107,8 @@ const gate_post = defineEventHandler(async (event) => {
     `\u{1F6AA} <b>Gate Pass \u2014 Goods Released</b>
 ${committedOrder.order_number}
 Driver: ${driverName} \xB7 Vehicle: ${vehicleNumber}
-By ${userName}`
+By ${userName}`,
+    "dispatch"
   );
   return { ok: true, message: "Gate pass recorded \u2014 goods released. Scan again at the customer to confirm delivery." };
 });

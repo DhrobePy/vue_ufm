@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
   const settings = {
     dispatch_global_hold:      body?.dispatch_global_hold !== undefined ? Boolean(body.dispatch_global_hold) : true,
     credit_limit_auto_release: Boolean(body?.credit_limit_auto_release),
+    payment_require_approval:  body?.payment_require_approval !== undefined ? Boolean(body.payment_require_approval) : true,
   }
 
   await query(

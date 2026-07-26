@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, k as createError, af as readBody, Q as getUserSession, G as getRequestHeader, aB as userCanAction, A as ACCOUNTS_ROLES, x as getDb, i as checkTransactionLimit, ae as queuePendingRequest, au as sendTelegram, E as getOrderGateState, e as auditLog, g as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, y as getDb, j as checkTransactionLimit, al as queuePendingRequest, aC as sendTelegram, G as getOrderGateState, f as auditLog, h as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -69,7 +69,7 @@ const payment_post = defineEventHandler(async (event) => {
     const role = ((_g = session.user.role) != null ? _g : "").toLowerCase();
     const limitCheck = await checkTransactionLimit(conn, userId, role, Number(amount), Boolean(is_checker_review));
     if (!limitCheck.allowed) {
-      const limitDesc = limitCheck.cap > 0 ? `exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "no transaction limit has been delegated to your account yet";
+      const limitDesc = limitCheck.reason === "policy" ? "payment approval policy \u2014 every payment needs a checker" : limitCheck.cap > 0 ? `exceeds your transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "no transaction limit has been delegated to your account yet";
       const reqId = await queuePendingRequest(conn, {
         requestType: "payment",
         payload: body,
@@ -78,13 +78,14 @@ const payment_post = defineEventHandler(async (event) => {
         amount: Number(amount),
         referenceLabel: `${order.order_number} \u2014 ${order.customer_name} \u2014 \u09F3${Number(amount).toLocaleString()}`,
         requestedBy: userId,
-        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "No transaction limit configured"
+        requestedReason: limitCheck.reason === "policy" ? "Payment approval policy (all payments)" : limitCheck.cap > 0 ? `Exceeds transaction limit of \u09F3${limitCheck.cap.toLocaleString()}` : "No transaction limit configured"
       });
       await conn.commit();
       sendTelegram(
         `\u23F3 <b>Payment Queued for Approval</b>
 ${order.order_number} \u2014 ${order.customer_name}
-\u09F3${Number(amount).toLocaleString()} \xB7 Requested by ${userName} (${limitDesc})`
+\u09F3${Number(amount).toLocaleString()} \xB7 Requested by ${userName} (${limitDesc})`,
+        "payment_received"
       );
       return {
         ok: true,
@@ -293,7 +294,8 @@ ${order.order_number} \u2014 ${order.customer_name}
     sendTelegram(
       `\u{1F4B0} <b>Payment Received</b>
 ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
-\u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()}` + (isNowComplete ? "\n\u2705 Order fully paid & completed" : "") + (autoReleased ? "\n\u{1F7E2} Dispatch clearance auto-released" : "")
+\u09F3${pmtAmount.toLocaleString()} via ${mappedMethod} \xB7 balance \u09F3${newBalance.toLocaleString()}` + (isNowComplete ? "\n\u2705 Order fully paid & completed" : "") + (autoReleased ? "\n\u{1F7E2} Dispatch clearance auto-released" : ""),
+      "payment_received"
     );
     if (mappedMethod !== "Cash" && bank_account_id) {
       bridgeCustomerPayment(getDb(), {

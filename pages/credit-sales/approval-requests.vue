@@ -88,7 +88,17 @@ async function approve(r: any) {
   try {
     const url = r.request_type === 'payment'
       ? `/api/credit-sales/${r.order_id}/payment`
-      : `/api/customers/${r.customer_id}/collect-payment`
+      : r.request_type === 'commodity_sale'
+        ? `/api/trading/sales`
+        : r.request_type === 'commodity_sale_edit'
+          ? `/api/trading/sales/${r.payload?.sale_id}/edit`
+        : r.request_type === 'commodity_payment'
+          ? `/api/trading/sales/${r.payload?.sale_id}/payment`
+          : r.request_type === 'loan_disbursement'
+            ? `/api/loans`
+            : r.request_type === 'loan_repayment'
+              ? `/api/loans/${r.payload?.loan_id}/repay`
+              : `/api/customers/${r.customer_id}/collect-payment`
     const res: any = await $fetch(url, { method: 'POST', body: { ...r.payload, is_checker_review: true } })
 
     if (res.queued) {
@@ -102,7 +112,7 @@ async function approve(r: any) {
       method: 'POST',
       body: { payment_id: res.id },
     })
-    success(`Posted — ${res.payment_number ?? res.reference_number ?? 'payment recorded'} ✓`)
+    success(`Posted — ${res.payment_number ?? res.sale_number ?? res.loan_number ?? res.repayment_number ?? res.reference_number ?? 'recorded'} ✓`)
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to post payment')

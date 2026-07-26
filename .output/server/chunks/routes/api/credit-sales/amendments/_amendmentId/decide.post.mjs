@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, af as readBody, Q as getUserSession, k as createError, x as getDb, N as getUserApprovalLimit, d as applyAmendment, e as auditLog, au as sendTelegram } from '../../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, am as readBody, V as getUserSession, l as createError, y as getDb, R as getUserApprovalLimit, Q as getUserActionLimit, e as applyAmendment, f as auditLog, aC as sendTelegram } from '../../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -39,7 +39,14 @@ const decide_post = defineEventHandler(async (event) => {
       throw createError({ statusCode: 409, statusMessage: `Amendment already ${amd.status}` });
     const newValues = amd.new_values ? JSON.parse(amd.new_values) : {};
     const delta = amd.regime === "pre" ? Number((_d = newValues.total_amount) != null ? _d : 0) - Number((_f = JSON.parse((_e = amd.old_values) != null ? _e : "{}").total_amount) != null ? _f : 0) : Number((_g = amd.flat_amount) != null ? _g : 0);
-    const { limit, source } = await getUserApprovalLimit(conn, userId, role);
+    let { limit, source } = await getUserApprovalLimit(conn, userId, role);
+    if (source !== "admin") {
+      const amendCap = await getUserActionLimit(conn, userId, "amend_order");
+      if (amendCap !== null) {
+        limit = amendCap;
+        source = "personal";
+      }
+    }
     const mayDecide = source === "admin" || source === "personal" && (delta <= 0 || delta <= limit);
     if (!mayDecide)
       throw createError({ statusCode: 403, statusMessage: `You need admin authority or a delegated limit \u2265 \u09F3${delta.toLocaleString()}` });

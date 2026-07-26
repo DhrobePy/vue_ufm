@@ -187,7 +187,7 @@ export default defineEventHandler(async (event) => {
   sendTelegram(
     `✅ <b>Delivery Confirmed</b>\n${order.order_number} — ${order.customer_name ?? ''}\n` +
     `By ${userName}${receivedBy ? ` · Received by ${receivedBy}` : ''}`,
-  )
+  'dispatch')
 
   // Scan audit trail (non-fatal)
   try {

@@ -1,4 +1,4 @@
-import { o as defineEventHandler, x as getDb } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, y as getDb } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -24,7 +24,10 @@ const DEFAULTS = {
     "Interest @ 2% per month charged on overdue balances.",
     "All disputes subject to Sirajgonj jurisdiction.",
     "This invoice is valid only with authorised company stamp."
-  ].join("\n")
+  ].join("\n"),
+  // '1' = show the customer's credit limit + outstanding balance block on
+  // the printed invoice; '0' hides it (legacy show_invoice_outstanding).
+  show_invoice_outstanding: "1"
 };
 const documents_get = defineEventHandler(async () => {
   var _a, _b;
@@ -33,7 +36,7 @@ const documents_get = defineEventHandler(async () => {
   try {
     const [rows] = await conn.query(
       `SELECT setting_key, setting_value FROM system_settings
-       WHERE setting_key IN ('tc_purchase_order','tc_credit_invoice')`
+       WHERE setting_key IN ('tc_purchase_order','tc_credit_invoice','show_invoice_outstanding')`
     );
     const result = { ...DEFAULTS };
     for (const row of rows) {

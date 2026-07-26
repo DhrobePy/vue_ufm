@@ -61,9 +61,11 @@ export default defineEventHandler(async (event) => {
     // yet, so committing here just persists the queued request.
     const limitCheck = await checkTransactionLimit(conn, userId, role, amount, Boolean(body?.is_checker_review))
     if (!limitCheck.allowed) {
-      const limitDesc = limitCheck.cap > 0
-        ? `exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`
-        : 'no transaction limit has been delegated to your account yet'
+      const limitDesc = limitCheck.reason === 'policy'
+        ? 'payment approval policy — every payment needs a checker'
+        : limitCheck.cap > 0
+          ? `exceeds your transaction limit of ৳${limitCheck.cap.toLocaleString()}`
+          : 'no transaction limit has been delegated to your account yet'
       const reqId = await queuePendingRequest(conn, {
         requestType: 'collect_payment',
         payload: body,
@@ -71,13 +73,13 @@ export default defineEventHandler(async (event) => {
         amount,
         referenceLabel: `${customer.name} — ৳${amount.toLocaleString()} via ${method}`,
         requestedBy: userId,
-        requestedReason: limitCheck.cap > 0 ? `Exceeds transaction limit of ৳${limitCheck.cap.toLocaleString()}` : 'No transaction limit configured',
+        requestedReason: limitCheck.reason === 'policy' ? 'Payment approval policy (all payments)' : limitCheck.cap > 0 ? `Exceeds transaction limit of ৳${limitCheck.cap.toLocaleString()}` : 'No transaction limit configured',
       })
       await conn.commit()
       sendTelegram(
         `⏳ <b>Payment Queued for Approval</b>\n${customer.name} — ৳${amount.toLocaleString()} via ${method}\n` +
         `Requested by ${userName} (${limitDesc})`,
-      )
+      'payment_received')
       return {
         ok: true, queued: true, pending_request_id: reqId,
         message: `৳${amount.toLocaleString()} ${limitDesc} — queued for a checker's approval.`,
@@ -244,7 +246,7 @@ export default defineEventHandler(async (event) => {
       (allocatedTotal < amount ? `\n৳${(amount - allocatedTotal).toLocaleString()} on account` : '') +
       (autoReleasedOrders.length ? `\n🟢 Auto-released: ${autoReleasedOrders.join(', ')}` : '') +
       `\nby ${userName}`,
-    )
+    'payment_received')
 
     if (method !== 'Cash' && body?.bank_account_id) {
       bridgeCustomerPayment(getDb(), {

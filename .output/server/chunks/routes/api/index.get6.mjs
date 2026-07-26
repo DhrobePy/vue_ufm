@@ -1,4 +1,4 @@
-import { o as defineEventHandler, F as getQuery, ac as query, a3 as paginate } from '../../nitro/nitro.mjs';
+import { p as defineEventHandler, H as getQuery, aj as query } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,45 +10,55 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_get = defineEventHandler(async (event) => {
+  var _a;
   const q = getQuery(event);
   const search = q.search || "";
-  const type = q.type || "";
-  const status = q.status || "";
-  const page = Number(q.page) || 1;
-  const perPage = Math.min(Number(q.per) || 25, 500);
-  const { limit, offset } = paginate(page, perPage);
-  const where = [];
+  const branchId = Number(q.branch_id) || null;
+  const where = ['p.status = "active"'];
   const params = [];
   if (search) {
-    where.push("(s.company_name LIKE ? OR s.supplier_code LIKE ? OR s.phone LIKE ?)");
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    where.push("(p.base_name LIKE ? OR pv.sku LIKE ?)");
+    params.push(`%${search}%`, `%${search}%`);
   }
-  if (type) {
-    where.push("s.supplier_type = ?");
-    params.push(type);
+  const priceSubquery = branchId ? `(SELECT variant_id, unit_price FROM product_prices
+        WHERE is_active = 1 AND branch_id = ?
+        GROUP BY variant_id) pp` : `(SELECT variant_id, MIN(unit_price) AS unit_price FROM product_prices
+        WHERE is_active = 1
+        GROUP BY variant_id) pp`;
+  const products = await query(
+    `SELECT p.id AS product_id, p.base_name, p.category, p.base_sku,
+            pv.id AS variant_id, pv.sku, pv.grade, pv.weight_variant,
+            pv.weight_kg, pv.unit_of_measure, pv.status AS variant_status,
+            pp.unit_price
+     FROM products p
+     JOIN product_variants pv ON pv.product_id = p.id AND pv.status = 'active'
+     LEFT JOIN ${priceSubquery} ON pp.variant_id = pv.id
+     WHERE ${where.join(" AND ")}
+     ORDER BY p.base_name, pv.weight_variant`,
+    branchId ? [...params, branchId] : params
+  );
+  const grouped = {};
+  for (const row of products) {
+    if (!grouped[row.product_id]) {
+      grouped[row.product_id] = {
+        id: row.product_id,
+        base_name: row.base_name,
+        category: row.category,
+        base_sku: row.base_sku,
+        variants: []
+      };
+    }
+    grouped[row.product_id].variants.push({
+      id: row.variant_id,
+      sku: row.sku,
+      grade: row.grade,
+      weight_variant: row.weight_variant,
+      weight_kg: row.weight_kg,
+      unit_of_measure: row.unit_of_measure,
+      unit_price: (_a = row.unit_price) != null ? _a : null
+    });
   }
-  if (status) {
-    where.push("s.status = ?");
-    params.push(status);
-  }
-  const w = where.length ? "WHERE " + where.join(" AND ") : "";
-  const [suppliers, [cnt]] = await Promise.all([
-    query(
-      `SELECT s.id, s.supplier_code, s.company_name, s.contact_person,
-              s.phone, s.mobile, s.city, s.country, s.supplier_type,
-              s.payment_terms, s.credit_limit, s.current_balance, s.status,
-              COUNT(DISTINCT o.id) AS total_pos
-       FROM suppliers s
-       LEFT JOIN purchase_orders_adnan o ON o.supplier_id = s.id
-       ${w}
-       GROUP BY s.id
-       ORDER BY s.company_name
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    ),
-    query(`SELECT COUNT(*) AS total FROM suppliers s ${w}`, params)
-  ]);
-  return { suppliers, total: cnt.total, page, perPage: limit };
+  return { products: Object.values(grouped) };
 });
 
 export { index_get as default };

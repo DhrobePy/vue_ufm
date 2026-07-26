@@ -95,6 +95,23 @@
           {{ savingAuthority ? 'Saving…' : 'Save Authority Limits' }}
         </button>
       </div>
+
+      <!-- Per-action overrides (finer-grained than the two defaults above) -->
+      <div class="mt-4 pt-4 border-t border-white/[0.06]">
+        <p class="text-[11px] text-gray-500 uppercase tracking-wider font-semibold mb-1">Per-Action Overrides (optional)</p>
+        <p class="text-[11px] text-gray-600 mb-3 leading-snug">
+          A per-action limit overrides the defaults above for that specific action only.
+          Blank/0 = use the default (order-approval limit for approving/amending, transaction limit for collecting).
+        </p>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div v-for="al in actionLimitDefs" :key="al.key" class="space-y-1.5">
+            <label class="text-[11px] text-gray-500">{{ al.label }}</label>
+            <input v-model.number="actionLimits[al.key]" type="number" min="0" step="1000"
+                   class="input-glass w-full font-mono text-center text-xs" placeholder="default" />
+          </div>
+        </div>
+      </div>
+
       <p class="text-[11px] text-gray-600 mt-3">
         Amendment approvals follow the order approval limit (increases only; decreases are always allowed for delegated users).
         Dispatch clearance / hold powers are toggled below under <strong class="text-gray-500">Payment Watch</strong>.
@@ -827,6 +844,18 @@ if (error.value) {
 
 // ── Credit Authority limits (separate API — user_approval_limits) ─────────────
 const authority       = reactive({ max_order_amount: 0, max_transaction_amount: 0 })
+const actionLimitDefs = [
+  { key: 'approve_order',     label: 'Approve Order (৳)' },
+  { key: 'amend_order',       label: 'Amend Order (৳)' },
+  { key: 'collect_payment',   label: 'Collect Payment (৳)' },
+  { key: 'partial_delivery',  label: 'Partial Delivery (৳)' },
+  { key: 'commodity_sale',    label: 'Commodity Sale (৳)' },
+  { key: 'loan_disbursement', label: 'Loan Disbursement (৳)' },
+] as const
+const actionLimits = reactive<Record<string, number>>({
+  approve_order: 0, amend_order: 0, collect_payment: 0, partial_delivery: 0,
+  commodity_sale: 0, loan_disbursement: 0,
+})
 const savingAuthority = ref(false)
 const { success: toastOk, error: toastFail } = useToast()
 
@@ -837,6 +866,9 @@ watch(limitsData, (d: any) => {
   if (row) {
     authority.max_order_amount       = Number(row.max_order_amount ?? 0)
     authority.max_transaction_amount = Number(row.max_transaction_amount ?? 0)
+    for (const al of row.action_limits ?? []) {
+      if (al.action_key in actionLimits) actionLimits[al.action_key] = Number(al.max_amount ?? 0)
+    }
   }
 }, { immediate: true })
 
@@ -849,6 +881,9 @@ async function saveAuthority() {
         user_id: userId,
         max_order_amount:       Number(authority.max_order_amount) || 0,
         max_transaction_amount: Number(authority.max_transaction_amount) || 0,
+        action_limits: Object.fromEntries(
+          actionLimitDefs.map(d => [d.key, Number(actionLimits[d.key]) || 0]),
+        ),
       },
     })
     toastOk('Authority limits saved ✓')

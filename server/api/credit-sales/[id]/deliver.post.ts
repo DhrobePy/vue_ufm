@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { getUserActionLimit } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -60,6 +61,18 @@ export default defineEventHandler(async (event) => {
     const totalQty    = items.reduce((s: number, i: any) => s + Number(i.qty_delivered), 0)
     const totalAmount = items.reduce((s: number, i: any) => s + Number(i.qty_delivered) * Number(i.unit_price), 0)
     const delivDate   = delivery_date ?? new Date().toISOString().slice(0, 10)
+
+    // Per-action partial_delivery ৳ cap (admin exempt). Only enforced when a
+    // cap is explicitly configured — this action has no legacy-column fallback.
+    if (!['admin', 'superadmin'].includes(role)) {
+      const deliveryCap = await getUserActionLimit(conn, userId, 'partial_delivery')
+      if (deliveryCap !== null && totalAmount > deliveryCap) {
+        throw createError({
+          statusCode: 403,
+          statusMessage: `Delivery value ৳${totalAmount.toLocaleString()} exceeds your partial-delivery limit of ৳${deliveryCap.toLocaleString()} — ask a user with higher authority to record it`,
+        })
+      }
+    }
 
     // Insert delivery header
     const [result] = await conn.query<any>(

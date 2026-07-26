@@ -1,4 +1,4 @@
-import { o as defineEventHandler, M as getRouterParam, af as readBody, Q as getUserSession, k as createError, V as isAccountsRole, x as getDb, e as auditLog, au as sendTelegram } from '../../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, am as readBody, V as getUserSession, l as createError, Z as isAccountsRole, y as getDb, f as auditLog, aC as sendTelegram } from '../../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -40,6 +40,20 @@ const reject_post = defineEventHandler(async (event) => {
        WHERE id = ?`,
       [userId, note, id]
     );
+    if (req.request_type === "commodity_sale_edit") {
+      try {
+        const payload = typeof req.payload === "string" ? JSON.parse(req.payload) : req.payload;
+        if (payload == null ? void 0 : payload.edit_id) {
+          await conn.query(
+            `UPDATE commodity_sale_edits
+             SET status = 'rejected', decided_by_user_id = ?, decided_at = NOW()
+             WHERE id = ? AND status = 'pending_approval'`,
+            [userId, Number(payload.edit_id)]
+          );
+        }
+      } catch {
+      }
+    }
     await auditLog(conn, {
       userId,
       action: "rejected",

@@ -86,6 +86,24 @@
           </select>
         </div>
         <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Sale Type</label>
+          <div class="flex rounded-xl overflow-hidden border border-white/[0.08]">
+            <button type="button" @click="form.isOtherSales = false"
+                    :class="['flex-1 py-2.5 text-xs font-semibold transition-colors',
+                      !form.isOtherSales ? 'bg-gold-500/15 text-gold-300' : 'text-gray-500 hover:text-gray-300']">
+              🌾 Flour Products
+            </button>
+            <button type="button" @click="form.isOtherSales = true; form.items = [{ variantId: '', productId: '', commodityId: '', commodityOrigin: '', quantity: 1, unitPrice: 0, discount: 0 }]"
+                    :class="['flex-1 py-2.5 text-xs font-semibold transition-colors border-l border-white/[0.08]',
+                      form.isOtherSales ? 'bg-emerald-500/15 text-emerald-300' : 'text-gray-500 hover:text-gray-300']">
+              📦 Other Sales
+            </button>
+          </div>
+          <p v-if="form.isOtherSales" class="text-[10px] text-emerald-500/90">
+            Trading commodity sale — skips production entirely (approval → ready to ship)
+          </p>
+        </div>
+        <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Delivery Type</label>
           <div class="flex rounded-xl overflow-hidden border border-white/[0.08]">
             <button type="button" @click="form.deliveryType = 'big_truck'"
@@ -167,12 +185,30 @@
       <div class="space-y-3">
         <div v-for="(item, idx) in form.items" :key="idx"
              class="grid grid-cols-12 gap-3 p-3 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-          <div class="col-span-4 space-y-1">
+          <div v-if="!form.isOtherSales" class="col-span-4 space-y-1">
             <label class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Product Variant</label>
             <select v-model="item.variantId" class="input-glass text-xs py-2" @change="onVariantChange(item)">
               <option value="">Select…</option>
               <option v-for="v in variants" :key="v.id" :value="v.id">{{ v.name }}</option>
             </select>
+          </div>
+          <div v-else class="col-span-4 grid grid-cols-2 gap-2">
+            <div class="space-y-1">
+              <label class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Commodity</label>
+              <select v-model="item.commodityId" class="input-glass text-xs py-2" @change="item.commodityOrigin = ''">
+                <option value="">Select…</option>
+                <option v-for="c in tradingCommodities" :key="c.id" :value="String(c.id)" :disabled="!c.ready">
+                  {{ c.name }} ({{ c.unit }})
+                </option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Origin</label>
+              <select v-model="item.commodityOrigin" class="input-glass text-xs py-2">
+                <option value="">Not tracked</option>
+                <option v-for="o in commodityOrigins(item.commodityId)" :key="o" :value="o">{{ o }}</option>
+              </select>
+            </div>
           </div>
           <div class="col-span-2 space-y-1">
             <label class="text-[10px] text-gray-600 font-semibold uppercase tracking-wider">Qty</label>
@@ -358,8 +394,9 @@ const orderBranches = computed(() =>
 const form = reactive({
   customerId: '', orderDate: new Date().toISOString().split('T')[0],
   requiredDate: '', branchId: '', priority: 'normal', deliveryType: 'big_truck',
+  isOtherSales: false,
   shippingAddress: '', advancePaid: 0, overallDiscount: 0, notes: '',
-  items: [{ variantId: '', productId: '', quantity: 1, unitPrice: 0, discount: 0 }],
+  items: [{ variantId: '', productId: '', commodityId: '', commodityOrigin: '', quantity: 1, unitPrice: 0, discount: 0 }] as any[],
   // advance payment details
   advanceMethod:          'Cash' as string,
   advanceBankAccountId:   '' as string | number,
@@ -537,7 +574,14 @@ watch(prodData, () => {
 const subtotal     = computed(() => form.items.reduce((s, i) => s + i.quantity * i.unitPrice, 0))
 const totalDiscount = computed(() => form.items.reduce((s, i) => s + (i.discount || 0), 0) + (form.overallDiscount || 0))
 
-function addItem() { form.items.push({ variantId: '', productId: '', quantity: 1, unitPrice: 0, discount: 0 }) }
+function addItem() { form.items.push({ variantId: '', productId: '', commodityId: '', commodityOrigin: '', quantity: 1, unitPrice: 0, discount: 0 }) }
+
+// Trading commodities for Other Sales mode (lazy — only loads when toggled)
+const { data: tradingComData } = await useFetch('/api/trading/commodities', { ignoreResponseError: true })
+const tradingCommodities = computed<any[]>(() => (tradingComData.value as any)?.commodities ?? [])
+function commodityOrigins(commodityId: string) {
+  return tradingCommodities.value.find((c: any) => String(c.id) === String(commodityId))?.origins ?? []
+}
 
 // ── Auto-save draft to localStorage every 30s ────
 const DRAFT_KEY = 'erp_order_draft'
@@ -598,15 +642,26 @@ async function submitOrder() {
         advance_cheque_date:             form.advanceChequeDate      || undefined,
         advance_bank_tx_type:            form.advanceBankTxType      || undefined,
         advance_collected_by_employee_id: form.advanceCollectedBy   || undefined,
-        items: form.items
-          .filter(i => i.variantId)
-          .map(i => ({
-            product_id:      i.productId ? Number(i.productId) : null,
-            variant_id:      Number(i.variantId),
-            qty_bags:        i.quantity,
-            unit_price:      i.unitPrice,
-            discount_amount: i.discount || 0,
-          })),
+        is_other_sales: form.isOtherSales,
+        items: form.isOtherSales
+          ? form.items
+              .filter(i => i.commodityId)
+              .map(i => ({
+                commodity_id:     Number(i.commodityId),
+                commodity_origin: i.commodityOrigin || null,
+                qty_bags:         i.quantity,
+                unit_price:       i.unitPrice,
+                discount_amount:  i.discount || 0,
+              }))
+          : form.items
+              .filter(i => i.variantId)
+              .map(i => ({
+                product_id:      i.productId ? Number(i.productId) : null,
+                variant_id:      Number(i.variantId),
+                qty_bags:        i.quantity,
+                unit_price:      i.unitPrice,
+                discount_amount: i.discount || 0,
+              })),
       },
     }) as any
     localStorage.removeItem(DRAFT_KEY)

@@ -1,4 +1,4 @@
-import { o as defineEventHandler, af as readBody, Q as getUserSession, k as createError, ac as query, G as getRequestHeader, aC as verifyDeliveryQrSignature, x as getDb, e as auditLog, au as sendTelegram, aj as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, aj as query, I as getRequestHeader, aK as verifyDeliveryQrSignature, y as getDb, f as auditLog, aC as sendTelegram, aq as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -169,7 +169,8 @@ const deliver_post = defineEventHandler(async (event) => {
   sendTelegram(
     `\u2705 <b>Delivery Confirmed</b>
 ${order.order_number} \u2014 ${(_m = order.customer_name) != null ? _m : ""}
-By ${userName}${receivedBy ? ` \xB7 Received by ${receivedBy}` : ""}`
+By ${userName}${receivedBy ? ` \xB7 Received by ${receivedBy}` : ""}`,
+    "dispatch"
   );
   try {
     await recordQrScan(getDb(), {

@@ -1,4 +1,4 @@
-import { o as defineEventHandler, af as readBody, Q as getUserSession, k as createError, x as getDb, ai as recalcPO, e as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, ap as recalcPO, ac as postCommodityGRNCost, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -21,6 +21,8 @@ const index_post = defineEventHandler(async (event) => {
     quantity_received_kg,
     expected_quantity,
     unload_point_name,
+    unload_point_branch_id,
+    // which branch received the goods — feeds commodity costing
     remarks,
     over_delivery_action,
     // 'as_is' | 'accept_with_dan'
@@ -34,7 +36,8 @@ const index_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[po]] = await conn.query(
-      `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg
+      `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg,
+              commodity_id, wheat_origin
        FROM purchase_orders_adnan WHERE id = ?`,
       [Number(po_id)]
     );
@@ -59,7 +62,7 @@ const index_post = defineEventHandler(async (event) => {
           quantity_received_kg, expected_quantity,
           unit_price_per_kg, total_value,
           variance_percentage,
-          truck_number, unload_point_name, remarks,
+          truck_number, unload_point_name, unload_point_branch_id, remarks,
           grn_status, receiver_user_id,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
@@ -67,7 +70,7 @@ const index_post = defineEventHandler(async (event) => {
                ?, ?,
                ?, ?,
                ?,
-               ?, ?, ?,
+               ?, ?, ?, ?,
                'verified', ?,
                NOW(), NOW())`,
       [
@@ -84,12 +87,26 @@ const index_post = defineEventHandler(async (event) => {
         varPct,
         truck_number != null ? truck_number : null,
         unload_point_name != null ? unload_point_name : null,
+        unload_point_branch_id ? Number(unload_point_branch_id) : null,
         remarks != null ? remarks : null,
         userId
       ]
     );
     const grnId = result.insertId;
     await recalcPO(conn, Number(po_id));
+    if (po.commodity_id && unload_point_branch_id) {
+      try {
+        await postCommodityGRNCost(conn, {
+          commodityId: Number(po.commodity_id),
+          branchId: Number(unload_point_branch_id),
+          origin: (_e = po.wheat_origin) != null ? _e : "",
+          qty: receivedKg,
+          unitCost: unitPrice
+        });
+      } catch (costErr) {
+        console.warn(`[grn] commodity costing failed for ${grnNo}:`, costErr);
+      }
+    }
     const varianceNote = expectedKg > 0 ? ` \xB7 Expected: ${expectedKg.toLocaleString()} KG \xB7 Variance: ${Number(varPct) >= 0 ? "+" : ""}${Number(varPct).toFixed(2)}%` : "";
     await auditLog(conn, {
       userId,
@@ -113,7 +130,7 @@ const index_post = defineEventHandler(async (event) => {
           const [[danCnt]] = await conn.query(
             `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE DATE(created_at) = CURDATE()`
           );
-          const danSeq = String(((_e = danCnt.n) != null ? _e : 0) + 1).padStart(4, "0");
+          const danSeq = String(((_f = danCnt.n) != null ? _f : 0) + 1).padStart(4, "0");
           const danNo = `DAN-${today}-${danSeq}`;
           const [danResult] = await conn.query(
             `INSERT INTO purchase_adjustment_notes

@@ -6,13 +6,15 @@ import { userCanAction } from '~/server/utils/permissions'
 
 /**
  * Gate actions on one order:
- *  - set               (accounts/admin): create/update holds + conditions
- *  - clear_dispatch    (accounts/admin): grant dispatch clearance
- *  - revoke_dispatch   (accounts/admin): revoke clearance — only until goods on board
- *  - release_production(admin only):     lift a production hold
+ *  - set               (accounts/admin, delegable): create/update holds + conditions
+ *  - clear_dispatch    (accounts/admin, delegable): grant dispatch clearance
+ *  - revoke_dispatch   (accounts/admin, delegable): revoke clearance — only until goods on board
+ *  - release_production(admin only):                lift a production hold
  *
- * Clearance granting is hard-limited to the accounts family regardless of
- * any UI toggles (playbook: safety defaults).
+ * Clearance powers are DELEGABLE to any user via the privileges editor
+ * (payment-watch action grants) — matching the legacy app's Jul 2026 change
+ * that removed the hard accounts-family gate. Users without an explicit
+ * grant still fall back to the accounts-family default via userCanAction.
  */
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -27,12 +29,13 @@ export default defineEventHandler(async (event) => {
   const note     = body?.note ? String(body.note).slice(0, 255) : null
 
   if (!id || !action) throw createError({ statusCode: 400, statusMessage: 'id and action required' })
-  if (!isAccountsRole(role))
-    throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
   if (action === 'release_production' && !isAdminRole(role))
     throw createError({ statusCode: 403, statusMessage: 'Only admin can release a production hold' })
 
-  // Per-user action toggles (admin bypasses; unconfigured users fall back to accounts family)
+  // Per-user action toggles (admin bypasses; unconfigured users fall back to
+  // accounts family). Deliberately NO hard accounts-role gate in front of
+  // this — any user given the explicit payment-watch action grant can clear/
+  // revoke, same as the legacy app after its Jul 2026 delegation change.
   const ACTION_PERM: Record<string, string> = {
     set: 'set_conditions', clear_dispatch: 'clear_dispatch', revoke_dispatch: 'revoke_dispatch',
   }
@@ -43,6 +46,9 @@ export default defineEventHandler(async (event) => {
     })
     if (!allowed)
       throw createError({ statusCode: 403, statusMessage: `Your account is not allowed to ${ACTION_PERM[action].replace('_', ' ')}` })
+  } else if (!isAccountsRole(role)) {
+    // Unknown/other actions keep the conservative accounts-family gate
+    throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
   }
 
   const db   = getDb()
@@ -155,7 +161,7 @@ export default defineEventHandler(async (event) => {
 
     const state = await getOrderGateState(conn, id)
     await conn.commit()
-    if (telegramMsg) sendTelegram(telegramMsg)
+    if (telegramMsg) sendTelegram(telegramMsg, 'dispatch')
     return { ok: true, gate: state }
   } catch (e) {
     await conn.rollback()

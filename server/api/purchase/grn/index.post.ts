@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
+import { postCommodityGRNCost } from '~/server/utils/commodityTrading'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -14,6 +15,7 @@ export default defineEventHandler(async (event) => {
     quantity_received_kg,
     expected_quantity,
     unload_point_name,
+    unload_point_branch_id,   // which branch received the goods — feeds commodity costing
     remarks,
     over_delivery_action, // 'as_is' | 'accept_with_dan'
     excess_qty,
@@ -31,7 +33,8 @@ export default defineEventHandler(async (event) => {
 
     // Fetch PO
     const [[po]] = await conn.query<any>(
-      `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg
+      `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg,
+              commodity_id, wheat_origin
        FROM purchase_orders_adnan WHERE id = ?`,
       [Number(po_id)],
     )
@@ -64,7 +67,7 @@ export default defineEventHandler(async (event) => {
           quantity_received_kg, expected_quantity,
           unit_price_per_kg, total_value,
           variance_percentage,
-          truck_number, unload_point_name, remarks,
+          truck_number, unload_point_name, unload_point_branch_id, remarks,
           grn_status, receiver_user_id,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
@@ -72,7 +75,7 @@ export default defineEventHandler(async (event) => {
                ?, ?,
                ?, ?,
                ?,
-               ?, ?, ?,
+               ?, ?, ?, ?,
                'verified', ?,
                NOW(), NOW())`,
       [
@@ -81,7 +84,9 @@ export default defineEventHandler(async (event) => {
         receivedKg, expectedKg > 0 ? expectedKg : null,
         unitPrice, totalValue,
         varPct,
-        truck_number ?? null, unload_point_name ?? null, remarks ?? null,
+        truck_number ?? null, unload_point_name ?? null,
+        unload_point_branch_id ? Number(unload_point_branch_id) : null,
+        remarks ?? null,
         userId,
       ],
     )
@@ -89,6 +94,24 @@ export default defineEventHandler(async (event) => {
 
     // Recalculate PO totals
     await recalcPO(conn, Number(po_id))
+
+    // ── Commodity costing — raise trading stock at blended average cost ──
+    // Best-effort follow-up (mirrors legacy): fires only when the PO is
+    // commodity-tagged AND a receiving branch was chosen; a failure must
+    // never block the GRN itself.
+    if (po.commodity_id && unload_point_branch_id) {
+      try {
+        await postCommodityGRNCost(conn, {
+          commodityId: Number(po.commodity_id),
+          branchId: Number(unload_point_branch_id),
+          origin: po.wheat_origin ?? '',
+          qty: receivedKg,
+          unitCost: unitPrice,
+        })
+      } catch (costErr) {
+        console.warn(`[grn] commodity costing failed for ${grnNo}:`, costErr)
+      }
+    }
 
     // Audit log
     const varianceNote = expectedKg > 0

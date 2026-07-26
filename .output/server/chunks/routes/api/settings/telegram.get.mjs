@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, k as createError, ac as query } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, l as createError, aj as query, T as TELEGRAM_CATEGORIES } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -15,16 +15,29 @@ const telegram_get = defineEventHandler(async (event) => {
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   if (!["admin", "superadmin"].includes(role))
     throw createError({ statusCode: 403, statusMessage: "Admin only" });
+  const keys = [
+    "telegram_bot_token",
+    "telegram_chat_id",
+    ...TELEGRAM_CATEGORIES.map((c) => `telegram_chat_id_${c}`)
+  ];
   const rows = await query(
     `SELECT setting_key, setting_value FROM system_settings
-     WHERE setting_key IN ('telegram_bot_token', 'telegram_chat_id')`
+     WHERE setting_key IN (${keys.map(() => "?").join(",")})`,
+    keys
   );
   const map = Object.fromEntries(rows.map((r) => [r.setting_key, r.setting_value]));
   const token = (_c = map.telegram_bot_token) != null ? _c : "";
   return {
     has_token: !!token,
     token_masked: token ? `${token.slice(0, 6)}\u2026${token.slice(-4)}` : "",
-    chat_id: (_d = map.telegram_chat_id) != null ? _d : ""
+    chat_id: (_d = map.telegram_chat_id) != null ? _d : "",
+    categories: TELEGRAM_CATEGORIES.map((c) => {
+      var _a2;
+      return {
+        key: c,
+        chat_id: (_a2 = map[`telegram_chat_id_${c}`]) != null ? _a2 : ""
+      };
+    })
   };
 });
 

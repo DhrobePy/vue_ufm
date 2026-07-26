@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, a as ADMIN_ROLES, k as createError, ac as query } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, b as ADMIN_ROLES, l as createError, aj as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const approvalLimits_get = defineEventHandler(async (event) => {
-  var _a, _b;
+  var _a, _b, _c, _d, _e;
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   if (!ADMIN_ROLES.includes(role))
@@ -24,6 +24,16 @@ const approvalLimits_get = defineEventHandler(async (event) => {
      WHERE u.status = 'active' AND u.role NOT IN ('admin','superadmin')
      ORDER BY ual.max_order_amount DESC, u.display_name`
   );
+  try {
+    const actionRows = await query(
+      `SELECT user_id, action_key, max_amount FROM user_action_limits WHERE max_amount > 0`
+    );
+    const byUser = {};
+    for (const r of actionRows) ((_d = byUser[_c = r.user_id]) != null ? _d : byUser[_c] = []).push({ action_key: r.action_key, max_amount: Number(r.max_amount) });
+    for (const u of users) u.action_limits = (_e = byUser[u.id]) != null ? _e : [];
+  } catch {
+    for (const u of users) u.action_limits = [];
+  }
   return { users };
 });
 

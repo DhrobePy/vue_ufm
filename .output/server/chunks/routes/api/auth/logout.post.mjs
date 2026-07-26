@@ -1,4 +1,4 @@
-import { o as defineEventHandler, j as clearUserSession } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, k as clearUserSession } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

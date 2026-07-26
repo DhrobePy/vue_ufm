@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 
-const ALLOWED_KEYS = ['tc_purchase_order', 'tc_credit_invoice'] as const
+const ALLOWED_KEYS = ['tc_purchase_order', 'tc_credit_invoice', 'show_invoice_outstanding'] as const
 
 /**
  * PUT /api/settings/documents

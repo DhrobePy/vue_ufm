@@ -265,7 +265,7 @@ export default defineEventHandler(async (event) => {
       `৳${totalAmount.toLocaleString()} dated ${transaction_date} · by ${userName}` +
       (paidAmount > 0 ? `\n💰 ৳${paidAmount.toLocaleString()} already collected` : '') +
       (goResult.alreadyPosted ? '' : '\n📒 Invoice posted to ledger + journal entry'),
-    )
+    'orders')
 
     return {
       ok: true, id: orderId, order_number: orderNo, status: 'delivered',

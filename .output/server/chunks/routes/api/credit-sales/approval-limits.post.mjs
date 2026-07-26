@@ -1,4 +1,4 @@
-import { o as defineEventHandler, Q as getUserSession, a as ADMIN_ROLES, k as createError, af as readBody, x as getDb, e as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, V as getUserSession, b as ADMIN_ROLES, l as createError, am as readBody, y as getDb, a as ACTION_LIMIT_KEYS, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -35,6 +35,22 @@ const approvalLimits_post = defineEventHandler(async (event) => {
                                  set_by_user_id = VALUES(set_by_user_id)`,
         [userId, orderCap, txnCap, adminId]
       );
+    }
+    if ((body == null ? void 0 : body.action_limits) && typeof body.action_limits === "object") {
+      for (const key of ACTION_LIMIT_KEYS) {
+        if (body.action_limits[key] === void 0) continue;
+        const amt = Math.max(0, Number(body.action_limits[key]) || 0);
+        if (amt <= 0) {
+          await conn.query(`DELETE FROM user_action_limits WHERE user_id = ? AND action_key = ?`, [userId, key]);
+        } else {
+          await conn.query(
+            `INSERT INTO user_action_limits (user_id, action_key, max_amount, set_by_user_id)
+             VALUES (?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE max_amount = VALUES(max_amount), set_by_user_id = VALUES(set_by_user_id)`,
+            [userId, key, amt, adminId]
+          );
+        }
+      }
     }
     await auditLog(conn, {
       userId: adminId,

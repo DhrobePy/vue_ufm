@@ -4,6 +4,7 @@ import { sendTelegram } from '~/server/utils/telegram'
 import {
   ADMIN_ROLES, postGoodsOnBoardInvoice, getGLAccountId, postJournalEntry, postCustomerLedger,
 } from '~/server/utils/creditOrders'
+import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
 
 /**
  * POST /api/credit-sales/:id/override-status
@@ -137,6 +138,13 @@ export default defineEventHandler(async (event) => {
         customerName: order.customer_name, totalAmount: Number(order.total_amount),
         balanceDue: Number(order.balance_due), userId, userName,
       })
+      // Other Sales: trading COGS + stock must never be skipped either (idempotent)
+      if (order.is_other_sales) {
+        await postOtherSalesCOGS(conn, {
+          orderId: id, orderNumber: order.order_number,
+          branchId: order.assigned_branch_id ?? null, userId,
+        })
+      }
       await conn.query(`UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`, [to_status, id])
       telegramMsg = `🛠️ <b>Manual Status Override</b>\n${order.order_number} — ${order.customer_name}\n${order.status} → ${to_status}\nReason: ${reason}\nby ${userName}`
     } else {
