@@ -156,6 +156,10 @@ function entityLabel(t: string) {
     purchase_order:      'Purchase Order',
     purchase_payment:    'Purchase Payment',
     customer:            'Customer',
+    commodity_sale:      'Trading Sale',
+    commodity_payment:   'Trading Payment',
+    loan:                'Loan',
+    loan_repayment:      'Loan Repayment',
   } as Record<string, string>)[t] ?? t.replace(/_/g, ' ')
 }
 

@@ -928,7 +928,7 @@ const _routes = [
     name: "admin-recycle-bin",
     path: "/admin/recycle-bin",
     meta: __nuxt_page_meta$1T || {},
-    component: () => import('./recycle-bin-BClzNpoM.mjs')
+    component: () => import('./recycle-bin-ClxDl6oO.mjs')
   },
   {
     name: "admin-users",
