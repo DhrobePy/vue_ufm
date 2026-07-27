@@ -4,10 +4,7 @@
 
     <!-- Filters -->
     <div class="flex gap-3 flex-wrap">
-      <select v-model="selectedCustomerId" class="input-glass w-64">
-        <option value="">All Customers</option>
-        <option v-for="c in customerList" :key="c.id" :value="c.id">{{ c.name }}</option>
-      </select>
+      <UiSearchSelect v-model="selectedCustomerId" :options="customerOptions" placeholder="All Customers" class="w-64" />
       <input type="date" v-model="dateFrom" class="input-glass w-40" />
       <input type="date" v-model="dateTo"   class="input-glass w-40" />
       <button @click="applyFilter" class="btn-ghost text-xs">Filter</button>
@@ -132,6 +129,7 @@ const { data, pending, error, refresh } = await useFetch('/api/credit-sales/ledg
 
 const ledger       = computed(() => (data.value?.ledger      ?? []) as any[])
 const customerList = computed(() => (data.value?.customers   ?? []) as any[])
+const customerOptions = computed(() => customerList.value.map((c: any) => ({ value: String(c.id), label: c.name })))
 const totalDebit   = computed(() =>  data.value?.totalDebit  ?? 0)
 const totalCredit  = computed(() =>  data.value?.totalCredit ?? 0)
 const balance      = computed(() =>  data.value?.balance     ?? 0)

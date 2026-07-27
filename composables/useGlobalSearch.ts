@@ -1,5 +1,5 @@
 export interface SearchResult {
-  type: 'page' | 'order' | 'customer' | 'product' | 'user' | 'action'
+  type: 'page' | 'order' | 'customer' | 'product' | 'user' | 'action' | 'supplier' | 'po' | 'expense' | 'employee' | 'branch' | 'trading' | 'loan'
   icon: string
   label: string
   sublabel?: string
@@ -7,9 +7,8 @@ export interface SearchResult {
   keywords?: string[]
 }
 
-// Static search index — in production this would hit /api/search
-const INDEX: SearchResult[] = [
-  // Pages / navigation
+// Static navigation index — pages and quick actions never come from the DB.
+const PAGES: SearchResult[] = [
   { type: 'page', icon: '📊', label: 'Dashboard',          route: '/dashboard' },
   { type: 'page', icon: '📋', label: 'All Credit Orders',  route: '/credit-sales/all' },
   { type: 'page', icon: '✅', label: 'Approve Orders',     route: '/credit-sales/approve' },
@@ -36,33 +35,16 @@ const INDEX: SearchResult[] = [
   { type: 'page', icon: '🏭', label: 'Production Floor',   route: '/production' },
   { type: 'page', icon: '📤', label: 'Dispatch',           route: '/dispatch' },
   { type: 'page', icon: '💰', label: 'Collections',        route: '/collector' },
+  { type: 'page', icon: '📦', label: 'Trading Dashboard',  route: '/trading/dashboard' },
+  { type: 'page', icon: '📦', label: 'Trading Sales',      route: '/trading/sales' },
+  { type: 'page', icon: '🤝', label: 'Loans',              route: '/loans' },
   { type: 'page', icon: '⚙️', label: 'Admin',              route: '/admin' },
   { type: 'page', icon: '👥', label: 'Users',              route: '/admin/users' },
   { type: 'page', icon: '➕', label: 'Create User',        route: '/admin/users/create' },
   { type: 'page', icon: '📜', label: 'Audit Trail',        route: '/admin/audit' },
   { type: 'page', icon: '⚙️', label: 'Settings',           route: '/admin/settings' },
-  // Sample orders
-  { type: 'order', icon: '📋', label: 'CR-20260525-0001', sublabel: 'Rahim Traders Ltd.', route: '/credit-sales/1', keywords: ['cr-20260525-0001', 'rahim'] },
-  { type: 'order', icon: '📋', label: 'CR-20260525-0002', sublabel: 'Karim Flour Depot', route: '/credit-sales/2', keywords: ['cr-20260525-0002', 'karim'] },
-  { type: 'order', icon: '📋', label: 'CR-20260524-0008', sublabel: 'Dhaka Bakeries Co.', route: '/credit-sales/3', keywords: ['cr-20260524-0008', 'dhaka'] },
-  // Sample customers
-  { type: 'customer', icon: '👤', label: 'Rahim Traders Ltd.',   sublabel: 'Credit · Sirajgonj', route: '/customers/1', keywords: ['rahim', 'traders'] },
-  { type: 'customer', icon: '👤', label: 'Karim Flour Depot',    sublabel: 'Credit · Demra',     route: '/customers/2', keywords: ['karim', 'flour'] },
-  { type: 'customer', icon: '👤', label: 'Dhaka Bakeries Co.',   sublabel: 'Credit · Dhaka',     route: '/customers/3', keywords: ['dhaka', 'bakeries'] },
-  { type: 'customer', icon: '👤', label: 'National Biscuit Ltd.', sublabel: 'Credit · Demra',    route: '/customers/4', keywords: ['national', 'biscuit'] },
-  // Sample products
-  { type: 'product', icon: '🌾', label: '2Hati Moida 50kg',  sublabel: '৳2,200 · 142 bags', route: '/products', keywords: ['2hati', 'moida', '50kg'] },
-  { type: 'product', icon: '🌾', label: '1Hati Moida 50kg',  sublabel: '৳2,000 · 98 bags',  route: '/products', keywords: ['1hati', 'moida'] },
-  { type: 'product', icon: '🌾', label: 'Aam Moida 50kg',    sublabel: '৳1,850 · 74 bags',  route: '/products', keywords: ['aam', 'moida'] },
-  { type: 'product', icon: '🌿', label: 'Mota Vushi 37kg',   sublabel: '৳480 · 88 bags',    route: '/products', keywords: ['mota', 'vushi', 'bran'] },
-  // Expense pages + records
-  { type: 'page',     icon: '📋', label: 'Expense History',      sublabel: 'All submitted expenses',   route: '/expenses/history',    keywords: ['expense', 'history', 'all'] },
-  { type: 'page',     icon: '🗂️', label: 'Expense Vouchers',    sublabel: 'Voucher listing',           route: '/expenses/vouchers',   keywords: ['voucher', 'expense'] },
-  { type: 'order',    icon: '💸', label: 'EXP-20260525-001',    sublabel: 'Fuel & Vehicle · ৳12,500',  route: '/expenses/1',          keywords: ['exp', 'exp-001', 'fuel', 'kamal'] },
-  { type: 'order',    icon: '💸', label: 'EXP-20260524-002',    sublabel: 'Maintenance · ৳24,000',     route: '/expenses/2',          keywords: ['exp', 'exp-002', 'maintenance', 'trk'] },
-  { type: 'order',    icon: '💸', label: 'EXP-20260523-003',    sublabel: 'Labour & Wages · ৳1,20,000',route: '/expenses/3',          keywords: ['exp', 'exp-003', 'labour', 'wages'] },
-  { type: 'order',    icon: '💸', label: 'EXP-20260522-004',    sublabel: 'Office & Admin · ৳3,200',   route: '/expenses/4',          keywords: ['exp', 'exp-004', 'office'] },
-  { type: 'order',    icon: '💸', label: 'EXP-20260521-005',    sublabel: 'Utilities · ৳18,600',       route: '/expenses/5',          keywords: ['exp', 'exp-005', 'electricity'] },
+  { type: 'page', icon: '📋', label: 'Expense History',    sublabel: 'All submitted expenses', route: '/expenses/history', keywords: ['expense', 'history', 'all'] },
+  { type: 'page', icon: '🗂️', label: 'Expense Vouchers',  sublabel: 'Voucher listing', route: '/expenses/vouchers', keywords: ['voucher', 'expense'] },
   // Quick actions
   { type: 'action', icon: '➕', label: 'New Credit Order',    route: '/credit-sales/create', keywords: ['new', 'order', 'create'] },
   { type: 'action', icon: '➕', label: 'New Purchase Order',  route: '/purchase/orders/create', keywords: ['new', 'po', 'purchase'] },
@@ -71,23 +53,53 @@ const INDEX: SearchResult[] = [
   { type: 'action', icon: '🖥️', label: 'Open POS Terminal',  route: '/pos', keywords: ['pos', 'sale', 'counter'] },
 ]
 
+function matchesPage(item: SearchResult, q: string) {
+  return item.label.toLowerCase().includes(q) ||
+    item.sublabel?.toLowerCase().includes(q) ||
+    item.keywords?.some(k => k.includes(q))
+}
+
 export function useGlobalSearch() {
   const open   = ref(false)
   const query  = ref('')
+  const dynamicResults = ref<SearchResult[]>([])
+  const loading = ref(false)
 
-  const results = computed(() => {
-    if (!query.value.trim()) return INDEX.slice(0, 8)
-    const q = query.value.toLowerCase()
-    return INDEX.filter(item =>
-      item.label.toLowerCase().includes(q) ||
-      item.sublabel?.toLowerCase().includes(q) ||
-      item.keywords?.some(k => k.includes(q))
-    ).slice(0, 12)
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null
+  let requestSeq = 0
+
+  watch(query, (q) => {
+    if (debounceTimer) clearTimeout(debounceTimer)
+    const term = q.trim()
+    if (term.length < 2) {
+      dynamicResults.value = []
+      loading.value = false
+      return
+    }
+    loading.value = true
+    debounceTimer = setTimeout(async () => {
+      const seq = ++requestSeq
+      try {
+        const res = await $fetch<{ results: SearchResult[] }>('/api/search', { query: { q: term } })
+        if (seq === requestSeq) dynamicResults.value = res.results ?? []
+      } catch {
+        if (seq === requestSeq) dynamicResults.value = []
+      } finally {
+        if (seq === requestSeq) loading.value = false
+      }
+    }, 250)
   })
 
-  function show() { open.value = true; query.value = '' }
-  function hide() { open.value = false; query.value = '' }
+  const results = computed(() => {
+    const term = query.value.trim().toLowerCase()
+    if (!term) return PAGES.slice(0, 8)
+    const pageMatches = PAGES.filter(item => matchesPage(item, term)).slice(0, 5)
+    return [...dynamicResults.value, ...pageMatches].slice(0, 20)
+  })
+
+  function show() { open.value = true; query.value = ''; dynamicResults.value = [] }
+  function hide() { open.value = false; query.value = ''; dynamicResults.value = [] }
   function toggle() { open.value ? hide() : show() }
 
-  return { open, query, results, show, hide, toggle }
+  return { open, query, results, loading, show, hide, toggle }
 }

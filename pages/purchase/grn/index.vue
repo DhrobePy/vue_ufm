@@ -52,10 +52,7 @@
           <input v-model="filters.date_to" type="date" class="field-input text-xs py-1.5 w-36" />
         </div>
         <!-- Supplier -->
-        <select v-model="filters.supplier_id" class="field-input text-xs py-1.5 w-44">
-          <option value="">All Suppliers</option>
-          <option v-for="s in dropdowns.suppliers" :key="s.id" :value="s.id">{{ s.company_name }}</option>
-        </select>
+        <UiSearchSelect v-model="filters.supplier_id" :options="supplierOptions" placeholder="All Suppliers" class="text-xs w-44" />
         <!-- Origin -->
         <select v-model="filters.wheat_origin" class="field-input text-xs py-1.5 w-36">
           <option value="">All Origins</option>
@@ -293,6 +290,9 @@ const dropdowns = computed(() => ({
   origins:      (data.value?.origins      ?? []) as any[],
   unloadPoints: (data.value?.unloadPoints ?? []) as any[],
 }))
+const supplierOptions = computed(() => dropdowns.value.suppliers.map((s: any) => ({
+  value: s.id, label: s.company_name,
+})))
 
 const totalPages = computed(() => Math.ceil((data.value?.total ?? 0) / perPage.value))
 const pageRange  = computed(() => {

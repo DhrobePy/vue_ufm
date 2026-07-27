@@ -14,10 +14,7 @@
         <!-- Supplier select -->
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Supplier *</label>
-          <select v-model="form.supplierId" class="input-glass" @change="form.poId = ''; loadCredit()">
-            <option value="">— Select supplier —</option>
-            <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.company_name }}</option>
-          </select>
+          <UiSearchSelect v-model="form.supplierId" :options="supplierOptions" placeholder="Search supplier…" />
         </div>
 
         <!-- Supplier credit display -->
@@ -178,6 +175,11 @@ const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }
 const suppliers     = computed(() => (suppData.value as any)?.suppliers    ?? [])
 const openPOs       = computed(() => (poData.value  as any)?.orders        ?? [])
 const bankAccounts  = computed(() => (baData.value  as any)?.accounts      ?? [])
+const supplierOptions = computed(() => (suppliers.value as any[]).map(s => ({
+  value: s.id, label: s.company_name,
+})))
+
+watch(() => form.supplierId, () => { form.poId = ''; loadCredit() })
 
 const bankAccountOptions = computed(() => (bankAccounts.value as any[]).map(a => ({
   value: a.id,

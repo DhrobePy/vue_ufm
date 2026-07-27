@@ -14,10 +14,7 @@
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Supplier *</label>
-          <select v-model="form.supplierId" class="input-glass">
-            <option value="">Select supplier…</option>
-            <option v-for="s in eligibleSuppliers" :key="s.id" :value="s.id">{{ s.company_name }}</option>
-          </select>
+          <UiSearchSelect v-model="form.supplierId" :options="supplierOptions" placeholder="Search supplier…" />
         </div>
         <div class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">PO Date *</label>
@@ -106,6 +103,9 @@ const eligibleSuppliers = computed(() => {
   const ids = selectedCommodity.value?.supplier_ids ?? []
   return ids.length ? suppliers.value.filter(s => ids.includes(s.id)) : suppliers.value
 })
+const supplierOptions = computed(() => eligibleSuppliers.value.map(s => ({
+  value: s.id, label: s.company_name,
+})))
 
 // Default to Wheat once the catalog loads, matching prior single-commodity behavior.
 watch(commodities, (list) => {

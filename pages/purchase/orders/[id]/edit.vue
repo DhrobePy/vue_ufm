@@ -107,10 +107,7 @@
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Supplier *</label>
-              <select v-model="form.supplierId" class="input-glass">
-                <option value="">— Select supplier —</option>
-                <option v-for="s in suppliers" :key="s.id" :value="s.id">{{ s.company_name }}</option>
-              </select>
+              <UiSearchSelect v-model="form.supplierId" :options="supplierOptions" placeholder="Search supplier…" />
             </div>
             <div class="space-y-1.5">
               <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origin *</label>
@@ -263,6 +260,9 @@ const [{ data: poData, pending, error: fetchError }, { data: supData }] = await 
 ])
 
 const suppliers = computed(() => (supData.value?.suppliers ?? []) as any[])
+const supplierOptions = computed(() => suppliers.value.map((s: any) => ({
+  value: s.id, label: s.company_name,
+})))
 
 const po    = computed(() => (poData.value?.po ?? {}) as any)
 const poNo  = computed(() => po.value.po_number ?? `PO-${poId}`)

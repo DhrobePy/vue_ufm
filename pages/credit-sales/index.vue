@@ -181,10 +181,7 @@
         <div class="grid grid-cols-2 gap-4">
           <div class="space-y-1.5 col-span-2">
             <label class="field-label">Customer *</label>
-            <select v-model="form.customerId" class="input-glass">
-              <option value="">— Select customer —</option>
-              <option v-for="c in customers" :key="c.id" :value="c.id">{{ c.name }}</option>
-            </select>
+            <UiSearchSelect v-model="form.customerId" :options="customerOptions" placeholder="Search customer…" />
           </div>
           <div class="space-y-1.5">
             <label class="field-label">Branch *</label>
@@ -422,6 +419,11 @@ const saving      = ref(false)
 const customers = computed(() =>
   ((custData.value?.customers ?? []) as any[]).map((c: any) => ({
     id: String(c.id), name: c.name,
+  }))
+)
+const customerOptions = computed(() =>
+  ((custData.value?.customers ?? []) as any[]).map((c: any) => ({
+    value: String(c.id), label: c.name, sub: c.business_name || c.phone_number || '',
   }))
 )
 const products = computed(() => {

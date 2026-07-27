@@ -1012,7 +1012,7 @@ const _routes = [
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1F || {},
-    component: () => import('./index-Ts7CehNj.mjs')
+    component: () => import('./index-Dekty83g.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1042,7 +1042,7 @@ const _routes = [
     name: "purchase-grn",
     path: "/purchase/grn",
     meta: __nuxt_page_meta$1A || {},
-    component: () => import('./index-wZnmA6Vb.mjs')
+    component: () => import('./index-Nn_lB2mF.mjs')
   },
   {
     name: "bank-accounts",
@@ -1078,7 +1078,7 @@ const _routes = [
     name: "credit-sales-ledger",
     path: "/credit-sales/ledger",
     meta: __nuxt_page_meta$1u || {},
-    component: () => import('./ledger-DlBKkLKv.mjs')
+    component: () => import('./ledger-Clqfnm5g.mjs')
   },
   {
     name: "customers-id-edit",
@@ -1330,7 +1330,7 @@ const _routes = [
     name: "purchase-orders-create",
     path: "/purchase/orders/create",
     meta: __nuxt_page_meta$Q || {},
-    component: () => import('./create-BAq6mXCz.mjs')
+    component: () => import('./create-C0NCIyG2.mjs')
   },
   {
     name: "accounts-journal-create",
@@ -1450,7 +1450,7 @@ const _routes = [
     name: "purchase-payments-record",
     path: "/purchase/payments/record",
     meta: __nuxt_page_meta$w || {},
-    component: () => import('./record-B0goiVnG.mjs')
+    component: () => import('./record-Byq1NtDd.mjs')
   },
   {
     name: "purchase-suppliers",
@@ -1504,7 +1504,7 @@ const _routes = [
     name: "purchase-orders-id-edit",
     path: "/purchase/orders/:id()/edit",
     meta: __nuxt_page_meta$n || {},
-    component: () => import('./edit-1hxmGhIr.mjs')
+    component: () => import('./edit-BYM60tbn.mjs')
   },
   {
     name: "credit-sales-credit-limits",
@@ -2243,7 +2243,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-DWhlnO3Q.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-Cbk0Y6tl.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };
