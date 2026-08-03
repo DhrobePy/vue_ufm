@@ -1410,5 +1410,45 @@ export default defineNitroPlugin(async () => {
     } catch (e) { console.warn('[db-migrate] credit_order_items.product_id nullable failed:', e) }
   }
 
+  // ── 60. POS full rebuild — split payment, exit-release gate, ledger ─────────
+  await addCol(db, 'orders', 'cash_amount', "DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Paid now (cash/card/mobile banking/bank)'")
+  await addCol(db, 'orders', 'credit_amount', "DECIMAL(12,2) NOT NULL DEFAULT 0 COMMENT 'Left on customer account (POS credit)'")
+  await addCol(db, 'orders', 'exit_status', "VARCHAR(20) NOT NULL DEFAULT 'cleared' COMMENT 'cleared | pending_approval'")
+  await addCol(db, 'orders', 'exit_cleared_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'exit_cleared_at', 'DATETIME NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'exit_requested_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'exit_requested_at', 'DATETIME NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'exit_verify_sig', 'VARCHAR(32) NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'bank_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'orders', 'recycled_at', 'DATETIME NULL DEFAULT NULL')
+
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS pos_customer_ledger (
+        id                 INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        customer_id        INT UNSIGNED NOT NULL,
+        order_id           INT UNSIGNED NULL,
+        transaction_date   DATE NOT NULL,
+        transaction_type   VARCHAR(20) NOT NULL COMMENT 'sale | payment | adjustment',
+        description        VARCHAR(255) NULL,
+        debit_amount       DECIMAL(12,2) NOT NULL DEFAULT 0,
+        credit_amount      DECIMAL(12,2) NOT NULL DEFAULT 0,
+        reference_number   VARCHAR(50) NULL,
+        created_by_user_id INT UNSIGNED NOT NULL,
+        created_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_pcl_customer (customer_id),
+        INDEX idx_pcl_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] pos_customer_ledger failed:', e) }
+
+  // cash_verification_log (EOD) already exists from the legacy import —
+  // just add the next-day bank-deposit-confirmation columns it lacks.
+  await addCol(db, 'cash_verification_log', 'deposited_at', 'DATETIME NULL DEFAULT NULL')
+  await addCol(db, 'cash_verification_log', 'deposited_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'cash_verification_log', 'deposit_reference', 'VARCHAR(100) NULL DEFAULT NULL')
+  await addCol(db, 'cash_verification_log', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

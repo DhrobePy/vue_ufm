@@ -202,7 +202,14 @@
       <!-- Products -->
       <SidebarNavItem v-if="perms.canAccessModule('products')" label="Products" route="/products" :collapsed="collapsed" icon-type="box" />
       <!-- POS -->
-      <SidebarNavItem v-if="perms.canAccessModule('pos')"   label="POS"   route="/pos"   :collapsed="collapsed" icon-type="register" />
+      <SidebarGroup v-if="perms.canAccessModule('pos')" label="POS" route="/pos" :collapsed="collapsed" icon-type="register" color="amber">
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos')" label="Terminal"          route="/pos"                    :collapsed="collapsed" icon-type="register" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos/dashboard')" label="Dashboard" route="/pos/dashboard"        :collapsed="collapsed" icon-type="chart"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos/today')" label="Today"        route="/pos/today"              :collapsed="collapsed" icon-type="clock"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos/reports')" label="Reports"    route="/pos/reports"            :collapsed="collapsed" icon-type="file"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos/eod')" label="End of Day"     route="/pos/eod"                :collapsed="collapsed" icon-type="money"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/pos/pending-approvals')" label="Pending Approvals" route="/pos/pending-approvals" :collapsed="collapsed" icon-type="clock" sub />
+      </SidebarGroup>
       <!-- Admin -->
       <SidebarNavItem v-if="perms.canAccessModule('admin')" label="Admin" route="/admin" :collapsed="collapsed" icon-type="cog"      />
 

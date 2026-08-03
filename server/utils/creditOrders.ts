@@ -69,7 +69,7 @@ export function creditUsagePct(exposure: number, creditLimit: number): number {
 /** Per-action ৳-limit keys (legacy user_action_limits parity). */
 export const ACTION_LIMIT_KEYS = [
   'approve_order', 'amend_order', 'collect_payment', 'partial_delivery',
-  'commodity_sale', 'loan_disbursement',
+  'commodity_sale', 'loan_disbursement', 'pos_exit_release',
 ] as const
 export type ActionLimitKey = typeof ACTION_LIMIT_KEYS[number]
 
@@ -165,7 +165,7 @@ export async function checkTransactionLimit(
  * not proceed with the original posting.
  */
 export async function queuePendingRequest(conn: any, opts: {
-  requestType: 'payment' | 'collect_payment' | 'commodity_sale' | 'commodity_payment' | 'commodity_sale_edit' | 'loan_disbursement' | 'loan_repayment'
+  requestType: 'payment' | 'collect_payment' | 'commodity_sale' | 'commodity_payment' | 'commodity_sale_edit' | 'loan_disbursement' | 'loan_repayment' | 'pos_exit_release'
   payload: unknown
   orderId?: number | null
   customerId?: number | null

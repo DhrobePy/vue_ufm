@@ -1,0 +1,1 @@
+import"./CddpaiAX.js";const s=globalThis.setInterval;export{s};
