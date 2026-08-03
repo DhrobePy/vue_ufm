@@ -164,6 +164,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/coa')" label="Chart of Accounts" route="/accounts/coa"            :collapsed="collapsed" icon-type="chart"    sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/journal/create')" label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/statement')" label="Statement"         route="/accounts/statement"      :collapsed="collapsed" icon-type="file"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/tax-statement')" label="Tax Statement"     route="/accounts/tax-statement"  :collapsed="collapsed" icon-type="file"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/voucher')" label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/daily-log')" label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
       </SidebarGroup>
