@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const adjustments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -38,12 +38,13 @@ const adjustments_post = defineEventHandler(async (event) => {
     await conn.beginTransaction();
     const year = (/* @__PURE__ */ new Date()).getFullYear();
     const prefix = note_type === "debit" ? "DAN" : "CAN";
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE note_type = ? AND YEAR(created_at) = ?`,
-      [note_type, year]
+    const [[last]] = await conn.query(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(note_number, '-', -1) AS UNSIGNED)) AS maxSeq
+       FROM purchase_adjustment_notes WHERE note_number LIKE ?`,
+      [`${prefix}-${year}-%`]
     );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
-    const noteNum = `${prefix}-${year}-${seq}`;
+    const nextSeq = (Number(last == null ? void 0 : last.maxSeq) || 0) + 1;
+    const noteNum = `${prefix}-${year}-${String(nextSeq).padStart(4, "0")}`;
     const [result] = await conn.query(
       `INSERT INTO purchase_adjustment_notes
          (note_number, note_type, reason_type, purchase_order_id, po_number,

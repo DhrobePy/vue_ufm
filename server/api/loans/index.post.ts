@@ -81,7 +81,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const loanNo = await nextDocNumber(conn, 'LN', 'loans')
+    const loanNo = await nextDocNumber(conn, 'LN', 'loans', 'loan_number')
 
     // JE: DR Loans & Advances Receivable / CR cash-or-bank (money OUT)
     let crAccountId: number | null = null

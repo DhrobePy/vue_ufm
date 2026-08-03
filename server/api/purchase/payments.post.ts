@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 /**
  * POST /api/purchase/payments
@@ -73,13 +74,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // ── Voucher number (CURDATE() for Bangladesh timezone safety) ─────────────
-    const [[seqRow]] = await conn.query<any>(
-      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
-              COUNT(*) AS n
-       FROM purchase_payments_adnan
-       WHERE DATE(created_at) = CURDATE()`,
-    )
-    const voucherNo = `PV-${seqRow.d}-${String((seqRow.n ?? 0) + 1).padStart(4, '0')}`
+    const voucherNo = await nextDocNumber(conn, 'PV', 'purchase_payments_adnan', 'payment_voucher_number')
 
     // ── 1. Insert payment record (is_posted = 1 immediately) ──────────────────
     const [result] = await conn.query<any>(
@@ -137,11 +132,7 @@ export default defineEventHandler(async (event) => {
         const newCrBalance = Math.max(0, Number(creditOrder.balance_due ?? 0) - pmtAmt)
 
         // Generate customer payment number
-        const [[crSeq]] = await conn.query<any>(
-          `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d, COUNT(*) AS n
-           FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
-        )
-        const crPayNo = `PAY-${crSeq.d}-${String((crSeq.n ?? 0) + 1).padStart(4, '0')}`
+        const crPayNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
 
         // Insert customer_payments record
         const [crRes] = await conn.query<any>(

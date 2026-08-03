@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -25,12 +26,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // Generate order number
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM orders WHERE DATE(order_date) = CURDATE()`,
-    )
-    const seq         = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const orderNumber = `ORD-${today}-${seq}`
+    const orderNumber = await nextDocNumber(conn, 'ORD', 'orders', 'order_number')
 
     const subtotal = items.reduce((s: number, i: any) => s + Number(i.unit_price) * Number(i.quantity), 0)
     const total    = Math.max(0, subtotal - Number(discount || 0))

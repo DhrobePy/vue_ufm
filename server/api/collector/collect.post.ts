@@ -1,4 +1,5 @@
-import { query } from '~/server/utils/db'
+import { query, getDb } from '~/server/utils/db'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event)
@@ -18,12 +19,13 @@ export default defineEventHandler(async (event) => {
   const mappedMethod = methodMap[method ?? ''] ?? 'Cash'
 
   // Generate payment number
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  const [cnt] = await query<any>(
-    `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
-  )
-  const seq    = String((cnt.n ?? 0) + 1).padStart(4, '0')
-  const payNo  = `PAY-${today}-${seq}`
+  const conn = await getDb().getConnection()
+  let payNo: string
+  try {
+    payNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
+  } finally {
+    conn.release()
+  }
 
   const result = await query(
     `INSERT INTO customer_payments

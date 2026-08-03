@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, ap as recalcPO, ac as postCommodityGRNCost, f as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, a3 as nextDocNumber, ap as recalcPO, ac as postCommodityGRNCost, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -49,12 +49,7 @@ const index_post = defineEventHandler(async (event) => {
     const totalValue = billedQty * unitPrice;
     const baseQty = expectedKg > 0 ? expectedKg : Number(po.quantity_kg);
     const varPct = baseQty > 0 ? ((receivedKg - baseQty) / baseQty * 100).toFixed(4) : "0";
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM goods_received_adnan WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
-    const grnNo = `GRN-${today}-${seq}`;
+    const grnNo = await nextDocNumber(conn, "GRN", "goods_received_adnan", "grn_number");
     const [result] = await conn.query(
       `INSERT INTO goods_received_adnan
          (grn_number, grn_date, purchase_order_id, po_number,
@@ -78,7 +73,7 @@ const index_post = defineEventHandler(async (event) => {
         grn_date,
         Number(po_id),
         po.po_number,
-        (_d = po.supplier_id) != null ? _d : null,
+        (_c = po.supplier_id) != null ? _c : null,
         po.supplier_name,
         receivedKg,
         expectedKg > 0 ? expectedKg : null,
@@ -99,7 +94,7 @@ const index_post = defineEventHandler(async (event) => {
         await postCommodityGRNCost(conn, {
           commodityId: Number(po.commodity_id),
           branchId: Number(unload_point_branch_id),
-          origin: (_e = po.wheat_origin) != null ? _e : "",
+          origin: (_d = po.wheat_origin) != null ? _d : "",
           qty: receivedKg,
           unitCost: unitPrice
         });
@@ -127,11 +122,7 @@ const index_post = defineEventHandler(async (event) => {
            WHERE table_schema = DATABASE() AND table_name = 'purchase_adjustment_notes'`
         );
         if (adjCheck.n > 0) {
-          const [[danCnt]] = await conn.query(
-            `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE DATE(created_at) = CURDATE()`
-          );
-          const danSeq = String(((_f = danCnt.n) != null ? _f : 0) + 1).padStart(4, "0");
-          const danNo = `DAN-${today}-${danSeq}`;
+          const danNo = await nextDocNumber(conn, "DAN", "purchase_adjustment_notes", "note_number");
           const [danResult] = await conn.query(
             `INSERT INTO purchase_adjustment_notes
                (note_number, note_type, reason_type, purchase_order_id,

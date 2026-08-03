@@ -83,7 +83,7 @@ export default defineEventHandler(async (event) => {
       source === 'admin' ||
       (source === 'personal' && (delta <= 0 || delta <= limit))
 
-    const amdNo = await nextDocNumber(conn, 'AMD', 'order_amendments')
+    const amdNo = await nextDocNumber(conn, 'AMD', 'order_amendments', 'amendment_number')
     const [res] = await conn.query<any>(
       `INSERT INTO order_amendments
          (amendment_number, order_id, regime, amend_type, description,

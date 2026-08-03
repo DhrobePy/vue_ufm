@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    const payNo = await nextDocNumber(conn, 'PAY', 'customer_payments')
+    const payNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
 
     // 1. One payment row (order_id NULL — allocations carry the split)
     const [payRes] = await conn.query<any>(

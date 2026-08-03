@@ -2,6 +2,7 @@ import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
 import { postCommodityGRNCost } from '~/server/utils/commodityTrading'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -53,12 +54,7 @@ export default defineEventHandler(async (event) => {
     const varPct      = baseQty > 0 ? (((receivedKg - baseQty) / baseQty) * 100).toFixed(4) : '0'
 
     // Generate GRN number: GRN-YYYYMMDD-NNNN
-    const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM goods_received_adnan WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq   = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const grnNo = `GRN-${today}-${seq}`
+    const grnNo = await nextDocNumber(conn, 'GRN', 'goods_received_adnan', 'grn_number')
 
     const [result] = await conn.query<any>(
       `INSERT INTO goods_received_adnan
@@ -140,11 +136,7 @@ export default defineEventHandler(async (event) => {
            WHERE table_schema = DATABASE() AND table_name = 'purchase_adjustment_notes'`,
         )
         if (adjCheck.n > 0) {
-          const [[danCnt]] = await conn.query<any>(
-            `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE DATE(created_at) = CURDATE()`,
-          )
-          const danSeq = String((danCnt.n ?? 0) + 1).padStart(4, '0')
-          const danNo  = `DAN-${today}-${danSeq}`
+          const danNo = await nextDocNumber(conn, 'DAN', 'purchase_adjustment_notes', 'note_number')
 
           const [danResult] = await conn.query<any>(
             `INSERT INTO purchase_adjustment_notes

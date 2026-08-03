@@ -16,6 +16,7 @@ import { query, getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { verifyDeliveryQrSignature, recordQrScan } from '~/server/utils/qrDelivery'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const orderNumber = (event.context.params?.order ?? '').trim().toUpperCase()
@@ -109,11 +110,7 @@ export default defineEventHandler(async (event) => {
 
     if (remaining.length) {
       // Delivery number (same scheme as the manual flow)
-      const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const [[cnt]] = await conn.query<any>(
-        `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`,
-      )
-      delNo = `DEL-${today}-${String((cnt.n ?? 0) + 1).padStart(4, '0')}`
+      delNo = await nextDocNumber(conn, 'DEL', 'credit_order_deliveries', 'delivery_number')
 
       const totalQty    = remaining.reduce((s, i) => s + i.qty_remaining, 0)
       const totalAmount = remaining.reduce((s, i) => s + i.qty_remaining * Number(i.unit_price), 0)

@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, f as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, a3 as nextDocNumber, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g;
+  var _a, _b, _c, _d, _e, _f;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -57,12 +57,7 @@ const index_post = defineEventHandler(async (event) => {
       commodityId = (_e = wheat == null ? void 0 : wheat.id) != null ? _e : null;
       commodityUnit = (_f = wheat == null ? void 0 : wheat.unit) != null ? _f : "MT";
     }
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM purchase_orders_adnan WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_g = cnt.n) != null ? _g : 0) + 1).padStart(4, "0");
-    const poNo = `PO-${today}-${seq}`;
+    const poNo = await nextDocNumber(conn, "PO", "purchase_orders_adnan", "po_number");
     const isMt = commodityUnit === "MT";
     const quantity_kg = isMt ? Number(qty) * 1e3 : Number(qty);
     const unit_price_per_kg = isMt ? Number(price) / 1e3 : Number(price);

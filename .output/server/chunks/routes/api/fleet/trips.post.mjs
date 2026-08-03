@@ -10,7 +10,6 @@ import 'mysql2/promise';
 import 'node:url';
 
 const trips_post = defineEventHandler(async (event) => {
-  var _a, _b;
   const body = await readBody(event);
   const {
     trip_date,
@@ -33,11 +32,13 @@ const trips_post = defineEventHandler(async (event) => {
   } = body != null ? body : {};
   if (!trip_date || !vehicle_id || !driver_id)
     throw createError({ statusCode: 400, statusMessage: "trip_date, vehicle_id and driver_id are required" });
-  const count = (_b = (_a = await queryOne(
-    `SELECT COUNT(*) AS n FROM trips WHERE DATE(created_at) = CURDATE()`
-  )) == null ? void 0 : _a.n) != null ? _b : 0;
-  const seq = String(Number(count) + 1).padStart(4, "0");
   const dateStr = trip_date.replace(/-/g, "");
+  const last = await queryOne(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(trip_number, '-', -1) AS UNSIGNED)) AS maxSeq
+     FROM trips WHERE trip_number LIKE ?`,
+    [`TRIP-${dateStr}-%`]
+  );
+  const seq = String((Number(last == null ? void 0 : last.maxSeq) || 0) + 1).padStart(4, "0");
   const trip_number = `TRIP-${dateStr}-${seq}`;
   const initial_status = start_immediately ? "in_progress" : "scheduled";
   const result = await query(

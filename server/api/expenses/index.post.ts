@@ -1,6 +1,7 @@
 import { getDb, queryOne } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { notifyAdmins } from '~/server/utils/notify'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
@@ -52,12 +53,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // Generate voucher number: EXP-YYYYMMDD-NNNN
-    const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM expense_vouchers WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq       = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const voucherNo = `EXP-${today}-${seq}`
+    const voucherNo = await nextDocNumber(conn, 'EXP', 'expense_vouchers', 'voucher_number')
 
     const computed_total = total_amount ?? ((unit_quantity ?? 1) * (per_unit_cost ?? 0))
 

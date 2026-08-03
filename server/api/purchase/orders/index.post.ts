@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -56,12 +57,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // Generate PO number: PO-YYYYMMDD-NNNN
-    const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM purchase_orders_adnan WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq    = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const poNo   = `PO-${today}-${seq}`
+    const poNo = await nextDocNumber(conn, 'PO', 'purchase_orders_adnan', 'po_number')
 
     // 'MT' keeps the historical MT-entry → kg-storage conversion (1 MT = 1000 kg);
     // every other commodity unit stores exactly what was entered, 1:1.

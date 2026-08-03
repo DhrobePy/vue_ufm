@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES } from '~/server/utils/creditOrders'
+import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
@@ -56,12 +56,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // Generate order number: CR-YYYYMMDD-NNNN
-    const today    = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]]  = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM credit_orders WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq     = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const orderNo = `CR-${today}-${seq}`
+    const orderNo = await nextDocNumber(conn, 'CR', 'credit_orders', 'order_number')
 
     // Compute totals from items — frontend sends qty_bags, DB col is quantity
     let subtotal = 0
@@ -235,12 +230,7 @@ export default defineEventHandler(async (event) => {
         ? advance_payment_method
         : 'Cash'
 
-      const advDay = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-      const [[acnt]] = await conn.query<any>(
-        `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`,
-      )
-      const advSeq = String((acnt.n ?? 0) + 1).padStart(4, '0')
-      const advNo  = `PAY-${advDay}-${advSeq}`
+      const advNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
 
       // 1. Insert payment record with full details
       const [advResult] = await conn.query<any>(

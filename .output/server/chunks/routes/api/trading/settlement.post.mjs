@@ -60,7 +60,7 @@ const settlement_post = defineEventHandler(async (event) => {
       throw createError({ statusCode: 400, statusMessage: `\u09F3${amount.toLocaleString()} exceeds the receivable of \u09F3${receivable.toLocaleString()}` });
     if (amount > payable + 5e-3)
       throw createError({ statusCode: 400, statusMessage: `\u09F3${amount.toLocaleString()} exceeds the payable of \u09F3${payable.toLocaleString()}` });
-    const setNo = await nextDocNumber(conn, "SET", "business_partner_settlements");
+    const setNo = await nextDocNumber(conn, "SET", "business_partner_settlements", "settlement_number");
     const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const arId = await getGLAccountId(conn, "Accounts Receivable");
     const apId = await getGLAccountId(conn, "Accounts Payable");

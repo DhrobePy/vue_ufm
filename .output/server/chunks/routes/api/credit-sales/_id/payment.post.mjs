@@ -1,4 +1,4 @@
-import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, y as getDb, j as checkTransactionLimit, al as queuePendingRequest, aC as sendTelegram, G as getOrderGateState, f as auditLog, h as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, y as getDb, j as checkTransactionLimit, al as queuePendingRequest, aC as sendTelegram, a3 as nextDocNumber, G as getOrderGateState, f as auditLog, h as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -97,15 +97,7 @@ ${order.order_number} \u2014 ${order.customer_name}
     const pmtAmount = Number(amount);
     const newPaid = Number((_h = order.amount_paid) != null ? _h : 0) + pmtAmount;
     const newBalance = Math.max(0, Number((_i = order.balance_due) != null ? _i : 0) - pmtAmount);
-    const [[seq_row]] = await conn.query(
-      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
-              COUNT(*) AS n
-       FROM   customer_payments
-       WHERE  DATE(created_at) = CURDATE()`
-    );
-    const today = seq_row.d;
-    const seq = String(((_j = seq_row.n) != null ? _j : 0) + 1).padStart(4, "0");
-    const payNo = `PAY-${today}-${seq}`;
+    const payNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
       `INSERT INTO customer_payments
@@ -148,7 +140,7 @@ ${order.order_number} \u2014 ${order.customer_name}
        ORDER BY created_at DESC, id DESC LIMIT 1`,
       [order.customer_id]
     );
-    const prevBal = Number((_k = lastLedger == null ? void 0 : lastLedger.bal) != null ? _k : 0);
+    const prevBal = Number((_j = lastLedger == null ? void 0 : lastLedger.bal) != null ? _j : 0);
     const newBal = Math.max(0, prevBal - pmtAmount);
     await conn.query(
       `INSERT INTO customer_ledger
@@ -176,26 +168,26 @@ ${order.order_number} \u2014 ${order.customer_name}
           `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
           [Number(cash_account_id)]
         );
-        drAccountId = (_l = ca == null ? void 0 : ca.chart_of_account_id) != null ? _l : null;
+        drAccountId = (_k = ca == null ? void 0 : ca.chart_of_account_id) != null ? _k : null;
       } else if (["Bank Transfer", "Cheque", "Card"].includes(mappedMethod) && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_m = ba == null ? void 0 : ba.chart_of_account_id) != null ? _m : null;
+        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
       } else if (mappedMethod === "Mobile Banking" && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_n = ba == null ? void 0 : ba.chart_of_account_id) != null ? _n : null;
+        drAccountId = (_m = ba == null ? void 0 : ba.chart_of_account_id) != null ? _m : null;
       }
       const [[ar]] = await conn.query(
         `SELECT id FROM chart_of_accounts
          WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`
       );
-      const crAccountId = (_o = ar == null ? void 0 : ar.id) != null ? _o : null;
+      const crAccountId = (_n = ar == null ? void 0 : ar.id) != null ? _n : null;
       if (drAccountId && crAccountId) {
         const jeDesc = `Payment received \u2014 ${payNo} (Order ${id}, ${mappedMethod})`;
         const [jeRes] = await conn.query(
@@ -224,7 +216,7 @@ ${order.order_number} \u2014 ${order.customer_name}
             `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(cash_account_id)]
           );
-          const pcBal = Number((_p = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _p : 0);
+          const pcBal = Number((_o = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _o : 0);
           await conn.query(
             `INSERT INTO branch_petty_cash_transactions
                (account_id, branch_id, transaction_type, amount, balance_after,
@@ -232,7 +224,7 @@ ${order.order_number} \u2014 ${order.customer_name}
              VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
             [
               Number(cash_account_id),
-              (_q = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _q : null,
+              (_p = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _p : null,
               pmtAmount,
               pcBal + pmtAmount,
               paymentId,
@@ -322,7 +314,7 @@ ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
     console.error("[payment] Transaction failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno, "| code:", e == null ? void 0 : e.code);
     throw createError({
       statusCode: 500,
-      statusMessage: (_s = (_r = e == null ? void 0 : e.sqlMessage) != null ? _r : e == null ? void 0 : e.message) != null ? _s : "Payment transaction failed"
+      statusMessage: (_r = (_q = e == null ? void 0 : e.sqlMessage) != null ? _q : e == null ? void 0 : e.message) != null ? _r : "Payment transaction failed"
     });
   } finally {
     conn.release();

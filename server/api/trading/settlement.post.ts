@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
     if (amount > payable + 0.005)
       throw createError({ statusCode: 400, statusMessage: `৳${amount.toLocaleString()} exceeds the payable of ৳${payable.toLocaleString()}` })
 
-    const setNo = await nextDocNumber(conn, 'SET', 'business_partner_settlements')
+    const setNo = await nextDocNumber(conn, 'SET', 'business_partner_settlements', 'settlement_number')
     const today = new Date().toISOString().slice(0, 10)
 
     const arId = await getGLAccountId(conn, 'Accounts Receivable')

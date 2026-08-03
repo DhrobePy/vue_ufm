@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
+import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES, nextDocNumber } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 import { bridgeCustomerPayment } from '~/server/utils/bankBridge'
 
@@ -102,21 +102,11 @@ export default defineEventHandler(async (event) => {
     const newPaid    = Number(order.amount_paid ?? 0) + pmtAmount
     const newBalance = Math.max(0, Number(order.balance_due ?? 0) - pmtAmount)
 
-    // Generate payment number (PAY-YYYYMMDD-XXXX)
-    // IMPORTANT: derive today from CURDATE() — NOT from new Date().toISOString() (UTC).
-    // The server is Bangladesh (UTC+6); after 18:00 UTC the JS date is still "yesterday"
-    // while CURDATE() is already "today".  Using them inconsistently makes the COUNT
-    // return 0 (no payments "today") while the generated number duplicates yesterday's
-    // already-committed payment → UNIQUE KEY violation → 500 error.
-    const [[seq_row]] = await conn.query<any>(
-      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
-              COUNT(*) AS n
-       FROM   customer_payments
-       WHERE  DATE(created_at) = CURDATE()`,
-    )
-    const today = seq_row.d as string
-    const seq   = String((seq_row.n ?? 0) + 1).padStart(4, '0')
-    const payNo = `PAY-${today}-${seq}`
+    // Generate payment number (PAY-YYYYMMDD-XXXX) — nextDocNumber() already
+    // uses CURDATE() (server TZ) and a MAX-based sequence, avoiding both the
+    // UTC day-boundary drift and the recycle-bin-delete collision risk of a
+    // COUNT(*)-based sequence.
+    const payNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
     const autoRef  = reference_number || payNo
 
     // Insert into customer_payments — order_id links this payment back to the order

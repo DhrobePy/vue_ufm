@@ -1,4 +1,4 @@
-import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, y as getDb, Q as getUserActionLimit, f as auditLog } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, y as getDb, a3 as nextDocNumber, Q as getUserActionLimit, f as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -61,12 +61,7 @@ const deliver_post = defineEventHandler(async (event) => {
         statusCode: 409,
         statusMessage: `Order is "${order.status}" \u2014 mark goods on board first (deliveries only after that)`
       });
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_d = cnt.n) != null ? _d : 0) + 1).padStart(4, "0");
-    const delNo = `DEL-${today}-${seq}`;
+    const delNo = await nextDocNumber(conn, "DEL", "credit_order_deliveries", "delivery_number");
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
     const delivDate = delivery_date != null ? delivery_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -110,7 +105,7 @@ const deliver_post = defineEventHandler(async (event) => {
           deliveryId,
           item.order_item_id,
           item.product_id,
-          (_e = item.variant_id) != null ? _e : null,
+          (_d = item.variant_id) != null ? _d : null,
           Number(item.qty_delivered),
           Number(item.unit_price),
           Number(item.qty_delivered) * Number(item.unit_price)

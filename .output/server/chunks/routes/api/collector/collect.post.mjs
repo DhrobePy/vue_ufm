@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, l as createError, aj as query } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, l as createError, y as getDb, a3 as nextDocNumber, aj as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const collect_post = defineEventHandler(async (event) => {
-  var _a, _b;
+  var _a;
   const body = await readBody(event);
   const { customer_id, amount, method, notes } = body;
   if (!customer_id || !amount || amount <= 0)
@@ -23,12 +23,13 @@ const collect_post = defineEventHandler(async (event) => {
     Cash: "Cash"
   };
   const mappedMethod = (_a = methodMap[method != null ? method : ""]) != null ? _a : "Cash";
-  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-  const [cnt] = await query(
-    `SELECT COUNT(*) AS n FROM customer_payments WHERE DATE(created_at) = CURDATE()`
-  );
-  const seq = String(((_b = cnt.n) != null ? _b : 0) + 1).padStart(4, "0");
-  const payNo = `PAY-${today}-${seq}`;
+  const conn = await getDb().getConnection();
+  let payNo;
+  try {
+    payNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
+  } finally {
+    conn.release();
+  }
   const result = await query(
     `INSERT INTO customer_payments
        (payment_number, customer_id, payment_date, amount, payment_method,

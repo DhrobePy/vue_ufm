@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
       return { ok: true, queued: true, pending_request_id: reqId, message: `৳${amount.toLocaleString()} queued for a checker's approval.` }
     }
 
-    const repayNo = await nextDocNumber(conn, 'LRP', 'loan_repayments')
+    const repayNo = await nextDocNumber(conn, 'LRP', 'loan_repayments', 'repayment_number')
 
     // JE: DR cash/bank / CR Loans & Advances Receivable
     let drAccountId: number | null = null

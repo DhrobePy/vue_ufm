@@ -1,3 +1,5 @@
+import { nextDocNumber } from './creditOrders'
+
 /**
  * Bank auto-bridge (spec §2.4 step 9 / §4.6) — best-effort only, never
  * blocks or fails the payment it's attached to.
@@ -34,11 +36,7 @@ export async function bridgeCustomerPayment(conn: any, opts: {
     )
     if (!txAcct?.id) return // no matching standalone-module account — nothing to bridge to
 
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`,
-    )
-    const txnNo = `BTX-${today}-${String((cnt.n ?? 0) + 1).padStart(4, '0')}`
+    const txnNo = await nextDocNumber(conn, 'BTX', 'bank_transactions', 'transaction_number')
 
     await conn.query(
       `INSERT INTO bank_transactions

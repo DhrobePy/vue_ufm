@@ -13,13 +13,15 @@ export default defineEventHandler(async (event) => {
   if (!trip_date || !vehicle_id || !driver_id)
     throw createError({ statusCode: 400, statusMessage: 'trip_date, vehicle_id and driver_id are required' })
 
-  // Generate trip number: TRIP-YYYYMMDD-XXXX
-  const count = (await queryOne<any>(
-    `SELECT COUNT(*) AS n FROM trips WHERE DATE(created_at) = CURDATE()`,
-  ))?.n ?? 0
-
-  const seq = String(Number(count) + 1).padStart(4, '0')
+  // Generate trip number: TRIP-YYYYMMDD-XXXX — MAX-existing-suffix, not
+  // COUNT(*), so a same-day deleted/rolled-back trip can't cause a collision.
   const dateStr = (trip_date as string).replace(/-/g, '')
+  const last = await queryOne<any>(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(trip_number, '-', -1) AS UNSIGNED)) AS maxSeq
+     FROM trips WHERE trip_number LIKE ?`,
+    [`TRIP-${dateStr}-%`],
+  )
+  const seq = String((Number(last?.maxSeq) || 0) + 1).padStart(4, '0')
   const trip_number = `TRIP-${dateStr}-${seq}`
 
   const initial_status = start_immediately ? 'in_progress' : 'scheduled'

@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, ak as queryOne, f as auditLog, a6 as notifyAdmins } from '../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, a3 as nextDocNumber, ak as queryOne, f as auditLog, a6 as notifyAdmins } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -53,12 +53,7 @@ const index_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM expense_vouchers WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_g = cnt.n) != null ? _g : 0) + 1).padStart(4, "0");
-    const voucherNo = `EXP-${today}-${seq}`;
+    const voucherNo = await nextDocNumber(conn, "EXP", "expense_vouchers", "voucher_number");
     const computed_total = total_amount != null ? total_amount : (unit_quantity != null ? unit_quantity : 1) * (per_unit_cost != null ? per_unit_cost : 0);
     let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null;
     if (!resolvedExpenseAccountId) {
@@ -66,14 +61,14 @@ const index_post = defineEventHandler(async (event) => {
         `SELECT chart_of_account_id FROM expense_subcategories WHERE id = ?`,
         [Number(subcategory_id)]
       );
-      resolvedExpenseAccountId = (_h = sub == null ? void 0 : sub.chart_of_account_id) != null ? _h : null;
+      resolvedExpenseAccountId = (_g = sub == null ? void 0 : sub.chart_of_account_id) != null ? _g : null;
     }
     if (!resolvedExpenseAccountId) {
       const cat = await queryOne(
         `SELECT chart_of_account_id FROM expense_categories WHERE id = ?`,
         [Number(category_id)]
       );
-      resolvedExpenseAccountId = (_i = cat == null ? void 0 : cat.chart_of_account_id) != null ? _i : null;
+      resolvedExpenseAccountId = (_h = cat == null ? void 0 : cat.chart_of_account_id) != null ? _h : null;
     }
     let resolvedPaymentAccountName = payment_account_name != null ? payment_account_name : null;
     if (!resolvedPaymentAccountName) {

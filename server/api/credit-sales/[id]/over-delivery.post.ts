@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
     if (!ELIGIBLE.includes(order.status))
       throw createError({ statusCode: 409, statusMessage: `Order must be goods-on-board or later (current: ${order.status})` })
 
-    const odNo   = await nextDocNumber(conn, 'OD', 'credit_order_over_deliveries')
+    const odNo   = await nextDocNumber(conn, 'OD', 'credit_order_over_deliveries', 'od_number')
     const odDate = od_date || new Date().toISOString().slice(0, 10)
 
     const totalQty    = items.reduce((s: number, i: any) => s + Number(i.extra_qty), 0)

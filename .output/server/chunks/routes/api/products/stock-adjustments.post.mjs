@@ -36,7 +36,7 @@ const stockAdjustments_post = defineEventHandler(async (event) => {
       [variantId]
     );
     if (!variant) throw createError({ statusCode: 404, statusMessage: "Variant not found" });
-    const adjNo = await nextDocNumber(conn, "ADJ", "stock_adjustments");
+    const adjNo = await nextDocNumber(conn, "ADJ", "stock_adjustments", "adj_number");
     const [res] = await conn.query(
       `INSERT INTO stock_adjustments (adj_number, variant_id, delta, reason, notes, status, created_by_user_id)
        VALUES (?, ?, ?, ?, ?, 'pending', ?)`,

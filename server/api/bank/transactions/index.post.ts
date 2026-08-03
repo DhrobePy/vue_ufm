@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as {
@@ -32,12 +33,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // Generate transaction number
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq   = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const txnNo = `BTX-${today}-${seq}`
+    const txnNo = await nextDocNumber(conn, 'BTX', 'bank_transactions', 'transaction_number')
 
     // Validate account exists
     const [[acct]] = await conn.query<any>(`SELECT id FROM bank_tx_accounts WHERE id = ? AND status = 'active'`, [bank_tx_account_id])

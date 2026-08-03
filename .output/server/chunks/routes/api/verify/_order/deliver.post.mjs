@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, aj as query, I as getRequestHeader, aK as verifyDeliveryQrSignature, y as getDb, f as auditLog, aC as sendTelegram, aq as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, aj as query, I as getRequestHeader, aK as verifyDeliveryQrSignature, y as getDb, a3 as nextDocNumber, f as auditLog, aC as sendTelegram, aq as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
   const orderNumber = ((_b = (_a = event.context.params) == null ? void 0 : _a.order) != null ? _b : "").trim().toUpperCase();
   const body = await readBody(event);
   const sig = String((_c = body == null ? void 0 : body.sig) != null ? _c : "").trim();
@@ -84,11 +84,7 @@ const deliver_post = defineEventHandler(async (event) => {
     await conn.beginTransaction();
     let delNo = null;
     if (remaining.length) {
-      const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-      const [[cnt]] = await conn.query(
-        `SELECT COUNT(*) AS n FROM credit_order_deliveries WHERE DATE(created_at) = CURDATE()`
-      );
-      delNo = `DEL-${today}-${String(((_k = cnt.n) != null ? _k : 0) + 1).padStart(4, "0")}`;
+      delNo = await nextDocNumber(conn, "DEL", "credit_order_deliveries", "delivery_number");
       const totalQty = remaining.reduce((s, i) => s + i.qty_remaining, 0);
       const totalAmount = remaining.reduce((s, i) => s + i.qty_remaining * Number(i.unit_price), 0);
       const delivDate = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -119,7 +115,7 @@ const deliver_post = defineEventHandler(async (event) => {
             deliveryId,
             item.order_item_id,
             item.product_id,
-            (_l = item.variant_id) != null ? _l : null,
+            (_k = item.variant_id) != null ? _k : null,
             item.qty_remaining,
             Number(item.unit_price),
             item.qty_remaining * Number(item.unit_price)
@@ -168,7 +164,7 @@ const deliver_post = defineEventHandler(async (event) => {
   }
   sendTelegram(
     `\u2705 <b>Delivery Confirmed</b>
-${order.order_number} \u2014 ${(_m = order.customer_name) != null ? _m : ""}
+${order.order_number} \u2014 ${(_l = order.customer_name) != null ? _l : ""}
 By ${userName}${receivedBy ? ` \xB7 Received by ${receivedBy}` : ""}`,
     "dispatch"
   );

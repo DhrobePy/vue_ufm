@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, a3 as nextDocNumber } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const complete_post = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -30,12 +30,7 @@ const complete_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM orders WHERE DATE(order_date) = CURDATE()`
-    );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
-    const orderNumber = `ORD-${today}-${seq}`;
+    const orderNumber = await nextDocNumber(conn, "ORD", "orders", "order_number");
     const subtotal = items.reduce((s, i) => s + Number(i.unit_price) * Number(i.quantity), 0);
     const total = Math.max(0, subtotal - Number(discount || 0));
     const [orderResult] = await conn.query(

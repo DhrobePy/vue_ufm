@@ -524,13 +524,25 @@ export async function postCustomerLedger(conn: any, opts: {
   return res.insertId
 }
 
-/** PREFIX-YYYYMMDD-0001 using CURDATE() (server TZ) to avoid UTC drift. */
-export async function nextDocNumber(conn: any, prefix: string, table: string): Promise<string> {
-  const [[row]] = await conn.query(
-    `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d, COUNT(*) AS n
-     FROM ${table} WHERE DATE(created_at) = CURDATE()`,
+/**
+ * PREFIX-YYYYMMDD-0001 using CURDATE() (server TZ) to avoid UTC drift.
+ *
+ * Derives the next sequence number from the MAX existing suffix for today,
+ * not COUNT(*) — a same-day recycle-bin delete drops the row count without
+ * freeing the number, so COUNT(*)+1 can regenerate a number that's still in
+ * use (or was, and collides with an archived one). MAX-based extraction is
+ * immune to that since it only ever counts up.
+ */
+export async function nextDocNumber(conn: any, prefix: string, table: string, column: string): Promise<string> {
+  const [[row]] = await conn.query(`SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d`)
+  const datePart = row.d
+  const [[last]] = await conn.query(
+    `SELECT MAX(CAST(SUBSTRING_INDEX(\`${column}\`, '-', -1) AS UNSIGNED)) AS maxSeq
+     FROM \`${table}\` WHERE \`${column}\` LIKE ?`,
+    [`${prefix}-${datePart}-%`],
   )
-  return `${prefix}-${row.d}-${String((row.n ?? 0) + 1).padStart(4, '0')}`
+  const nextSeq = (Number(last?.maxSeq) || 0) + 1
+  return `${prefix}-${datePart}-${String(nextSeq).padStart(4, '0')}`
 }
 
 // ─── Branch scoping ───────────────────────────────────────────────────────────

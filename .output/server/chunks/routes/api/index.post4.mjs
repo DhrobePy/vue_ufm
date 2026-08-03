@@ -72,7 +72,7 @@ Requested by ${userName}`,
         return { ok: true, queued: true, pending_request_id: reqId, message: `Loan of \u09F3${amount.toLocaleString()} queued for a checker's approval.` };
       }
     }
-    const loanNo = await nextDocNumber(conn, "LN", "loans");
+    const loanNo = await nextDocNumber(conn, "LN", "loans", "loan_number");
     let crAccountId = null;
     if (method === "Cash" && (body == null ? void 0 : body.cash_account_id)) {
       const [[ca]] = await conn.query(

@@ -73,7 +73,7 @@ export default defineEventHandler(async (event) => {
       return { ok: true, queued: true, pending_request_id: reqId, message: `৳${amount.toLocaleString()} queued for a checker's approval.` }
     }
 
-    const payNo = await nextDocNumber(conn, 'CTP', 'commodity_sale_payments')
+    const payNo = await nextDocNumber(conn, 'CTP', 'commodity_sale_payments', 'payment_number')
 
     // JE: DR cash/bank, CR Accounts Receivable
     let drAccountId: number | null = null

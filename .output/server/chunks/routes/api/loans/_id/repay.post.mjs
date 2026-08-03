@@ -69,7 +69,7 @@ ${loan.loan_number} \u2014 ${borrowerName}
       );
       return { ok: true, queued: true, pending_request_id: reqId, message: `\u09F3${amount.toLocaleString()} queued for a checker's approval.` };
     }
-    const repayNo = await nextDocNumber(conn, "LRP", "loan_repayments");
+    const repayNo = await nextDocNumber(conn, "LRP", "loan_repayments", "repayment_number");
     let drAccountId = null;
     if (method === "Cash" && (body == null ? void 0 : body.cash_account_id)) {
       const [[ca]] = await conn.query(

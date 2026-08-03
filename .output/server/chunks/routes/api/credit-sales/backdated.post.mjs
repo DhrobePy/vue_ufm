@@ -73,7 +73,7 @@ const backdated_post = defineEventHandler(async (event) => {
     const totalAmount = subtotal;
     const paidAmount = Math.max(0, Number(amount_paid != null ? amount_paid : 0));
     const balanceDue = Math.max(0, totalAmount - paidAmount);
-    const orderNo = await nextDocNumber(conn, "CR", "credit_orders");
+    const orderNo = await nextDocNumber(conn, "CR", "credit_orders", "order_number");
     const dispatchPin = Math.floor(1e5 + Math.random() * 9e5).toString();
     const deliveryPin = Math.floor(1e5 + Math.random() * 9e5).toString();
     const specialInstructions = `[BACKDATED ENTRY] ${notes != null ? notes : ""}`.trim();
@@ -118,7 +118,7 @@ const backdated_post = defineEventHandler(async (event) => {
         [orderId, it.product_id, (_l = it.variant_id) != null ? _l : null, qty, Number(it.unit_price), Number((_m = it.discount_amount) != null ? _m : 0), lineTotal]
       );
     }
-    const delNo = await nextDocNumber(conn, "DEL", "credit_order_deliveries");
+    const delNo = await nextDocNumber(conn, "DEL", "credit_order_deliveries", "delivery_number");
     const totalQty = items.reduce((s, i) => {
       var _a2, _b2;
       return s + Number((_b2 = (_a2 = i.qty_bags) != null ? _a2 : i.quantity) != null ? _b2 : 0);
@@ -162,7 +162,7 @@ const backdated_post = defineEventHandler(async (event) => {
     if (paidAmount > 0) {
       const validMethods = ["Cash", "Bank Transfer", "Cheque", "Mobile Banking", "Card"];
       const payMethod = validMethods.includes(payment_method) ? payment_method : "Cash";
-      paymentNo = await nextDocNumber(conn, "PAY", "customer_payments");
+      paymentNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
       const [payRes] = await conn.query(
         `INSERT INTO customer_payments
            (order_id, payment_number, customer_id, payment_date, amount, payment_method,

@@ -51,7 +51,7 @@ const overDelivery_post = defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
     if (!ELIGIBLE.includes(order.status))
       throw createError({ statusCode: 409, statusMessage: `Order must be goods-on-board or later (current: ${order.status})` });
-    const odNo = await nextDocNumber(conn, "OD", "credit_order_over_deliveries");
+    const odNo = await nextDocNumber(conn, "OD", "credit_order_over_deliveries", "od_number");
     const odDate = od_date || (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const totalQty = items.reduce((s, i) => s + Number(i.extra_qty), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.extra_qty) * Number(i.unit_price), 0);

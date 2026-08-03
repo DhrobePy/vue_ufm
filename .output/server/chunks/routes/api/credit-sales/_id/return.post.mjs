@@ -1,4 +1,4 @@
-import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, y as getDb, f as auditLog } from '../../../../nitro/nitro.mjs';
+import { p as defineEventHandler, O as getRouterParam, l as createError, am as readBody, V as getUserSession, I as getRequestHeader, aJ as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, y as getDb, a3 as nextDocNumber, f as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const return_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -51,12 +51,7 @@ const return_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_d = cnt.n) != null ? _d : 0) + 1).padStart(4, "0");
-    const retNo = `RET-${today}-${seq}`;
+    const retNo = await nextDocNumber(conn, "RET", "credit_order_returns", "return_number");
     const retDate = return_date != null ? return_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
     const totalRetQty = items.reduce((s, i) => s + Number(i.returned_qty), 0);
     const totalRetAmount = items.reduce(
@@ -98,8 +93,8 @@ const return_post = defineEventHandler(async (event) => {
           returnId,
           item.order_item_id,
           item.product_id,
-          (_e = item.variant_id) != null ? _e : null,
-          Number((_f = item.original_qty) != null ? _f : 0),
+          (_d = item.variant_id) != null ? _d : null,
+          Number((_e = item.original_qty) != null ? _e : 0),
           Number(item.returned_qty),
           Number(item.unit_price),
           Number(item.returned_qty) * Number(item.unit_price)
@@ -113,7 +108,7 @@ const return_post = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, (_h = order.status) != null ? _h : "delivered", (_i = order.status) != null ? _i : "delivered", wfAction, userId, wfComment]
+      [id, (_g = order.status) != null ? _g : "delivered", (_h = order.status) != null ? _h : "delivered", wfAction, userId, wfComment]
     );
     await auditLog(conn, {
       userId,

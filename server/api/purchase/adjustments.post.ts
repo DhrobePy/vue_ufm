@@ -34,14 +34,19 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
+    // MAX-existing-suffix, not COUNT(*) — this exact table+prefix pattern
+    // caused a real production duplicate-key collision in the legacy PHP
+    // app (COUNT(*) drops below the highest number ever issued once any
+    // note gets deleted/rolled back, e.g. a cancelled draft).
     const year    = new Date().getFullYear()
     const prefix  = note_type === 'debit' ? 'DAN' : 'CAN'
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM purchase_adjustment_notes WHERE note_type = ? AND YEAR(created_at) = ?`,
-      [note_type, year],
+    const [[last]] = await conn.query<any>(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(note_number, '-', -1) AS UNSIGNED)) AS maxSeq
+       FROM purchase_adjustment_notes WHERE note_number LIKE ?`,
+      [`${prefix}-${year}-%`],
     )
-    const seq      = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const noteNum  = `${prefix}-${year}-${seq}`
+    const nextSeq  = (Number(last?.maxSeq) || 0) + 1
+    const noteNum  = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`
 
     const [result] = await conn.query<any>(
       `INSERT INTO purchase_adjustment_notes

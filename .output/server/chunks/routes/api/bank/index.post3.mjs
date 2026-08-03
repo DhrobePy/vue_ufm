@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, l as createError, V as getUserSession, y as getDb } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, l as createError, V as getUserSession, y as getDb, a3 as nextDocNumber } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b;
   const body = await readBody(event);
   const {
     bank_tx_account_id,
@@ -33,12 +33,7 @@ const index_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
-    const txnNo = `BTX-${today}-${seq}`;
+    const txnNo = await nextDocNumber(conn, "BTX", "bank_transactions", "transaction_number");
     const [[acct]] = await conn.query(`SELECT id FROM bank_tx_accounts WHERE id = ? AND status = 'active'`, [bank_tx_account_id]);
     if (!acct) throw createError({ statusCode: 404, statusMessage: "Bank account not found or inactive" });
     const [result] = await conn.query(

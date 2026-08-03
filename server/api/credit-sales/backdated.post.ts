@@ -86,7 +86,7 @@ export default defineEventHandler(async (event) => {
     const paidAmount  = Math.max(0, Number(amount_paid ?? 0))
     const balanceDue  = Math.max(0, totalAmount - paidAmount)
 
-    const orderNo = await nextDocNumber(conn, 'CR', 'credit_orders')
+    const orderNo = await nextDocNumber(conn, 'CR', 'credit_orders', 'order_number')
     const dispatchPin = Math.floor(100000 + Math.random() * 900000).toString()
     const deliveryPin = Math.floor(100000 + Math.random() * 900000).toString()
     const specialInstructions = `[BACKDATED ENTRY] ${notes ?? ''}`.trim()
@@ -128,7 +128,7 @@ export default defineEventHandler(async (event) => {
 
     // Delivery record — so delivery history / dashboard counts reflect this
     // sale like any other, even though no truck movement was tracked live.
-    const delNo = await nextDocNumber(conn, 'DEL', 'credit_order_deliveries')
+    const delNo = await nextDocNumber(conn, 'DEL', 'credit_order_deliveries', 'delivery_number')
     const totalQty = items.reduce((s: number, i: any) => s + Number(i.qty_bags ?? i.quantity ?? 0), 0)
     const [delRes] = await conn.query<any>(
       `INSERT INTO credit_order_deliveries
@@ -169,7 +169,7 @@ export default defineEventHandler(async (event) => {
     if (paidAmount > 0) {
       const validMethods = ['Cash', 'Bank Transfer', 'Cheque', 'Mobile Banking', 'Card']
       const payMethod = validMethods.includes(payment_method) ? payment_method : 'Cash'
-      paymentNo = await nextDocNumber(conn, 'PAY', 'customer_payments')
+      paymentNo = await nextDocNumber(conn, 'PAY', 'customer_payments', 'payment_number')
 
       const [payRes] = await conn.query<any>(
         `INSERT INTO customer_payments

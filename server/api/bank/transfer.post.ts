@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { nextDocNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody(event) as {
@@ -33,21 +34,13 @@ export default defineEventHandler(async (event) => {
     if (!fromAcct) throw createError({ statusCode: 404, statusMessage: 'Source account not found or inactive' })
     if (!toAcct)   throw createError({ statusCode: 404, statusMessage: 'Destination account not found or inactive' })
 
-    // Generate transaction numbers
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq1   = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const seq2   = String((cnt.n ?? 0) + 2).padStart(4, '0')
-    const txnNo1 = `BTX-${today}-${seq1}`
-    const txnNo2 = `BTX-${today}-${seq2}`
     const xferAmt = Number(amount)
-
     const desc1 = `Transfer to ${toAcct.bank_name} — ${toAcct.account_name}`
     const desc2 = `Transfer from ${fromAcct.bank_name} — ${fromAcct.account_name}`
 
-    // Debit from source
+    // Debit from source — number the second leg AFTER this insert so its
+    // own MAX-based lookup sees this row and can't collide with it.
+    const txnNo1 = await nextDocNumber(conn, 'BTX', 'bank_transactions', 'transaction_number')
     const [r1] = await conn.query<any>(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
@@ -57,6 +50,7 @@ export default defineEventHandler(async (event) => {
     )
 
     // Credit to destination
+    const txnNo2 = await nextDocNumber(conn, 'BTX', 'bank_transactions', 'transaction_number')
     const [r2] = await conn.query<any>(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,

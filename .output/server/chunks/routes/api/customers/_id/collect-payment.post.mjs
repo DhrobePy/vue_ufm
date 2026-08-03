@@ -66,7 +66,7 @@ Requested by ${userName} (${limitDesc})`,
         message: `\u09F3${amount.toLocaleString()} ${limitDesc} \u2014 queued for a checker's approval.`
       };
     }
-    const payNo = await nextDocNumber(conn, "PAY", "customer_payments");
+    const payNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
     const [payRes] = await conn.query(
       `INSERT INTO customer_payments
          (order_id, payment_number, customer_id, payment_date, amount, payment_method,

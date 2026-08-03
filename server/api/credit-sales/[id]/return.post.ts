@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { ACCOUNTS_ROLES, DISPATCH_ROLES } from '~/server/utils/creditOrders'
+import { ACCOUNTS_ROLES, DISPATCH_ROLES, nextDocNumber } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
@@ -47,12 +47,7 @@ export default defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
     // Generate return number
-    const today   = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const [[cnt]] = await conn.query<any>(
-      `SELECT COUNT(*) AS n FROM credit_order_returns WHERE DATE(created_at) = CURDATE()`,
-    )
-    const seq   = String((cnt.n ?? 0) + 1).padStart(4, '0')
-    const retNo = `RET-${today}-${seq}`
+    const retNo = await nextDocNumber(conn, 'RET', 'credit_order_returns', 'return_number')
     const retDate = return_date ?? new Date().toISOString().slice(0, 10)
 
     const totalRetQty    = items.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)

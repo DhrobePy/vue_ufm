@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, f as auditLog } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, V as getUserSession, l as createError, y as getDb, a3 as nextDocNumber, f as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -54,13 +54,7 @@ const payments_post = defineEventHandler(async (event) => {
       bankName = (_c = ba == null ? void 0 : ba.bank_name) != null ? _c : null;
       bankGlAccountId = (_d = ba == null ? void 0 : ba.chart_of_account_id) != null ? _d : null;
     }
-    const [[seqRow]] = await conn.query(
-      `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d,
-              COUNT(*) AS n
-       FROM purchase_payments_adnan
-       WHERE DATE(created_at) = CURDATE()`
-    );
-    const voucherNo = `PV-${seqRow.d}-${String(((_e = seqRow.n) != null ? _e : 0) + 1).padStart(4, "0")}`;
+    const voucherNo = await nextDocNumber(conn, "PV", "purchase_payments_adnan", "payment_voucher_number");
     const [result] = await conn.query(
       `INSERT INTO purchase_payments_adnan
          (payment_voucher_number, payment_date, purchase_order_id, po_number,
@@ -107,13 +101,9 @@ const payments_post = defineEventHandler(async (event) => {
         [String(reference_number), Number(reference_number) || 0]
       );
       if (creditOrder) {
-        const newCrPaid = Number((_f = creditOrder.amount_paid) != null ? _f : 0) + pmtAmt;
-        const newCrBalance = Math.max(0, Number((_g = creditOrder.balance_due) != null ? _g : 0) - pmtAmt);
-        const [[crSeq]] = await conn.query(
-          `SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d, COUNT(*) AS n
-           FROM customer_payments WHERE DATE(created_at) = CURDATE()`
-        );
-        const crPayNo = `PAY-${crSeq.d}-${String(((_h = crSeq.n) != null ? _h : 0) + 1).padStart(4, "0")}`;
+        const newCrPaid = Number((_e = creditOrder.amount_paid) != null ? _e : 0) + pmtAmt;
+        const newCrBalance = Math.max(0, Number((_f = creditOrder.balance_due) != null ? _f : 0) - pmtAmt);
+        const crPayNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
         const [crRes] = await conn.query(
           `INSERT INTO customer_payments
              (order_id, payment_number, customer_id, payment_date, amount,
@@ -154,7 +144,7 @@ const payments_post = defineEventHandler(async (event) => {
            ORDER BY created_at DESC, id DESC LIMIT 1`,
           [creditOrder.customer_id]
         );
-        const newLedgerBal = Math.max(0, Number((_i = lastLedger == null ? void 0 : lastLedger.bal) != null ? _i : 0) - pmtAmt);
+        const newLedgerBal = Math.max(0, Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0) - pmtAmt);
         await conn.query(
           `INSERT INTO customer_ledger
              (customer_id, transaction_date, transaction_type, reference_type, reference_id,
@@ -184,7 +174,7 @@ const payments_post = defineEventHandler(async (event) => {
          WHERE account_type = 'Accounts Payable'
          ORDER BY id ASC LIMIT 1`
       );
-      const apId = (_j = apAcc == null ? void 0 : apAcc.id) != null ? _j : null;
+      const apId = (_h = apAcc == null ? void 0 : apAcc.id) != null ? _h : null;
       let drAccountId = null;
       let crAccountId = null;
       let jeDesc = "";
@@ -195,7 +185,7 @@ const payments_post = defineEventHandler(async (event) => {
            ORDER BY id ASC LIMIT 1`
         );
         drAccountId = apId;
-        crAccountId = (_k = arAcc == null ? void 0 : arAcc.id) != null ? _k : null;
+        crAccountId = (_i = arAcc == null ? void 0 : arAcc.id) != null ? _i : null;
         jeDesc = `Contra offset ${voucherNo} \u2014 AP \u2193 / AR \u2193 \xB7 \u09F3${pmtAmt.toLocaleString()} \xB7 ref ${reference_number}`;
       } else if (payment_type === "advance") {
         const [[advAcc]] = await conn.query(
@@ -204,7 +194,7 @@ const payments_post = defineEventHandler(async (event) => {
              AND account_type_group = 'Asset'
            ORDER BY id ASC LIMIT 1`
         );
-        drAccountId = (_l = advAcc == null ? void 0 : advAcc.id) != null ? _l : apId;
+        drAccountId = (_j = advAcc == null ? void 0 : advAcc.id) != null ? _j : apId;
         crAccountId = bankGlAccountId;
         jeDesc = `Advance payment ${voucherNo} \u2014 \u09F3${pmtAmt.toLocaleString()} to ${po.supplier_name} via ${bankName != null ? bankName : payment_method}`;
       } else {
@@ -248,7 +238,7 @@ const payments_post = defineEventHandler(async (event) => {
     }
     const bankNote = bankName ? ` via ${bankName}` : "";
     const refNote = reference_number ? ` \xB7 ref: ${reference_number}` : "";
-    const typeLabel = (_m = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _m : "";
+    const typeLabel = (_k = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _k : "";
     await auditLog(conn, {
       userId,
       action: "payment_made",
@@ -266,7 +256,7 @@ const payments_post = defineEventHandler(async (event) => {
     console.error("[purchase/payments] Transaction failed:", e == null ? void 0 : e.message);
     throw createError({
       statusCode: 500,
-      statusMessage: (_o = (_n = e == null ? void 0 : e.sqlMessage) != null ? _n : e == null ? void 0 : e.message) != null ? _o : "Payment recording failed"
+      statusMessage: (_m = (_l = e == null ? void 0 : e.sqlMessage) != null ? _l : e == null ? void 0 : e.message) != null ? _m : "Payment recording failed"
     });
   } finally {
     conn.release();

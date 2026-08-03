@@ -66,7 +66,7 @@ ${sale.sale_number} \u2014 ${sale.customer_name}
       );
       return { ok: true, queued: true, pending_request_id: reqId, message: `\u09F3${amount.toLocaleString()} queued for a checker's approval.` };
     }
-    const payNo = await nextDocNumber(conn, "CTP", "commodity_sale_payments");
+    const payNo = await nextDocNumber(conn, "CTP", "commodity_sale_payments", "payment_number");
     let drAccountId = null;
     if (method === "Cash" && (body == null ? void 0 : body.cash_account_id)) {
       const [[ca]] = await conn.query(

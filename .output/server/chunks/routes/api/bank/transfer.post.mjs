@@ -1,4 +1,4 @@
-import { p as defineEventHandler, am as readBody, l as createError, V as getUserSession, y as getDb } from '../../../nitro/nitro.mjs';
+import { p as defineEventHandler, am as readBody, l as createError, V as getUserSession, y as getDb, a3 as nextDocNumber } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const transfer_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b;
   const body = await readBody(event);
   const { from_account_id, to_account_id, amount, transfer_date, reference_number, notes } = body;
   if (!from_account_id || !to_account_id || !amount || !transfer_date) {
@@ -29,17 +29,10 @@ const transfer_post = defineEventHandler(async (event) => {
     const [[toAcct]] = await conn.query(`SELECT id, bank_name, account_name FROM bank_tx_accounts WHERE id = ? AND status = 'active'`, [to_account_id]);
     if (!fromAcct) throw createError({ statusCode: 404, statusMessage: "Source account not found or inactive" });
     if (!toAcct) throw createError({ statusCode: 404, statusMessage: "Destination account not found or inactive" });
-    const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10).replace(/-/g, "");
-    const [[cnt]] = await conn.query(
-      `SELECT COUNT(*) AS n FROM bank_transactions WHERE DATE(created_at) = CURDATE()`
-    );
-    const seq1 = String(((_c = cnt.n) != null ? _c : 0) + 1).padStart(4, "0");
-    const seq2 = String(((_d = cnt.n) != null ? _d : 0) + 2).padStart(4, "0");
-    const txnNo1 = `BTX-${today}-${seq1}`;
-    const txnNo2 = `BTX-${today}-${seq2}`;
     const xferAmt = Number(amount);
     const desc1 = `Transfer to ${toAcct.bank_name} \u2014 ${toAcct.account_name}`;
     const desc2 = `Transfer from ${fromAcct.bank_name} \u2014 ${fromAcct.account_name}`;
+    const txnNo1 = await nextDocNumber(conn, "BTX", "bank_transactions", "transaction_number");
     const [r1] = await conn.query(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
@@ -47,6 +40,7 @@ const transfer_post = defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, 'debit', ?, ?, ?, 'pending', ?)`,
       [txnNo1, from_account_id, transfer_date, desc1, xferAmt, reference_number || null, notes || null, userId]
     );
+    const txnNo2 = await nextDocNumber(conn, "BTX", "bank_transactions", "transaction_number");
     const [r2] = await conn.query(
       `INSERT INTO bank_transactions
          (transaction_number, bank_tx_account_id, transaction_date, description,
