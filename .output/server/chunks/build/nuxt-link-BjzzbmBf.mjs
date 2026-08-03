@@ -1,5 +1,5 @@
 import { defineComponent, shallowRef, h, resolveComponent, computed, unref } from 'vue';
-import { a8 as parseQuery, W as hasProtocol, a1 as joinURL, aN as withTrailingSlash, aO as withoutTrailingSlash } from '../nitro/nitro.mjs';
+import { aa as parseQuery, Y as hasProtocol, a3 as joinURL, aR as withTrailingSlash, aS as withoutTrailingSlash } from '../nitro/nitro.mjs';
 import { l as useRouter, g as encodeRoutePath, r as resolveRouteObject, n as navigateTo, u as useNuxtApp, m as useRuntimeConfig, i as nuxtLinkDefaults } from './server.mjs';
 
 const firstNonUndefined = (...args) => args.find((arg) => arg !== void 0);

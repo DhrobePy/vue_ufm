@@ -1,4 +1,4 @@
-import { p as defineEventHandler, V as getUserSession, l as createError, ak as queryOne, aj as query } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, ao as queryOne, an as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -26,7 +26,7 @@ const dashboard_get = defineEventHandler(async (event) => {
        FROM orders WHERE order_type = 'POS' AND DATE(order_date) = CURDATE()`
     ),
     queryOne(
-      `SELECT COUNT(*) AS c FROM credit_pending_requests WHERE request_type = 'pos_exit_release' AND status = 'pending'`
+      `SELECT COUNT(*) AS c FROM credit_pending_requests WHERE request_type IN ('pos_exit_release', 'pos_credit_sale') AND status = 'pending'`
     ),
     query(
       `SELECT v.*, b.name AS branch_name FROM cash_verification_log v

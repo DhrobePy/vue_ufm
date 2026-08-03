@@ -33,6 +33,13 @@ export function deliveryQrSignature(orderNumber: string, secret: string): string
   return crypto.createHmac('sha256', secret).update(`DELIV|${orderNumber}`).digest('hex').slice(0, 16)
 }
 
+/** POS single-stage exit-verification QR signature — 'POSEXIT|' namespace,
+ *  matches the legacy app's posExitQrSignature() exactly (own salt, not a
+ *  two-stage delivery — a walk-out counter check). */
+export function posExitQrSignature(orderNumber: string, secret: string): string {
+  return crypto.createHmac('sha256', secret).update(`POSEXIT|${orderNumber}`).digest('hex').slice(0, 16)
+}
+
 export async function verifyDeliveryQrSignature(conn: any, orderNumber: string, sig: string): Promise<boolean> {
   const secret = await getDeliveryQrSecret(conn)
   const expected = deliveryQrSignature(orderNumber, secret)

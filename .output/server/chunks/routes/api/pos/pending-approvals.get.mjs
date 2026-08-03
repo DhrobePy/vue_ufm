@@ -1,4 +1,4 @@
-import { p as defineEventHandler, V as getUserSession, l as createError, aj as query } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, an as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -20,7 +20,7 @@ const pendingApprovals_get = defineEventHandler(async (event) => {
      FROM credit_pending_requests r
      LEFT JOIN users u ON u.id = r.requested_by_user_id
      LEFT JOIN orders o ON o.id = r.order_id AND o.order_type = 'POS'
-     WHERE r.request_type = 'pos_exit_release' AND r.status = 'pending'
+     WHERE r.request_type IN ('pos_exit_release', 'pos_credit_sale') AND r.status = 'pending'
      ORDER BY r.created_at DESC`
   );
   return { requests };

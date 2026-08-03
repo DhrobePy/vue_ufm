@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { l as createError$1, a9 as parseURL, t as encodePath, o as decodePath, W as hasProtocol, a0 as isScriptProtocol, a1 as joinURL, aM as withQuery, r as defu, aA as sanitizeStatusCode, v as getContext, $ as $fetch$1, g as baseURL, m as createHooks, u as executeAsync } from '../nitro/nitro.mjs';
+import { m as createError$1, ab as parseURL, u as encodePath, p as decodePath, Y as hasProtocol, a2 as isScriptProtocol, a3 as joinURL, aQ as withQuery, s as defu, aE as sanitizeStatusCode, w as getContext, $ as $fetch$1, h as baseURL, n as createHooks, v as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'node:crypto';
@@ -656,7 +656,7 @@ const _routes = [
     name: "pos",
     path: "/pos",
     meta: __nuxt_page_meta$2J || {},
-    component: () => import('./index-D3qNiH_b.mjs')
+    component: () => import('./index-CigOMWyO.mjs')
   },
   {
     name: "pos-today",
@@ -1268,7 +1268,7 @@ const _routes = [
     name: "pos-pending-approvals",
     path: "/pos/pending-approvals",
     meta: __nuxt_page_meta$17 || {},
-    component: () => import('./pending-approvals-WgHCXOrj.mjs')
+    component: () => import('./pending-approvals-onkKcVf0.mjs')
   },
   {
     name: "production-id",

@@ -1,5 +1,5 @@
 import { query, getDb } from '~/server/utils/db'
-import { getDeliveryQrSecret } from '~/server/utils/qrDelivery'
+import { getDeliveryQrSecret, posExitQrSignature } from '~/server/utils/qrDelivery'
 import crypto from 'node:crypto'
 
 /** GET /api/pos/exit/:order — gate-scan landing data + sig re-check ('POSEXIT|' namespace). */
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
   const conn = await getDb().getConnection()
   let secret: string
   try { secret = await getDeliveryQrSecret(conn) } finally { conn.release() }
-  const expected = crypto.createHmac('sha256', secret).update(`POSEXIT|${order.order_number}`).digest('hex').slice(0, 16)
+  const expected = posExitQrSignature(order.order_number, secret)
   const sigValid = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))
 
   return { order, sig_valid: sigValid }

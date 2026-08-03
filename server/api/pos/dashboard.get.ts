@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
       `SELECT COUNT(*) AS order_count, COALESCE(SUM(total_amount), 0) AS revenue
        FROM orders WHERE order_type = 'POS' AND DATE(order_date) = CURDATE()`),
     queryOne<any>(
-      `SELECT COUNT(*) AS c FROM credit_pending_requests WHERE request_type = 'pos_exit_release' AND status = 'pending'`),
+      `SELECT COUNT(*) AS c FROM credit_pending_requests WHERE request_type IN ('pos_exit_release', 'pos_credit_sale') AND status = 'pending'`),
     query<any>(
       `SELECT v.*, b.name AS branch_name FROM cash_verification_log v
        LEFT JOIN branches b ON b.id = v.branch_id

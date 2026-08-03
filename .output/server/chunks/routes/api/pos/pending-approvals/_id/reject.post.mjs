@@ -1,4 +1,4 @@
-import { p as defineEventHandler, V as getUserSession, l as createError, _ as isAdminRole, O as getRouterParam, am as readBody, y as getDb, f as auditLog } from '../../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, a1 as isAdminRole, R as getRouterParam, aq as readBody, z as getDb, g as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -24,11 +24,13 @@ const reject_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[reqRow]] = await conn.query(
-      `SELECT * FROM credit_pending_requests WHERE id = ? AND request_type = 'pos_exit_release' FOR UPDATE`,
+      `SELECT * FROM credit_pending_requests WHERE id = ? AND request_type IN ('pos_exit_release', 'pos_credit_sale') FOR UPDATE`,
       [reqId]
     );
     if (!reqRow) throw createError({ statusCode: 404, statusMessage: "Request not found" });
     if (reqRow.status !== "pending") throw createError({ statusCode: 409, statusMessage: `Already ${reqRow.status}` });
+    if (reqRow.request_type === "pos_credit_sale" && !isAdminRole(role))
+      throw createError({ statusCode: 403, statusMessage: "POS credit-sale rejection is admin-only" });
     await conn.query(
       `UPDATE credit_pending_requests SET status = 'rejected', decided_by_user_id = ?, decided_at = NOW(), decision_note = ? WHERE id = ?`,
       [userId, reason || null, reqId]

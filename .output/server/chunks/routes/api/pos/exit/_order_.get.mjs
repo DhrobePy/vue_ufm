@@ -1,4 +1,4 @@
-import { p as defineEventHandler, V as getUserSession, l as createError, O as getRouterParam, H as getQuery, aj as query, y as getDb, z as getDeliveryQrSecret } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, J as getQuery, an as query, z as getDb, B as getDeliveryQrSecret, ac as posExitQrSignature } from '../../../../nitro/nitro.mjs';
 import crypto from 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -32,7 +32,7 @@ const _order__get = defineEventHandler(async (event) => {
   } finally {
     conn.release();
   }
-  const expected = crypto.createHmac("sha256", secret).update(`POSEXIT|${order.order_number}`).digest("hex").slice(0, 16);
+  const expected = posExitQrSignature(order.order_number, secret);
   const sigValid = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
   return { order, sig_valid: sigValid };
 });

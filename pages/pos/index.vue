@@ -24,7 +24,7 @@
       <!-- Grid -->
       <div class="flex-1 overflow-y-auto p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 content-start">
         <template v-if="pending">
-          <div v-for="i in 8" :key="i" class="glass-card p-4 h-32 animate-pulse" />
+          <div v-for="i in skeletonCount" :key="i" class="glass-card p-4 h-32 animate-pulse" />
         </template>
         <template v-else>
           <button
@@ -170,39 +170,20 @@
     </div>
 
     <!-- Success modal -->
-    <Teleport to="body">
-      <Transition name="modal">
-        <div v-if="successModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="successModal = false" />
-          <div class="relative w-full max-w-sm glass-card p-7 text-center space-y-4 animate-slide-up">
-            <div class="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center mx-auto">
-              <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
-            </div>
-            <h3 class="font-display font-bold text-xl text-white">Sale Complete!</h3>
-            <div class="text-sm text-gray-400 space-y-0.5">
-              <p>Receipt <span class="font-mono text-gold-400">{{ lastReceiptNo }}</span></p>
-              <p v-if="lastCustomerName">Customer: <span class="text-gray-300">{{ lastCustomerName }}</span></p>
-              <p>Paid now: <span class="text-gray-300">৳{{ lastCashAmount.toLocaleString() }} ({{ lastPaymentMethod }})</span></p>
-              <p v-if="lastCreditAmount > 0">On credit: <span class="text-orange-400">৳{{ lastCreditAmount.toLocaleString() }}</span></p>
-              <p v-if="lastDiscount > 0">Discount: <span class="text-orange-400">-৳{{ lastDiscount.toLocaleString() }}</span></p>
-              <p class="text-base font-bold pt-1">Total: <strong class="text-gold-400">৳{{ lastTotal.toLocaleString() }}</strong></p>
-              <p v-if="lastExitStatus === 'pending_approval'" class="text-red-400 text-xs pt-1">⏳ Exit release needs approval before goods can leave — see Pending Approvals.</p>
-            </div>
-            <div class="flex gap-3">
-              <button @click="printAllCopies" class="btn-ghost flex-1 justify-center text-sm">🖨️ Print All (3)</button>
-              <button @click="successModal = false" class="btn-gold flex-1 justify-center text-sm">New Sale</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
+    <PosSuccessModal
+      v-model="successModal"
+      :receipt-no="lastReceiptNo" :total="lastTotal" :subtotal="lastSubtotal" :discount="lastDiscount"
+      :cash-amount="lastCashAmount" :credit-amount="lastCreditAmount" :payment-method="lastPaymentMethod"
+      :customer-name="lastCustomerName" :exit-status="lastExitStatus" :items="lastItems" :verify-url="lastVerifyUrl"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-const { error } = useToast()
+const { error, success: successToast } = useToast()
 
+const skeletonCount = 8
 const search           = ref('')
 const activeCategory   = ref('All')
 const discount         = ref(0)
@@ -229,6 +210,7 @@ const lastPaymentMethod   = ref('')
 const lastCustomerName    = ref('')
 const lastExitStatus      = ref('cleared')
 const lastItems            = ref<Array<{ name: string; qty: number; price: number }>>([])
+const lastVerifyUrl       = ref('')
 
 const paymentMethods = ['Cash', 'Card', 'Bank Transfer', 'bKash', 'Nagad']
 
@@ -309,6 +291,23 @@ async function completeSale() {
       },
     }) as any
 
+    if (result.queued) {
+      // Over the customer's POS credit limit — no order was created, this
+      // is queued for admin approval. Do NOT show a receipt/success modal.
+      successToast(result.message ?? 'Sale exceeds credit limit — queued for admin approval.')
+      cart.value = []
+      discount.value = 0
+      selectedCustomer.value = null
+      walkInName.value  = ''
+      walkInPhone.value = ''
+      saveWalkIn.value  = false
+      splitPayment.value = false
+      cashAmount.value = 0
+      cashAccountId.value = ''
+      bankAccountId.value = ''
+      return
+    }
+
     lastReceiptNo.value    = result.order_number
     lastTotal.value        = result.total
     lastSubtotal.value     = subtotal.value
@@ -319,6 +318,7 @@ async function completeSale() {
     lastCustomerName.value  = customerName
     lastExitStatus.value    = result.exit_status
     lastItems.value         = cart.value.map(i => ({ name: i.name, qty: i.qty, price: i.price }))
+    lastVerifyUrl.value     = result.verify_url ?? ''
     successModal.value      = true
 
     cart.value = []
@@ -337,69 +337,4 @@ async function completeSale() {
     completing.value = false
   }
 }
-
-function receiptHtml(copyLabel: string) {
-  const rows = lastItems.value.map(i => `
-    <tr>
-      <td style="padding:2px 0">${i.name}</td>
-      <td style="text-align:center;padding:2px 4px">${i.qty}</td>
-      <td style="text-align:right;padding:2px 0">৳${(i.price * i.qty).toLocaleString()}</td>
-    </tr>`).join('')
-  return `<!DOCTYPE html><html><head>
-    <meta charset="utf-8"/>
-    <title>Receipt ${lastReceiptNo.value}</title>
-    <style>
-      *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:monospace;font-size:12px;width:300px;margin:0 auto;padding:10px}
-      h2{text-align:center;font-size:15px;margin-bottom:2px}
-      .c{text-align:center}
-      hr{border:none;border-top:1px dashed #000;margin:6px 0}
-      table{width:100%;border-collapse:collapse}
-      th{font-size:10px;padding:2px 0;border-bottom:1px solid #000}
-      .total{font-weight:bold;font-size:13px}
-    </style>
-  </head><body>
-    <h2>Ujjal Flour Mills</h2>
-    <p class="c" style="font-size:10px">${copyLabel}</p>
-    <hr/>
-    <p class="c">${lastReceiptNo.value}</p>
-    <p class="c" style="font-size:10px">${new Date().toLocaleString('en-BD')}</p>
-    ${lastCustomerName.value ? `<p class="c" style="font-size:11px;margin-top:2px">Customer: ${lastCustomerName.value}</p>` : ''}
-    <hr/>
-    <table>
-      <thead><tr><th style="text-align:left">Item</th><th style="text-align:center">Qty</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <hr/>
-    <table>
-      <tr><td>Subtotal</td><td style="text-align:right">৳${lastSubtotal.value.toLocaleString()}</td></tr>
-      ${lastDiscount.value > 0 ? `<tr><td>Discount</td><td style="text-align:right">-৳${lastDiscount.value.toLocaleString()}</td></tr>` : ''}
-      <tr class="total"><td>TOTAL</td><td style="text-align:right">৳${lastTotal.value.toLocaleString()}</td></tr>
-      <tr><td style="font-size:10px">Paid now (${lastPaymentMethod.value})</td><td style="text-align:right;font-size:10px">৳${lastCashAmount.value.toLocaleString()}</td></tr>
-      ${lastCreditAmount.value > 0 ? `<tr><td style="font-size:10px">On credit</td><td style="text-align:right;font-size:10px">৳${lastCreditAmount.value.toLocaleString()}</td></tr>` : ''}
-    </table>
-    <hr/>
-    <p class="c" style="font-size:10px;margin-top:4px">Thank you!</p>
-    <script>window.onload=()=>{window.print()}<\/script>
-  </body></html>`
-}
-
-/** Open and print all three copies. No setTimeout — each window.open() must
- * run synchronously inside this click handler or the browser's popup
- * blocker silently drops it (only the first, un-deferred one is trusted as
- * a real user gesture). Same fix the legacy app made after "Print All
- * Copies" was found to only ever print one of three receipts. */
-function printAllCopies() {
-  for (const label of ['Office Copy', 'Customer Copy', 'Delivery Copy']) {
-    const win = window.open('', '_blank', 'width=420,height=640')
-    if (!win) { alert('Allow popups to print all copies.'); return }
-    win.document.write(receiptHtml(label))
-    win.document.close()
-  }
-}
 </script>
-
-<style scoped>
-.modal-enter-active, .modal-leave-active { transition: all .2s ease; }
-.modal-enter-from, .modal-leave-to { opacity: 0; }
-</style>

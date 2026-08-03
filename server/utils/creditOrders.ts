@@ -165,7 +165,7 @@ export async function checkTransactionLimit(
  * not proceed with the original posting.
  */
 export async function queuePendingRequest(conn: any, opts: {
-  requestType: 'payment' | 'collect_payment' | 'commodity_sale' | 'commodity_payment' | 'commodity_sale_edit' | 'loan_disbursement' | 'loan_repayment' | 'pos_exit_release'
+  requestType: 'payment' | 'collect_payment' | 'commodity_sale' | 'commodity_payment' | 'commodity_sale_edit' | 'loan_disbursement' | 'loan_repayment' | 'pos_exit_release' | 'pos_credit_sale'
   payload: unknown
   orderId?: number | null
   customerId?: number | null
