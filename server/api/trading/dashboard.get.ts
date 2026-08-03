@@ -14,16 +14,36 @@ export default defineEventHandler(async (event) => {
   const from = String(q.date_from || `${now.toISOString().slice(0, 7)}-01`)
   const to   = String(q.date_to   || now.toISOString().slice(0, 10))
 
+  // Optional cascading filters (customer / commodity / origin) — same
+  // scoping as /api/trading/sales's Sale History list, applied here too so
+  // the KPI tiles above it reflect the same filtered period. Built twice
+  // with different column prefixes since the two queries alias the table
+  // differently (unprefixed vs `s.`).
+  const buildExtra = (prefix: string) => {
+    const where: string[] = []
+    const params: any[] = []
+    if (q.customer_id)  { where.push(`${prefix}customer_id = ?`);  params.push(Number(q.customer_id)) }
+    if (q.commodity_id) { where.push(`${prefix}commodity_id = ?`); params.push(Number(q.commodity_id)) }
+    if (q.origin)       { where.push(`${prefix}origin = ?`);       params.push(String(q.origin)) }
+    return { sql: where.length ? ` AND ${where.join(' AND ')}` : '', params }
+  }
+  const kpiExtra = buildExtra('')
+  const collectedExtra = buildExtra('s.')
+
   const [kpis, collected, inventory, outstanding, settlements] = await Promise.all([
     queryOne<any>(
       `SELECT COUNT(*) AS sales_count,
               COALESCE(SUM(total_amount), 0) AS revenue,
               COALESCE(SUM(cogs_amount), 0)  AS cogs
        FROM commodity_sales
-       WHERE status = 'posted' AND sale_date BETWEEN ? AND ?`, [from, to]),
+       WHERE status = 'posted' AND sale_date BETWEEN ? AND ?${kpiExtra.sql}`,
+      [from, to, ...kpiExtra.params]),
     queryOne<any>(
-      `SELECT COALESCE(SUM(amount), 0) AS collected
-       FROM commodity_sale_payments WHERE payment_date BETWEEN ? AND ?`, [from, to]),
+      `SELECT COALESCE(SUM(csp.amount), 0) AS collected
+       FROM commodity_sale_payments csp
+       JOIN commodity_sales s ON s.id = csp.sale_id
+       WHERE csp.payment_date BETWEEN ? AND ?${collectedExtra.sql}`,
+      [from, to, ...collectedExtra.params]),
     query<any>(
       `SELECT ci.*, pc.name AS commodity_name, pc.unit, b.name AS branch_name
        FROM commodity_inventory ci

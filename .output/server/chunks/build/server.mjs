@@ -756,7 +756,7 @@ const _routes = [
     name: "trading",
     path: "/trading",
     meta: __nuxt_page_meta$2j || {},
-    component: () => import('./index-C4Z42p6j.mjs')
+    component: () => import('./index-Cgp_YnpE.mjs')
   },
   {
     name: "accounts",
