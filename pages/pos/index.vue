@@ -4,8 +4,9 @@
     <!-- Left: Product grid -->
     <div class="flex-1 flex flex-col min-w-0 bg-surface-400 border-r border-white/[0.06]">
       <!-- Search bar -->
-      <div class="p-4 border-b border-white/[0.06]">
-        <div class="relative">
+      <div class="p-4 border-b border-white/[0.06] flex items-center gap-3">
+        <UiBackButton />
+        <div class="relative flex-1">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
           <input v-model="search" class="input-glass pl-10 text-sm" placeholder="Search by product name or SKU…" />
         </div>

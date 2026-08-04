@@ -1,6 +1,7 @@
 <template>
   <div class="min-h-screen flex items-center justify-center p-4">
     <div class="glass-card p-6 w-full max-w-md space-y-4">
+      <UiBackButton v-if="hasHistory" />
       <h1 class="text-lg font-bold text-gray-100">Commodity Dispatch Verification</h1>
 
       <template v-if="sale">
@@ -42,6 +43,11 @@ const sig    = computed(() => String(route.query.sig ?? ''))
 const { data, refresh } = await useFetch(() => `/api/trading/sales/${saleId.value}`)
 const sale     = computed<any>(() => (data.value as any)?.sale ?? null)
 const dispatch = computed<any>(() => (data.value as any)?.dispatch ?? null)
+
+// Public page, often opened fresh from a QR scan (no in-app history) — only
+// show Back when there's actually somewhere to go back to.
+const hasHistory = ref(false)
+onMounted(() => { hasHistory.value = !!window.history.state?.back })
 
 const form = reactive({ driver_name: '', vehicle_number: '', received_by: '' })
 const acting = ref(false)

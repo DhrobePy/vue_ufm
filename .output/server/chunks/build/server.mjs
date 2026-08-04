@@ -653,13 +653,13 @@ const _routes = [
     name: "d-order",
     path: "/d/:order()",
     meta: __nuxt_page_meta$2N || {},
-    component: () => import('./_order_-QuRZEbIN.mjs')
+    component: () => import('./_order_-C5Vb6H3z.mjs')
   },
   {
     name: "pos",
     path: "/pos",
     meta: __nuxt_page_meta$2M || {},
-    component: () => import('./index-B_dhJ563.mjs')
+    component: () => import('./index-GKPY59z3.mjs')
   },
   {
     name: "pos-today",
@@ -857,7 +857,7 @@ const _routes = [
     name: "dashboard",
     path: "/dashboard",
     meta: __nuxt_page_meta$2f || {},
-    component: () => import('./index-CoqRw4KN.mjs')
+    component: () => import('./index-Dgb5wCQX.mjs')
   },
   {
     name: "expenses-create",
@@ -917,7 +917,7 @@ const _routes = [
     name: "pos-exit-order",
     path: "/pos/exit/:order()",
     meta: __nuxt_page_meta$25 || {},
-    component: () => import('./_order_-MuF_Tc7b.mjs')
+    component: () => import('./_order_-BcPPZGIQ.mjs')
   },
   {
     name: "production",
@@ -1169,7 +1169,7 @@ const _routes = [
     name: "trading-verify-id",
     path: "/trading/verify/:id()",
     meta: __nuxt_page_meta$1r || {},
-    component: () => import('./_id_-CpiYsxgS.mjs')
+    component: () => import('./_id_-CsykrC2M.mjs')
   },
   {
     name: "credit-sales-approve",

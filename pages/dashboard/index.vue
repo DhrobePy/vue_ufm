@@ -17,11 +17,14 @@
 
     <!-- ── Page header ──────────────────────────────── -->
     <div class="flex items-center justify-between">
-      <div>
-        <h1 class="font-display font-bold text-2xl text-white tracking-tight">
-          Good {{ greeting }}, <span class="text-gradient-gold">{{ sessionUser?.name || 'User' }}</span> 👋
-        </h1>
-        <p class="text-sm text-gray-500 mt-0.5">{{ formattedDate }} · Here's what's happening today</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="font-display font-bold text-2xl text-white tracking-tight">
+            Good {{ greeting }}, <span class="text-gradient-gold">{{ sessionUser?.name || 'User' }}</span> 👋
+          </h1>
+          <p class="text-sm text-gray-500 mt-0.5">{{ formattedDate }} · Here's what's happening today</p>
+        </div>
       </div>
       <div class="flex items-center gap-2">
         <button class="btn-ghost text-xs">

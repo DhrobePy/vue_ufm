@@ -3,6 +3,7 @@
 
     <!-- Header bar -->
     <div style="background:rgba(20,16,10,0.97);border-bottom:1px solid rgba(255,255,255,0.08);padding:14px 20px;display:flex;align-items:center;gap:12px;">
+      <UiBackButton v-if="hasHistory" />
       <div style="width:32px;height:32px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">🏭</div>
       <div>
         <div style="font-size:13px;font-weight:700;color:#e5e7eb;">Ujjal FMC — Gate Pass &amp; Delivery</div>
@@ -193,6 +194,11 @@ const sig      = computed(() => String(route.query.sig ?? ''))
 
 const { user } = useUserSession()
 const myName = computed(() => (user.value as any)?.name ?? (user.value as any)?.display_name ?? '')
+
+// Public page, often opened fresh from a QR scan (no in-app history) — only
+// show Back when there's actually somewhere to go back to.
+const hasHistory = ref(false)
+onMounted(() => { hasHistory.value = !!window.history.state?.back })
 
 const { data: orderData, pending, error, refresh } = await useFetch<any>(
   () => `/api/verify/${orderNum.value}`,

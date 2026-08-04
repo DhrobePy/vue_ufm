@@ -1,5 +1,6 @@
 <template>
   <div class="max-w-lg mx-auto space-y-5 pt-6">
+    <UiBackButton />
     <div v-if="pending" class="glass-card p-10 text-center text-sm text-gray-500">Loading…</div>
     <div v-else-if="!order" class="glass-card p-10 text-center text-sm text-red-400">Order not found.</div>
     <template v-else>
