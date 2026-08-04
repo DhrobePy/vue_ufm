@@ -58,7 +58,10 @@
     <!-- Documents -->
     <div v-if="activeTab === 'documents'">
       <div class="glass-card p-5">
-        <h3 class="section-title mb-4">Driver Documents</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="section-title">Driver Documents</h3>
+          <button @click="openAddDoc" class="btn-gold text-xs">+ Add Document</button>
+        </div>
         <div v-if="!documents.length" class="text-center py-6 text-gray-600 text-sm">No documents recorded</div>
         <table v-else class="w-full text-xs">
           <thead>
@@ -67,30 +70,72 @@
               <th class="pb-2 text-left text-gray-500">Document No</th>
               <th class="pb-2 text-left text-gray-500">Issue Date</th>
               <th class="pb-2 text-left text-gray-500">Expiry Date</th>
-              <th class="pb-2 text-left text-gray-500">Authority</th>
+              <th class="pb-2 text-left text-gray-500">Notes</th>
               <th class="pb-2 text-left text-gray-500">Status</th>
+              <th class="pb-2"></th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="d in documents" :key="d.id" class="border-b border-white/[0.03]">
               <td class="py-2 text-gray-300 font-medium">{{ d.document_type }}</td>
-              <td class="py-2 font-mono text-gray-400">{{ d.document_no || '—' }}</td>
+              <td class="py-2 font-mono text-gray-400">{{ d.document_number || '—' }}</td>
               <td class="py-2 text-gray-400">{{ d.issue_date || '—' }}</td>
               <td class="py-2" :class="isExpired(d.expiry_date) ? 'text-red-400' : isExpiringSoon(d.expiry_date) ? 'text-amber-400' : 'text-gray-400'">
                 {{ d.expiry_date || '—' }}
               </td>
-              <td class="py-2 text-gray-400">{{ d.issuing_authority || '—' }}</td>
+              <td class="py-2 text-gray-400">{{ d.notes || '—' }}</td>
               <td class="py-2">
                 <span class="badge text-[10px]"
                   :class="isExpired(d.expiry_date) ? 'bg-red-500/10 text-red-400' : isExpiringSoon(d.expiry_date) ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'">
                   {{ isExpired(d.expiry_date) ? 'Expired' : isExpiringSoon(d.expiry_date) ? 'Expiring Soon' : 'Valid' }}
                 </span>
               </td>
+              <td class="py-2 text-right">
+                <button @click="deleteDoc(d.id)" class="text-gray-600 hover:text-red-400 transition-colors">✕</button>
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <!-- Add Document Modal -->
+    <Teleport to="body">
+      <div v-if="docModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+           style="background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)" @click.self="docModal = false">
+        <div class="glass-card p-6 w-full max-w-sm space-y-4" @click.stop>
+          <h3 class="text-sm font-semibold text-gray-200">Add Document</h3>
+          <div class="space-y-3">
+            <div>
+              <label class="field-label">Document Type *</label>
+              <input v-model="docForm.document_type" type="text" class="field-input w-full" placeholder="e.g. Driving License" />
+            </div>
+            <div>
+              <label class="field-label">Document Number</label>
+              <input v-model="docForm.document_number" type="text" class="field-input w-full" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="field-label">Issue Date</label>
+                <input v-model="docForm.issue_date" type="date" class="field-input w-full" />
+              </div>
+              <div>
+                <label class="field-label">Expiry Date</label>
+                <input v-model="docForm.expiry_date" type="date" class="field-input w-full" />
+              </div>
+            </div>
+            <div>
+              <label class="field-label">Notes</label>
+              <input v-model="docForm.notes" type="text" class="field-input w-full" />
+            </div>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button @click="docModal = false" class="btn-ghost text-xs flex-1 justify-center">Cancel</button>
+            <button @click="saveDoc" :disabled="!docForm.document_type" class="btn-gold text-xs flex-1 justify-center disabled:opacity-40">Save</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- Employment History -->
     <div v-if="activeTab === 'employment'">
@@ -132,11 +177,12 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+const { success, error: toastError } = useToast()
 
 const route = useRoute()
 const id    = Number(route.params.id)
 
-const { data } = await useFetch(`/api/fleet/drivers/${id}`)
+const { data, refresh } = await useFetch(`/api/fleet/drivers/${id}`)
 
 const driver     = computed(() => (data.value as any)?.driver     ?? null)
 const documents  = computed(() => (data.value as any)?.documents  ?? [])
@@ -169,5 +215,37 @@ function isExpiringSoon(d: string) {
   if (!d) return false
   const diff = (new Date(d).getTime() - Date.now()) / 86400000
   return diff >= 0 && diff <= 30
+}
+
+// ── Document management ────────────────────────────────
+const docModal = ref(false)
+const docForm = reactive({ document_type: '', document_number: '', issue_date: '', expiry_date: '', notes: '' })
+
+function openAddDoc() {
+  Object.assign(docForm, { document_type: '', document_number: '', issue_date: '', expiry_date: '', notes: '' })
+  docModal.value = true
+}
+
+async function saveDoc() {
+  if (!docForm.document_type) return
+  try {
+    await $fetch(`/api/fleet/drivers/${id}/documents`, { method: 'POST', body: docForm })
+    success('Document added ✓')
+    docModal.value = false
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to add document')
+  }
+}
+
+async function deleteDoc(docId: number) {
+  if (!confirm('Delete this document?')) return
+  try {
+    await $fetch(`/api/fleet/drivers/documents/${docId}`, { method: 'DELETE' })
+    success('Document removed')
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to delete document')
+  }
 }
 </script>

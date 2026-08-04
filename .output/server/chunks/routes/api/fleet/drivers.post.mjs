@@ -52,9 +52,9 @@ const drivers_post = defineEventHandler(async (event) => {
     if (!doc.document_type) continue;
     await query(
       `INSERT INTO driver_documents
-         (driver_id, document_type, document_no, issue_date, expiry_date, issuing_authority)
+         (driver_id, document_type, document_number, issue_date, expiry_date, notes)
        VALUES (?,?,?,?,?,?)`,
-      [driverId, doc.document_type, doc.document_no || null, doc.issue_date || null, doc.expiry_date || null, doc.issuing_authority || null]
+      [driverId, doc.document_type, doc.document_no || doc.document_number || null, doc.issue_date || null, doc.expiry_date || null, doc.issuing_authority || doc.notes || null]
     );
   }
   for (const emp of employment_history) {

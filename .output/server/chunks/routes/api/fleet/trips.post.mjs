@@ -32,6 +32,24 @@ const trips_post = defineEventHandler(async (event) => {
   } = body != null ? body : {};
   if (!trip_date || !vehicle_id || !driver_id)
     throw createError({ statusCode: 400, statusMessage: "trip_date, vehicle_id and driver_id are required" });
+  const [clashVehicle, clashDriver] = await Promise.all([
+    queryOne(
+      `SELECT trip_number FROM trips
+       WHERE vehicle_id = ? AND trip_date = ? AND trip_status IN ('scheduled','in_progress')
+       LIMIT 1`,
+      [Number(vehicle_id), trip_date]
+    ),
+    queryOne(
+      `SELECT trip_number FROM trips
+       WHERE driver_id = ? AND trip_date = ? AND trip_status IN ('scheduled','in_progress')
+       LIMIT 1`,
+      [Number(driver_id), trip_date]
+    )
+  ]);
+  if (clashVehicle)
+    throw createError({ statusCode: 409, statusMessage: `This vehicle is already booked on ${trip_date} (${clashVehicle.trip_number})` });
+  if (clashDriver)
+    throw createError({ statusCode: 409, statusMessage: `This driver is already booked on ${trip_date} (${clashDriver.trip_number})` });
   const dateStr = trip_date.replace(/-/g, "");
   const last = await queryOne(
     `SELECT MAX(CAST(SUBSTRING_INDEX(trip_number, '-', -1) AS UNSIGNED)) AS maxSeq

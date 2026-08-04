@@ -241,6 +241,34 @@ const reconChecks = computed(() => {
       count:       d.check3?.length ?? 0,
       rows:        d.check3 ?? [],
     },
+    {
+      key:         'check4',
+      label:       'GRN Line Total Accuracy',
+      description: 'GRNs where the stored total_value doesn\'t match quantity × unit price by more than ৳1',
+      count:       d.check4?.length ?? 0,
+      rows:        d.check4 ?? [],
+    },
+    {
+      key:         'check5',
+      label:       'Overpayment Not Flagged',
+      description: 'POs where posted payments exceed the total payable but payment_status isn\'t "overpaid"',
+      count:       d.check5?.length ?? 0,
+      rows:        d.check5 ?? [],
+    },
+    {
+      key:         'check6',
+      label:       'Completed With No GRN',
+      description: 'POs marked delivery-completed/closed with zero recorded (non-cancelled) GRNs',
+      count:       d.check6?.length ?? 0,
+      rows:        d.check6 ?? [],
+    },
+    {
+      key:         'check7',
+      label:       'Received Quantity Accuracy',
+      description: 'POs where the stored total_received_qty differs from the live GRN sum by more than 1 kg',
+      count:       d.check7?.length ?? 0,
+      rows:        d.check7 ?? [],
+    },
   ]
 })
 

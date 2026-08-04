@@ -839,7 +839,7 @@ const _routes = [
     name: "purchase",
     path: "/purchase",
     meta: __nuxt_page_meta$2i || {},
-    component: () => import('./index-CS6qubji.mjs')
+    component: () => import('./index-AvN1Ctd2.mjs')
   },
   {
     name: "collector",
@@ -1469,7 +1469,7 @@ const _routes = [
     name: "fleet-drivers-id",
     path: "/fleet/drivers/:id()",
     meta: __nuxt_page_meta$F || {},
-    component: () => import('./index-CkB4ZhvE.mjs')
+    component: () => import('./index-BWOWbHl6.mjs')
   },
   {
     name: "fleet-maintenance-create",
@@ -1553,7 +1553,7 @@ const _routes = [
     name: "fleet-vehicles-id",
     path: "/fleet/vehicles/:id()",
     meta: __nuxt_page_meta$r || {},
-    component: () => import('./index-CJgjt6UM.mjs')
+    component: () => import('./index-BMtOw6-p.mjs')
   },
   {
     name: "logistics-vehicles-create",
