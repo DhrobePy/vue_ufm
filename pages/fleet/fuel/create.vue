@@ -75,6 +75,31 @@
         </div>
       </div>
 
+      <div class="grid grid-cols-2 gap-4 pt-2 border-t border-white/[0.06]">
+        <div>
+          <label class="form-label">Paid From</label>
+          <select v-model="form.payment_method" class="form-input">
+            <option value="">— Not posting to GL yet —</option>
+            <option value="cash">Petty Cash</option>
+            <option value="bank">Bank</option>
+          </select>
+        </div>
+        <div v-if="form.payment_method === 'cash'">
+          <label class="form-label">Petty Cash Account *</label>
+          <select v-model="form.cash_account_id" class="form-input">
+            <option value="">— Select —</option>
+            <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">{{ a.account_name }} (৳{{ Number(a.current_balance).toLocaleString() }})</option>
+          </select>
+        </div>
+        <div v-if="form.payment_method === 'bank'">
+          <label class="form-label">Bank Account *</label>
+          <select v-model="form.bank_account_id" class="form-input">
+            <option value="">— Select —</option>
+            <option v-for="a in bankAccounts" :key="a.id" :value="a.id">{{ a.bank_name }} — {{ a.account_name }}</option>
+          </select>
+        </div>
+      </div>
+
       <div v-if="error" class="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">{{ error }}</div>
 
       <div class="flex gap-3 pt-2">
@@ -95,9 +120,13 @@ const prevOdometer = ref<number | null>(null)
 
 const { data: vData } = await useFetch('/api/fleet/vehicles')
 const { data: dData } = await useFetch('/api/fleet/drivers')
+const { data: pettyData } = await useFetch('/api/expenses/petty-cash-accounts')
+const { data: bankData }  = await useFetch('/api/bank-accounts')
 
 const vehicles = computed(() => (vData.value as any)?.vehicles ?? [])
 const drivers  = computed(() => ((dData.value as any)?.drivers ?? []).filter((d: any) => d.status === 'active'))
+const pettyCashAccounts = computed(() => (pettyData.value as any)?.accounts ?? [])
+const bankAccounts      = computed(() => (bankData.value as any)?.accounts ?? [])
 
 const form = reactive({
   vehicle_id:        '',
@@ -111,6 +140,9 @@ const form = reactive({
   previous_odometer: '',
   station_name:      '',
   receipt_no:        '',
+  payment_method:    '',
+  cash_account_id:   '',
+  bank_account_id:   '',
 })
 
 function calcTotal() {

@@ -13,9 +13,53 @@
     <!-- Workflow -->
     <div class="flex gap-2">
       <button v-if="req.status === 'pending'"     @click="updateStatus('in_progress')" class="btn-gold text-xs">▶ Start Work</button>
-      <button v-if="req.status === 'in_progress'" @click="updateStatus('completed')"  class="btn-secondary text-xs border-emerald-500/30 text-emerald-400">✓ Mark Completed</button>
+      <button v-if="req.status === 'in_progress'" @click="openComplete"  class="btn-secondary text-xs border-emerald-500/30 text-emerald-400">✓ Mark Completed</button>
       <button v-if="req.status !== 'cancelled' && req.status !== 'completed'" @click="updateStatus('cancelled')" class="btn-secondary text-xs border-red-500/30 text-red-400">✕ Cancel</button>
     </div>
+
+    <!-- Complete + post GL entry modal -->
+    <Teleport to="body">
+      <div v-if="completeModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+           style="background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)" @click.self="completeModal = false">
+        <div class="glass-card p-6 w-full max-w-sm space-y-4" @click.stop>
+          <h3 class="text-sm font-semibold text-gray-200">Mark Completed</h3>
+          <p class="text-xs text-gray-500">
+            Total cost <span class="text-gold-400 font-semibold">৳{{ Number(req.total_cost || 0).toLocaleString() }}</span>
+            will be posted to the ledger as a Vehicle Maintenance expense.
+          </p>
+          <div>
+            <label class="field-label">Paid From *</label>
+            <select v-model="payMethod" class="field-input w-full">
+              <option value="">Select…</option>
+              <option value="cash">Petty Cash</option>
+              <option value="bank">Bank</option>
+            </select>
+          </div>
+          <div v-if="payMethod === 'cash'">
+            <label class="field-label">Petty Cash Account</label>
+            <select v-model="payCashAccount" class="field-input w-full">
+              <option value="">— Select —</option>
+              <option v-for="a in pettyCashAccounts" :key="a.id" :value="a.id">{{ a.account_name }} (৳{{ Number(a.current_balance).toLocaleString() }})</option>
+            </select>
+          </div>
+          <div v-if="payMethod === 'bank'">
+            <label class="field-label">Bank Account</label>
+            <select v-model="payBankAccount" class="field-input w-full">
+              <option value="">— Select —</option>
+              <option v-for="a in bankAccounts" :key="a.id" :value="a.id">{{ a.bank_name }} — {{ a.account_name }}</option>
+            </select>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button @click="completeModal = false" class="btn-ghost text-xs flex-1 justify-center">Cancel</button>
+            <button @click="confirmComplete"
+                    :disabled="!payMethod || (payMethod === 'cash' && !payCashAccount) || (payMethod === 'bank' && !payBankAccount)"
+                    class="btn-gold text-xs flex-1 justify-center disabled:opacity-40">
+              Complete &amp; Post
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
       <!-- Main -->
@@ -110,13 +154,48 @@ const route = useRoute()
 const id    = Number(route.params.id)
 
 const { data, refresh } = await useFetch(`/api/fleet/maintenance/${id}`)
+const { data: pettyData } = await useFetch('/api/expenses/petty-cash-accounts')
+const { data: bankData }  = await useFetch('/api/bank-accounts')
+const { error: toastError, success } = useToast()
 
 const req       = computed(() => (data.value as any)?.request   ?? null)
 const tasks     = computed(() => (data.value as any)?.tasks     ?? [])
 const materials = computed(() => (data.value as any)?.materials ?? [])
+const pettyCashAccounts = computed(() => (pettyData.value as any)?.accounts ?? [])
+const bankAccounts      = computed(() => (bankData.value as any)?.accounts ?? [])
 
 const taskTotal = computed(() => tasks.value.reduce((s: number, t: any) => s + Number(t.service_cost || 0), 0))
 const matTotal  = computed(() => materials.value.reduce((s: number, m: any) => s + Number(m.amount || 0), 0))
+
+const completeModal   = ref(false)
+const payMethod       = ref('')
+const payCashAccount  = ref('')
+const payBankAccount  = ref('')
+
+function openComplete() {
+  if (Number(req.value?.total_cost || 0) <= 0.009) { updateStatus('completed'); return }
+  payMethod.value = ''; payCashAccount.value = ''; payBankAccount.value = ''
+  completeModal.value = true
+}
+
+async function confirmComplete() {
+  try {
+    await $fetch(`/api/fleet/maintenance/${id}`, {
+      method: 'PATCH',
+      body: {
+        status: 'completed',
+        payment_method: payMethod.value,
+        cash_account_id: payMethod.value === 'cash' ? payCashAccount.value : null,
+        bank_account_id: payMethod.value === 'bank' ? payBankAccount.value : null,
+      },
+    })
+    completeModal.value = false
+    success('Maintenance marked complete and posted to the ledger ✓')
+    refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to complete request')
+  }
+}
 
 async function updateStatus(status: string) {
   await $fetch(`/api/fleet/maintenance/${id}`, { method: 'PATCH', body: { status } })

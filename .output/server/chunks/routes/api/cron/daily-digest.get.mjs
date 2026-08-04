@@ -1,4 +1,4 @@
-import { q as defineEventHandler, m as createError, J as getQuery, aF as sendOwnerDigestNow, aM as useRuntimeConfig } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, m as createError, J as getQuery, aG as sendOwnerDigestNow, aN as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

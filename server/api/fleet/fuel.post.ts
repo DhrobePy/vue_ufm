@@ -1,11 +1,15 @@
-import { query, queryOne } from '~/server/utils/db'
+import { getDb, queryOne } from '~/server/utils/db'
+import { postFleetExpenseGl } from '~/server/utils/fleetGl'
 
 export default defineEventHandler(async (event) => {
+  const session = await getUserSession(event)
+  const userId  = Number((session?.user as any)?.id) || 1
   const body = await readBody(event)
   const {
     vehicle_id, driver_id, fuel_date, fuel_type,
     quantity_liters, price_per_liter, total_amount,
     odometer_reading, station_name, receipt_no, trip_id,
+    payment_method, cash_account_id, bank_account_id,
   } = body ?? {}
 
   if (!vehicle_id || !fuel_date || !quantity_liters)
@@ -23,36 +27,71 @@ export default defineEventHandler(async (event) => {
   const price = price_per_liter ? Number(price_per_liter) : null
   const total = total_amount ? Number(total_amount) : (price && qty ? Math.round(price * qty * 100) / 100 : null)
 
-  const result = await query(
-    `INSERT INTO fleet_fuel_logs
-       (vehicle_id, driver_id, fuel_date, fuel_type,
-        quantity_liters, price_per_liter, total_amount,
-        odometer_reading, previous_odometer,
-        station_name, receipt_no, trip_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      Number(vehicle_id),
-      driver_id   ? Number(driver_id)   : null,
-      fuel_date,
-      fuel_type   || 'DIESEL',
-      qty,
-      price,
-      total,
-      odometer_reading ? Number(odometer_reading) : null,
-      prev?.odometer_reading ?? null,
-      station_name || null,
-      receipt_no   || null,
-      trip_id      ? Number(trip_id)     : null,
-    ],
-  ) as any
+  const conn = await getDb().getConnection()
+  try {
+    await conn.beginTransaction()
 
-  // Update vehicle odometer if provided
-  if (odometer_reading) {
-    await query(
-      `UPDATE fleet_vehicles SET current_odometer = ? WHERE id = ? AND current_odometer < ?`,
-      [Number(odometer_reading), Number(vehicle_id), Number(odometer_reading)],
+    const [result] = await conn.query<any>(
+      `INSERT INTO fleet_fuel_logs
+         (vehicle_id, driver_id, fuel_date, fuel_type,
+          quantity_liters, price_per_liter, total_amount,
+          odometer_reading, previous_odometer,
+          station_name, receipt_no, trip_id, payment_method, cash_account_id, bank_account_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        Number(vehicle_id),
+        driver_id   ? Number(driver_id)   : null,
+        fuel_date,
+        fuel_type   || 'DIESEL',
+        qty,
+        price,
+        total,
+        odometer_reading ? Number(odometer_reading) : null,
+        prev?.odometer_reading ?? null,
+        station_name || null,
+        receipt_no   || null,
+        trip_id      ? Number(trip_id)     : null,
+        payment_method === 'bank' ? 'bank' : payment_method === 'cash' ? 'cash' : null,
+        cash_account_id ? Number(cash_account_id) : null,
+        bank_account_id ? Number(bank_account_id) : null,
+      ],
     )
-  }
+    const fuelLogId = result.insertId
 
-  return { ok: true, id: result.insertId }
+    // Post the DR Fuel Expense / CR Cash-or-Bank journal entry — only when a
+    // payment method was given (older/unmigrated callers keep working with
+    // a log-only row, matching the pre-existing lenient contract).
+    if (payment_method && total) {
+      const journalEntryId = await postFleetExpenseGl({
+        conn,
+        expenseAccountName: 'Fuel Expense',
+        paymentMethod: payment_method === 'bank' ? 'bank' : 'cash',
+        cashAccountId: cash_account_id ? Number(cash_account_id) : null,
+        bankAccountId: bank_account_id ? Number(bank_account_id) : null,
+        amount: total,
+        date: fuel_date,
+        description: `Fuel — ${fuel_type || 'DIESEL'} ${qty}L${station_name ? ' @ ' + station_name : ''}`,
+        relatedDocumentType: 'FleetFuelLog',
+        relatedDocumentId: fuelLogId,
+        userId,
+      })
+      await conn.query(`UPDATE fleet_fuel_logs SET journal_entry_id = ? WHERE id = ?`, [journalEntryId, fuelLogId])
+    }
+
+    // Update vehicle odometer if provided
+    if (odometer_reading) {
+      await conn.query(
+        `UPDATE fleet_vehicles SET current_odometer = ? WHERE id = ? AND current_odometer < ?`,
+        [Number(odometer_reading), Number(vehicle_id), Number(odometer_reading)],
+      )
+    }
+
+    await conn.commit()
+    return { ok: true, id: fuelLogId }
+  } catch (e) {
+    await conn.rollback()
+    throw e
+  } finally {
+    conn.release()
+  }
 })

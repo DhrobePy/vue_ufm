@@ -1455,5 +1455,19 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'production_schedule', 'bags_completed', 'INT UNSIGNED NOT NULL DEFAULT 0')
   await addCol(db, 'production_schedule', 'target_bags', 'INT UNSIGNED NULL DEFAULT NULL')
 
+  // Fleet fuel/maintenance previously posted no GL entry at all (raw log
+  // rows only) — add the payment-account + journal-entry link so both flows
+  // can post a real double-entry (DR expense / CR cash-or-bank) like every
+  // other spend path in the app.
+  await addCol(db, 'fleet_fuel_logs', 'payment_method', "VARCHAR(10) NULL DEFAULT NULL COMMENT 'cash | bank'")
+  await addCol(db, 'fleet_fuel_logs', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'fleet_fuel_logs', 'bank_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'fleet_fuel_logs', 'journal_entry_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
+  await addCol(db, 'maintenance_requests', 'payment_method', "VARCHAR(10) NULL DEFAULT NULL COMMENT 'cash | bank'")
+  await addCol(db, 'maintenance_requests', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'maintenance_requests', 'bank_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'maintenance_requests', 'journal_entry_id', 'INT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

@@ -109,6 +109,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/vehicles')" label="Vehicles"     route="/fleet/vehicles"              :collapsed="collapsed" icon-type="truck"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/drivers')" label="Drivers"      route="/fleet/drivers"               :collapsed="collapsed" icon-type="users"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/trips')" label="Trips"        route="/fleet/trips"                 :collapsed="collapsed" icon-type="list"      sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/fleet/rentals')" label="Rentals"      route="/fleet/rentals"               :collapsed="collapsed" icon-type="receipt"   sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/maintenance')" label="Maintenance"  route="/fleet/maintenance"           :collapsed="collapsed" icon-type="cog"       sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/maintenance/rules')" label="PM Rules"     route="/fleet/maintenance/rules"     :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/fleet/fuel')" label="Fuel Logs"    route="/fleet/fuel"                  :collapsed="collapsed" icon-type="receipt"   sub />
