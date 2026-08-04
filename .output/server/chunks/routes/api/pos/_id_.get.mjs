@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, ao as query } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, ao as query, z as getDb, B as getDeliveryQrSecret, ac as posExitQrSignature, M as getRequestURL } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -43,7 +43,17 @@ const _id__get = defineEventHandler(async (event) => {
     )
   ]);
   if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-  return { order, items, je_lines: jeLines };
+  const conn = await getDb().getConnection();
+  let verifyUrl = "";
+  try {
+    const secret = await getDeliveryQrSecret(conn);
+    const sig = posExitQrSignature(order.order_number, secret);
+    const origin = getRequestURL(event).origin;
+    verifyUrl = `${origin}/pos/exit/${order.id}?sig=${sig}`;
+  } finally {
+    conn.release();
+  }
+  return { order, items, je_lines: jeLines, verify_url: verifyUrl };
 });
 
 export { _id__get as default };

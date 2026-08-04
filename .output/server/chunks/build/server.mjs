@@ -659,13 +659,13 @@ const _routes = [
     name: "pos",
     path: "/pos",
     meta: __nuxt_page_meta$2M || {},
-    component: () => import('./index-CigOMWyO.mjs')
+    component: () => import('./index-B_dhJ563.mjs')
   },
   {
     name: "pos-today",
     path: "/pos/today",
     meta: __nuxt_page_meta$2L || {},
-    component: () => import('./today-BumsF-Ox.mjs')
+    component: () => import('./today-5-4BXbvk.mjs')
   },
   {
     name: "auth-login",

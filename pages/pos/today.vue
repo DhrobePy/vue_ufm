@@ -42,10 +42,20 @@
         <template #cell-order_status="{ value }">
           <UiStatusBadge :status="value?.toLowerCase()" />
         </template>
+        <template #cell-exit="{ row }">
+          <NuxtLink v-if="Number(row.credit_amount) > 0" :to="`/pos/exit/${row.id}`"
+                    class="text-[11px] font-medium"
+                    :class="row.exit_status === 'cleared' ? 'text-emerald-400' : 'text-red-400 animate-pulse'">
+            {{ row.exit_status === 'cleared' ? '✅ Cleared' : '⏳ Pending Gate' }}
+          </NuxtLink>
+          <span v-else class="text-[11px] text-gray-600">—</span>
+        </template>
         <template #actions="{ row }">
           <div class="flex gap-1.5">
-            <button class="btn-ghost text-xs py-1 px-2">View</button>
-            <button class="btn-ghost text-xs py-1 px-2">🖨</button>
+            <button @click="navigateTo(`/pos/${row.id}`)" class="btn-ghost text-xs py-1 px-2">View</button>
+            <button @click="reprint(row)" :disabled="printingId === row.id" class="btn-ghost text-xs py-1 px-2 disabled:opacity-40">
+              {{ printingId === row.id ? '…' : '🖨' }}
+            </button>
           </div>
         </template>
       </UiDataTable>
@@ -64,10 +74,42 @@ const cols = [
   { key: 'payment_method', label: 'Method' },
   { key: 'total_amount',   label: 'Amount',      sortable: true },
   { key: 'order_status',   label: 'Status' },
+  { key: 'exit',           label: 'Gate' },
 ]
 
+const { error: toastError } = useToast()
 const { data, pending } = await useFetch('/api/pos/today')
 
 const orders = computed(() => (data.value as any)?.orders ?? [])
 const stats  = computed(() => (data.value as any)?.stats  ?? {})
+
+const printingId = ref<number | null>(null)
+async function reprint(row: any) {
+  printingId.value = row.id
+  try {
+    const detail = await $fetch(`/api/pos/${row.id}`) as any
+    const items = (detail.items ?? []).map((it: any) => ({
+      name: `${it.base_name} ${it.weight_variant ?? ''}`.trim(),
+      qty: Number(it.quantity),
+      price: Number(it.unit_price),
+    }))
+    const ok = printPosReceiptCopies({
+      receiptNo: detail.order.order_number,
+      total: Number(detail.order.total_amount),
+      subtotal: Number(detail.order.subtotal),
+      discount: Number(detail.order.discount_amount),
+      cashAmount: Number(detail.order.cash_amount),
+      creditAmount: Number(detail.order.credit_amount),
+      paymentMethod: detail.order.payment_method,
+      customerName: detail.order.customer_name ?? '',
+      items,
+      verifyUrl: detail.verify_url,
+    })
+    if (!ok) toastError('Allow popups to print all copies.')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to load receipt for printing')
+  } finally {
+    printingId.value = null
+  }
+}
 </script>

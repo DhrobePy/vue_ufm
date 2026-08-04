@@ -1,4 +1,5 @@
-import { query } from '~/server/utils/db'
+import { getDb, query } from '~/server/utils/db'
+import { getDeliveryQrSecret, posExitQrSignature } from '~/server/utils/qrDelivery'
 
 /** GET /api/pos/:id — POS order detail (items, customer, journal, exit status). */
 export default defineEventHandler(async (event) => {
@@ -32,5 +33,16 @@ export default defineEventHandler(async (event) => {
   ])
   if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
-  return { order, items, je_lines: jeLines }
+  const conn = await getDb().getConnection()
+  let verifyUrl = ''
+  try {
+    const secret = await getDeliveryQrSecret(conn)
+    const sig = posExitQrSignature(order.order_number, secret)
+    const origin = getRequestURL(event).origin
+    verifyUrl = `${origin}/pos/exit/${order.id}?sig=${sig}`
+  } finally {
+    conn.release()
+  }
+
+  return { order, items, je_lines: jeLines, verify_url: verifyUrl }
 })

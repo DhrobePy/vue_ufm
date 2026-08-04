@@ -8,6 +8,7 @@ export default defineEventHandler(async (event) => {
     query(
       `SELECT o.id, o.order_number, o.order_date, o.order_status,
               o.total_amount, o.payment_method, o.payment_status,
+              o.credit_amount, o.exit_status,
               COALESCE(c.name, 'Walk-in') AS customer_name,
               COUNT(oi.id) AS item_count
        FROM orders o
