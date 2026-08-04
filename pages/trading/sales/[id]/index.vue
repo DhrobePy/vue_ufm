@@ -19,6 +19,7 @@
           <button v-if="canModify" @click="showEdit = !showEdit" class="btn-ghost text-xs">✏️ Correct</button>
           <button v-if="canModify" @click="deleteSale" class="btn-ghost text-xs text-red-400">🗑 Delete</button>
           <NuxtLink :to="`/trading/sales/${sale.id}/gate-pass`" class="btn-ghost text-xs">🖨 Gate Pass</NuxtLink>
+          <NuxtLink :to="`/trading/sales/${sale.id}/invoice`" class="btn-ghost text-xs">🧾 Invoice</NuxtLink>
         </div>
         <p v-if="!canModify && Number(sale.amount_paid) > 0" class="text-[10px] text-gray-600 pt-1">
           Corrections/deletion locked — payments exist. Reverse them first from Payment History.

@@ -40,6 +40,40 @@ export function posExitQrSignature(orderNumber: string, secret: string): string 
   return crypto.createHmac('sha256', secret).update(`POSEXIT|${orderNumber}`).digest('hex').slice(0, 16)
 }
 
+/**
+ * Log one POS exit-QR scan attempt. A scan on an order whose exit is already
+ * 'cleared' is a reuse — flagged and Telegram-alerted (possible duplicate
+ * exit / gate bypass). Returns the running scan count for this order.
+ */
+export async function recordPosExitScan(conn: any, opts: {
+  orderId: number
+  orderNumber: string
+  alreadyCleared: boolean
+  scannerId: number | null
+  scannerName: string
+  ip: string | null
+}): Promise<number> {
+  await conn.query(
+    `INSERT INTO pos_qr_scan_log (order_id, order_number, reused, scanned_by_user_id, scanned_by_name, ip)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [opts.orderId, opts.orderNumber, opts.alreadyCleared ? 1 : 0, opts.scannerId, opts.scannerName, opts.ip],
+  )
+  const [[row]] = await conn.query(
+    `SELECT COUNT(*) AS c FROM pos_qr_scan_log WHERE order_id = ?`, [opts.orderId],
+  )
+  const total = Number(row?.c ?? 0)
+  if (opts.alreadyCleared) {
+    sendTelegram(
+      `⚠️ <b>POS EXIT QR RE-SCANNED</b>\n` +
+      `Order: ${opts.orderNumber}\n` +
+      `Already cleared for exit — scanned again by ${opts.scannerName}\n` +
+      `Total scans on this QR: ${total}\n\n` +
+      `Possible duplicate exit / gate bypass attempt — please verify.`,
+    'dispatch')
+  }
+  return total
+}
+
 export async function verifyDeliveryQrSignature(conn: any, orderNumber: string, sig: string): Promise<boolean> {
   const secret = await getDeliveryQrSecret(conn)
   const expected = deliveryQrSignature(orderNumber, secret)

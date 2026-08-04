@@ -12,6 +12,7 @@
       >
         <template #actions>
           <button @click="printVoucher" class="btn-ghost text-xs">🖨️ Print Voucher</button>
+          <NuxtLink v-if="exp.status === 'pending'" :to="`/expenses/${exp.id}/edit`" class="btn-ghost text-xs">✏️ Edit</NuxtLink>
           <button v-if="exp.status === 'pending'" @click="openReject"
                   class="btn-ghost text-xs border-red-500/20 text-red-400 hover:bg-red-500/10">Reject</button>
           <button v-if="exp.status === 'pending'" @click="doApprove" :disabled="acting"

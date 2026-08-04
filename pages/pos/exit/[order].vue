@@ -19,6 +19,9 @@
         <p class="text-3xl">✅</p>
         <p class="font-bold text-emerald-400">Cleared for Exit</p>
         <p class="text-xs text-gray-500">{{ order.cleared_by_name ? `by ${order.cleared_by_name}` : '' }}</p>
+        <p v-if="scanCount > 1" class="text-[11px] text-red-400 font-semibold pt-1">
+          ⚠ Scanned {{ scanCount }} times — already cleared before this scan. Verify no duplicate exit.
+        </p>
       </div>
       <div v-else class="glass-card p-6 text-center space-y-3">
         <p class="text-3xl">⏳</p>
@@ -42,6 +45,7 @@ const orderId = computed(() => Number(route.params.order))
 const sig = computed(() => String(route.query.sig ?? ''))
 const { data, pending, refresh } = await useFetch(() => `/api/pos/exit/${orderId.value}`, { query: { sig } })
 const order = computed<any>(() => (data.value as any)?.order ?? null)
+const scanCount = computed<number>(() => (data.value as any)?.scan_count ?? 0)
 
 const acting = ref(false)
 async function clearExit() {

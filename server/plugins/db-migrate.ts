@@ -1469,5 +1469,25 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'maintenance_requests', 'bank_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
   await addCol(db, 'maintenance_requests', 'journal_entry_id', 'INT UNSIGNED NULL DEFAULT NULL')
 
+  // pos_qr_scan_log — every POS exit-QR scan attempt, with reuse flagging.
+  // Previously the Vue port only tracked exit_status as a static column on
+  // orders (cleared | pending_approval) with no scan history at all, so a
+  // re-scan after exit was already cleared went completely unnoticed.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS pos_qr_scan_log (
+        id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id           BIGINT UNSIGNED NOT NULL,
+        order_number       VARCHAR(50) NULL,
+        reused             TINYINT(1) NOT NULL DEFAULT 0,
+        scanned_by_user_id BIGINT UNSIGNED NULL,
+        scanned_by_name    VARCHAR(120) NULL,
+        ip                 VARCHAR(64) NULL,
+        scanned_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY idx_pqsl_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] pos_qr_scan_log failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })
