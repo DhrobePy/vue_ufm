@@ -1450,5 +1450,10 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'cash_verification_log', 'deposit_reference', 'VARCHAR(100) NULL DEFAULT NULL')
   await addCol(db, 'cash_verification_log', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')
 
+  // production_schedule.bags_completed — pages/production/index.vue's Update
+  // Progress action previously only mutated local Vue state (lost on refresh).
+  await addCol(db, 'production_schedule', 'bags_completed', 'INT UNSIGNED NOT NULL DEFAULT 0')
+  await addCol(db, 'production_schedule', 'target_bags', 'INT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

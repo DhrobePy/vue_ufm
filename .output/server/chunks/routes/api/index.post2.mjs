@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, m as createError, aN as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aq as readBody, z as getDb } from '../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, aN as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aq as readBody, z as getDb, ah as postCustomerLedger, g as auditLog } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
@@ -27,13 +27,15 @@ const index_post = defineEventHandler(async (event) => {
   if (!canCreate)
     throw createError({ statusCode: 403, statusMessage: "Your account is not allowed to create customers" });
   const body = await readBody(event);
-  const { name, business_name, phone_number, email, business_address, customer_type, credit_limit } = body;
+  const { name, business_name, phone_number, email, business_address, customer_type, credit_limit, opening_balance } = body;
   if (!name || !name.trim()) {
     throw createError({ statusCode: 422, statusMessage: "Customer name is required" });
   }
+  const openingBal = Math.max(0, Number(opening_balance) || 0);
   const db = getDb();
   const conn = await db.getConnection();
   try {
+    await conn.beginTransaction();
     const [result] = await conn.query(
       `INSERT INTO customers
          (name, business_name, phone_number, email, business_address,
@@ -49,7 +51,38 @@ const index_post = defineEventHandler(async (event) => {
         credit_limit || 0
       ]
     );
-    return { id: result.insertId, message: "Customer created successfully" };
+    const customerId = result.insertId;
+    if (openingBal > 9e-3) {
+      const date = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      const ledgerId = await postCustomerLedger(conn, {
+        customerId,
+        date,
+        transactionType: "opening_balance",
+        referenceType: "opening_balance",
+        referenceId: 0,
+        invoiceNumber: `OB-${customerId}`,
+        description: `Opening balance \u2014 existing outstanding due carried into the system at customer creation`,
+        debit: openingBal,
+        credit: 0,
+        journalEntryId: null,
+        // memo-level, matches the manual-adjustment convention — no GL posting
+        userId
+      });
+      await auditLog(conn, {
+        userId,
+        action: "created",
+        module: "customers",
+        recordType: "customer_ledger",
+        recordId: ledgerId,
+        description: `Opening balance \u09F3${openingBal.toLocaleString()} recorded for new customer "${name.trim()}"`,
+        severity: "info"
+      });
+    }
+    await conn.commit();
+    return { id: customerId, message: "Customer created successfully" };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
   } finally {
     conn.release();
   }

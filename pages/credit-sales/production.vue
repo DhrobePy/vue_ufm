@@ -137,9 +137,18 @@
               </p>
             </div>
 
-            <!-- Mark Ready -->
+            <!-- Start Production (approved → in_production) -->
             <button
-              v-if="perms.canDo('credit_sales', 'production', 'mark_ready')"
+              v-if="order.status === 'approved' && perms.canDo('credit_sales', 'production', 'start_production')"
+              @click.stop="startProduction(order)"
+              :disabled="acting === order.id"
+              class="btn-ghost text-xs py-1.5 px-3 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed text-blue-400 border-blue-500/20">
+              {{ acting === order.id ? '…' : '▶ Start' }}
+            </button>
+
+            <!-- Mark Ready (in_production → ready_to_ship) -->
+            <button
+              v-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_ready')"
               @click.stop="markReady(order)"
               :disabled="acting === order.id"
               class="btn-gold text-xs py-1.5 px-3 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
@@ -301,8 +310,24 @@ function fmtDate(d: string | null): string {
   return new Date(d).toLocaleDateString('en-BD', { day: '2-digit', month: 'short' })
 }
 
-// ── Mark Ready ────────────────────────────────────────────
+// ── Start Production / Mark Ready ──────────────────────────
 const acting = ref<number | null>(null)
+
+async function startProduction(order: any) {
+  acting.value = order.id
+  try {
+    await $fetch(`/api/credit-sales/${order.id}/workflow`, {
+      method: 'POST',
+      body:   { to_status: 'in_production', comments: 'Production started' },
+    })
+    success(`${order.orderNo} moved to production ▶`)
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to start production')
+  } finally {
+    acting.value = null
+  }
+}
 
 async function markReady(order: any) {
   acting.value = order.id

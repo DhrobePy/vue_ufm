@@ -10,12 +10,15 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid payment ID" });
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const userName = (_f = (_e = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.name) != null ? _e : (_d = session == null ? void 0 : session.user) == null ? void 0 : _d.email) != null ? _f : "System";
+  const role = ((_h = (_g = session == null ? void 0 : session.user) == null ? void 0 : _g.role) != null ? _h : "").toLowerCase();
+  if (role !== "superadmin")
+    throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can delete a purchase payment" });
   const db = getDb();
   const conn = await db.getConnection();
   try {

@@ -302,11 +302,12 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
-const { success, info } = useToast()
+const { success, info, error: toastError } = useToast()
 
 // ── Types ────────────────────────────────────────────────
 interface Batch {
   id: string
+  dbId: number
   product: string
   orderId: string
   customer: string
@@ -332,21 +333,32 @@ interface QueueRow {
 }
 
 // ── API data ─────────────────────────────────────────────
-const { data: apiData } = await useFetch('/api/production')
+const { data: apiData, refresh: refreshApi } = await useFetch('/api/production')
+
+function parseNotes(notes: string | null | undefined) {
+  const parts: Record<string, string> = {}
+  for (const part of (notes ?? '').split('|')) {
+    const sep = part.indexOf(':')
+    if (sep > 0) parts[part.slice(0, sep).trim()] = part.slice(sep + 1).trim()
+  }
+  return parts
+}
 
 function scheduleTooBatch(s: any): Batch {
   const kg = Number(s.total_weight_kg ?? 0)
+  const notes = parseNotes(s.notes)
   return {
     id:         `PS-${s.id}`,
-    product:    s.order_number ?? '—',
+    dbId:       s.id,
+    product:    notes['Product'] ?? s.order_number ?? '—',
     orderId:    s.order_number ?? '—',
     customer:   s.customer_name ?? '—',
-    targetBags: kg > 0 ? Math.round(kg / 50) : 200,
-    doneBags:   0,
-    status:     s.status === 'in_progress' ? 'running' : 'paused',
-    shift:      '—',
-    machine:    '—',
-    operator:   s.manager_name ?? '—',
+    targetBags: Number(s.target_bags) || (kg > 0 ? Math.round(kg / 50) : 200),
+    doneBags:   Number(s.bags_completed) || 0,
+    status:     s.status === 'in_progress' ? 'running' : s.status === 'completed' ? 'completed' : 'paused',
+    shift:      notes['Shift'] ?? '—',
+    machine:    notes['Machine'] ?? '—',
+    operator:   notes['Operator'] ?? s.manager_name ?? '—',
   }
 }
 
@@ -423,11 +435,20 @@ function openUpdate(batch: Batch) {
   updateModal.note     = ''
   updateModal.open     = true
 }
-function submitUpdate() {
+async function submitUpdate() {
   if (!updateModal.batch) return
-  updateModal.batch.doneBags = updateModal.doneBags
-  updateModal.open = false
-  success(`Batch ${updateModal.batch.id} updated — ${updateModal.doneBags} bags done`)
+  const batch = updateModal.batch
+  try {
+    await $fetch(`/api/production/${batch.id}`, {
+      method: 'PATCH',
+      body: { bags_completed: updateModal.doneBags, notes: updateModal.note || undefined },
+    })
+    batch.doneBags = updateModal.doneBags
+    updateModal.open = false
+    success(`Batch ${batch.id} updated — ${updateModal.doneBags} bags done`)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to update batch')
+  }
 }
 
 // ── Ready / Complete modal ────────────────────────────────
@@ -441,24 +462,36 @@ function openReady(batch: Batch) {
   readyModal.finalBags = batch.doneBags
   readyModal.open      = true
 }
-function completeBatch() {
+async function completeBatch() {
   if (!readyModal.batch) return
-  readyModal.batch.doneBags  = readyModal.finalBags
-  readyModal.batch.status    = 'completed'
-  readyModal.batch.completedAt = new Date().toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' })
-  // move to completed list
-  const idx = activeBatches.value.indexOf(readyModal.batch)
-  if (idx !== -1) {
-    completedToday.value.unshift(activeBatches.value.splice(idx, 1)[0])
+  const batch = readyModal.batch
+  try {
+    const res: any = await $fetch(`/api/production/${batch.id}`, {
+      method: 'PATCH',
+      body: { status: 'completed', bags_completed: readyModal.finalBags },
+    })
+    batch.doneBags  = readyModal.finalBags
+    batch.status    = 'completed'
+    batch.completedAt = new Date().toLocaleTimeString('en-BD', { hour: '2-digit', minute: '2-digit' })
+    // move to completed list
+    const idx = activeBatches.value.indexOf(batch)
+    if (idx !== -1) completedToday.value.unshift(activeBatches.value.splice(idx, 1)[0])
+    readyModal.open = false
+    success(`Batch ${batch.id} marked complete ✓${res?.orderAdvanced ? ' — order moved to Ready to Ship' : ''}`)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to complete batch')
   }
-  readyModal.open = false
-  success(`Batch ${readyModal.batch.id} marked complete ✓`)
 }
 
 // ── Resume paused batch ───────────────────────────────────
-function resumeBatch(batch: Batch) {
-  batch.status = 'running'
-  info(`Batch ${batch.id} resumed`)
+async function resumeBatch(batch: Batch) {
+  try {
+    await $fetch(`/api/production/${batch.id}`, { method: 'PATCH', body: { status: 'running' } })
+    batch.status = 'running'
+    info(`Batch ${batch.id} resumed`)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to resume batch')
+  }
 }
 
 // ── Start modal ───────────────────────────────────────────
@@ -484,25 +517,48 @@ function openStart(row: QueueRow) {
   startForm.notes     = ''
   startModal.open     = true
 }
-function submitStart() {
+async function submitStart() {
   if (!startModal.row) return
-  const batchNo = `BTH-${String(1148 + activeBatches.value.length).padStart(4, '0')}`
-  activeBatches.value.push({
-    id: batchNo,
-    product: startModal.row.product,
-    orderId: startModal.row.orderNo,
-    customer: startModal.row.customer,
-    targetBags: startForm.targetBags || startModal.row.defaultBags,
-    doneBags: 0,
-    status: 'running',
-    shift: startForm.shift,
-    machine: startForm.machine,
-    operator: startForm.operator,
-  })
-  // remove from pending
-  const idx = pendingQueue.value.findIndex(r => r.id === startModal.row!.id)
-  if (idx !== -1) pendingQueue.value.splice(idx, 1)
-  startModal.open = false
-  success(`Batch ${batchNo} started for ${startModal.row.orderNo} ▶`)
+  const row = startModal.row
+  const notesStr = [
+    `Machine: ${startForm.machine}`,
+    `Shift: ${startForm.shift}`,
+    `Operator: ${startForm.operator}`,
+    startForm.rawMaterial ? `Raw Material: ${startForm.rawMaterial}` : '',
+    startForm.notes ? `Notes: ${startForm.notes}` : '',
+  ].filter(Boolean).join(' | ')
+
+  try {
+    const res: any = await $fetch('/api/production', {
+      method: 'POST',
+      body: {
+        order_id: row.id,
+        scheduled_date: new Date().toISOString().slice(0, 10),
+        notes: notesStr,
+        target_bags: startForm.targetBags || row.defaultBags,
+        start_immediately: true,
+      },
+    })
+    activeBatches.value.push({
+      id: `PS-${res.id}`,
+      dbId: res.id,
+      product: row.product,
+      orderId: row.orderNo,
+      customer: row.customer,
+      targetBags: startForm.targetBags || row.defaultBags,
+      doneBags: 0,
+      status: 'running',
+      shift: startForm.shift,
+      machine: startForm.machine,
+      operator: startForm.operator,
+    })
+    // remove from pending
+    const idx = pendingQueue.value.findIndex(r => r.id === row.id)
+    if (idx !== -1) pendingQueue.value.splice(idx, 1)
+    startModal.open = false
+    success(`Batch PS-${res.id} started for ${row.orderNo} ▶`)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to start batch')
+  }
 }
 </script>

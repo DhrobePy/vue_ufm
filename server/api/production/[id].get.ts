@@ -15,6 +15,7 @@ export default defineEventHandler(async (event) => {
   const ps = await queryOne(
     `SELECT ps.id, ps.scheduled_date, ps.status, ps.notes, ps.priority_order,
             ps.production_started_at, ps.production_completed_at,
+            ps.bags_completed, ps.target_bags,
             co.id AS credit_order_id, co.order_number,
             co.total_amount, co.total_weight_kg,
             c.name AS customer_name,
@@ -43,10 +44,11 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  // Estimate bag count from total weight (default 50 kg/bag)
+  // target_bags is set explicitly at batch-start; fall back to a weight estimate
+  // (50 kg/bag) for older rows created before that column existed.
   const bagWeightKg   = 50
   const totalWeightKg = Number(ps.total_weight_kg) || 0
-  const targetBags    = totalWeightKg > 0 ? Math.ceil(totalWeightKg / bagWeightKg) : 0
+  const targetBags    = Number(ps.target_bags) || (totalWeightKg > 0 ? Math.ceil(totalWeightKg / bagWeightKg) : 0)
 
   const startedAt  = ps.production_started_at as string | null
   const startDate  = startedAt ? startedAt.slice(0, 10) : (ps.scheduled_date as string)
@@ -69,7 +71,7 @@ export default defineEventHandler(async (event) => {
     rawMaterial: noteParts['Raw Material'] ?? '—',
     bagWeightKg,
     targetBags,
-    doneBags:    0,
+    doneBags:    Number(ps.bags_completed) || 0,
     branch:      (ps.branch_name  ?? '') as string,
     manager:     (ps.manager_name ?? '') as string,
     notes:       (ps.notes ?? '') as string,

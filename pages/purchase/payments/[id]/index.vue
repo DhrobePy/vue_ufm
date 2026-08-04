@@ -67,11 +67,12 @@
             <h3 class="text-sm font-semibold text-gray-300">Actions</h3>
             <NuxtLink :to="`/purchase/payments/${route.params.id}/edit`" class="btn-ghost text-xs w-full justify-start gap-2">✏ Edit Payment</NuxtLink>
             <NuxtLink :to="`/purchase/payments/${route.params.id}/print`" class="btn-ghost text-xs w-full justify-start gap-2">🖨 Print Receipt</NuxtLink>
-            <button @click="deletePayment" :disabled="deleting"
+            <button v-if="isSuperadmin" @click="deletePayment" :disabled="deleting"
               class="btn-ghost text-xs w-full justify-start gap-2 text-red-400 hover:text-red-300 hover:border-red-500/30"
               :class="deleting ? 'opacity-50 cursor-not-allowed' : ''">
               {{ deleting ? 'Deleting…' : '✕ Delete Payment' }}
             </button>
+            <p v-else class="text-[11px] text-gray-600 italic px-1">Only a Superadmin can delete a payment</p>
           </div>
         </div>
       </div>
@@ -83,6 +84,8 @@
 definePageMeta({ layout: 'default' })
 const route  = useRoute()
 const { success, error: toastError } = useToast()
+const { user: sessionUser } = useUserSession()
+const isSuperadmin = computed(() => (sessionUser.value?.role ?? '').toLowerCase() === 'superadmin')
 const deleting = ref(false)
 
 const { data, pending, error, refresh } = await useFetch(

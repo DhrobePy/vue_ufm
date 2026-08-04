@@ -1,12 +1,12 @@
 import { query, getDb } from '~/server/utils/db'
 
-const ACCOUNTS_ROLES = ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra']
+const PRICING_ROLES = ['admin', 'superadmin']
 
 export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
   const role    = ((session?.user as any)?.role ?? '').toLowerCase()
-  if (!ACCOUNTS_ROLES.includes(role))
-    throw createError({ statusCode: 403, statusMessage: 'Forbidden' })
+  if (!PRICING_ROLES.includes(role))
+    throw createError({ statusCode: 403, statusMessage: 'Only Admin/Superadmin can set sell prices' })
 
   const variantId = Number(getRouterParam(event, 'variantId'))
   if (!variantId) throw createError({ statusCode: 400, statusMessage: 'Invalid variant ID' })

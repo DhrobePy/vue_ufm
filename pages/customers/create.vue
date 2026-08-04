@@ -161,6 +161,7 @@ async function submit() {
         business_address: form.address      || undefined,
         customer_type:    form.type === 'POS' ? 'POS' : 'Credit',
         credit_limit:     form.type === 'Credit' ? form.creditLimit : 0,
+        opening_balance:  form.initialDue || 0,
       },
     })
     success('Customer created successfully ✓')

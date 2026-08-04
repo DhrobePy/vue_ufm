@@ -31,6 +31,15 @@ export default defineEventHandler(async (event) => {
     if (target.status === 'deleted')
       throw createError({ statusCode: 400, statusMessage: 'User is already deleted' })
 
+    if (target.role?.toLowerCase() === 'superadmin') {
+      const [[{ c }]] = await conn.query<any>(
+        `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status != 'deleted' AND id != ?`,
+        [id],
+      )
+      if (Number(c) === 0)
+        throw createError({ statusCode: 400, statusMessage: 'Cannot delete the last remaining Superadmin — the org would be locked out' })
+    }
+
     // Soft delete — preserve row for audit / FK integrity
     await conn.query(
       `UPDATE users SET status = 'deleted', updated_at = NOW() WHERE id = ?`, [id],

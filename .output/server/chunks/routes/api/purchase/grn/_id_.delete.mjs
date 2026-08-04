@@ -10,13 +10,16 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid GRN ID" });
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
+  if (role !== "superadmin")
+    throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can cancel a GRN" });
   const body = await readBody(event).catch(() => ({}));
-  const reason = (_c = body == null ? void 0 : body.reason) != null ? _c : "";
+  const reason = (_e = body == null ? void 0 : body.reason) != null ? _e : "";
   const db = getDb();
   const conn = await db.getConnection();
   try {

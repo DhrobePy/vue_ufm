@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
-import { ACCOUNTS_ROLES, SALES_ROLES } from '~/server/utils/creditOrders'
+import { ACCOUNTS_ROLES, SALES_ROLES, postCustomerLedger } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
+import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
@@ -24,17 +25,21 @@ export default defineEventHandler(async (event) => {
     business_address?: string
     customer_type?: 'Credit' | 'POS'
     credit_limit?: number
+    opening_balance?: number
   }
 
-  const { name, business_name, phone_number, email, business_address, customer_type, credit_limit } = body
+  const { name, business_name, phone_number, email, business_address, customer_type, credit_limit, opening_balance } = body
 
   if (!name || !name.trim()) {
     throw createError({ statusCode: 422, statusMessage: 'Customer name is required' })
   }
+  const openingBal = Math.max(0, Number(opening_balance) || 0)
 
   const db   = getDb()
   const conn = await db.getConnection()
   try {
+    await conn.beginTransaction()
+
     const [result] = await conn.query<any>(
       `INSERT INTO customers
          (name, business_name, phone_number, email, business_address,
@@ -50,7 +55,36 @@ export default defineEventHandler(async (event) => {
         credit_limit    || 0,
       ],
     )
-    return { id: result.insertId, message: 'Customer created successfully' }
+    const customerId = result.insertId
+
+    if (openingBal > 0.009) {
+      const date = new Date().toISOString().slice(0, 10)
+      const ledgerId = await postCustomerLedger(conn, {
+        customerId,
+        date,
+        transactionType: 'opening_balance',
+        referenceType: 'opening_balance',
+        referenceId: 0,
+        invoiceNumber: `OB-${customerId}`,
+        description: `Opening balance — existing outstanding due carried into the system at customer creation`,
+        debit: openingBal,
+        credit: 0,
+        journalEntryId: null, // memo-level, matches the manual-adjustment convention — no GL posting
+        userId,
+      })
+      await auditLog(conn, {
+        userId, action: 'created', module: 'customers',
+        recordType: 'customer_ledger', recordId: ledgerId,
+        description: `Opening balance ৳${openingBal.toLocaleString()} recorded for new customer "${name.trim()}"`,
+        severity: 'info',
+      })
+    }
+
+    await conn.commit()
+    return { id: customerId, message: 'Customer created successfully' }
+  } catch (e) {
+    await conn.rollback()
+    throw e
   } finally {
     conn.release()
   }

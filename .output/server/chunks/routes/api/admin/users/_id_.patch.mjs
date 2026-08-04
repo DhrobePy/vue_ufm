@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });
   const body = await readBody(event);
@@ -32,6 +32,14 @@ const _id__patch = defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, statusMessage: "Cannot suspend your own account" });
       if (old.status === "suspended")
         throw createError({ statusCode: 400, statusMessage: "User is already suspended" });
+      if (((_g = old.role) == null ? void 0 : _g.toLowerCase()) === "superadmin") {
+        const [[{ c }]] = await conn.query(
+          `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status = 'active' AND id != ?`,
+          [id]
+        );
+        if (Number(c) === 0)
+          throw createError({ statusCode: 400, statusMessage: "Cannot suspend the last active Superadmin \u2014 the org would be locked out" });
+      }
       await conn.query(
         `UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = ?`,
         [id]
@@ -70,6 +78,16 @@ const _id__patch = defineEventHandler(async (event) => {
     const { display_name, email, role, status, password } = body != null ? body : {};
     if (!display_name || !email || !role)
       throw createError({ statusCode: 400, statusMessage: "display_name, email, and role are required" });
+    const demotingSuperadmin = ((_h = old.role) == null ? void 0 : _h.toLowerCase()) === "superadmin" && role.toLowerCase() !== "superadmin";
+    const deactivating = (status != null ? status : "active") !== "active" && old.status === "active";
+    if (((_i = old.role) == null ? void 0 : _i.toLowerCase()) === "superadmin" && (demotingSuperadmin || deactivating)) {
+      const [[{ c }]] = await conn.query(
+        `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status = 'active' AND id != ?`,
+        [id]
+      );
+      if (Number(c) === 0)
+        throw createError({ statusCode: 400, statusMessage: "Cannot demote or deactivate the last active Superadmin \u2014 the org would be locked out" });
+    }
     const setClauses = [
       "display_name = ?",
       "email        = ?",

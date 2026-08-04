@@ -37,6 +37,14 @@ export default defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, statusMessage: 'Cannot suspend your own account' })
       if (old.status === 'suspended')
         throw createError({ statusCode: 400, statusMessage: 'User is already suspended' })
+      if (old.role?.toLowerCase() === 'superadmin') {
+        const [[{ c }]] = await conn.query<any>(
+          `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status = 'active' AND id != ?`,
+          [id],
+        )
+        if (Number(c) === 0)
+          throw createError({ statusCode: 400, statusMessage: 'Cannot suspend the last active Superadmin — the org would be locked out' })
+      }
 
       await conn.query(
         `UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = ?`, [id],
@@ -79,6 +87,17 @@ export default defineEventHandler(async (event) => {
 
     if (!display_name || !email || !role)
       throw createError({ statusCode: 400, statusMessage: 'display_name, email, and role are required' })
+
+    const demotingSuperadmin = old.role?.toLowerCase() === 'superadmin' && role.toLowerCase() !== 'superadmin'
+    const deactivating       = (status ?? 'active') !== 'active' && old.status === 'active'
+    if (old.role?.toLowerCase() === 'superadmin' && (demotingSuperadmin || deactivating)) {
+      const [[{ c }]] = await conn.query<any>(
+        `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status = 'active' AND id != ?`,
+        [id],
+      )
+      if (Number(c) === 0)
+        throw createError({ statusCode: 400, statusMessage: 'Cannot demote or deactivate the last active Superadmin — the org would be locked out' })
+    }
 
     const setClauses: string[] = [
       'display_name = ?',

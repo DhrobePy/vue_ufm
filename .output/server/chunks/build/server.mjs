@@ -920,7 +920,7 @@ const _routes = [
     name: "production",
     path: "/production",
     meta: __nuxt_page_meta$21 || {},
-    component: () => import('./index-yvwyU1N_.mjs')
+    component: () => import('./index-Cb91TG9U.mjs')
   },
   {
     name: "products-pricing",
@@ -1058,7 +1058,7 @@ const _routes = [
     name: "purchase-grn",
     path: "/purchase/grn",
     meta: __nuxt_page_meta$1G || {},
-    component: () => import('./index-Nn_lB2mF.mjs')
+    component: () => import('./index-W82WIiCF.mjs')
   },
   {
     name: "bank-accounts",
@@ -1400,7 +1400,7 @@ const _routes = [
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$N || {},
-    component: () => import('./production-BdSX1Waj.mjs')
+    component: () => import('./production-Cc5qCg8p.mjs')
   },
   {
     name: "fleet-drivers-id-edit",
@@ -1628,7 +1628,7 @@ const _routes = [
     name: "purchase-payments-id",
     path: "/purchase/payments/:id()",
     meta: __nuxt_page_meta$b || {},
-    component: () => import('./index-DVH54DcF.mjs')
+    component: () => import('./index-DyRxEMlq.mjs')
   },
   {
     name: "purchase-payments-id-print",
@@ -1694,7 +1694,7 @@ const _routes = [
     name: "products-productId-variantId-pricing",
     path: "/products/:productId()/:variantId()/pricing",
     meta: __nuxt_page_meta || {},
-    component: () => import('./pricing-BXpT3DZc.mjs')
+    component: () => import('./pricing-pPpZkoau.mjs')
   }
 ];
 const _wrapInTransition = (props, children) => {

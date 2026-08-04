@@ -172,8 +172,8 @@
                   class="text-gray-400 hover:text-gray-300 text-xs" title="Print">🖨</NuxtLink>
                 <NuxtLink v-if="g.grn_status !== 'cancelled'" :to="`/purchase/grn/${g.id}/edit`"
                   class="text-orange-400 hover:text-orange-300 text-xs" title="Edit">✏</NuxtLink>
-                <button v-if="g.grn_status !== 'cancelled'" @click="openDeleteModal(g)"
-                  class="text-red-500 hover:text-red-400 text-xs" title="Delete">🗑</button>
+                <button v-if="g.grn_status !== 'cancelled' && isSuperadmin" @click="openDeleteModal(g)"
+                  class="text-red-500 hover:text-red-400 text-xs" title="Delete (Superadmin only)">🗑</button>
               </div>
             </td>
           </tr>
@@ -249,6 +249,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
+const { user: sessionUser } = useUserSession()
+const isSuperadmin = computed(() => (sessionUser.value?.role ?? '').toLowerCase() === 'superadmin')
 
 const filters = reactive({
   date_from:    '',

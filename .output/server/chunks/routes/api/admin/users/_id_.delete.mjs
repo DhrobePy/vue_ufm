@@ -10,7 +10,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });
   const session = await getUserSession(event);
@@ -29,6 +29,14 @@ const _id__delete = defineEventHandler(async (event) => {
     if (!target) throw createError({ statusCode: 404, statusMessage: "User not found" });
     if (target.status === "deleted")
       throw createError({ statusCode: 400, statusMessage: "User is already deleted" });
+    if (((_g = target.role) == null ? void 0 : _g.toLowerCase()) === "superadmin") {
+      const [[{ c }]] = await conn.query(
+        `SELECT COUNT(*) AS c FROM users WHERE LOWER(role) = 'superadmin' AND status != 'deleted' AND id != ?`,
+        [id]
+      );
+      if (Number(c) === 0)
+        throw createError({ statusCode: 400, statusMessage: "Cannot delete the last remaining Superadmin \u2014 the org would be locked out" });
+    }
     await conn.query(
       `UPDATE users SET status = 'deleted', updated_at = NOW() WHERE id = ?`,
       [id]

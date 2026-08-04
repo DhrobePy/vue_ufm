@@ -10,6 +10,9 @@ export default defineEventHandler(async (event) => {
   const session   = await getUserSession(event)
   const userId    = session?.user?.id ?? 1
   const userName  = session?.user?.name ?? session?.user?.email ?? 'System'
+  const role      = ((session?.user as any)?.role ?? '').toLowerCase()
+  if (role !== 'superadmin')
+    throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can delete a purchase payment' })
 
   const db   = getDb()
   const conn = await db.getConnection()

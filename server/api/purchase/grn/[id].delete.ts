@@ -8,6 +8,9 @@ export default defineEventHandler(async (event) => {
 
   const session  = await getUserSession(event)
   const userId   = session?.user?.id ?? 1
+  const role     = ((session?.user as any)?.role ?? '').toLowerCase()
+  if (role !== 'superadmin')
+    throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can cancel a GRN' })
   const body     = await readBody(event).catch(() => ({}))
   const reason   = body?.reason ?? ''
 

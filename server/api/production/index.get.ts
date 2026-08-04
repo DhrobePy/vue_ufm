@@ -6,6 +6,7 @@ export default defineEventHandler(async (event) => {
     query(
       `SELECT ps.id, ps.scheduled_date, ps.status, ps.priority_order, ps.notes,
               ps.production_started_at, ps.production_completed_at,
+              ps.bags_completed, ps.target_bags,
               o.order_number, o.total_weight_kg, o.status AS order_status,
               c.name AS customer_name,
               b.name AS branch_name,

@@ -188,7 +188,7 @@ const { success, error: toastError } = useToast()
 
 const isAccounts = computed(() => {
   const r = (user.value?.role ?? '').toLowerCase()
-  return ['admin', 'superadmin', 'accounts', 'accounts-srg', 'accounts-demra'].includes(r)
+  return ['admin', 'superadmin'].includes(r)
 })
 
 // ── Data ──────────────────────────────────────────────────────────────────────
