@@ -2,9 +2,12 @@
   <div class="p-6 space-y-5">
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-white">Biometric Devices</h1>
-        <p class="text-sm text-gray-400">Hardware attendance terminals — ZKTeco, Hikvision, Dahua, eSSL, FingerTec & more</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="text-2xl font-bold text-white">Biometric Devices</h1>
+          <p class="text-sm text-gray-400">Hardware attendance terminals — ZKTeco, Hikvision, Dahua, eSSL, FingerTec & more</p>
+        </div>
       </div>
       <button @click="openAdd" class="btn-primary">+ Add Device</button>
     </div>

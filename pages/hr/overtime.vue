@@ -1,9 +1,12 @@
 <template>
   <div class="p-6 space-y-5">
     <div class="flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-white">Overtime</h1>
-        <p class="text-sm text-gray-400">Record & approve overtime hours</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="text-2xl font-bold text-white">Overtime</h1>
+          <p class="text-sm text-gray-400">Record & approve overtime hours</p>
+        </div>
       </div>
       <button @click="openAdd" class="btn-primary">+ Add Overtime</button>
     </div>

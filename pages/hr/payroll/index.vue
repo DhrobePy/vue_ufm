@@ -1,9 +1,12 @@
 <template>
   <div class="p-6 space-y-5">
     <div class="flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-white">Payroll</h1>
-        <p class="text-sm text-gray-400">Prepare · Approve · Disburse</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="text-2xl font-bold text-white">Payroll</h1>
+          <p class="text-sm text-gray-400">Prepare · Approve · Disburse</p>
+        </div>
       </div>
       <div class="flex gap-2">
         <NuxtLink to="/hr/payroll/history" class="btn-secondary text-sm">History</NuxtLink>

@@ -3,9 +3,12 @@
 
     <!-- Header -->
     <div class="flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-white">HR Dashboard</h1>
-        <p class="text-sm text-gray-400 mt-0.5">{{ todayLabel }}</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="text-2xl font-bold text-white">HR Dashboard</h1>
+          <p class="text-sm text-gray-400 mt-0.5">{{ todayLabel }}</p>
+        </div>
       </div>
       <div class="flex gap-2">
         <NuxtLink to="/hr/payroll" class="btn-primary text-sm">💰 Run Payroll</NuxtLink>

@@ -1,9 +1,12 @@
 <template>
   <div class="p-6 space-y-5">
     <div class="flex items-center justify-between flex-wrap gap-3">
-      <div>
-        <h1 class="text-2xl font-bold text-white">Salary Advances</h1>
-        <p class="text-sm text-gray-400">{{ advances.length }} records</p>
+      <div class="flex items-start gap-3">
+        <UiBackButton />
+        <div>
+          <h1 class="text-2xl font-bold text-white">Salary Advances</h1>
+          <p class="text-sm text-gray-400">{{ advances.length }} records</p>
+        </div>
       </div>
       <button @click="showCreate = true" class="btn-primary flex items-center gap-2">
         <span>+</span> New Advance
