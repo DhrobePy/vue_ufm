@@ -75,24 +75,148 @@
               </td>
               <td class="py-2.5 px-3 text-center"><UiStatusBadge :status="acc.status" /></td>
               <td class="py-2.5 px-3 text-right">
-                <button class="text-gray-600 hover:text-gold-400 text-xs transition-colors">Edit</button>
+                <button @click="openEdit(acc)" class="text-gray-600 hover:text-gold-400 text-xs transition-colors">Edit</button>
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
+
+    <!-- ══════════════ ADD / EDIT ACCOUNT MODAL ══════════════ -->
+    <Teleport to="body">
+      <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center p-4"
+           style="background:rgba(0,0,0,0.7);backdrop-filter:blur(4px)"
+           @click.self="closeModal">
+        <div class="glass-card p-6 w-full max-w-sm space-y-4" @click.stop>
+          <div class="flex items-start justify-between">
+            <h3 class="text-sm font-semibold text-gray-200">{{ editingId ? 'Edit Account' : 'New GL Account' }}</h3>
+            <button @click="closeModal" class="text-gray-600 hover:text-gray-300 text-lg leading-none">✕</button>
+          </div>
+
+          <div class="space-y-3">
+            <div>
+              <label class="field-label">Account Name *</label>
+              <input v-model="form.name" type="text" class="field-input w-full" placeholder="e.g. Office Rent Expense" />
+            </div>
+            <div>
+              <label class="field-label">Account Number</label>
+              <input v-model="form.account_number" type="text" class="field-input w-full font-mono" placeholder="e.g. 5010" />
+            </div>
+            <div v-if="!editingId">
+              <label class="field-label">Account Type *</label>
+              <select v-model="form.account_type" class="field-input w-full">
+                <option value="">Select…</option>
+                <optgroup v-for="grp in ACCOUNT_TYPE_GROUPS" :key="grp.label" :label="grp.label">
+                  <option v-for="t in grp.types" :key="t" :value="t">{{ t }}</option>
+                </optgroup>
+              </select>
+              <p class="text-[10px] text-gray-600 mt-1">Type cannot be changed after creation (affects posted entries).</p>
+            </div>
+            <div v-else class="text-xs text-gray-500">
+              Type: <span class="text-gray-300">{{ form.account_type }}</span> · Normal balance: {{ form.normal_balance }}
+            </div>
+            <div>
+              <label class="field-label">Description</label>
+              <input v-model="form.description" type="text" class="field-input w-full" placeholder="Optional notes" />
+            </div>
+            <div v-if="editingId">
+              <label class="field-label">Status</label>
+              <select v-model="form.status" class="field-input w-full">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex gap-2 pt-1">
+            <button @click="closeModal" class="btn-ghost text-xs flex-1 justify-center">Cancel</button>
+            <button @click="saveAccount" :disabled="!form.name || (!editingId && !form.account_type) || saving"
+                    class="btn-gold text-xs flex-1 justify-center disabled:opacity-40">
+              {{ saving ? 'Saving…' : editingId ? 'Update' : 'Create Account' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+const { success, error: toastError } = useToast()
 
 const search       = ref('')
 const filterType   = ref('')
 const filterStatus = ref('')
 const showAddModal = ref(false)
 const collapsedGroups = ref(new Set<string>())
+
+const ACCOUNT_TYPE_GROUPS = [
+  { label: 'Asset',     types: ['Bank', 'Petty Cash', 'Cash', 'Accounts Receivable', 'Other Current Asset', 'Fixed Asset'] },
+  { label: 'Liability', types: ['Accounts Payable', 'Credit Card', 'Loan', 'Other Liability'] },
+  { label: 'Equity',    types: ['Owner Equity'] },
+  { label: 'Revenue',   types: ['Revenue', 'Other Income'] },
+  { label: 'Expense',   types: ['Expense', 'Cost of Goods Sold', 'Other Expense'] },
+]
+function groupForType(type: string): string {
+  return ACCOUNT_TYPE_GROUPS.find(g => g.types.includes(type))?.label ?? 'Other'
+}
+
+const editingId = ref<number | null>(null)
+const saving    = ref(false)
+const form = reactive({
+  name: '', account_number: '', account_type: '', description: '',
+  status: 'active', normal_balance: '',
+})
+
+function openEdit(acc: any) {
+  editingId.value = acc.id
+  Object.assign(form, {
+    name: acc.name, account_number: acc.account_number ?? '',
+    account_type: acc.account_type, description: acc.description ?? '',
+    status: acc.status, normal_balance: acc.normal_balance ?? '',
+  })
+  showAddModal.value = true
+}
+
+function closeModal() {
+  showAddModal.value = false
+  editingId.value = null
+  Object.assign(form, { name: '', account_number: '', account_type: '', description: '', status: 'active', normal_balance: '' })
+}
+
+async function saveAccount() {
+  saving.value = true
+  try {
+    if (editingId.value) {
+      await $fetch(`/api/accounts/coa/${editingId.value}`, {
+        method: 'PATCH',
+        body: {
+          name: form.name, account_number: form.account_number || null,
+          description: form.description || null, status: form.status,
+        },
+      })
+      success(`Account "${form.name}" updated`)
+    } else {
+      await $fetch('/api/accounts/coa', {
+        method: 'POST',
+        body: {
+          name: form.name, account_number: form.account_number || null,
+          account_type: form.account_type, account_type_group: groupForType(form.account_type),
+          description: form.description || null,
+        },
+      })
+      success(`Account "${form.name}" created`)
+    }
+    closeModal()
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to save account')
+  } finally {
+    saving.value = false
+  }
+}
 
 function toggleGroup(type: string) {
   if (collapsedGroups.value.has(type)) collapsedGroups.value.delete(type)
@@ -107,7 +231,7 @@ const GROUP_META: Record<string, { icon: string; color: string }> = {
   Expense:   { icon: '💸', color: '#f97316' },
 }
 
-const { data, pending } = await useFetch('/api/accounts/coa', {
+const { data, pending, refresh } = await useFetch('/api/accounts/coa', {
   query: computed(() => ({
     search: search.value,
     type:   filterType.value,

@@ -752,7 +752,7 @@ const _routes = [
     name: "accounts-coa",
     path: "/accounts/coa",
     meta: __nuxt_page_meta$2t || {},
-    component: () => import('./coa-C8U7Kxg6.mjs')
+    component: () => import('./coa-BmYecavP.mjs')
   },
   {
     name: "hr-biometric",
@@ -1112,7 +1112,7 @@ const _routes = [
     name: "expenses-categories",
     path: "/expenses/categories",
     meta: __nuxt_page_meta$1x || {},
-    component: () => import('./categories-DMlG7HSG.mjs')
+    component: () => import('./categories-CLNbloH4.mjs')
   },
   {
     name: "fleet-drivers",

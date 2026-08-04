@@ -21,6 +21,7 @@ const categories_get = defineEventHandler(async (event) => {
        c.category_code  AS code,
        c.description,
        c.chart_of_account_id,
+       coa.name AS gl_account_name,
        ${includeSpend ? `
        COALESCE(SUM(CASE
          WHEN MONTH(dv.voucher_date) = MONTH(NOW())
@@ -28,9 +29,10 @@ const categories_get = defineEventHandler(async (event) => {
           AND dv.status = 'approved'
          THEN dv.amount ELSE 0 END), 0) AS monthly_spend,` : "0 AS monthly_spend,"}
        JSON_ARRAYAGG(
-         JSON_OBJECT('id', s.id, 'name', s.subcategory_name)
+         JSON_OBJECT('id', s.id, 'name', s.subcategory_name, 'chart_of_account_id', s.chart_of_account_id)
        ) AS subcategories_raw
      FROM expense_categories c
+     LEFT JOIN chart_of_accounts coa ON coa.id = c.chart_of_account_id
      ${includeSpend ? `LEFT JOIN debit_vouchers dv ON dv.expense_account_id = c.chart_of_account_id` : ""}
      LEFT JOIN expense_subcategories s ON s.category_id = c.id AND s.is_active = 1
      WHERE c.is_active = 1
@@ -38,7 +40,7 @@ const categories_get = defineEventHandler(async (event) => {
      ORDER BY c.category_code, c.category_name`
   );
   const parsed = categories.map((c, i) => {
-    var _a, _b;
+    var _a, _b, _c;
     let subs = [];
     try {
       const raw = c.subcategories_raw;
@@ -56,12 +58,18 @@ const categories_get = defineEventHandler(async (event) => {
       monthlySpend: Number(c.monthly_spend) || 0,
       budget: 0,
       // Not in DB schema — UI display only
-      subcategories: subs.map((s) => ({
-        id: s.id,
-        name: s.name,
-        unit: ""
-        // unit_of_measurement loaded separately via /api/expenses/subcategories
-      }))
+      chartOfAccountId: c.chart_of_account_id,
+      glAccountName: (_c = c.gl_account_name) != null ? _c : "",
+      subcategories: subs.map((s) => {
+        var _a2;
+        return {
+          id: s.id,
+          name: s.name,
+          unit: "",
+          // unit_of_measurement loaded separately via /api/expenses/subcategories
+          chartOfAccountId: (_a2 = s.chart_of_account_id) != null ? _a2 : null
+        };
+      })
     };
   });
   return { categories: parsed };

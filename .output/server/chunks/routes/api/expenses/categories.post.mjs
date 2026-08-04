@@ -14,14 +14,14 @@ const categories_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
-  const { name, description, code } = body != null ? body : {};
+  const { name, description, code, chart_of_account_id } = body != null ? body : {};
   if (!(name == null ? void 0 : name.trim()))
     throw createError({ statusCode: 400, statusMessage: "name is required" });
   const result = await query(
     `INSERT INTO expense_categories
-       (category_code, category_name, description, is_active, created_by_user_id)
-     VALUES (?, ?, ?, 1, ?)`,
-    [(code == null ? void 0 : code.trim()) || null, name.trim(), (description == null ? void 0 : description.trim()) || null, userId]
+       (category_code, category_name, description, chart_of_account_id, is_active, created_by_user_id)
+     VALUES (?, ?, ?, ?, 1, ?)`,
+    [(code == null ? void 0 : code.trim()) || null, name.trim(), (description == null ? void 0 : description.trim()) || null, chart_of_account_id || null, userId]
   );
   return { ok: true, id: result.insertId };
 });

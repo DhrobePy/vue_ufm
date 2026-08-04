@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
   if (!id)   throw createError({ statusCode: 400, statusMessage: 'Invalid category ID' })
 
   const body = await readBody(event)
-  const { name, description, code, is_active } = body ?? {}
+  const { name, description, code, is_active, chart_of_account_id } = body ?? {}
 
   const sets:   string[] = []
   const params: any[]    = []
@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
   if (description !== undefined) { sets.push('description = ?');     params.push(description?.trim() || null) }
   if (code        !== undefined) { sets.push('category_code = ?');   params.push(code?.trim() || null) }
   if (is_active   !== undefined) { sets.push('is_active = ?');       params.push(is_active ? 1 : 0) }
+  if (chart_of_account_id !== undefined) { sets.push('chart_of_account_id = ?'); params.push(chart_of_account_id || null) }
 
   if (!sets.length) throw createError({ statusCode: 400, statusMessage: 'Nothing to update' })
 

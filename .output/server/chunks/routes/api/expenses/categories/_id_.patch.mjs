@@ -14,7 +14,7 @@ const _id__patch = defineEventHandler(async (event) => {
   const id = Number((_a = event.context.params) == null ? void 0 : _a.id);
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid category ID" });
   const body = await readBody(event);
-  const { name, description, code, is_active } = body != null ? body : {};
+  const { name, description, code, is_active, chart_of_account_id } = body != null ? body : {};
   const sets = [];
   const params = [];
   if (name !== void 0) {
@@ -32,6 +32,10 @@ const _id__patch = defineEventHandler(async (event) => {
   if (is_active !== void 0) {
     sets.push("is_active = ?");
     params.push(is_active ? 1 : 0);
+  }
+  if (chart_of_account_id !== void 0) {
+    sets.push("chart_of_account_id = ?");
+    params.push(chart_of_account_id || null);
   }
   if (!sets.length) throw createError({ statusCode: 400, statusMessage: "Nothing to update" });
   params.push(id);

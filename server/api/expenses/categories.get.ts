@@ -14,6 +14,7 @@ export default defineEventHandler(async (event) => {
        c.category_code  AS code,
        c.description,
        c.chart_of_account_id,
+       coa.name AS gl_account_name,
        ${includeSpend ? `
        COALESCE(SUM(CASE
          WHEN MONTH(dv.voucher_date) = MONTH(NOW())
@@ -21,9 +22,10 @@ export default defineEventHandler(async (event) => {
           AND dv.status = 'approved'
          THEN dv.amount ELSE 0 END), 0) AS monthly_spend,` : '0 AS monthly_spend,'}
        JSON_ARRAYAGG(
-         JSON_OBJECT('id', s.id, 'name', s.subcategory_name)
+         JSON_OBJECT('id', s.id, 'name', s.subcategory_name, 'chart_of_account_id', s.chart_of_account_id)
        ) AS subcategories_raw
      FROM expense_categories c
+     LEFT JOIN chart_of_accounts coa ON coa.id = c.chart_of_account_id
      ${includeSpend ? `LEFT JOIN debit_vouchers dv ON dv.expense_account_id = c.chart_of_account_id` : ''}
      LEFT JOIN expense_subcategories s ON s.category_id = c.id AND s.is_active = 1
      WHERE c.is_active = 1
@@ -47,10 +49,13 @@ export default defineEventHandler(async (event) => {
       color:        COLORS[i % COLORS.length],
       monthlySpend: Number(c.monthly_spend) || 0,
       budget:       0,   // Not in DB schema — UI display only
+      chartOfAccountId: c.chart_of_account_id as number | null,
+      glAccountName:    (c.gl_account_name ?? '') as string,
       subcategories: subs.map((s: any) => ({
         id:   s.id,
         name: s.name,
         unit: '',   // unit_of_measurement loaded separately via /api/expenses/subcategories
+        chartOfAccountId: s.chart_of_account_id ?? null,
       })),
     }
   })
