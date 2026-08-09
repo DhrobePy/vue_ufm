@@ -35,8 +35,8 @@ export async function getExceptionRadar(): Promise<{ tiles: RadarTile[]; total: 
     safeCount(`SELECT COUNT(*) AS n FROM credit_orders WHERE status IN ('goods_on_board','shipped','dispatched')`),
     safeCount(`SELECT COUNT(*) AS n FROM expense_vouchers WHERE status = 'pending'`),
     safeCount(
-      `SELECT COUNT(*) AS n FROM order_delivery_scans
-       WHERE notes LIKE '%Re-scan%' AND scanned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
+      `SELECT COUNT(*) AS n FROM cr_qr_scan_log
+       WHERE reused = 1 AND scanned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`,
     ),
     safeCount(`SELECT COUNT(*) AS n FROM credit_order_returns WHERE status = 'pending'`),
     safeCount(`SELECT COUNT(*) AS n FROM credit_order_over_deliveries WHERE status = 'pending'`),
@@ -49,7 +49,7 @@ export async function getExceptionRadar(): Promise<{ tiles: RadarTile[]; total: 
     { key: 'uncleared_holds',         label: 'Uncleared Dispatch Holds',   count: uncleardHolds,         icon: '🚫', route: '/credit-sales/payment-watch' },
     { key: 'in_transit',              label: 'In Transit',                 count: inTransit,             icon: '🚚', route: '/credit-sales/dispatch' },
     { key: 'pending_vouchers',        label: 'Pending Expense Vouchers',   count: pendingVouchers,       icon: '🧾', route: '/expenses/approve' },
-    { key: 'qr_reuses',               label: 'QR Re-scans (7d)',           count: qrReuses,              icon: '📷', route: '/credit-sales/all' },
+    { key: 'qr_reuses',               label: 'QR Re-scans (7d)',           count: qrReuses,              icon: '📷', route: '/credit-sales/qr-scan-log?reused_only=1' },
     { key: 'pending_returns',         label: 'Pending Returns',            count: pendingReturns,        icon: '↩️', route: '/credit-sales/all' },
     { key: 'pending_over_deliveries', label: 'Pending Over-Deliveries',    count: pendingOverDeliveries, icon: '📦', route: '/credit-sales/over-deliveries' },
     { key: 'pending_amendments',      label: 'Pending Amendments',         count: pendingAmendments,     icon: '📝', route: '/credit-sales/all' },
