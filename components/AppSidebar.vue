@@ -168,6 +168,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/tax-statement')" label="Tax Statement"     route="/accounts/tax-statement"  :collapsed="collapsed" icon-type="file"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/voucher')" label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/accounts/daily-log')" label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/day-end-reconciliation')" label="Day-End Reconciliation" route="/accounts/day-end-reconciliation" :collapsed="collapsed" icon-type="check" sub />
       </SidebarGroup>
 
       <!-- Standalone Modules section ─────────────────── -->
