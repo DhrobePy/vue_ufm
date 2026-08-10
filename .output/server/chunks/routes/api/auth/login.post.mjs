@@ -1,12 +1,18 @@
-import { q as defineEventHandler, as as readBody, m as createError, aq as queryOne, aN as setUserSession, aP as useRuntimeConfig } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, as as readBody, m as createError, aq as queryOne, aO as setUserSession, aQ as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
+import 'node:child_process';
+import 'node:fs';
+import 'node:fs/promises';
+import 'node:os';
+import 'node:path';
+import 'node:zlib';
+import 'node:stream/promises';
+import 'googleapis';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
 import 'node:events';
 import 'node:buffer';
-import 'node:fs';
-import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 

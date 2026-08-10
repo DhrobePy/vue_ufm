@@ -1,11 +1,17 @@
 import { q as defineEventHandler, R as getRouterParam, X as getUserSession, K as getRequestHeader, m as createError, z as getDb, g as auditLog, az as recycleBegin, ay as recycleArchiveDelete, aA as recycleFinalize } from '../../../nitro/nitro.mjs';
+import 'node:child_process';
+import 'node:fs';
+import 'node:fs/promises';
+import 'node:os';
+import 'node:path';
+import 'node:zlib';
+import 'node:stream/promises';
+import 'googleapis';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
 import 'node:events';
 import 'node:buffer';
-import 'node:fs';
-import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 

@@ -2,6 +2,11 @@ import { q as defineEventHandler, R as getRouterParam, m as createError, at as r
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import 'node:child_process';
+import 'node:os';
+import 'node:zlib';
+import 'node:stream/promises';
+import 'googleapis';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

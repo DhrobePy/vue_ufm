@@ -1,11 +1,17 @@
-import { q as defineEventHandler, as as readBody, X as getUserSession, m as createError, ap as query, K as getRequestHeader, aR as verifyDeliveryQrSignature, z as getDb, a6 as nextDocNumber, g as auditLog, aJ as sendTelegram, ax as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, as as readBody, X as getUserSession, m as createError, ap as query, K as getRequestHeader, aS as verifyDeliveryQrSignature, z as getDb, a6 as nextDocNumber, g as auditLog, aK as sendTelegram, ax as recordQrScan } from '../../../../nitro/nitro.mjs';
+import 'node:child_process';
+import 'node:fs';
+import 'node:fs/promises';
+import 'node:os';
+import 'node:path';
+import 'node:zlib';
+import 'node:stream/promises';
+import 'googleapis';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
 import 'node:events';
 import 'node:buffer';
-import 'node:fs';
-import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 

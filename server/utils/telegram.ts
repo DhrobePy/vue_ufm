@@ -19,7 +19,7 @@ import { query } from '~/server/utils/db'
 
 export const TELEGRAM_CATEGORIES = [
   'orders', 'production', 'payment_received', 'dispatch', 'purchase',
-  'payment', 'goods_received', 'bank_approved', 'expense',
+  'payment', 'goods_received', 'bank_approved', 'expense', 'backup',
 ] as const
 export type TelegramCategory = typeof TELEGRAM_CATEGORIES[number]
 

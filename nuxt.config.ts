@@ -18,6 +18,8 @@ export default defineNuxtConfig({
     devLogin: '',          // set NUXT_DEV_LOGIN=true in .env to enable dev credentials
     sessionSecret: 'change-this-to-a-long-random-secret-min-32-chars!!',
     cronSecret: '',        // set NUXT_CRON_SECRET in .env to enable /api/cron/* endpoints (e.g. cPanel scheduled task)
+    googleServiceAccountJson: '',   // absolute path to a Google service-account key file (Drive API scope) — set NUXT_GOOGLE_SERVICE_ACCOUNT_JSON in .env
+    googleDriveBackupFolderId: '',  // Drive folder id the DB backups get uploaded into — set NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID in .env
     public: {
       appName: 'Ujjal FMC ERP',
       appUrl: 'http://localhost:3000',
