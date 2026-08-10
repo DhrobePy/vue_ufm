@@ -11,7 +11,6 @@ import 'node:os';
 import 'node:path';
 import 'node:zlib';
 import 'node:stream/promises';
-import 'googleapis';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';
