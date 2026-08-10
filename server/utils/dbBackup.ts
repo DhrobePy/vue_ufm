@@ -1,10 +1,12 @@
 /**
- * Scheduled database backup — dumps this app's own database (mysqldump),
- * gzips it, uploads to Google Drive with a unique timestamped name, and
- * sends a Telegram notification either way. Triggered by
- * /api/cron/db-backup (a token-protected endpoint meant to be hit by a
- * cPanel Cron Job every 30 minutes), same pattern as
- * /api/cron/daily-digest + sendOwnerDigestNow().
+ * Scheduled database backup — streams `mysqldump | gzip` straight into a
+ * Google Drive upload over HTTPS. Deliberately touches NO local disk at any
+ * point (no temp file, not even briefly) — the host's cPanel account is on
+ * a tight disk quota, so this pipes mysqldump's stdout through gzip and
+ * directly into the outgoing multipart request body as a stream. Sends a
+ * Telegram notification either way. Triggered by /api/cron/db-backup (a
+ * token-protected endpoint meant to be hit by a cPanel Cron Job every 30
+ * minutes), same pattern as /api/cron/daily-digest + sendOwnerDigestNow().
  *
  * Talks to the Google Drive REST API directly (service-account JWT signed
  * with Node's built-in crypto + plain fetch) instead of the `googleapis`
@@ -19,12 +21,9 @@
  * sitting in the same folder.
  */
 import { spawn } from 'node:child_process'
-import { createWriteStream } from 'node:fs'
-import { readFile, unlink, stat } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { createGzip } from 'node:zlib'
-import { pipeline } from 'node:stream/promises'
+import { PassThrough, Readable } from 'node:stream'
 import { createSign } from 'node:crypto'
 import { sendTelegram } from '~/server/utils/telegram'
 
@@ -76,57 +75,87 @@ async function getDriveAccessToken(keyFile: string): Promise<string> {
   return data.access_token
 }
 
-async function uploadToDrive(keyFile: string, folderId: string, localPath: string, driveName: string): Promise<{ id: string }> {
+/**
+ * Runs mysqldump, gzips its output, and streams the result straight into a
+ * Drive multipart-upload request body — nothing ever touches local disk.
+ * Resolves with the uploaded file id + byte count once Drive confirms it.
+ */
+async function streamBackupToDrive(
+  dbConfig: { dbHost: string; dbPort: number; dbUser: string; dbPass: string; dbName: string },
+  keyFile: string, folderId: string, driveName: string,
+): Promise<{ id: string; sizeBytes: number }> {
   const accessToken = await getDriveAccessToken(keyFile)
-  const fileBuffer = await readFile(localPath)
 
+  const dump = spawn('mysqldump', [
+    '--no-defaults',
+    `--host=${dbConfig.dbHost}`,
+    `--port=${dbConfig.dbPort}`,
+    `--user=${dbConfig.dbUser}`,
+    `--password=${dbConfig.dbPass}`,
+    '--single-transaction',
+    '--quick',
+    '--routines',
+    dbConfig.dbName,
+  ])
+  let dumpStderr = ''
+  dump.stderr.on('data', (d) => { dumpStderr += d.toString() })
+
+  const gzip = createGzip()
   const boundary = `boundary-${Date.now()}`
   const metadata = JSON.stringify({ name: driveName, parents: [folderId] })
-  const body = Buffer.concat([
-    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`),
-    Buffer.from(`--${boundary}\r\nContent-Type: application/gzip\r\n\r\n`),
-    fileBuffer,
-    Buffer.from(`\r\n--${boundary}--`),
-  ])
+  const preamble = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n` +
+    `--${boundary}\r\nContent-Type: application/gzip\r\n\r\n`,
+  )
+  const epilogue = Buffer.from(`\r\n--${boundary}--`)
 
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': `multipart/related; boundary=${boundary}`,
-    },
-    body,
-  })
-  if (!res.ok) throw new Error(`Drive upload failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
-  return await res.json() as { id: string }
-}
+  const body = new PassThrough()
+  let sizeBytes = 0
+  body.write(preamble)
 
-async function dumpAndGzip(config: { dbHost: string; dbPort: number; dbUser: string; dbPass: string; dbName: string }, destPath: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const dump = spawn('mysqldump', [
-      '--no-defaults',
-      `--host=${config.dbHost}`,
-      `--port=${config.dbPort}`,
-      `--user=${config.dbUser}`,
-      `--password=${config.dbPass}`,
-      '--single-transaction',
-      '--quick',
-      '--routines',
-      config.dbName,
-    ])
-    const gzip = createGzip()
-    const out = createWriteStream(destPath)
+  dump.stdout.pipe(gzip)
+  gzip.on('data', (chunk: Buffer) => { sizeBytes += chunk.length })
+  gzip.pipe(body, { end: false })
 
-    let stderr = ''
-    dump.stderr.on('data', (d) => { stderr += d.toString() })
+  const failure = new Promise<never>((_, reject) => {
     dump.on('error', reject)
-
-    pipeline(dump.stdout, gzip, out).then(resolve).catch(reject)
-
+    gzip.on('error', reject)
     dump.on('close', (code) => {
-      if (code !== 0) reject(new Error(`mysqldump exited ${code}: ${stderr.slice(0, 500)}`))
+      if (code !== 0) {
+        const err = new Error(`mysqldump exited ${code}: ${dumpStderr.slice(0, 500)}`)
+        gzip.destroy(err)
+        body.destroy(err)
+        reject(err)
+      }
     })
   })
+  const gzipDone = new Promise<void>((resolve, reject) => {
+    gzip.on('end', () => { body.end(epilogue); resolve() })
+    gzip.on('error', reject)
+  })
+
+  const uploadPromise = fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      // @ts-expect-error - Node's fetch (undici) accepts a web ReadableStream body with duplex:'half'
+      body: Readable.toWeb(body),
+      duplex: 'half',
+    },
+  ).then(async (res) => {
+    if (!res.ok) throw new Error(`Drive upload failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
+    return await res.json() as { id: string }
+  })
+
+  const [, result] = await Promise.all([
+    Promise.race([gzipDone, failure]),
+    Promise.race([uploadPromise, failure]),
+  ])
+  return { id: (result as { id: string }).id, sizeBytes }
 }
 
 export async function runDbBackupNow(): Promise<{ ok: boolean; file?: string; sizeBytes?: number; error?: string }> {
@@ -143,29 +172,23 @@ export async function runDbBackupNow(): Promise<{ ok: boolean; file?: string; si
   const ts = timestamp()
   const dbName = String(config.dbName ?? 'db')
   const fileName = `vueapp-backup-${dbName}-${ts}.sql.gz`
-  const localPath = join(tmpdir(), fileName)
   const startedAt = Date.now()
 
   try {
-    await dumpAndGzip({
-      dbHost: String(config.dbHost), dbPort: Number(config.dbPort),
-      dbUser: String(config.dbUser), dbPass: String(config.dbPass), dbName,
-    }, localPath)
-
-    const { size } = await stat(localPath)
-    await uploadToDrive(keyFile, folderId, localPath, fileName)
-    await unlink(localPath).catch(() => {})
+    const { sizeBytes } = await streamBackupToDrive(
+      { dbHost: String(config.dbHost), dbPort: Number(config.dbPort), dbUser: String(config.dbUser), dbPass: String(config.dbPass), dbName },
+      keyFile, folderId, fileName,
+    )
 
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)
     await sendTelegram(
       `💾 <b>Vue App DB Backup</b> — success\n` +
       `File: <code>${fileName}</code>\n` +
-      `Size: ${formatBytes(size)} · ${seconds}s`,
+      `Size: ${formatBytes(sizeBytes)} · ${seconds}s`,
       'backup',
     )
-    return { ok: true, file: fileName, sizeBytes: size }
+    return { ok: true, file: fileName, sizeBytes }
   } catch (e: any) {
-    await unlink(localPath).catch(() => {})
     const errMsg = e?.message ?? String(e)
     console.error('[db-backup] failed:', errMsg)
     await sendTelegram(`🔴 <b>Vue App DB Backup</b> — FAILED\n<code>${errMsg.slice(0, 300)}</code>`, 'backup').catch(() => {})

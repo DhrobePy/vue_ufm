@@ -1,16 +1,15 @@
 import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, J as getQuery, ap as query, z as getDb, B as getDeliveryQrSecret, aw as recordPosExitScan, K as getRequestHeader, ad as posExitQrSignature } from '../../../../nitro/nitro.mjs';
 import crypto from 'node:crypto';
 import 'node:child_process';
-import 'node:fs';
 import 'node:fs/promises';
-import 'node:os';
-import 'node:path';
 import 'node:zlib';
-import 'node:stream/promises';
+import 'node:stream';
 import 'node:http';
 import 'node:https';
 import 'node:events';
 import 'node:buffer';
+import 'node:fs';
+import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
