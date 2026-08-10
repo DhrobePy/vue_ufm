@@ -48,8 +48,7 @@ const status_patch = defineEventHandler(async (event) => {
     await conn.query(
       `UPDATE credit_order_returns
        SET status = ?, approved_by_user_id = ?, approved_at = NOW(),
-           notes = CASE WHEN ? IS NOT NULL THEN CONCAT(COALESCE(notes,''), ' | Admin note: ', ?) ELSE notes END,
-           updated_at = NOW()
+           notes = CASE WHEN ? IS NOT NULL THEN CONCAT(COALESCE(notes,''), ' | Admin note: ', ?) ELSE notes END
        WHERE id = ?`,
       [newStatus, userId, notes != null ? notes : null, notes != null ? notes : null, returnId]
     );

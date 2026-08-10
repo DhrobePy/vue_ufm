@@ -92,8 +92,8 @@ export default defineEventHandler(async (event) => {
     try {
       const [slRes] = await conn.query<any>(
         `INSERT INTO supplier_ledger
-           (supplier_id, entry_date, entry_type, reference_number, description, debit_amount, credit_amount, running_balance)
-         VALUES (?, ?, 'Adjustment', ?, ?, ?, 0, ?)`,
+           (supplier_id, transaction_date, transaction_type, reference_number, description, debit_amount, credit_amount, balance)
+         VALUES (?, ?, 'adjustment', ?, ?, ?, 0, ?)`,
         [partner.supplier_id, today, setNo,
          `Settlement ${setNo} — netted against receivable of ${partner.customer_name}`,
          amount, payable - amount],
