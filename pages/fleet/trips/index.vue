@@ -6,6 +6,37 @@
       </template>
     </UiPageHeader>
 
+    <!-- Consolidation Suggestions -->
+    <div v-if="suggestions.length" class="glass-card p-4 border border-gold-400/20">
+      <div class="flex items-center gap-2 mb-3">
+        <svg class="w-4 h-4 text-gold-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        <h3 class="text-sm font-semibold text-gray-100">Consolidation Suggestions</h3>
+        <span class="badge text-[10px] bg-gold-400/10 text-gold-400">{{ suggestions.length }}</span>
+      </div>
+      <div class="space-y-2">
+        <div
+          v-for="s in suggestions"
+          :key="`${s.trip_id_a}-${s.trip_id_b}`"
+          class="flex items-start justify-between gap-3 p-3 rounded-xl bg-white/[0.03]"
+        >
+          <p class="text-xs text-gray-300 leading-relaxed">
+            Trip <span class="font-mono font-bold text-gold-400/80">{{ s.trip_a.trip_number }}</span>
+            ({{ routeLabel(s.trip_a) }}, {{ mt(s.trip_a.weight_kg) }}) and
+            <span class="font-mono font-bold text-gold-400/80">{{ s.trip_b.trip_number }}</span>
+            ({{ routeLabel(s.trip_b) }}, {{ mt(s.trip_b.weight_kg) }})
+            share {{ s.match_on }} on {{ s.trip_date }} — could combine into
+            <span class="text-gray-100 font-medium">{{ s.vehicle.registration_no }}</span>
+            (capacity {{ mt(s.vehicle.weight_capacity_kg) }}). Save a trip.
+          </p>
+          <button
+            class="btn-ghost text-[10px] shrink-0"
+            :disabled="dismissing === suggKey(s)"
+            @click="dismiss(s)"
+          >{{ dismissing === suggKey(s) ? '…' : 'Dismiss' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- KPI Cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="glass-card p-4 text-center cursor-pointer" :class="activeFilter==='all'?'ring-1 ring-white/20':''" @click="setFilter('all')">
@@ -114,6 +145,34 @@ const stats = computed(() => (data.value as any)?.stats ?? {})
 
 function setFilter(f: string) {
   activeFilter.value = f
+}
+
+// ── Consolidation suggestions ──────────────────────────────
+const { data: suggData, refresh: refreshSuggestions } = await useFetch('/api/fleet/trips/consolidation-suggestions')
+const suggestions = computed(() => (suggData.value as any)?.suggestions ?? [])
+const dismissing = ref<string | null>(null)
+
+function suggKey(s: any) {
+  return `${s.trip_id_a}-${s.trip_id_b}`
+}
+function routeLabel(t: any) {
+  return `${t.origin || '—'} → ${t.destination || '—'}`
+}
+function mt(kg: any) {
+  const n = Number(kg) || 0
+  return `${(n / 1000).toFixed(1)}MT`
+}
+async function dismiss(s: any) {
+  dismissing.value = suggKey(s)
+  try {
+    await $fetch('/api/fleet/trips/consolidation-suggestions', {
+      method: 'POST',
+      body: { trip_id_a: s.trip_id_a, trip_id_b: s.trip_id_b },
+    })
+    await refreshSuggestions()
+  } finally {
+    dismissing.value = null
+  }
 }
 
 async function doAction(tripId: number, action: string) {

@@ -1489,5 +1489,24 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] pos_qr_scan_log failed:', e) }
 
+  // fleet_trip_consolidation_dismissals — per-pair "no thanks" state for the
+  // trip-consolidation suggestion engine (pages/fleet/trips/index.vue). The
+  // suggestion itself is derived read-only from `trips`/`fleet_vehicles` on
+  // every request — this table only remembers pairs a dispatcher explicitly
+  // dismissed so they don't get nagged again on reload. trip_id_a/b are
+  // always stored normalized (a < b) so a pair has exactly one row.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS fleet_trip_consolidation_dismissals (
+        id                    INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        trip_id_a             INT UNSIGNED NOT NULL,
+        trip_id_b             INT UNSIGNED NOT NULL,
+        dismissed_by_user_id  INT UNSIGNED NULL,
+        dismissed_at          DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_ftcd_pair (trip_id_a, trip_id_b)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] fleet_trip_consolidation_dismissals failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })
