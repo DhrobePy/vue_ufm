@@ -34,6 +34,7 @@
         ⚠ Held only <span v-if="heldCount" class="text-amber-400 font-semibold">({{ heldCount }})</span>
       </label>
       <button @click="search='';priorityFilter='';activeFilter='';heldOnly=false;page=1;refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
+      <a :href="detailExportUrl" class="btn-ghost text-xs py-1.5" title="One row per line item, with truck/delivery info and approval/dispatch/delivery timestamps">⬇ Detailed CSV</a>
       <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
         <span class="font-medium text-gray-300">{{ data?.total ?? 0 }}</span> orders
       </div>
@@ -138,6 +139,12 @@ const { data, pending, error, refresh } = await useFetch('/api/credit-sales', {
 })
 
 const heldOnly = ref(false)
+
+const detailExportUrl = computed(() => {
+  const params = new URLSearchParams()
+  if (activeFilter.value) params.set('status', activeFilter.value)
+  return `/api/credit-sales/export/orders-detail.csv${params.toString() ? '?' + params.toString() : ''}`
+})
 
 const allRows = computed(() => (data.value?.orders ?? []).map((o: any) => ({
   ...o,
