@@ -135,7 +135,7 @@ async function streamBackupToDrive(
   })
 
   const uploadPromise = fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id&supportsAllDrives=true',
     {
       method: 'POST',
       headers: {
