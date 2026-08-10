@@ -2,7 +2,6 @@ import { v as executeAsync } from '../nitro/nitro.mjs';
 import { f as defineNuxtRouteMiddleware, p as useUserSession, n as navigateTo } from './server.mjs';
 import { u as usePermissions } from './usePermissions-Bt-D0WF_.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

@@ -5,7 +5,7 @@ import { runDbBackupNow } from '~/server/utils/dbBackup'
  * Wire this to a cPanel "Cron Jobs" scheduled task, e.g. every 30 minutes:
  *   curl -s "https://cerp.ujjalfm.com/api/cron/db-backup?token=YOUR_SECRET"
  * Requires NUXT_CRON_SECRET (same secret /api/cron/daily-digest uses) plus
- * NUXT_GOOGLE_SERVICE_ACCOUNT_JSON + NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID.
+ * NUXT_GOOGLE_OAUTH_CLIENT_ID/_CLIENT_SECRET/_REFRESH_TOKEN + NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID.
  */
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()

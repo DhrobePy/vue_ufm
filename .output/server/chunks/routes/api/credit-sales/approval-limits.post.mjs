@@ -1,6 +1,5 @@
 import { q as defineEventHandler, X as getUserSession, b as ADMIN_ROLES, m as createError, as as readBody, z as getDb, a as ACTION_LIMIT_KEYS, g as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

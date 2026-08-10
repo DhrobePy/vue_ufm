@@ -3,7 +3,6 @@ import { m as createError$1, ac as parseURL, u as encodePath, p as decodePath, Y
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';
@@ -871,7 +870,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2i || {},
-    component: () => import('./create-CK46Q9na.mjs')
+    component: () => import('./create-B2esD9X7.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -967,7 +966,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$22 || {},
-    component: () => import('./vouchers-CzjjgocN.mjs')
+    component: () => import('./vouchers-D7IWpLo9.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1039,19 +1038,19 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1S || {},
-    component: () => import('./create-B-sGqTCI.mjs')
+    component: () => import('./create-D64fa1ZU.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1R || {},
-    component: () => import('./index-Cl3aPcEu.mjs')
+    component: () => import('./index-DHlSKzRF.mjs')
   },
   {
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$1Q || {},
-    component: () => import('./edit-__DKucoh.mjs')
+    component: () => import('./edit-cjD0vrIH.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1237,7 +1236,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1l || {},
-    component: () => import('./edit-PnP6HQ0K.mjs')
+    component: () => import('./edit-BHuaY1Dp.mjs')
   },
   {
     name: "credit-sales-dispatch",

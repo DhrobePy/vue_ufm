@@ -1,6 +1,5 @@
 import { q as defineEventHandler, R as getRouterParam, X as getUserSession, L as getRequestIP, m as createError, z as getDb, az as recycleBegin, ay as recycleArchiveDelete, aA as recycleFinalize } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

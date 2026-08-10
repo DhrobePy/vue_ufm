@@ -5,7 +5,6 @@ import { ssrRenderAttrs, ssrRenderComponent } from 'vue/server-renderer';
 import './server.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

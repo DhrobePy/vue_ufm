@@ -4,7 +4,6 @@ import { c as _export_sfc } from './server.mjs';
 import { u as useHead } from './v3-pXk6QXRJ.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

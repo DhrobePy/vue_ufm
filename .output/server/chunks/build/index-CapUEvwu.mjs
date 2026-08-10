@@ -5,7 +5,6 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrRenderClass, ssrI
 import './server.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

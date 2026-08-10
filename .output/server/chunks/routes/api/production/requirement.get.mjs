@@ -1,6 +1,5 @@
 import { q as defineEventHandler, X as getUserSession, m as createError, J as getQuery, z as getDb, W as getUserBranchScope, ap as query, a5 as maybeTriggerProductionShortfallAlert } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

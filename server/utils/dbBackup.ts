@@ -8,23 +8,27 @@
  * token-protected endpoint meant to be hit by a cPanel Cron Job every 30
  * minutes), same pattern as /api/cron/daily-digest + sendOwnerDigestNow().
  *
- * Talks to the Google Drive REST API directly (service-account JWT signed
- * with Node's built-in crypto + plain fetch) instead of the `googleapis`
- * SDK — that package pulls in ~190 sub-dependencies, which blew the host's
- * npm install past its disk quota. This needs nothing beyond Node core.
+ * Talks to the Google Drive REST API directly (plain fetch) instead of the
+ * `googleapis` SDK — that package pulls in ~190 sub-dependencies, which blew
+ * the host's npm install past its disk quota. This needs nothing beyond
+ * Node core.
  *
- * Reuses the SAME Google service-account credential the legacy PHP app's
- * backup system already uses (path supplied via NUXT_GOOGLE_SERVICE_ACCOUNT_JSON)
- * and the same Drive folder (NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID) — no new
- * Google Cloud project needed. Filenames are prefixed `vueapp-backup-` so
- * they're visually distinguishable from the legacy app's own backups
- * sitting in the same folder.
+ * Auth: uses the SAME OAuth2 refresh token the legacy PHP app's backup
+ * system already has (a real Google account's token, minted once via the
+ * standard installed-app consent flow) — NOT a service-account key. Google
+ * service accounts have no storage quota of their own and can only write
+ * into a Shared Drive; the existing backup folder
+ * (NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID) is a regular Drive folder owned by a
+ * real user, confirmed live by a 403 "Service Accounts do not have storage
+ * quota" response when a service-account JWT was tried first. Refreshing an
+ * access token from a long-lived refresh token (RFC 6749 §6) uploads as
+ * that real, quota-having user instead. Filenames are prefixed
+ * `vueapp-backup-` so they're visually distinguishable from the legacy
+ * app's own backups sitting in the same folder.
  */
 import { spawn } from 'node:child_process'
-import { readFile } from 'node:fs/promises'
 import { createGzip } from 'node:zlib'
 import { PassThrough, Readable } from 'node:stream'
-import { createSign } from 'node:crypto'
 import { sendTelegram } from '~/server/utils/telegram'
 
 function timestamp(): string {
@@ -39,35 +43,16 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function base64url(input: Buffer | string): string {
-  return Buffer.from(input).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-/** Mint a short-lived Drive-scoped access token from a service-account key file (RFC 7523 JWT-bearer flow). */
-async function getDriveAccessToken(keyFile: string): Promise<string> {
-  const raw = await readFile(keyFile, 'utf8')
-  const key = JSON.parse(raw) as { client_email: string; private_key: string }
-
-  const now = Math.floor(Date.now() / 1000)
-  const header = base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
-  const payload = base64url(JSON.stringify({
-    iss: key.client_email,
-    scope: 'https://www.googleapis.com/auth/drive.file',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  }))
-  const signer = createSign('RSA-SHA256')
-  signer.update(`${header}.${payload}`)
-  const signature = base64url(signer.sign(key.private_key))
-  const jwt = `${header}.${payload}.${signature}`
-
+/** Exchange a long-lived OAuth2 refresh token for a short-lived Drive access token (RFC 6749 §6). */
+async function getDriveAccessToken(clientId: string, clientSecret: string, refreshToken: string): Promise<string> {
   const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
-      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-      assertion: jwt,
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
     }),
   })
   if (!res.ok) throw new Error(`Drive auth failed (${res.status}): ${(await res.text()).slice(0, 300)}`)
@@ -82,9 +67,9 @@ async function getDriveAccessToken(keyFile: string): Promise<string> {
  */
 async function streamBackupToDrive(
   dbConfig: { dbHost: string; dbPort: number; dbUser: string; dbPass: string; dbName: string },
-  keyFile: string, folderId: string, driveName: string,
+  oauth: { clientId: string; clientSecret: string; refreshToken: string }, folderId: string, driveName: string,
 ): Promise<{ id: string; sizeBytes: number }> {
-  const accessToken = await getDriveAccessToken(keyFile)
+  const accessToken = await getDriveAccessToken(oauth.clientId, oauth.clientSecret, oauth.refreshToken)
 
   const dump = spawn('mysqldump', [
     '--no-defaults',
@@ -160,11 +145,13 @@ async function streamBackupToDrive(
 
 export async function runDbBackupNow(): Promise<{ ok: boolean; file?: string; sizeBytes?: number; error?: string }> {
   const config = useRuntimeConfig()
-  const keyFile  = String(config.googleServiceAccountJson ?? '')
-  const folderId = String(config.googleDriveBackupFolderId ?? '')
+  const clientId     = String(config.googleOauthClientId ?? '')
+  const clientSecret = String(config.googleOauthClientSecret ?? '')
+  const refreshToken = String(config.googleOauthRefreshToken ?? '')
+  const folderId     = String(config.googleDriveBackupFolderId ?? '')
 
-  if (!keyFile || !folderId) {
-    const msg = 'DB backup skipped: NUXT_GOOGLE_SERVICE_ACCOUNT_JSON / NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID not configured'
+  if (!clientId || !clientSecret || !refreshToken || !folderId) {
+    const msg = 'DB backup skipped: NUXT_GOOGLE_OAUTH_CLIENT_ID / _CLIENT_SECRET / _REFRESH_TOKEN / NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID not configured'
     console.warn(`[db-backup] ${msg}`)
     return { ok: false, error: msg }
   }
@@ -177,7 +164,7 @@ export async function runDbBackupNow(): Promise<{ ok: boolean; file?: string; si
   try {
     const { sizeBytes } = await streamBackupToDrive(
       { dbHost: String(config.dbHost), dbPort: Number(config.dbPort), dbUser: String(config.dbUser), dbPass: String(config.dbPass), dbName },
-      keyFile, folderId, fileName,
+      { clientId, clientSecret, refreshToken }, folderId, fileName,
     )
 
     const seconds = ((Date.now() - startedAt) / 1000).toFixed(1)

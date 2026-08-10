@@ -1,6 +1,5 @@
 import { q as defineEventHandler, as as readBody, m as createError, aq as queryOne, ap as query, z as getDb } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

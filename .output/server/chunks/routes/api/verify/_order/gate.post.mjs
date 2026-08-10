@@ -1,6 +1,5 @@
 import { q as defineEventHandler, X as getUserSession, m as createError, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, e as PRODUCTION_ROLES, as as readBody, K as getRequestHeader, z as getDb, aS as verifyDeliveryQrSignature, H as getOrderGateState, g as auditLog, ax as recordQrScan, aK as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

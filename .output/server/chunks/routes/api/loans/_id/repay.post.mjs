@@ -1,6 +1,5 @@
 import { q as defineEventHandler, R as getRouterParam, m as createError, as as readBody, X as getUserSession, aR as userCanAction, A as ACCOUNTS_ROLES, z as getDb, k as checkTransactionLimit, ar as queuePendingRequest, aK as sendTelegram, a6 as nextDocNumber, F as getLoansReceivableAccountId, al as postJournalEntry, g as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

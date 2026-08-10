@@ -1,6 +1,5 @@
 import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, as as readBody, ap as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

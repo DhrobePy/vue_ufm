@@ -1,7 +1,6 @@
 import { q as defineEventHandler, as as readBody, m as createError, aq as queryOne, aO as setUserSession, aQ as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

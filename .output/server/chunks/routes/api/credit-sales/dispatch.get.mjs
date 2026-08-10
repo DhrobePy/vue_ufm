@@ -1,6 +1,5 @@
 import { q as defineEventHandler, X as getUserSession, z as getDb, W as getUserBranchScope, ap as query, aq as queryOne, H as getOrderGateState } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

@@ -1,6 +1,5 @@
 import { q as defineEventHandler, R as getRouterParam, as as readBody, m as createError, X as getUserSession, L as getRequestIP, z as getDb, aG as reverseBankTransactionJE, af as postBankTransferJE, ae as postBankTransactionJE } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

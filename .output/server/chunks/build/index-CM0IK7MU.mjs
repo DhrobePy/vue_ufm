@@ -8,7 +8,6 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrRenderAttr, ssrIncludeBooleanAtt
 import { u as useFetch } from './fetch-BiYh1qCk.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

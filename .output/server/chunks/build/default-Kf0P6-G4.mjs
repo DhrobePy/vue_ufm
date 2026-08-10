@@ -8,7 +8,6 @@ import { u as useTheme } from './useTheme-DcI34_eY.mjs';
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

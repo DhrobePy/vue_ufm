@@ -1,7 +1,6 @@
 import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, z as getDb, B as getDeliveryQrSecret } from '../../../../../nitro/nitro.mjs';
 import crypto from 'node:crypto';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:http';

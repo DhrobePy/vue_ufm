@@ -5,7 +5,6 @@ import { u as useFetch } from './fetch-BiYh1qCk.mjs';
 import { P as PERM_ROUTES } from './permRoutes-Ddy1yO1t.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

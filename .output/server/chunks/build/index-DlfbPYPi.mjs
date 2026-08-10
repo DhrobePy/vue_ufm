@@ -3,7 +3,6 @@ import { ssrRenderAttrs, ssrRenderStyle, ssrRenderList, ssrInterpolate, ssrRende
 import { c as _export_sfc, k as useRoute } from './server.mjs';
 import '../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';

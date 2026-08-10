@@ -1,6 +1,5 @@
 import { q as defineEventHandler, m as createError, J as getQuery, aH as runDbBackupNow, aQ as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
-import 'node:fs/promises';
 import 'node:zlib';
 import 'node:stream';
 import 'node:crypto';
