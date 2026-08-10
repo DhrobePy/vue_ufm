@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, as as readMultipartFormData, ao as query } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, m as createError, at as readMultipartFormData, ap as query } from '../../../../nitro/nitro.mjs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';

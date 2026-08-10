@@ -1,4 +1,4 @@
-import { q as defineEventHandler, ar as readBody, X as getUserSession, m as createError, z as getDb, a5 as nextDocNumber, g as auditLog } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, as as readBody, X as getUserSession, m as createError, z as getDb, a6 as nextDocNumber, g as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:http';
 import 'node:https';

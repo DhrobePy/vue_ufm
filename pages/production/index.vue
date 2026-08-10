@@ -3,6 +3,7 @@
     <UiPageHeader title="Production Floor" subtitle="Live production queue · batch tracking · shift output"
                   :breadcrumb="['Production']">
       <template #actions>
+        <NuxtLink to="/production/requirement" class="btn-ghost text-xs">📋 Today's Requirement</NuxtLink>
         <NuxtLink to="/production/totals" class="btn-ghost text-xs">📊 Production Totals</NuxtLink>
         <NuxtLink to="/production/create" class="btn-gold text-xs">+ New Batch</NuxtLink>
       </template>

@@ -1508,5 +1508,45 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] fleet_trip_consolidation_dismissals failed:', e) }
 
+  // production_daily_stock — per (date, branch, variant) in-hand + cumulative
+  // produced quantities for the Today's Production Requirement page
+  // (pages/production/requirement.vue). in_hand_qty is overwritten each time
+  // someone sets it (a physical stock count); produced_qty accumulates as
+  // production output is logged through the day. Both in bags.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS production_daily_stock (
+        id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        production_date  DATE NOT NULL,
+        branch_id        INT UNSIGNED NOT NULL,
+        variant_id       BIGINT UNSIGNED NOT NULL,
+        in_hand_qty      DECIMAL(10,2) NOT NULL DEFAULT 0,
+        produced_qty     DECIMAL(10,2) NOT NULL DEFAULT 0,
+        updated_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_pds_slot (production_date, branch_id, variant_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] production_daily_stock failed:', e) }
+
+  // production_daily_log — append-only audit trail of every set-in-hand /
+  // add-produced action against production_daily_stock.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS production_daily_log (
+        id               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        production_date  DATE NOT NULL,
+        branch_id        INT UNSIGNED NOT NULL,
+        variant_id       BIGINT UNSIGNED NOT NULL,
+        event_type       ENUM('in_hand_set','produced_added') NOT NULL,
+        qty              DECIMAL(10,2) NOT NULL,
+        performed_by_user_id BIGINT UNSIGNED NULL,
+        performed_by_name    VARCHAR(120) NULL,
+        performed_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY idx_pdl_slot (production_date, branch_id, variant_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] production_daily_log failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })
