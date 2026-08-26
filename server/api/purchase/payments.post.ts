@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { nextDocNumber } from '~/server/utils/creditOrders'
+import { postPurchasePaymentJE } from '~/server/utils/purchasePaymentGL'
 
 /**
  * POST /api/purchase/payments
@@ -211,90 +212,11 @@ export default defineEventHandler(async (event) => {
     // ── 4. GL Journal Entry ───────────────────────────────────────────────────
     // Failures here must never block the payment — wrapped in try-catch.
     try {
-      // Accounts Payable
-      const [[apAcc]] = await conn.query<any>(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Accounts Payable'
-         ORDER BY id ASC LIMIT 1`,
-      )
-      const apId: number | null = apAcc?.id ?? null
-
-      let drAccountId: number | null = null
-      let crAccountId: number | null = null
-      let jeDesc = ''
-
-      if (payment_type === 'contra') {
-        // DR: Accounts Payable ↓   (we owe supplier less)
-        // CR: Accounts Receivable ↓ (supplier owes us less — their sales debt cleared)
-        const [[arAcc]] = await conn.query<any>(
-          `SELECT id FROM chart_of_accounts
-           WHERE account_type = 'Accounts Receivable'
-           ORDER BY id ASC LIMIT 1`,
-        )
-        drAccountId = apId
-        crAccountId = arAcc?.id ?? null
-        jeDesc = `Contra offset ${voucherNo} — AP ↓ / AR ↓ · ৳${pmtAmt.toLocaleString()} · ref ${reference_number}`
-
-      } else if (payment_type === 'advance') {
-        // DR: Advance to Suppliers (prepaid asset — money paid before delivery)
-        // CR: Bank/Cash
-        const [[advAcc]] = await conn.query<any>(
-          `SELECT id FROM chart_of_accounts
-           WHERE (name LIKE '%advance%' OR name LIKE '%prepay%')
-             AND account_type_group = 'Asset'
-           ORDER BY id ASC LIMIT 1`,
-        )
-        drAccountId = advAcc?.id ?? apId   // fall back to AP if no advance account
-        crAccountId = bankGlAccountId
-        jeDesc = `Advance payment ${voucherNo} — ৳${pmtAmt.toLocaleString()} to ${po.supplier_name} via ${bankName ?? payment_method}`
-
-      } else {
-        // credit | against_delivery — paying off an existing AP liability
-        // DR: Accounts Payable ↓
-        // CR: Bank/Cash ↓
-        drAccountId = apId
-        crAccountId = bankGlAccountId
-        const typeLabel = payment_type === 'against_delivery' ? 'Delivery expense' : 'Credit payment'
-        jeDesc = `${typeLabel} ${voucherNo} — ৳${pmtAmt.toLocaleString()} to ${po.supplier_name} via ${bankName ?? payment_method}`
-      }
-
-      if (drAccountId && crAccountId) {
-        const [jeRes] = await conn.query<any>(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'PurchasePayment', ?, ?)`,
-          [pmtDate, jeDesc.slice(0, 255), paymentId, userId],
-        )
-        const jeId = jeRes.insertId
-
-        // DR line
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, drAccountId, pmtAmt, voucherNo],
-        )
-        // CR line
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, crAccountId, pmtAmt, voucherNo],
-        )
-
-        // Link JE back to the payment record
-        await conn.query(
-          `UPDATE purchase_payments_adnan SET journal_entry_id = ? WHERE id = ?`,
-          [jeId, paymentId],
-        ).catch(() => {/* ignore if column doesn't exist yet */})
-
-      } else {
-        console.warn(
-          `[purchase/payments] Skipping JE for ${voucherNo}: ` +
-          `drId=${drAccountId}, crId=${crAccountId} ` +
-          `(likely missing chart_of_accounts entries for AP/AR/Bank)`,
-        )
-      }
+      await postPurchasePaymentJE(conn, {
+        paymentId, pmtDate, voucherNo, paymentType: payment_type, pmtAmt,
+        supplierName: po.supplier_name, bankName, paymentMethod: payment_method,
+        referenceNumber: reference_number, bankGlAccountId, userId,
+      })
     } catch (jeErr: any) {
       console.warn(`[purchase/payments] JE creation failed for ${voucherNo}:`, jeErr?.message)
     }

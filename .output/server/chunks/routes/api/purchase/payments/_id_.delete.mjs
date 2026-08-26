@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, z as getDb, az as recycleBegin, ay as recycleArchiveDelete, aA as recycleFinalize, av as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, z as getDb, aI as reversePurchasePaymentJE, aA as recycleBegin, az as recycleArchiveDelete, aB as recycleFinalize, aw as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -27,16 +27,28 @@ const _id__delete = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[pmt]] = await conn.query(
-      `SELECT id, payment_voucher_number, purchase_order_id, is_posted,
+      `SELECT id, payment_voucher_number, purchase_order_id, is_posted, journal_entry_id,
               amount_paid, supplier_name, remarks
-       FROM purchase_payments_adnan WHERE id = ?`,
+       FROM purchase_payments_adnan WHERE id = ? FOR UPDATE`,
       [id]
     );
     if (!pmt) throw createError({ statusCode: 404, statusMessage: "Payment not found" });
     if (pmt.is_posted) {
+      let reversalJeId = null;
+      if (pmt.journal_entry_id) {
+        reversalJeId = await reversePurchasePaymentJE(conn, {
+          journalEntryId: pmt.journal_entry_id,
+          pmtDate: (/* @__PURE__ */ new Date()).toISOString().slice(0, 10),
+          voucherNo: pmt.payment_voucher_number,
+          reason: "payment deleted",
+          userId,
+          paymentId: id
+        });
+      }
       const now = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 19);
+      const jeNote = reversalJeId ? ` (JE reversed #${reversalJeId})` : pmt.journal_entry_id ? " (JE reversal FAILED \u2014 no lines found)" : "";
       const newNote = `
-[DELETED: ${userName} @ ${now}]`;
+[DELETED: ${userName} @ ${now}${jeNote}]`;
       await conn.query(
         `UPDATE purchase_payments_adnan
          SET is_posted  = 0,

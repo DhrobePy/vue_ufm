@@ -1548,5 +1548,22 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] production_daily_log failed:', e) }
 
+  // purchase_payments_adnan.payment_type — the live column only had the
+  // legacy enum values ('advance','regular','final'), but server/api/purchase/
+  // payments.post.ts writes 'credit'/'against_delivery'/'contra' for the more
+  // specific GL-routing distinctions it introduced. Under this server's strict
+  // SQL mode an invalid enum value hard-fails the insert — meaning an ordinary
+  // (non-advance) supplier payment could never actually be recorded. Widen the
+  // enum to carry both the legacy and the new values rather than dropping the
+  // new distinctions back down to 3 buckets.
+  try {
+    await db.query(`
+      ALTER TABLE purchase_payments_adnan
+      MODIFY COLUMN payment_type
+        ENUM('advance','regular','final','credit','against_delivery','contra')
+        NULL DEFAULT 'regular'
+    `)
+  } catch (e) { console.warn('[db-migrate] purchase_payments_adnan.payment_type widen failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, X as getUserSession, m as createError, z as getDb, az as recycleBegin, ay as recycleArchiveDelete, aD as recycleSnapshotBefore, aA as recycleFinalize, g as auditLog } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, X as getUserSession, m as createError, z as getDb, aA as recycleBegin, az as recycleArchiveDelete, aE as recycleSnapshotBefore, aB as recycleFinalize, g as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

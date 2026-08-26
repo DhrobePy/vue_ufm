@@ -1,4 +1,4 @@
-import { q as defineEventHandler, as as readBody, X as getUserSession, m as createError, z as getDb, a6 as nextDocNumber, g as auditLog } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, at as readBody, X as getUserSession, m as createError, z as getDb, a6 as nextDocNumber, ao as postPurchasePaymentJE, g as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -172,76 +172,25 @@ const payments_post = defineEventHandler(async (event) => {
       }
     }
     try {
-      const [[apAcc]] = await conn.query(
-        `SELECT id FROM chart_of_accounts
-         WHERE account_type = 'Accounts Payable'
-         ORDER BY id ASC LIMIT 1`
-      );
-      const apId = (_h = apAcc == null ? void 0 : apAcc.id) != null ? _h : null;
-      let drAccountId = null;
-      let crAccountId = null;
-      let jeDesc = "";
-      if (payment_type === "contra") {
-        const [[arAcc]] = await conn.query(
-          `SELECT id FROM chart_of_accounts
-           WHERE account_type = 'Accounts Receivable'
-           ORDER BY id ASC LIMIT 1`
-        );
-        drAccountId = apId;
-        crAccountId = (_i = arAcc == null ? void 0 : arAcc.id) != null ? _i : null;
-        jeDesc = `Contra offset ${voucherNo} \u2014 AP \u2193 / AR \u2193 \xB7 \u09F3${pmtAmt.toLocaleString()} \xB7 ref ${reference_number}`;
-      } else if (payment_type === "advance") {
-        const [[advAcc]] = await conn.query(
-          `SELECT id FROM chart_of_accounts
-           WHERE (name LIKE '%advance%' OR name LIKE '%prepay%')
-             AND account_type_group = 'Asset'
-           ORDER BY id ASC LIMIT 1`
-        );
-        drAccountId = (_j = advAcc == null ? void 0 : advAcc.id) != null ? _j : apId;
-        crAccountId = bankGlAccountId;
-        jeDesc = `Advance payment ${voucherNo} \u2014 \u09F3${pmtAmt.toLocaleString()} to ${po.supplier_name} via ${bankName != null ? bankName : payment_method}`;
-      } else {
-        drAccountId = apId;
-        crAccountId = bankGlAccountId;
-        const typeLabel2 = payment_type === "against_delivery" ? "Delivery expense" : "Credit payment";
-        jeDesc = `${typeLabel2} ${voucherNo} \u2014 \u09F3${pmtAmt.toLocaleString()} to ${po.supplier_name} via ${bankName != null ? bankName : payment_method}`;
-      }
-      if (drAccountId && crAccountId) {
-        const [jeRes] = await conn.query(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'PurchasePayment', ?, ?)`,
-          [pmtDate, jeDesc.slice(0, 255), paymentId, userId]
-        );
-        const jeId = jeRes.insertId;
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, drAccountId, pmtAmt, voucherNo]
-        );
-        await conn.query(
-          `INSERT INTO transaction_lines
-             (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, crAccountId, pmtAmt, voucherNo]
-        );
-        await conn.query(
-          `UPDATE purchase_payments_adnan SET journal_entry_id = ? WHERE id = ?`,
-          [jeId, paymentId]
-        ).catch(() => {
-        });
-      } else {
-        console.warn(
-          `[purchase/payments] Skipping JE for ${voucherNo}: drId=${drAccountId}, crId=${crAccountId} (likely missing chart_of_accounts entries for AP/AR/Bank)`
-        );
-      }
+      await postPurchasePaymentJE(conn, {
+        paymentId,
+        pmtDate,
+        voucherNo,
+        paymentType: payment_type,
+        pmtAmt,
+        supplierName: po.supplier_name,
+        bankName,
+        paymentMethod: payment_method,
+        referenceNumber: reference_number,
+        bankGlAccountId,
+        userId
+      });
     } catch (jeErr) {
       console.warn(`[purchase/payments] JE creation failed for ${voucherNo}:`, jeErr == null ? void 0 : jeErr.message);
     }
     const bankNote = bankName ? ` via ${bankName}` : "";
     const refNote = reference_number ? ` \xB7 ref: ${reference_number}` : "";
-    const typeLabel = (_k = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _k : "";
+    const typeLabel = (_h = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _h : "";
     await auditLog(conn, {
       userId,
       action: "payment_made",
@@ -259,7 +208,7 @@ const payments_post = defineEventHandler(async (event) => {
     console.error("[purchase/payments] Transaction failed:", e == null ? void 0 : e.message);
     throw createError({
       statusCode: 500,
-      statusMessage: (_m = (_l = e == null ? void 0 : e.sqlMessage) != null ? _l : e == null ? void 0 : e.message) != null ? _m : "Payment recording failed"
+      statusMessage: (_j = (_i = e == null ? void 0 : e.sqlMessage) != null ? _i : e == null ? void 0 : e.message) != null ? _j : "Payment recording failed"
     });
   } finally {
     conn.release();
