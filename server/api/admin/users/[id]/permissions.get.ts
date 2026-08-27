@@ -12,8 +12,12 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
   const role    = (session?.user?.role ?? '').toLowerCase()
 
-  if (!['admin', 'superadmin'].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: 'Only admin/superadmin can view permissions' })
+  // Superadmin only — matches legacy's admin/privileges.php exactly. A plain
+  // admin editing another admin's (or a superadmin's) permissions, or
+  // self-escalating, was a real gap here; the whole feature is locked down
+  // rather than trying to carve out a partial "admin may edit non-admins" rule.
+  if (role !== 'superadmin') {
+    throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can view user permissions' })
   }
 
   const targetId = Number(getRouterParam(event, 'id'))

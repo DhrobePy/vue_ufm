@@ -31,7 +31,7 @@
       :per-page="25"
       exportable
       search-placeholder=""
-      @row-click="row => navigateTo(`/admin/users/${row.id}/permissions`)"
+      @row-click="row => { if (isSuperadmin) navigateTo(`/admin/users/${row.id}/permissions`) }"
     >
       <template #cell-role="{ value }">
         <span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium border bg-blue-500/10 text-blue-300 border-blue-500/20 whitespace-nowrap">
@@ -49,7 +49,7 @@
         <span class="text-[11px] text-gray-500 font-mono">{{ value ? String(value).slice(0, 16).replace('T', ' ') : 'Never' }}</span>
       </template>
       <template #actions="{ row }">
-        <NuxtLink :to="`/admin/users/${row.id}/permissions`" class="btn-ghost text-[11px] py-1 px-2.5">Permissions</NuxtLink>
+        <NuxtLink v-if="isSuperadmin" :to="`/admin/users/${row.id}/permissions`" class="btn-ghost text-[11px] py-1 px-2.5">Permissions</NuxtLink>
         <NuxtLink :to="`/admin/users/${row.id}/edit`"        class="btn-ghost text-[11px] py-1 px-2.5">Edit</NuxtLink>
       </template>
     </UiDataTable>
@@ -58,6 +58,9 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+
+const { user: sessionUser } = useUserSession()
+const isSuperadmin = computed(() => (sessionUser.value?.role ?? '').toLowerCase() === 'superadmin')
 
 const search = ref('')
 

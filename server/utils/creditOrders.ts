@@ -69,7 +69,7 @@ export function creditUsagePct(exposure: number, creditLimit: number): number {
 /** Per-action ৳-limit keys (legacy user_action_limits parity). */
 export const ACTION_LIMIT_KEYS = [
   'approve_order', 'amend_order', 'collect_payment', 'partial_delivery',
-  'commodity_sale', 'loan_disbursement', 'pos_exit_release',
+  'commodity_sale', 'loan_disbursement', 'pos_exit_release', 'early_release',
 ] as const
 export type ActionLimitKey = typeof ACTION_LIMIT_KEYS[number]
 

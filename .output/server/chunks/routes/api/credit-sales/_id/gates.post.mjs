@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, at as readBody, X as getUserSession, m as createError, a1 as isAdminRole, aT as userCanAction, a0 as isAccountsRole, z as getDb, g as auditLog, H as getOrderGateState, aM as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, at as readBody, X as getUserSession, m as createError, a1 as isAdminRole, aT as userCanAction, a0 as isAccountsRole, z as getDb, H as getOrderGateState, U as getUserActionLimit, g as auditLog, aM as sendTelegram, A as ACCOUNTS_ROLES } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const gates_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -51,12 +51,25 @@ const gates_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[order]] = await conn.query(
-      `SELECT o.id, o.order_number, o.status, o.customer_id, c.name AS customer_name
+      `SELECT o.id, o.order_number, o.status, o.customer_id, o.total_amount, c.name AS customer_name
        FROM credit_orders o JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ? FOR UPDATE`,
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+    if (action === "clear_dispatch" && !isAdminRole(role)) {
+      const preState = await getOrderGateState(conn, id);
+      if (preState.dispatchHold && !preState.dispatchCleared && !preState.conditionMet) {
+        const limit = await getUserActionLimit(conn, userId, "early_release");
+        const orderTotal = Number((_d = order.total_amount) != null ? _d : 0);
+        if (limit === null || orderTotal > limit) {
+          throw createError({
+            statusCode: 403,
+            statusMessage: limit === null ? "The payment condition on this order is not yet met, and no early-release limit has been delegated to your account." : `The payment condition is not yet met, and this order's \u09F3${orderTotal.toLocaleString()} exceeds your delegated early-release limit of \u09F3${limit.toLocaleString()}.`
+          });
+        }
+      }
+    }
     if (action === "set") {
       const ct = ["manual", "outstanding_below", "outstanding_after_ship", "amount_received"].includes(body == null ? void 0 : body.condition_type) ? body.condition_type : null;
       await conn.query(
@@ -76,12 +89,12 @@ const gates_post = defineEventHandler(async (event) => {
         [
           id,
           (body == null ? void 0 : body.production_hold) ? 1 : 0,
-          (_d = body == null ? void 0 : body.production_hold_note) != null ? _d : null,
+          (_e = body == null ? void 0 : body.production_hold_note) != null ? _e : null,
           (body == null ? void 0 : body.dispatch_hold) ? 1 : 0,
           ct,
           (body == null ? void 0 : body.condition_amount) != null ? Number(body.condition_amount) : null,
           (body == null ? void 0 : body.auto_release) ? 1 : 0,
-          (_e = body == null ? void 0 : body.accounts_note) != null ? _e : null,
+          (_f = body == null ? void 0 : body.accounts_note) != null ? _f : null,
           userId
         ]
       );
@@ -101,6 +114,8 @@ ${order.order_number} \u2014 ${order.customer_name}
 by ${userName}${note ? `
 Note: ${note}` : ""}`;
     } else if (action === "revoke_dispatch") {
+      if (!note)
+        throw createError({ statusCode: 400, statusMessage: "A reason is required to revoke dispatch clearance" });
       if (["goods_on_board", "dispatched", "shipped", "delivered", "completed"].includes(order.status))
         throw createError({ statusCode: 409, statusMessage: "Order already goods on board \u2014 clearance can no longer be revoked" });
       await conn.query(

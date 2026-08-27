@@ -18,8 +18,8 @@ const permissions_put = defineEventHandler(async (event) => {
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   const actorId = (_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.id) != null ? _d : 1;
   const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
-  if (!["admin", "superadmin"].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can update permissions" });
+  if (role !== "superadmin") {
+    throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can update user permissions" });
   }
   const targetId = Number(getRouterParam(event, "id"));
   if (!targetId) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });

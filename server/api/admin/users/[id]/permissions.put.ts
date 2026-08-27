@@ -15,8 +15,11 @@ export default defineEventHandler(async (event) => {
   const actorId  = session?.user?.id ?? 1
   const ipAddress = getRequestHeader(event, 'x-forwarded-for') ?? getRequestHeader(event, 'x-real-ip') ?? undefined
 
-  if (!['admin', 'superadmin'].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: 'Only admin/superadmin can update permissions' })
+  // Superadmin only — matches legacy's admin/privileges.php exactly. Without
+  // this, a plain admin could edit another admin's (or a superadmin's)
+  // permission grants, including self-escalating their own.
+  if (role !== 'superadmin') {
+    throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can update user permissions' })
   }
 
   const targetId = Number(getRouterParam(event, 'id'))

@@ -16,8 +16,8 @@ const permissions_get = defineEventHandler(async (event) => {
   var _a, _b, _c, _d, _e, _f, _g;
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
-  if (!["admin", "superadmin"].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can view permissions" });
+  if (role !== "superadmin") {
+    throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can view user permissions" });
   }
   const targetId = Number(getRouterParam(event, "id"));
   if (!targetId) throw createError({ statusCode: 400, statusMessage: "Invalid user ID" });

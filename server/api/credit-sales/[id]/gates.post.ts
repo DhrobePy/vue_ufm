@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { isAdminRole, isAccountsRole, getOrderGateState, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
+import { isAdminRole, isAccountsRole, getOrderGateState, getUserActionLimit, ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
 /**
@@ -59,11 +59,35 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[order]] = await conn.query<any>(
-      `SELECT o.id, o.order_number, o.status, o.customer_id, c.name AS customer_name
+      `SELECT o.id, o.order_number, o.status, o.customer_id, o.total_amount, c.name AS customer_name
        FROM credit_orders o JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ? FOR UPDATE`, [id],
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
+
+    // Delegated-limit / condition-met enforcement for early dispatch release
+    // (spec parity with legacy payment_watch.php): a non-admin may only grant
+    // clearance ahead of the condition actually being met if their delegated
+    // "early_release" ৳ limit covers the order's total — otherwise clearing
+    // the hold requires either an admin, or the condition genuinely being
+    // met. The permission grant checked above only says a user MAY clear
+    // dispatch holds at all; it says nothing about how large an order they
+    // may override, which was the actual gap.
+    if (action === 'clear_dispatch' && !isAdminRole(role)) {
+      const preState = await getOrderGateState(conn, id)
+      if (preState.dispatchHold && !preState.dispatchCleared && !preState.conditionMet) {
+        const limit = await getUserActionLimit(conn, userId, 'early_release')
+        const orderTotal = Number(order.total_amount ?? 0)
+        if (limit === null || orderTotal > limit) {
+          throw createError({
+            statusCode: 403,
+            statusMessage: limit === null
+              ? 'The payment condition on this order is not yet met, and no early-release limit has been delegated to your account.'
+              : `The payment condition is not yet met, and this order's ৳${orderTotal.toLocaleString()} exceeds your delegated early-release limit of ৳${limit.toLocaleString()}.`,
+          })
+        }
+      }
+    }
 
     if (action === 'set') {
       const ct = ['manual', 'outstanding_below', 'outstanding_after_ship', 'amount_received']
@@ -114,6 +138,8 @@ export default defineEventHandler(async (event) => {
     }
 
     else if (action === 'revoke_dispatch') {
+      if (!note)
+        throw createError({ statusCode: 400, statusMessage: 'A reason is required to revoke dispatch clearance' })
       if (['goods_on_board', 'dispatched', 'shipped', 'delivered', 'completed'].includes(order.status))
         throw createError({ statusCode: 409, statusMessage: 'Order already goods on board — clearance can no longer be revoked' })
       // Revoke also kills auto-release: a human said stop, the machine must not restart it
