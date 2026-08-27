@@ -1565,5 +1565,13 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] purchase_payments_adnan.payment_type widen failed:', e) }
 
+  // cash_verification_log — confirming a bank deposit needs to record WHICH
+  // bank account received it and which journal entry moved the money out of
+  // petty cash, so the deposit-confirm endpoint can actually post a real
+  // JE (matching legacy's confirm_deposit.php) instead of only stamping a
+  // timestamp.
+  await addCol(db, 'cash_verification_log', 'deposit_bank_account_id', 'BIGINT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'cash_verification_log', 'deposit_journal_entry_id', 'BIGINT UNSIGNED NULL DEFAULT NULL')
+
   console.log('[db-migrate] startup migrations complete')
 })

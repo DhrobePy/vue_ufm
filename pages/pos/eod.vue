@@ -73,6 +73,34 @@
         </table>
       </div>
     </div>
+
+    <!-- Confirm deposit modal -->
+    <div v-if="depositTarget" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" @click.self="depositTarget = null">
+      <div class="glass-card p-5 w-full max-w-sm space-y-4">
+        <h3 class="section-title">Confirm Bank Deposit</h3>
+        <p class="text-xs text-gray-400">
+          ৳{{ Number(depositTarget.actual_cash).toLocaleString() }} from {{ depositTarget.branch_name }}
+        </p>
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Deposited To</label>
+          <select v-model="depositForm.bank_account_id" class="input-glass text-xs">
+            <option value="">Select bank account…</option>
+            <option v-for="b in bankAccounts" :key="b.id" :value="b.id">{{ b.bank_name }} — {{ b.account_name }}</option>
+          </select>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Deposit Reference</label>
+          <input v-model="depositForm.deposit_reference" class="input-glass text-xs" placeholder="Slip / transaction ref…" />
+        </div>
+        <div class="flex justify-end gap-2">
+          <button @click="depositTarget = null" class="btn-ghost text-xs">Cancel</button>
+          <button @click="submitDeposit" :disabled="!depositForm.bank_account_id || !depositForm.deposit_reference.trim() || depositSubmitting"
+                  class="btn-gold text-xs disabled:opacity-50">
+            {{ depositSubmitting ? 'Confirming…' : 'Confirm Deposit' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -80,13 +108,15 @@
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 
-const [{ data, refresh }, { data: usersData }] = await Promise.all([
+const [{ data, refresh }, { data: usersData }, { data: bankData }] = await Promise.all([
   useFetch('/api/pos/eod'),
   useFetch('/api/admin/users', { query: { per: 200 } }),
+  useFetch('/api/bank/accounts'),
 ])
 const cashAccounts = computed<any[]>(() => (data.value as any)?.cash_accounts ?? [])
 const history       = computed<any[]>(() => (data.value as any)?.history ?? [])
 const users          = computed<any[]>(() => (usersData.value as any)?.users ?? [])
+const bankAccounts   = computed<any[]>(() => (bankData.value as any)?.accounts ?? [])
 
 const form = reactive({ cash_account_id: '' as string | number, actual_cash: 0, variance_reason: '', witness_user_id: '' as string | number })
 const selectedAccount = computed(() => cashAccounts.value.find((a: any) => String(a.id) === String(form.cash_account_id)))
@@ -118,15 +148,31 @@ async function submit() {
   } finally { submitting.value = false }
 }
 
-async function confirmDeposit(h: any) {
-  const ref_ = prompt(`Bank deposit reference for ৳${Number(h.actual_cash).toLocaleString()}?`)
-  if (!ref_?.trim()) return
+const depositTarget = ref<any>(null)
+const depositForm = reactive({ bank_account_id: '' as string | number, deposit_reference: '' })
+const depositSubmitting = ref(false)
+
+function confirmDeposit(h: any) {
+  depositTarget.value = h
+  depositForm.bank_account_id = ''
+  depositForm.deposit_reference = ''
+}
+
+async function submitDeposit() {
+  if (!depositTarget.value) return
+  depositSubmitting.value = true
   try {
-    await $fetch(`/api/pos/eod/${h.id}/deposit`, { method: 'POST', body: { deposit_reference: ref_ } })
-    success('Deposit confirmed ✓')
+    await $fetch(`/api/pos/eod/${depositTarget.value.id}/deposit`, {
+      method: 'POST',
+      body: { deposit_reference: depositForm.deposit_reference, bank_account_id: depositForm.bank_account_id },
+    })
+    success('Deposit confirmed — cash moved out of petty cash ✓')
+    depositTarget.value = null
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to confirm deposit')
+  } finally {
+    depositSubmitting.value = false
   }
 }
 </script>
