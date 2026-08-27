@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, at as readBody, X as getUserSession, z as getDb, aw as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, m as createError, au as readBody, X as getUserSession, z as getDb, aJ as reverseGRNJournalEntry, ak as postGRNJournalEntry, ax as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,14 +13,15 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid GRN ID" });
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
-  const isAdmin = ["admin", "superadmin"].includes(role);
+  if (role !== "superadmin")
+    throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can edit a GRN" });
   const {
     grn_date,
     truck_number,
@@ -37,13 +38,13 @@ const _id__patch = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[grn]] = await conn.query(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg,
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id,
               quantity_received_kg AS old_qty
-       FROM goods_received_adnan WHERE id = ?`,
+       FROM goods_received_adnan WHERE id = ? FOR UPDATE`,
       [id]
     );
     if (!grn) throw createError({ statusCode: 404, statusMessage: "GRN not found" });
-    if (grn.grn_status === "cancelled" && !isAdmin) {
+    if (grn.grn_status === "cancelled") {
       throw createError({ statusCode: 400, statusMessage: "Cannot edit a cancelled GRN" });
     }
     const newQtyKg = Number(quantity_received_kg != null ? quantity_received_kg : grn.old_qty);
@@ -52,6 +53,15 @@ const _id__patch = defineEventHandler(async (event) => {
     const billedQty = expectedKg > 0 ? expectedKg : newQtyKg;
     const totalValue = billedQty * unitPrice;
     const varPct = expectedKg > 0 ? ((newQtyKg - expectedKg) / expectedKg * 100).toFixed(4) : "0";
+    if (grn.journal_entry_id) {
+      await reverseGRNJournalEntry(conn, {
+        journalEntryId: grn.journal_entry_id,
+        grnNumber: grn.grn_number,
+        reason: "GRN edited",
+        userId,
+        grnId: id
+      });
+    }
     await conn.query(
       `UPDATE goods_received_adnan
        SET grn_date               = ?,
@@ -80,6 +90,21 @@ const _id__patch = defineEventHandler(async (event) => {
         id
       ]
     );
+    let newJeId = null;
+    try {
+      const [[po]] = await conn.query(`SELECT po_number FROM purchase_orders_adnan WHERE id = ?`, [grn.purchase_order_id]);
+      newJeId = await postGRNJournalEntry(conn, {
+        grnId: id,
+        poId: grn.purchase_order_id,
+        grnNumber: grn.grn_number,
+        poNumber: (_e = po == null ? void 0 : po.po_number) != null ? _e : "",
+        grnDate: grn_date,
+        totalValue,
+        userId
+      });
+    } catch (jeErr) {
+      console.warn(`[grn] Re-post GL failed for ${grn.grn_number}:`, jeErr);
+    }
     await recalcPO(conn, grn.purchase_order_id);
     const changeNote = newQtyKg !== Number(grn.old_qty) ? ` \xB7 Qty changed: ${Number(grn.old_qty).toLocaleString()} \u2192 ${newQtyKg.toLocaleString()} KG` : "";
     await auditLog(conn, {
@@ -89,7 +114,7 @@ const _id__patch = defineEventHandler(async (event) => {
       recordType: "grn",
       recordId: id,
       referenceNumber: grn.grn_number,
-      description: `GRN ${grn.grn_number} updated${changeNote} \xB7 Total Value: \u09F3${totalValue.toLocaleString()}`,
+      description: `GRN ${grn.grn_number} updated${changeNote} \xB7 Total Value: \u09F3${totalValue.toLocaleString()}${newJeId ? ` \xB7 GL re-posted (#${newJeId})` : ""}`,
       severity: newQtyKg !== Number(grn.old_qty) ? "warning" : "info"
     });
     await conn.commit();

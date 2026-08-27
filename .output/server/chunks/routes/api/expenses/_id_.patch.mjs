@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, at as readBody, z as getDb, g as auditLog } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, au as readBody, z as getDb, g as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, at as readBody, z as getDb, aw as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, au as readBody, z as getDb, aJ as reverseGRNJournalEntry, ax as recalcPO, g as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -28,7 +28,7 @@ const _id__delete = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[grn]] = await conn.query(
-      `SELECT id, grn_number, grn_status, purchase_order_id,
+      `SELECT id, grn_number, grn_status, purchase_order_id, journal_entry_id,
               supplier_name, quantity_received_kg, total_value
        FROM goods_received_adnan WHERE id = ?`,
       [id]
@@ -36,6 +36,16 @@ const _id__delete = defineEventHandler(async (event) => {
     if (!grn) throw createError({ statusCode: 404, statusMessage: "GRN not found" });
     if (grn.grn_status === "cancelled") {
       throw createError({ statusCode: 400, statusMessage: "GRN is already cancelled" });
+    }
+    let reversalJeId = null;
+    if (grn.journal_entry_id) {
+      reversalJeId = await reverseGRNJournalEntry(conn, {
+        journalEntryId: grn.journal_entry_id,
+        grnNumber: grn.grn_number,
+        reason: reason || "GRN cancelled",
+        userId,
+        grnId: id
+      });
     }
     const reasonNote = reason ? ` Reason: ${reason}` : "";
     await conn.query(
@@ -54,7 +64,7 @@ const _id__delete = defineEventHandler(async (event) => {
       recordType: "grn",
       recordId: id,
       referenceNumber: grn.grn_number,
-      description: `GRN ${grn.grn_number} cancelled \xB7 ${grn.supplier_name} \xB7 ${Number(grn.quantity_received_kg).toLocaleString()} KG \xB7 \u09F3${Number(grn.total_value).toLocaleString()}${reasonNote}`,
+      description: `GRN ${grn.grn_number} cancelled \xB7 ${grn.supplier_name} \xB7 ${Number(grn.quantity_received_kg).toLocaleString()} KG \xB7 \u09F3${Number(grn.total_value).toLocaleString()}${reasonNote}${reversalJeId ? ` \xB7 GL reversed (#${reversalJeId})` : ""}`,
       severity: "warning"
     });
     await conn.commit();

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, K as getRequestHeader, m as createError, R as getRouterParam, at as readBody, z as getDb, g as auditLog, _ as invalidatePermCache } from '../../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, K as getRequestHeader, m as createError, R as getRouterParam, au as readBody, z as getDb, g as auditLog, _ as invalidatePermCache } from '../../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

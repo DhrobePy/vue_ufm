@@ -3,6 +3,7 @@ import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
 import { postCommodityGRNCost } from '~/server/utils/commodityTrading'
 import { nextDocNumber } from '~/server/utils/creditOrders'
+import { postGRNJournalEntry } from '~/server/utils/grnGL'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -107,6 +108,17 @@ export default defineEventHandler(async (event) => {
       } catch (costErr) {
         console.warn(`[grn] commodity costing failed for ${grnNo}:`, costErr)
       }
+    }
+
+    // ── GL — capitalize the received goods as inventory ───────────────────
+    // Best-effort, same rule as the costing call above: never blocks the GRN.
+    try {
+      await postGRNJournalEntry(conn, {
+        grnId, poId: Number(po_id), grnNumber: grnNo, poNumber: po.po_number,
+        grnDate: grn_date, totalValue, userId,
+      })
+    } catch (jeErr) {
+      console.warn(`[grn] GL posting failed for ${grnNo}:`, jeErr)
     }
 
     // Audit log

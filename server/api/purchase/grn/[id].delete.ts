@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
+import { reverseGRNJournalEntry } from '~/server/utils/grnGL'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[grn]] = await conn.query<any>(
-      `SELECT id, grn_number, grn_status, purchase_order_id,
+      `SELECT id, grn_number, grn_status, purchase_order_id, journal_entry_id,
               supplier_name, quantity_received_kg, total_value
        FROM goods_received_adnan WHERE id = ?`,
       [id],
@@ -28,6 +29,14 @@ export default defineEventHandler(async (event) => {
     if (!grn) throw createError({ statusCode: 404, statusMessage: 'GRN not found' })
     if (grn.grn_status === 'cancelled') {
       throw createError({ statusCode: 400, statusMessage: 'GRN is already cancelled' })
+    }
+
+    let reversalJeId: number | null = null
+    if (grn.journal_entry_id) {
+      reversalJeId = await reverseGRNJournalEntry(conn, {
+        journalEntryId: grn.journal_entry_id, grnNumber: grn.grn_number,
+        reason: reason || 'GRN cancelled', userId, grnId: id,
+      })
     }
 
     const reasonNote = reason ? ` Reason: ${reason}` : ''
@@ -51,7 +60,7 @@ export default defineEventHandler(async (event) => {
       recordType:      'grn',
       recordId:        id,
       referenceNumber: grn.grn_number,
-      description:     `GRN ${grn.grn_number} cancelled · ${grn.supplier_name} · ${Number(grn.quantity_received_kg).toLocaleString()} KG · ৳${Number(grn.total_value).toLocaleString()}${reasonNote}`,
+      description:     `GRN ${grn.grn_number} cancelled · ${grn.supplier_name} · ${Number(grn.quantity_received_kg).toLocaleString()} KG · ৳${Number(grn.total_value).toLocaleString()}${reasonNote}${reversalJeId ? ` · GL reversed (#${reversalJeId})` : ''}`,
       severity:        'warning',
     })
 

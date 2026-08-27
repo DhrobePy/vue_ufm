@@ -1,4 +1,4 @@
-import { q as defineEventHandler, at as readBody, X as getUserSession, m as createError, z as getDb, a6 as nextDocNumber, aw as recalcPO, ag as postCommodityGRNCost, g as auditLog } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, au as readBody, X as getUserSession, m as createError, z as getDb, a6 as nextDocNumber, ax as recalcPO, ag as postCommodityGRNCost, ak as postGRNJournalEntry, g as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -104,6 +104,19 @@ const index_post = defineEventHandler(async (event) => {
       } catch (costErr) {
         console.warn(`[grn] commodity costing failed for ${grnNo}:`, costErr);
       }
+    }
+    try {
+      await postGRNJournalEntry(conn, {
+        grnId,
+        poId: Number(po_id),
+        grnNumber: grnNo,
+        poNumber: po.po_number,
+        grnDate: grn_date,
+        totalValue,
+        userId
+      });
+    } catch (jeErr) {
+      console.warn(`[grn] GL posting failed for ${grnNo}:`, jeErr);
     }
     const varianceNote = expectedKg > 0 ? ` \xB7 Expected: ${expectedKg.toLocaleString()} KG \xB7 Variance: ${Number(varPct) >= 0 ? "+" : ""}${Number(varPct).toFixed(2)}%` : "";
     await auditLog(conn, {

@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
+import { postGRNJournalEntry, reverseGRNJournalEntry } from '~/server/utils/grnGL'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -10,7 +11,8 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
   const userId  = session?.user?.id ?? 1
   const role    = (session?.user?.role ?? '').toLowerCase()
-  const isAdmin = ['admin', 'superadmin'].includes(role)
+  if (role !== 'superadmin')
+    throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can edit a GRN' })
 
   const {
     grn_date,
@@ -31,13 +33,13 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[grn]] = await conn.query<any>(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg,
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id,
               quantity_received_kg AS old_qty
-       FROM goods_received_adnan WHERE id = ?`,
+       FROM goods_received_adnan WHERE id = ? FOR UPDATE`,
       [id],
     )
     if (!grn) throw createError({ statusCode: 404, statusMessage: 'GRN not found' })
-    if (grn.grn_status === 'cancelled' && !isAdmin) {
+    if (grn.grn_status === 'cancelled') {
       throw createError({ statusCode: 400, statusMessage: 'Cannot edit a cancelled GRN' })
     }
 
@@ -52,6 +54,17 @@ export default defineEventHandler(async (event) => {
     const varPct = expectedKg > 0
       ? (((newQtyKg - expectedKg) / expectedKg) * 100).toFixed(4)
       : '0'
+
+    // Reverse the old GL entry before writing the corrected row — legacy's
+    // own changelog documents fixing exactly this bug once already
+    // ("leaving inventory value permanently desynced from the GL").
+    // Never mutate the original entry, post a mirror-image reversal instead.
+    if (grn.journal_entry_id) {
+      await reverseGRNJournalEntry(conn, {
+        journalEntryId: grn.journal_entry_id, grnNumber: grn.grn_number,
+        reason: 'GRN edited', userId, grnId: id,
+      })
+    }
 
     await conn.query(
       `UPDATE goods_received_adnan
@@ -82,6 +95,18 @@ export default defineEventHandler(async (event) => {
       ],
     )
 
+    // Re-post a fresh GL entry for the corrected value.
+    let newJeId: number | null = null
+    try {
+      const [[po]] = await conn.query<any>(`SELECT po_number FROM purchase_orders_adnan WHERE id = ?`, [grn.purchase_order_id])
+      newJeId = await postGRNJournalEntry(conn, {
+        grnId: id, poId: grn.purchase_order_id, grnNumber: grn.grn_number,
+        poNumber: po?.po_number ?? '', grnDate: grn_date, totalValue, userId,
+      })
+    } catch (jeErr) {
+      console.warn(`[grn] Re-post GL failed for ${grn.grn_number}:`, jeErr)
+    }
+
     await recalcPO(conn, grn.purchase_order_id)
 
     const changeNote = newQtyKg !== Number(grn.old_qty)
@@ -94,7 +119,7 @@ export default defineEventHandler(async (event) => {
       recordType:      'grn',
       recordId:        id,
       referenceNumber: grn.grn_number,
-      description:     `GRN ${grn.grn_number} updated${changeNote} · Total Value: ৳${totalValue.toLocaleString()}`,
+      description:     `GRN ${grn.grn_number} updated${changeNote} · Total Value: ৳${totalValue.toLocaleString()}${newJeId ? ` · GL re-posted (#${newJeId})` : ''}`,
       severity:        newQtyKg !== Number(grn.old_qty) ? 'warning' : 'info',
     })
 
