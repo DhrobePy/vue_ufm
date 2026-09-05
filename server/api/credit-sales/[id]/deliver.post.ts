@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { getUserActionLimit, nextDocNumber } from '~/server/utils/creditOrders'
+import { getUserActionLimit, nextDocNumber, isAdminRole } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -107,10 +107,57 @@ export default defineEventHandler(async (event) => {
     // customer_ledger + GL at DISPATCH (workflow ship transition) — the
     // accounting pivot. Deliveries only record physical movement.
 
+    // ── Quantity-shortfall guard ──────────────────────────────────────────
+    // A caller can submit is_final=true with items that don't actually cover
+    // everything still owed (mismatched form data, a stale draft, a direct
+    // API call) — force-closing the order as "delivered" while real units
+    // remain outstanding, with no trace of the shortfall. Compute the true
+    // remaining quantity across every line (ordered − delivered-to-date,
+    // including this submission) and refuse to finalize silently.
+    let shortfallItems: { product_id: number; variant_id: number | null; qty_short: number }[] = []
+    if (is_final) {
+      const [allItems] = await conn.query<any>(
+        `SELECT oi.id AS order_item_id, oi.product_id, oi.variant_id, oi.quantity,
+                COALESCE((
+                  SELECT SUM(di.qty_delivered)
+                  FROM credit_order_delivery_items di
+                  JOIN credit_order_deliveries d ON d.id = di.delivery_id
+                  WHERE di.order_item_id = oi.id AND d.order_id = oi.order_id
+                ), 0) AS qty_delivered_prior
+         FROM credit_order_items oi WHERE oi.order_id = ?`,
+        [id],
+      )
+      const thisSubmission = new Map<number, number>()
+      for (const it of items) thisSubmission.set(Number(it.order_item_id), (thisSubmission.get(Number(it.order_item_id)) ?? 0) + Number(it.qty_delivered))
+      shortfallItems = allItems
+        .map((oi: any) => ({
+          product_id: oi.product_id, variant_id: oi.variant_id,
+          qty_short: Number(oi.quantity) - Number(oi.qty_delivered_prior) - (thisSubmission.get(oi.order_item_id) ?? 0),
+        }))
+        .filter((oi: any) => oi.qty_short > 0.005)
+
+      if (shortfallItems.length) {
+        const totalShort = shortfallItems.reduce((s, i) => s + i.qty_short, 0)
+        if (!isAdminRole(role)) {
+          throw createError({
+            statusCode: 409,
+            statusMessage: `${totalShort.toLocaleString()} units across ${shortfallItems.length} item(s) are still undelivered — record another partial delivery instead of marking this final, or ask an admin to override.`,
+          })
+        }
+        if (!body?.confirm_shortfall) {
+          throw createError({
+            statusCode: 409,
+            statusMessage: `${totalShort.toLocaleString()} units are still undelivered. Confirm you intend to close this order anyway (confirm_shortfall) — the shortfall will be recorded, not hidden.`,
+          })
+        }
+      }
+    }
+
     // Update order status + write workflow timeline entry
     const wfToStatus = is_final ? 'delivered' : order.status
     const wfAction   = is_final ? 'delivered' : 'partial_delivery'
-    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}`
+    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}` +
+      (shortfallItems.length ? ` · ⚠ closed with ${shortfallItems.reduce((s, i) => s + i.qty_short, 0).toLocaleString()} units short (admin override, confirmed)` : '')
 
     if (is_final) {
       await conn.query(
