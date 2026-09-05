@@ -28,6 +28,7 @@ const gate_post = defineEventHandler(async (event) => {
   const driverName = String((_f = body == null ? void 0 : body.driver_name) != null ? _f : "").trim();
   const vehicleNumber = String((_g = body == null ? void 0 : body.vehicle_number) != null ? _g : "").trim();
   const gateNote = (body == null ? void 0 : body.gate_note) ? String(body.gate_note).trim().slice(0, 500) : null;
+  const deliveryId = Number(body == null ? void 0 : body.delivery_id) || null;
   const ip = (_i = (_h = getRequestHeader(event, "x-forwarded-for")) != null ? _h : getRequestHeader(event, "x-real-ip")) != null ? _i : void 0;
   if (!sig) throw createError({ statusCode: 400, statusMessage: "Missing verification parameters" });
   if (!driverName || !vehicleNumber)
@@ -35,7 +36,7 @@ const gate_post = defineEventHandler(async (event) => {
   const conn = await getDb().getConnection();
   let committedOrder = null;
   try {
-    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig);
+    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig, deliveryId);
     if (!sigValid)
       throw createError({ statusCode: 403, statusMessage: "Invalid or altered QR code" });
     await conn.beginTransaction();
@@ -44,7 +45,8 @@ const gate_post = defineEventHandler(async (event) => {
       [orderNumber]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
-    if (order.status !== "goods_on_board")
+    const allowedStatuses = deliveryId ? ["goods_on_board", "shipped"] : ["goods_on_board"];
+    if (!allowedStatuses.includes(order.status))
       throw createError({
         statusCode: 409,
         statusMessage: `This order is not ready to leave the gate (status: ${order.status.replace(/_/g, " ")})`
@@ -52,28 +54,45 @@ const gate_post = defineEventHandler(async (event) => {
     const gate = await getOrderGateState(conn, order.id);
     if (gate.dispatchHold && !gate.dispatchCleared)
       throw createError({ statusCode: 423, statusMessage: "DO NOT RELEASE \u2014 this order is HELD and not cleared for dispatch. Clear it in Payment Watch first." });
+    if (deliveryId) {
+      const [[delivery]] = await conn.query(
+        `SELECT id FROM credit_order_deliveries WHERE id = ? AND order_id = ?`,
+        [deliveryId, order.id]
+      );
+      if (!delivery) throw createError({ statusCode: 404, statusMessage: "Delivery record not found for this order" });
+    }
     const [[existing]] = await conn.query(
-      `SELECT gate_out_at FROM cr_delivery_confirmations WHERE order_id = ?`,
-      [order.id]
+      deliveryId ? `SELECT gate_out_at FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id <=> ?` : `SELECT gate_out_at FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`,
+      deliveryId ? [order.id, deliveryId] : [order.id]
     );
     if (existing == null ? void 0 : existing.gate_out_at)
-      throw createError({ statusCode: 409, statusMessage: "Gate pass already recorded for this order" });
-    await conn.query(
-      `INSERT INTO cr_delivery_confirmations
-         (order_id, order_number, gate_out_at, gate_out_by_user_id, gate_out_by_name, driver_name, vehicle_number, gate_note)
-       VALUES (?, ?, NOW(), ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         gate_out_at = NOW(), gate_out_by_user_id = VALUES(gate_out_by_user_id),
-         gate_out_by_name = VALUES(gate_out_by_name), driver_name = VALUES(driver_name),
-         vehicle_number = VALUES(vehicle_number), gate_note = VALUES(gate_note)`,
-      [order.id, order.order_number, userId, userName, driverName, vehicleNumber, gateNote]
-    );
-    await conn.query(`UPDATE credit_orders SET status = 'shipped', updated_at = NOW() WHERE id = ?`, [order.id]);
+      throw createError({ statusCode: 409, statusMessage: deliveryId ? "Gate pass already recorded for this delivery" : "Gate pass already recorded for this order" });
+    if (existing) {
+      await conn.query(
+        deliveryId ? `UPDATE cr_delivery_confirmations
+             SET gate_out_at = NOW(), gate_out_by_user_id = ?, gate_out_by_name = ?,
+                 driver_name = ?, vehicle_number = ?, gate_note = ?
+             WHERE order_id = ? AND delivery_id <=> ?` : `UPDATE cr_delivery_confirmations
+             SET gate_out_at = NOW(), gate_out_by_user_id = ?, gate_out_by_name = ?,
+                 driver_name = ?, vehicle_number = ?, gate_note = ?
+             WHERE order_id = ? AND delivery_id IS NULL`,
+        deliveryId ? [userId, userName, driverName, vehicleNumber, gateNote, order.id, deliveryId] : [userId, userName, driverName, vehicleNumber, gateNote, order.id]
+      );
+    } else {
+      await conn.query(
+        `INSERT INTO cr_delivery_confirmations
+           (order_id, order_number, delivery_id, gate_out_at, gate_out_by_user_id, gate_out_by_name, driver_name, vehicle_number, gate_note)
+         VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?)`,
+        [order.id, order.order_number, deliveryId, userId, userName, driverName, vehicleNumber, gateNote]
+      );
+    }
+    if (order.status !== "shipped")
+      await conn.query(`UPDATE credit_orders SET status = 'shipped', updated_at = NOW() WHERE id = ?`, [order.id]);
     await conn.query(
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, 'goods_on_board', 'shipped', 'gate_out', ?, ?, NOW())`,
-      [order.id, userId, `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})`]
+       VALUES (?, ?, 'shipped', 'gate_out', ?, ?, NOW())`,
+      [order.id, order.status, userId, `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` \xB7 delivery #${deliveryId}` : ""}`]
     );
     await auditLog(conn, {
       userId,
@@ -82,7 +101,7 @@ const gate_post = defineEventHandler(async (event) => {
       recordType: "credit_order",
       recordId: order.id,
       referenceNumber: order.order_number,
-      description: `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})`,
+      description: `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` \xB7 delivery #${deliveryId}` : ""}`,
       severity: "info",
       ipAddress: ip
     });

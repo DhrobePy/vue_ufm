@@ -29,8 +29,15 @@ export async function getDeliveryQrSecret(conn: any): Promise<string> {
   return row2?.setting_value ?? secret
 }
 
-export function deliveryQrSignature(orderNumber: string, secret: string): string {
-  return crypto.createHmac('sha256', secret).update(`DELIV|${orderNumber}`).digest('hex').slice(0, 16)
+/**
+ * `deliveryId` scopes the signature to one specific truck/trip
+ * (cr_delivery_confirmations.id) for a multi-delivery order — omitting it
+ * reproduces the exact legacy whole-order signature, so every gate pass
+ * already printed/in circulation before delivery-scoping existed stays valid.
+ */
+export function deliveryQrSignature(orderNumber: string, secret: string, deliveryId?: number | null): string {
+  const payload = deliveryId ? `DELIV|${orderNumber}|${deliveryId}` : `DELIV|${orderNumber}`
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex').slice(0, 16)
 }
 
 /** POS single-stage exit-verification QR signature — 'POSEXIT|' namespace,
@@ -74,9 +81,9 @@ export async function recordPosExitScan(conn: any, opts: {
   return total
 }
 
-export async function verifyDeliveryQrSignature(conn: any, orderNumber: string, sig: string): Promise<boolean> {
+export async function verifyDeliveryQrSignature(conn: any, orderNumber: string, sig: string, deliveryId?: number | null): Promise<boolean> {
   const secret = await getDeliveryQrSecret(conn)
-  const expected = deliveryQrSignature(orderNumber, secret)
+  const expected = deliveryQrSignature(orderNumber, secret, deliveryId)
   // Constant-time compare — same length required or timingSafeEqual throws.
   if (expected.length !== sig.length) return false
   return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig))

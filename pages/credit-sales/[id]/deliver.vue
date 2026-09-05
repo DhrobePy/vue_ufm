@@ -187,8 +187,8 @@ async function submit() {
         items,
       },
     })
-    success(`Delivery ${result.delivery_number} recorded successfully`)
-    navigateTo(`/credit-sales/${id}`)
+    success(`Delivery ${result.delivery_number} recorded — opening its gate pass`)
+    navigateTo(`/credit-sales/${id}/dispatch-slip?delivery_id=${result.delivery_id}`)
   } catch (e: any) {
     error(e?.data?.statusMessage ?? 'Failed to record delivery')
   } finally {

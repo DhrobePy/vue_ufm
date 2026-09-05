@@ -660,7 +660,7 @@ const _routes = [
     name: "d-order",
     path: "/d/:order()",
     meta: __nuxt_page_meta$2R || {},
-    component: () => import('./_order_-C5Vb6H3z.mjs')
+    component: () => import('./_order_-BTC32iAN.mjs')
   },
   {
     name: "pos",
@@ -1722,7 +1722,7 @@ const _routes = [
     name: "credit-sales-id-dispatch-slip",
     path: "/credit-sales/:id()/dispatch-slip",
     meta: __nuxt_page_meta$4 || {},
-    component: () => import('./dispatch-slip-B60-TCyM.mjs')
+    component: () => import('./dispatch-slip-BplOON8g.mjs')
   },
   {
     name: "credit-sales-id-over-delivery",

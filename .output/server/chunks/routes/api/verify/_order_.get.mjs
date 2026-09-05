@@ -21,12 +21,14 @@ const _order__get = defineEventHandler(async (event) => {
   const userName = (_a = session.user.name) != null ? _a : `User ${userId}`;
   const role = ((_b = session.user.role) != null ? _b : "").toLowerCase();
   const orderNumber = ((_d = (_c = event.context.params) == null ? void 0 : _c.order) != null ? _d : "").trim().toUpperCase();
-  const sig = String((_e = getQuery(event).sig) != null ? _e : "").trim();
+  const q = getQuery(event);
+  const sig = String((_e = q.sig) != null ? _e : "").trim();
+  const deliveryId = Number(q.delivery_id) || null;
   if (!orderNumber || !sig)
     throw createError({ statusCode: 400, statusMessage: "Missing verification parameters" });
   const conn = await getDb().getConnection();
   try {
-    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig);
+    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig, deliveryId);
     if (!sigValid)
       throw createError({ statusCode: 403, statusMessage: "Invalid or altered QR code \u2014 this is not a genuine dispatch slip" });
     const [[order]] = await conn.query(
@@ -39,17 +41,39 @@ const _order__get = defineEventHandler(async (event) => {
       [orderNumber]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "No order found for this code" });
-    const [items] = await conn.query(
-      `SELECT coi.quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
-       FROM credit_order_items coi
-       JOIN products p ON p.id = coi.product_id
-       LEFT JOIN product_variants pv ON pv.id = coi.variant_id
-       WHERE coi.order_id = ?`,
-      [order.id]
-    );
+    let deliveryNumber = null;
+    let items;
+    if (deliveryId) {
+      const [[delivery]] = await conn.query(
+        `SELECT delivery_number FROM credit_order_deliveries WHERE id = ? AND order_id = ?`,
+        [deliveryId, order.id]
+      );
+      if (!delivery) throw createError({ statusCode: 404, statusMessage: "Delivery record not found for this order" });
+      deliveryNumber = delivery.delivery_number;
+      const [deliveryItems] = await conn.query(
+        `SELECT di.qty_delivered AS quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
+         FROM credit_order_delivery_items di
+         JOIN credit_order_items coi ON coi.id = di.order_item_id
+         JOIN products p ON p.id = coi.product_id
+         LEFT JOIN product_variants pv ON pv.id = coi.variant_id
+         WHERE di.delivery_id = ?`,
+        [deliveryId]
+      );
+      items = deliveryItems;
+    } else {
+      const [orderItems] = await conn.query(
+        `SELECT coi.quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
+         FROM credit_order_items coi
+         JOIN products p ON p.id = coi.product_id
+         LEFT JOIN product_variants pv ON pv.id = coi.variant_id
+         WHERE coi.order_id = ?`,
+        [order.id]
+      );
+      items = orderItems;
+    }
     const [[conf]] = await conn.query(
-      `SELECT * FROM cr_delivery_confirmations WHERE order_id = ?`,
-      [order.id]
+      deliveryId ? `SELECT * FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id <=> ?` : `SELECT * FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`,
+      deliveryId ? [order.id, deliveryId] : [order.id]
     );
     const gateOut = !!(conf == null ? void 0 : conf.gate_out_at);
     const delivered = !!(conf == null ? void 0 : conf.confirmed_at);
@@ -84,6 +108,8 @@ const _order__get = defineEventHandler(async (event) => {
     }
     return {
       stage,
+      delivery_id: deliveryId,
+      delivery_number: deliveryNumber,
       order: {
         order_number: order.order_number,
         status: order.status,

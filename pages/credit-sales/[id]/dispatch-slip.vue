@@ -31,7 +31,7 @@
             <div style="width:52px;height:52px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#000;flex-shrink:0;">U</div>
             <div>
               <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.3px;">Ujjal Flour Mills Co.</div>
-              <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:3px;letter-spacing:0.05em;">DISPATCH SLIP / GATE PASS</div>
+              <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:3px;letter-spacing:0.05em;">{{ delivery ? `PARTIAL DELIVERY — ${delivery.delivery_number}` : 'DISPATCH SLIP / GATE PASS' }}</div>
               <div style="font-size:10.5px;color:#9ca3af;margin-top:6px;line-height:1.7;">
                 Sirajgonj Sadar, Sirajgonj-6700 · Demra, Dhaka-1361<br>
                 📞 +880 1711-000000
@@ -145,10 +145,14 @@
 <script setup lang="ts">
 definePageMeta({ layout: false })
 const route = useRoute()
+const deliveryId = computed(() => route.query.delivery_id ? Number(route.query.delivery_id) : null)
 
-const { data, pending, error } = await useFetch(`/api/credit-sales/${route.params.id}/dispatch-slip`)
+const { data, pending, error } = await useFetch(`/api/credit-sales/${route.params.id}/dispatch-slip`, {
+  query: computed(() => ({ delivery_id: deliveryId.value ?? undefined })),
+})
 
 const order        = computed(() => (data.value?.order ?? {}) as any)
+const delivery      = computed(() => data.value?.delivery as any)
 const items        = computed(() => (data.value?.items ?? []) as any[])
 const confirmation = computed(() => data.value?.confirmation as any)
 const totalQty      = computed(() => items.value.reduce((s, i) => s + Number(i.quantity ?? 0), 0))
@@ -171,7 +175,7 @@ onMounted(async () => {
   if (orderNumber && qrSig) {
     try {
       const { default: QRCode } = await import('qrcode')
-      const url = `${window.location.origin}/d/${orderNumber}?sig=${qrSig}`
+      const url = `${window.location.origin}/d/${orderNumber}?sig=${qrSig}` + (deliveryId.value ? `&delivery_id=${deliveryId.value}` : '')
       qrDataUrl.value = await QRCode.toDataURL(url, { width: 120, margin: 1, color: { dark: '#111827', light: '#ffffff' } })
     } catch (e) {
       console.warn('[dispatch-slip] QR generation failed:', e)

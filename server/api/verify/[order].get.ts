@@ -1,10 +1,14 @@
 /**
- * GET /api/verify/:order_number?sig=...
+ * GET /api/verify/:order_number?sig=...&delivery_id=N
  * Two-stage QR delivery (spec §2.8). Requires a logged-in ERP session (every
  * scan records who did it) AND a valid HMAC signature binding the order
  * number — the URL only works if it was actually printed on that order's
  * gate pass, not guessed. Never returns invoice amounts: whoever is at the
  * gate or the customer's door doesn't need to see the order value.
+ *
+ * Optional `delivery_id` scopes everything (signature, items, confirmation
+ * state) to one specific truck's manifest for a multi-truck shipment —
+ * omitting it is the original whole-order QR, unchanged.
  */
 import { getDb } from '~/server/utils/db'
 import { getOrderGateState, ADMIN_ROLES, ACCOUNTS_ROLES, DISPATCH_ROLES, PRODUCTION_ROLES } from '~/server/utils/creditOrders'
@@ -20,13 +24,15 @@ export default defineEventHandler(async (event) => {
   const role     = ((session.user as any).role ?? '').toLowerCase()
 
   const orderNumber = (event.context.params?.order ?? '').trim().toUpperCase()
-  const sig = String(getQuery(event).sig ?? '').trim()
+  const q   = getQuery(event)
+  const sig = String(q.sig ?? '').trim()
+  const deliveryId = Number(q.delivery_id) || null
   if (!orderNumber || !sig)
     throw createError({ statusCode: 400, statusMessage: 'Missing verification parameters' })
 
   const conn = await getDb().getConnection()
   try {
-    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig)
+    const sigValid = await verifyDeliveryQrSignature(conn, orderNumber, sig, deliveryId)
     if (!sigValid)
       throw createError({ statusCode: 403, statusMessage: 'Invalid or altered QR code — this is not a genuine dispatch slip' })
 
@@ -41,17 +47,42 @@ export default defineEventHandler(async (event) => {
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'No order found for this code' })
 
-    const [items] = await conn.query<any>(
-      `SELECT coi.quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
-       FROM credit_order_items coi
-       JOIN products p ON p.id = coi.product_id
-       LEFT JOIN product_variants pv ON pv.id = coi.variant_id
-       WHERE coi.order_id = ?`,
-      [order.id],
-    )
+    let deliveryNumber: string | null = null
+    let items: any[]
+    if (deliveryId) {
+      const [[delivery]] = await conn.query<any>(
+        `SELECT delivery_number FROM credit_order_deliveries WHERE id = ? AND order_id = ?`,
+        [deliveryId, order.id],
+      )
+      if (!delivery) throw createError({ statusCode: 404, statusMessage: 'Delivery record not found for this order' })
+      deliveryNumber = delivery.delivery_number
+      const [deliveryItems] = await conn.query<any>(
+        `SELECT di.qty_delivered AS quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
+         FROM credit_order_delivery_items di
+         JOIN credit_order_items coi ON coi.id = di.order_item_id
+         JOIN products p ON p.id = coi.product_id
+         LEFT JOIN product_variants pv ON pv.id = coi.variant_id
+         WHERE di.delivery_id = ?`,
+        [deliveryId],
+      )
+      items = deliveryItems
+    } else {
+      const [orderItems] = await conn.query<any>(
+        `SELECT coi.quantity, p.base_name AS product_name, pv.weight_variant, pv.grade
+         FROM credit_order_items coi
+         JOIN products p ON p.id = coi.product_id
+         LEFT JOIN product_variants pv ON pv.id = coi.variant_id
+         WHERE coi.order_id = ?`,
+        [order.id],
+      )
+      items = orderItems
+    }
 
     const [[conf]] = await conn.query<any>(
-      `SELECT * FROM cr_delivery_confirmations WHERE order_id = ?`, [order.id],
+      deliveryId
+        ? `SELECT * FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id <=> ?`
+        : `SELECT * FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`,
+      deliveryId ? [order.id, deliveryId] : [order.id],
     )
     const gateOut    = !!conf?.gate_out_at
     const delivered  = !!conf?.confirmed_at
@@ -91,6 +122,8 @@ export default defineEventHandler(async (event) => {
 
     return {
       stage,
+      delivery_id: deliveryId,
+      delivery_number: deliveryNumber,
       order: {
         order_number:  order.order_number,
         status:        order.status,

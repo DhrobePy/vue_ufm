@@ -1573,5 +1573,26 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'cash_verification_log', 'deposit_bank_account_id', 'BIGINT UNSIGNED NULL DEFAULT NULL')
   await addCol(db, 'cash_verification_log', 'deposit_journal_entry_id', 'BIGINT UNSIGNED NULL DEFAULT NULL')
 
+  // cr_delivery_confirmations — was one row per order (UNIQUE order_id),
+  // which made a second gate-out/delivery-confirm cycle impossible for a
+  // genuinely multi-truck order: the second truck's QR scan would either be
+  // refused outright ("already recorded") or, worse, get folded into a
+  // "final" delivery that force-closes the order while real quantity is
+  // still in transit. Adding a nullable delivery_id (referencing a specific
+  // credit_order_deliveries row staff already created for that truck) lets
+  // each truck get its own confirmation row. The old UNIQUE constraint is
+  // dropped — uniqueness for a given (order_id, delivery_id) pair is now
+  // enforced in application logic via a NULL-safe `<=>` lookup before
+  // insert, mirroring this exact fix in the legacy app. Every already-
+  // printed whole-order QR (signed with no delivery id at all) stays valid:
+  // its confirmation row keeps delivery_id NULL, matched the same way.
+  await addCol(db, 'cr_delivery_confirmations', 'delivery_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  try {
+    await db.query(`ALTER TABLE cr_delivery_confirmations DROP INDEX uk_dc_order`)
+  } catch (e: any) {
+    // 1091 = key doesn't exist (already dropped on a prior restart) — fine.
+    if (e?.errno !== 1091) console.warn('[db-migrate] cr_delivery_confirmations DROP INDEX uk_dc_order failed:', e)
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

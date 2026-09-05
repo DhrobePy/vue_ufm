@@ -65,6 +65,7 @@
         <!-- Order facts (no amounts) -->
         <div style="padding:16px;border-top:1px solid rgba(255,255,255,0.06);font-size:13px;">
           <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#6b7280;">Invoice No.</span><span style="font-weight:700;color:#e5e7eb;font-family:monospace;">{{ orderData.order.order_number }}</span></div>
+          <div v-if="orderData.delivery_number" style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#6b7280;">Delivery</span><span style="font-weight:700;color:#fbbf24;font-family:monospace;">{{ orderData.delivery_number }} <span style="color:#6b7280;font-weight:400;">(partial)</span></span></div>
           <div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#6b7280;">Customer</span><span style="color:#d1d5db;font-weight:600;">{{ orderData.order.customer_name }}</span></div>
           <div v-if="orderData.order.branch_name" style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:#6b7280;">From</span><span style="color:#d1d5db;">{{ orderData.order.branch_name }}</span></div>
         </div>
@@ -191,6 +192,7 @@ definePageMeta({ layout: false })
 const route    = useRoute()
 const orderNum = computed(() => (route.params.order as string ?? '').toUpperCase())
 const sig      = computed(() => String(route.query.sig ?? ''))
+const deliveryId = computed(() => route.query.delivery_id ? Number(route.query.delivery_id) : null)
 
 const { user } = useUserSession()
 const myName = computed(() => (user.value as any)?.name ?? (user.value as any)?.display_name ?? '')
@@ -202,7 +204,7 @@ onMounted(() => { hasHistory.value = !!window.history.state?.back })
 
 const { data: orderData, pending, error, refresh } = await useFetch<any>(
   () => `/api/verify/${orderNum.value}`,
-  { key: `verify-${orderNum.value}`, query: computed(() => ({ sig: sig.value })) },
+  { key: `verify-${orderNum.value}-${deliveryId.value ?? 'whole'}`, query: computed(() => ({ sig: sig.value, delivery_id: deliveryId.value ?? undefined })) },
 )
 
 const errorMessage = computed(() =>
@@ -227,7 +229,7 @@ async function submitGate() {
   try {
     await $fetch(`/api/verify/${orderNum.value}/gate`, {
       method: 'POST',
-      body: { sig: sig.value, ...gateForm },
+      body: { sig: sig.value, delivery_id: deliveryId.value ?? undefined, ...gateForm },
     })
     await refresh()
   } catch (e: any) {
@@ -247,7 +249,7 @@ async function submitDeliver() {
   try {
     await $fetch(`/api/verify/${orderNum.value}/deliver`, {
       method: 'POST',
-      body: { sig: sig.value, ...deliverForm },
+      body: { sig: sig.value, delivery_id: deliveryId.value ?? undefined, ...deliverForm },
     })
     await refresh()
   } catch (e: any) {
