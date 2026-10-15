@@ -23,7 +23,22 @@
   --accent-to:   #d97706;
   --accent-glow: 245,158,11;   /* comma-sep for rgba() */
   --accent-text: #000;         /* text on top of accent bg */
+  --accent-ink:  #f59e0b;      /* accent used AS text (darkened on light themes) */
 }
+
+/* ═══════════════════════════════════════════════════════════
+   READABILITY — dim text on the DARK themes
+   text-gray-500/600/700 were #6b7280/#4b5563/#374151: 2.3–3.9:1 on the
+   dark surfaces (labels, times, tab chips, section headers all looked
+   washed out). Lifted so every level passes WCAG AA (>=4.5:1) while
+   keeping the same visual hierarchy. Light themes override these below.
+   ═══════════════════════════════════════════════════════════ */
+.text-gray-400 { color: #a3abb8; }
+.text-gray-500 { color: #929cab; }
+.text-gray-600 { color: #848e9e; }
+.text-gray-700 { color: #6f7a8b; }   /* separators like "/" — decorative, kept subtler */
+/* hover/placeholder variants keep working: they come from other utilities */
+::placeholder { color: #7d8797; opacity: 1; }
 
 /* ── Smooth transition during theme switch ─────────────── */
 html.theme-transitioning body,
@@ -189,7 +204,7 @@ html.theme-transitioning .nav-item-active {
     border-color: rgb(var(--accent) / 0.5);
     box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
   }
-  .field-input::placeholder { color: #6b7280; }
+  .field-input::placeholder { color: #8a94a4; }
   .field-input option        { background: #1a1a1a; color: #e5e7eb; }
 
   .field-label {
@@ -219,7 +234,7 @@ html.theme-transitioning .nav-item-active {
     border-color: rgb(var(--accent) / 0.5);
     box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
   }
-  .input-glass::placeholder { color: #6b7280; }
+  .input-glass::placeholder { color: #8a94a4; }
 
   /* Status badge */
   .badge {
@@ -322,7 +337,7 @@ html.theme-transitioning .nav-item-active {
     border-color: rgb(var(--accent) / 0.5);
     box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
   }
-  .input-field::placeholder { color: #6b7280; }
+  .input-field::placeholder { color: #8a94a4; }
   .input-field option { background: #1a1a1a; color: #e5e7eb; }
 
   /* Label */
@@ -357,7 +372,7 @@ html.theme-transitioning .nav-item-active {
     border-color: rgb(var(--accent) / 0.5);
     box-shadow: 0 0 0 2px rgb(var(--accent) / 0.12);
   }
-  .form-input::placeholder { color: #6b7280; }
+  .form-input::placeholder { color: #8a94a4; }
   .form-input option        { background: #1a1a1a; color: #e5e7eb; }
   .form-input:disabled      { opacity: 0.45; cursor: not-allowed; }
   /* Re-add a subtle chevron for select elements */
@@ -483,7 +498,7 @@ html[data-theme="light"] .btn-ghost {
 }
 html[data-theme="light"] .btn-ghost:hover:not(:disabled) {
   border-color: rgb(var(--accent) / 0.4) !important;
-  color: var(--accent-from) !important;
+  color: var(--accent-ink) !important;
   background: rgb(var(--accent) / 0.06) !important;
 }
 
@@ -491,7 +506,7 @@ html[data-theme="light"] .btn-ghost:hover:not(:disabled) {
 html[data-theme="light"] .nav-item { color: #4b5563 !important; }
 html[data-theme="light"] .nav-item:hover { color: #111827 !important; background: rgba(0,0,0,0.04) !important; }
 html[data-theme="light"] .nav-item-active {
-  color: var(--accent-from) !important;
+  color: var(--accent-ink) !important;
   background: rgb(var(--accent) / 0.10) !important;
   border-color: rgb(var(--accent) / 0.25) !important;
 }
@@ -504,7 +519,7 @@ html[data-theme="light"] .input-glass {
   color: #111827 !important;
 }
 html[data-theme="light"] .field-input::placeholder,
-html[data-theme="light"] .input-glass::placeholder { color: #9ca3af !important; }
+html[data-theme="light"] .input-glass::placeholder { color: #7a8494 !important; }
 html[data-theme="light"] .field-input option { background: #fff !important; color: #111827 !important; }
 html[data-theme="light"] .field-label { color: #6b7280 !important; }
 
@@ -514,21 +529,48 @@ html[data-theme="light"] .form-input {
   color: #111827 !important;
   color-scheme: light !important;
 }
-html[data-theme="light"] .form-input::placeholder { color: #9ca3af !important; }
+html[data-theme="light"] .form-input::placeholder { color: #7a8494 !important; }
 html[data-theme="light"] .form-input option { background: #fff !important; color: #111827 !important; }
 html[data-theme="light"] .form-label { color: #6b7280 !important; }
 
 /* Section title in light */
 html[data-theme="light"] .section-title { color: #111827 !important; }
 
-/* Text scale inversion */
-html[data-theme="light"] .text-gray-100 { color: #111827 !important; }
+/* Text scale (light themes) — every level >= 4.5:1 on the cream/cloud surfaces.
+   The old values (#9ca3af / #c9c9c9 / #e0e0e0) were 1.4–2.4:1, i.e. nearly invisible. */
+html[data-theme="light"] .text-gray-100 { color: #0f172a !important; }
 html[data-theme="light"] .text-gray-200 { color: #1f2937 !important; }
 html[data-theme="light"] .text-gray-300 { color: #374151 !important; }
-html[data-theme="light"] .text-gray-400 { color: #6b7280 !important; }
-html[data-theme="light"] .text-gray-500 { color: #9ca3af !important; }
-html[data-theme="light"] .text-gray-600 { color: #c9c9c9 !important; }
-html[data-theme="light"] .text-gray-700 { color: #e0e0e0 !important; }
+html[data-theme="light"] .text-gray-400 { color: #4b5563 !important; }
+html[data-theme="light"] .text-gray-500 { color: #596373 !important; }
+html[data-theme="light"] .text-gray-600 { color: #5f6a7c !important; }
+html[data-theme="light"] .text-gray-700 { color: #8a93a3 !important; }  /* decorative separators only */
+html[data-theme="light"] ::placeholder { color: #7a8494 !important; opacity: 1; }
+
+/* Accent used AS TEXT: --accent-ink is the bright accent on dark themes and a
+   darkened, readable version on light ones (set by useTheme()). */
+html[data-theme="light"] [class~="text-gold-300"], html[data-theme="light"] [class~="text-gold-400"],
+html[data-theme="light"] [class~="text-gold-500"], html[data-theme="light"] [class*="text-gold-400/"],
+html[data-theme="light"] [class*="text-gold-300/"] { color: var(--accent-ink) !important; }
+html[data-theme="light"] [style*="color: var(--accent-from)"] { color: var(--accent-ink) !important; }
+
+/* Status colours: the -300/-400 shades are pastel-on-dark; on a light page
+   they need the deep -700 shade. Same hue, readable. */
+html[data-theme="light"] :is([class~="text-red-300"],[class~="text-red-400"],[class*="text-red-400/"]) { color: #b91c1c !important; }
+html[data-theme="light"] :is([class~="text-rose-300"],[class~="text-rose-400"],[class*="text-rose-400/"]) { color: #be123c !important; }
+html[data-theme="light"] :is([class~="text-orange-300"],[class~="text-orange-400"],[class*="text-orange-400/"]) { color: #9a3412 !important; }
+html[data-theme="light"] :is([class~="text-amber-300"],[class~="text-amber-400"],[class*="text-amber-400/"]) { color: #92400e !important; }
+html[data-theme="light"] :is([class~="text-yellow-300"],[class~="text-yellow-400"],[class*="text-yellow-400/"]) { color: #854d0e !important; }
+html[data-theme="light"] :is([class~="text-green-300"],[class~="text-green-400"],[class*="text-green-400/"]) { color: #15803d !important; }
+html[data-theme="light"] :is([class~="text-emerald-300"],[class~="text-emerald-400"],[class*="text-emerald-400/"]) { color: #065f46 !important; }
+html[data-theme="light"] :is([class~="text-teal-300"],[class~="text-teal-400"],[class*="text-teal-400/"]) { color: #115e59 !important; }
+html[data-theme="light"] :is([class~="text-cyan-300"],[class~="text-cyan-400"],[class*="text-cyan-400/"]) { color: #0e7490 !important; }
+html[data-theme="light"] :is([class~="text-sky-300"],[class~="text-sky-400"],[class*="text-sky-400/"]) { color: #0369a1 !important; }
+html[data-theme="light"] :is([class~="text-blue-300"],[class~="text-blue-400"],[class*="text-blue-400/"]) { color: #1d4ed8 !important; }
+html[data-theme="light"] :is([class~="text-indigo-300"],[class~="text-indigo-400"],[class*="text-indigo-400/"]) { color: #4338ca !important; }
+html[data-theme="light"] :is([class~="text-violet-300"],[class~="text-violet-400"],[class*="text-violet-400/"]) { color: #6d28d9 !important; }
+html[data-theme="light"] :is([class~="text-purple-300"],[class~="text-purple-400"],[class*="text-purple-400/"]) { color: #7e22ce !important; }
+html[data-theme="light"] :is([class~="text-pink-300"],[class~="text-pink-400"],[class*="text-pink-400/"]) { color: #be185d !important; }
 
 /* Header / Topbar */
 html[data-theme="light"] header {

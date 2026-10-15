@@ -42,6 +42,14 @@ export default defineNuxtConfig({
       meta: [
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       ],
+      // Paint the saved theme BEFORE first render so light-theme users don't see a
+      // dark flash on every page load. useTheme() stores the computed CSS vars.
+      script: [
+        {
+          innerHTML: "try{var t=JSON.parse(localStorage.getItem('erp_theme_vars')||'null');if(t){var r=document.documentElement;for(var k in t.vars)r.style.setProperty(k,t.vars[k]);if(t.light){r.setAttribute('data-theme','light');r.classList.add('light')}}}catch(e){}",
+          tagPosition: 'head',
+        },
+      ],
       link: [
         {
           rel: 'preconnect',

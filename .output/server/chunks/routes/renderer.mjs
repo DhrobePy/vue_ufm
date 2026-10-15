@@ -47,7 +47,7 @@ function createHead(options = {}) {
 
 const NUXT_RUNTIME_PAYLOAD_EXTRACTION = false;
 
-const appHead = {"meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"}],"link":[{"rel":"preconnect","href":"https://fonts.googleapis.com"},{"rel":"preconnect","href":"https://fonts.gstatic.com","crossorigin":""},{"rel":"stylesheet","href":"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap"}],"style":[],"script":[],"noscript":[],"title":"Ujjal FMC ERP"};
+const appHead = {"meta":[{"charset":"utf-8"},{"name":"viewport","content":"width=device-width, initial-scale=1"}],"link":[{"rel":"preconnect","href":"https://fonts.googleapis.com"},{"rel":"preconnect","href":"https://fonts.gstatic.com","crossorigin":""},{"rel":"stylesheet","href":"https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Sora:wght@400;600;700;800&display=swap"}],"style":[],"script":[{"innerHTML":"try{var t=JSON.parse(localStorage.getItem('erp_theme_vars')||'null');if(t){var r=document.documentElement;for(var k in t.vars)r.style.setProperty(k,t.vars[k]);if(t.light){r.setAttribute('data-theme','light');r.classList.add('light')}}}catch(e){}","tagPosition":"head"}],"noscript":[],"title":"Ujjal FMC ERP"};
 
 const appRootTag = "div";
 

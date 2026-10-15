@@ -78,10 +78,40 @@ function darkenHex(hex: string, amount = 32): string {
   return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`
 }
 
+// Relative luminance + WCAG contrast — used so accent buttons/text stay readable
+// for EVERY accent (and any custom colour), instead of a hard-coded black/white.
+function lum(hex: string): number {
+  const c = hex.replace('#', '')
+  const ch = [0, 2, 4].map(i => {
+    const v = parseInt(c.slice(i, i + 2), 16) / 255
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
+}
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+/** Black or white text — whichever is more readable across BOTH ends of the button gradient. */
+function readableOn(from: string, to: string): string {
+  const worst = (fg: string) => Math.min(contrast(fg, from), contrast(fg, to))
+  return worst('#000000') >= worst('#ffffff') ? '#000' : '#fff'
+}
+/** The accent darkened until it reads as TEXT on a light page (>= 4.7:1) — for light themes. */
+function inkOnLight(hex: string): string {
+  // Scale each channel (not subtract) so the hue stays the same colour — gold stays amber, not brown-red.
+  const scale = (h: string, k: number) => '#' + [0, 2, 4]
+    .map(i => Math.round(parseInt(h.replace('#', '').slice(i, i + 2), 16) * k).toString(16).padStart(2, '0')).join('')
+  let h = hex
+  for (let i = 0; i < 20 && contrast(h, '#f5ede0') < 4.7; i++) h = scale(h, 0.93)
+  return h
+}
+
 // ── Storage keys ─────────────────────────────────────────
 const KEY_BASE   = 'erp_base_theme'
 const KEY_ACCENT = 'erp_accent'
 const KEY_CUSTOM = 'erp_custom_accent'
+const KEY_VARS   = 'erp_theme_vars'   // last applied CSS vars — replayed by an inline head script before first paint
 
 // ── Transition class debounce (prevents stacking timeouts on rapid @input) ─
 let _transitionTimer: ReturnType<typeof setTimeout> | null = null
@@ -130,13 +160,28 @@ export function useTheme() {
     const accentTo   = a ? a.to   : darkenHex(hex)
     const accentRgb  = a ? a.rgb  : hexToRgbSpaced(hex)
     const accentGlow = a ? a.glow : hexToRgbComma(hex)
-    const accentText = a ? a.btnText : '#000'
+    const accentText = readableOn(accentFrom, accentTo)
+    const accentInk  = b.dark ? accentFrom : inkOnLight(accentTo)
 
     root.style.setProperty('--accent',      accentRgb)   // "245 158 11"  — for rgb(var(--accent)/0.2)
     root.style.setProperty('--accent-from', accentFrom)  // "#f59e0b"     — for gradient from
     root.style.setProperty('--accent-to',   accentTo)    // "#d97706"     — for gradient to
     root.style.setProperty('--accent-glow', accentGlow)  // "245,158,11"  — for rgba(var(--accent-glow),0.4)
-    root.style.setProperty('--accent-text', accentText)  // btn text color
+    root.style.setProperty('--accent-text', accentText)  // btn text color (auto black/white)
+    root.style.setProperty('--accent-ink',  accentInk)   // accent used AS TEXT: bright on dark themes, darkened on light ones
+
+    // Remember the result so the inline head script can paint the right theme
+    // immediately on the next page load (no dark→light flash).
+    try {
+      localStorage.setItem(KEY_VARS, JSON.stringify({
+        light: !b.dark,
+        vars: {
+          '--bg-from': b.bgFrom, '--bg-to': b.bgTo, '--sidebar-from': b.sidebarFrom, '--sidebar-to': b.sidebarTo,
+          '--topbar-bg': b.topbarBg, '--tint': b.tint, '--accent': accentRgb, '--accent-from': accentFrom,
+          '--accent-to': accentTo, '--accent-glow': accentGlow, '--accent-text': accentText, '--accent-ink': accentInk,
+        },
+      }))
+    } catch { /* private mode — theme still applies, just not pre-painted */ }
 
     // ── Dark / light mode ──
     if (b.dark) {
