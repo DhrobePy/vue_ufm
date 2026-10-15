@@ -64,7 +64,7 @@ done
 sleep 1
 curl -s -o /dev/null "$URL/auth/login"
 sleep 2
-echo "workers now:"; ps -eo pid,lstart,cmd | grep "lsnode:.*vue_ufm" | grep -v grep | cut -c1-90
+echo "workers now:"; (ps -eo pid,lstart,cmd | grep "lsnode:.*vue_ufm" | grep -v grep | cut -c1-90) || true
 REMOTE
 
 say "Verify live site"
