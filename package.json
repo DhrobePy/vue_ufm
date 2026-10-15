@@ -7,7 +7,11 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt prepare && tsc --noEmit -p .nuxt/tsconfig.server.json",
+    "crawl": "node scripts/api-crawl.mjs",
+    "sync:legacy": "node scripts/sync-legacy-transactional.mjs",
+    "deploy": "bash scripts/deploy.sh"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.6.0",

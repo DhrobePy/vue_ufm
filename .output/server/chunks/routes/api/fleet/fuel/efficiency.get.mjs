@@ -12,6 +12,9 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
+const KMPL = (a = "") => `CASE WHEN ${a}previous_odometer > 0 AND ${a}odometer_reading > ${a}previous_odometer
+                               AND ${a}quantity_liters > 0
+                          THEN (${a}odometer_reading - ${a}previous_odometer) / ${a}quantity_liters END`;
 const efficiency_get = defineEventHandler(async () => {
   const vehicleSummary = await query(
     `SELECT
@@ -25,7 +28,7 @@ const efficiency_get = defineEventHandler(async () => {
        COALESCE(SUM(f.total_amount), 0)     AS total_cost,
        MAX(f.odometer_reading)              AS latest_odometer,
        MIN(f.odometer_reading)              AS first_odometer,
-       AVG(NULLIF(f.mileage_km_per_liter,0)) AS avg_mileage
+       AVG(${KMPL("f.")}) AS avg_mileage
      FROM fleet_vehicles v
      LEFT JOIN fleet_fuel_logs f ON f.vehicle_id = v.id
      GROUP BY v.id, v.registration_no, v.vehicle_type, v.make, v.model
@@ -53,7 +56,7 @@ const efficiency_get = defineEventHandler(async () => {
        COUNT(f.id)            AS fill_count
      FROM fleet_fuel_logs f
      JOIN fleet_vehicles v ON v.id = f.vehicle_id
-     WHERE f.fuel_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAYS)
+     WHERE f.fuel_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
      GROUP BY v.id, v.registration_no, v.vehicle_type
      ORDER BY total_liters DESC
      LIMIT 10`,
@@ -64,7 +67,7 @@ const efficiency_get = defineEventHandler(async () => {
        COUNT(DISTINCT vehicle_id)           AS vehicles_fuelled,
        SUM(quantity_liters)                 AS total_liters,
        SUM(total_amount)                    AS total_cost,
-       AVG(NULLIF(mileage_km_per_liter, 0)) AS avg_mileage
+       AVG(${KMPL()}) AS avg_mileage
      FROM fleet_fuel_logs`,
     []
   );

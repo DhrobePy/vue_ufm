@@ -36,13 +36,13 @@ export default defineEventHandler(async () => {
 
   // KPI stats
   const todayStr = new Date().toISOString().slice(0, 10)
-  const [[statsRow]] = await query(
+  const [statsRow] = await query(
     `SELECT
        COALESCE(SUM(CASE WHEN DATE(payment_date) = ? THEN amount END), 0) AS today_total,
        COALESCE(SUM(CASE WHEN payment_date >= DATE_FORMAT(NOW(),'%Y-%m-01') THEN amount END), 0) AS month_total
      FROM customer_payments`,
     [todayStr],
-  ) as any[][]
+  ) as any[]
 
   return { schedule, recentCollections, stats: statsRow }
 })

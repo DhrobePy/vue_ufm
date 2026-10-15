@@ -45,9 +45,14 @@ export default defineEventHandler(async (event) => {
     console.warn('[login] DB unreachable, falling back to dev-mode credentials:', err?.code ?? err?.message)
   }
 
-  // ─── Dev-mode fallback (when DB is down or NUXT_DEV_LOGIN=true) ──────────
+  // ─── Dev-mode fallback — ONLY when NUXT_DEV_LOGIN=true is set explicitly ──
+  // A DB outage must never open a hardcoded-credential back door: with the
+  // flag off, an unreachable DB is a plain 503, not a login path.
   const config = useRuntimeConfig()
-  const devLoginEnabled = config.devLogin === 'true' || config.devLogin === true || !!dbError
+  const devLoginEnabled = String(config.devLogin) === 'true'
+
+  if (dbError && !devLoginEnabled)
+    throw createError({ statusCode: 503, statusMessage: 'Service temporarily unavailable — please try again in a moment' })
 
   if (!user && devLoginEnabled) {
     const devUser = DEV_USERS[emailLower]

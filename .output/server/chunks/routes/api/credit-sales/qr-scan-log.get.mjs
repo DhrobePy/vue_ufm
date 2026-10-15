@@ -49,7 +49,7 @@ const qrScanLog_get = defineEventHandler(async (event) => {
      LIMIT 300`,
     params
   );
-  const [[stats]] = await query(
+  const [stats] = await query(
     `SELECT COUNT(*) AS total, SUM(reused = 1) AS reused_total,
             SUM(reused = 1 AND scanned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS reused_7d
      FROM cr_qr_scan_log`

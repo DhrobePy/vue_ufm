@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   if (!orderId) throw createError({ statusCode: 400, statusMessage: 'Invalid order' })
   const sig = String(getQuery(event).sig ?? '')
 
-  const [[order]] = await query<any>(
+  const [order] = await query<any>(
     `SELECT o.*, c.name AS customer_name, b.name AS branch_name
      FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id

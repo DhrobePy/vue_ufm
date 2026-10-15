@@ -15,10 +15,10 @@ export default defineEventHandler(async (event) => {
       [id],
     ) as any,
     query(
-      `SELECT l.*, u.display_name AS user_name
+      `SELECT l.*, COALESCE(u.display_name, l.action_by_username) AS user_name
        FROM bank_tx_audit_log l
-       LEFT JOIN users u ON u.id = l.user_id
-       WHERE l.tx_id = ?
+       LEFT JOIN users u ON u.id = l.action_by_user_id
+       WHERE l.transaction_id = ?
        ORDER BY l.created_at ASC`,
       [id],
     ) as any[],

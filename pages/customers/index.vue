@@ -3,6 +3,8 @@
     <UiPageHeader title="Customers" subtitle="Credit & POS customers — outstanding balances & limits"
                   :breadcrumb="['Customers']">
       <template #actions>
+        <a :href="`/api/customers/export.csv?search=${encodeURIComponent(search)}&type=${typeFilter}`" download
+           class="btn-ghost text-xs">⬇ Export CSV</a>
         <NuxtLink v-if="perms.canDo('customers', 'list', 'create')" to="/customers/create" class="btn-gold text-xs">+ Add Customer</NuxtLink>
       </template>
     </UiPageHeader>

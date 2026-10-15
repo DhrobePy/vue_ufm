@@ -1,7 +1,7 @@
-import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, useSSRContext, isShallow, isReactive, toRaw, markRaw } from 'vue';
+import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
 import { m as createError$1, ac as parseURL, u as encodePath, p as decodePath, Y as hasProtocol, a2 as isScriptProtocol, a3 as joinURL, aY as withQuery, s as defu, aM as sanitizeStatusCode, w as getContext, $ as $fetch$1, h as baseURL, n as createHooks, v as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
-import { ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode, ssrRenderAttrs } from 'vue/server-renderer';
+import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -810,7 +810,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$2s || {},
-    component: () => import('./settings-BJI6eh0G.mjs')
+    component: () => import('./settings-CUwtaMZK.mjs')
   },
   {
     name: "bank-statement",
@@ -858,7 +858,7 @@ const _routes = [
     name: "customers",
     path: "/customers",
     meta: __nuxt_page_meta$2k || {},
-    component: () => import('./index-BIU3DLdH.mjs')
+    component: () => import('./index-B7WtqSTq.mjs')
   },
   {
     name: "dashboard",
@@ -870,7 +870,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2i || {},
-    component: () => import('./create-CK46Q9na.mjs')
+    component: () => import('./create-B2esD9X7.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -966,7 +966,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$22 || {},
-    component: () => import('./vouchers-CzjjgocN.mjs')
+    component: () => import('./vouchers-D7IWpLo9.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1038,19 +1038,19 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1S || {},
-    component: () => import('./create-B-sGqTCI.mjs')
+    component: () => import('./create-D64fa1ZU.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1R || {},
-    component: () => import('./index-Cl3aPcEu.mjs')
+    component: () => import('./index-DHlSKzRF.mjs')
   },
   {
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$1Q || {},
-    component: () => import('./edit-__DKucoh.mjs')
+    component: () => import('./edit-cjD0vrIH.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1236,7 +1236,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1l || {},
-    component: () => import('./edit-PnP6HQ0K.mjs')
+    component: () => import('./edit-BHuaY1Dp.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -2347,7 +2347,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-Kf0P6-G4.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-B7nvNbSi.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };
@@ -2619,32 +2619,55 @@ _sfc_main$2.setup = (props, ctx) => {
   return _sfc_setup$2 ? _sfc_setup$2(props, ctx) : void 0;
 };
 const AppComponent = /* @__PURE__ */ _export_sfc(_sfc_main$2, [["ssrRender", _sfc_ssrRender]]);
-const _sfc_main$1 = {
-  __name: "nuxt-error-page",
+const _sfc_main$1 = /* @__PURE__ */ defineComponent({
+  __name: "error",
   __ssrInlineRender: true,
   props: {
-    error: Object
+    error: {}
   },
   setup(__props) {
     const props = __props;
-    const _error = props.error;
-    const status = Number(_error.statusCode || 500);
-    const is404 = status === 404;
-    const statusText = _error.statusMessage ?? (is404 ? "Page Not Found" : "Internal Server Error");
-    const description = _error.message || _error.toString();
-    const stack = void 0;
-    const _Error404 = defineAsyncComponent(() => import('./error-404-D0iTqZzG.mjs'));
-    const _Error = defineAsyncComponent(() => import('./error-500-sBu7HU0F.mjs'));
-    const ErrorTemplate = is404 ? _Error404 : _Error;
+    const code = computed(() => Number(props.error?.statusCode) || 500);
+    const copy = computed(() => {
+      if (code.value === 401) return {
+        title: "Please sign in again",
+        body: "Your session has ended. Sign in and you will be brought straight back to this page."
+      };
+      if (code.value === 403) return {
+        title: "You don't have access to this page",
+        body: "Your account is not allowed to open this. Ask an administrator to enable it for you under Admin → Users → Permissions."
+      };
+      if (code.value === 404) return {
+        title: "Page not found",
+        body: "This page does not exist or has been moved. Check the address, or use the menu to find what you need."
+      };
+      return {
+        title: "Something went wrong on our side",
+        body: "Nothing you entered was lost or changed. Please try again in a moment; if it keeps happening, tell the administrator the reference below."
+      };
+    });
+    if (code.value === 401 && false) ;
     return (_ctx, _push, _parent, _attrs) => {
-      _push(ssrRenderComponent(unref(ErrorTemplate), mergeProps({ status: unref(status), statusText: unref(statusText), statusCode: unref(status), statusMessage: unref(statusText), description: unref(description), stack: unref(stack) }, _attrs), null, _parent));
+      _push(`<div${ssrRenderAttrs(mergeProps({ class: "min-h-screen flex items-center justify-center p-6 bg-[#0a0b0d] text-gray-200" }, _attrs))}><div class="max-w-md w-full text-center space-y-5"><p class="text-6xl font-bold text-gold-500">${ssrInterpolate(unref(code))}</p><h1 class="text-xl font-semibold">${ssrInterpolate(unref(copy).title)}</h1><p class="text-sm text-gray-400 leading-relaxed">${ssrInterpolate(unref(copy).body)}</p><div class="flex flex-col sm:flex-row gap-3 justify-center pt-2"><button class="btn-gold justify-center">Go to my home page</button>`);
+      if (unref(code) >= 500) {
+        _push(`<button class="btn-ghost justify-center">Try again</button>`);
+      } else {
+        _push(`<button class="btn-ghost justify-center">Go back</button>`);
+      }
+      _push(`</div>`);
+      if (unref(code) >= 500) {
+        _push(`<p class="text-[11px] text-gray-600 pt-4"> Reference: ${ssrInterpolate(unref(code))} · ${ssrInterpolate(__props.error.url || "")}</p>`);
+      } else {
+        _push(`<!---->`);
+      }
+      _push(`</div></div>`);
     };
   }
-};
+});
 const _sfc_setup$1 = _sfc_main$1.setup;
 _sfc_main$1.setup = (props, ctx) => {
   const ssrContext = useSSRContext();
-  (ssrContext.modules || (ssrContext.modules = /* @__PURE__ */ new Set())).add("node_modules/nuxt/dist/app/components/nuxt-error-page.vue");
+  (ssrContext.modules || (ssrContext.modules = /* @__PURE__ */ new Set())).add("error.vue");
   return _sfc_setup$1 ? _sfc_setup$1(props, ctx) : void 0;
 };
 const _sfc_main = {
@@ -2726,5 +2749,5 @@ let entry;
 }
 const entry_default = ((ssrContext) => entry(ssrContext));
 
-export { __nuxt_component_0 as _, __nuxt_component_1 as a, __nuxt_component_2 as b, _export_sfc as c, asyncDataDefaults as d, entry_default as default, createError as e, defineNuxtRouteMiddleware as f, encodeRoutePath as g, fetchDefaults as h, nuxtLinkDefaults as i, useRequestFetch as j, useRoute as k, useRouter as l, useRuntimeConfig as m, navigateTo as n, useState as o, useUserSession as p, resolveRouteObject as r, tryUseNuxtApp as t, useNuxtApp as u };
+export { __nuxt_component_0 as _, __nuxt_component_1 as a, __nuxt_component_2 as b, _export_sfc as c, asyncDataDefaults as d, entry_default as default, createError as e, defineNuxtRouteMiddleware as f, encodeRoutePath as g, fetchDefaults as h, nuxtLinkDefaults as i, useRequestFetch as j, useRoute as k, useRouter as l, useRuntimeConfig as m, navigateTo as n, useState as o, useUserSession as p, resolveRouteObject as r, useNuxtApp as u };
 //# sourceMappingURL=server.mjs.map

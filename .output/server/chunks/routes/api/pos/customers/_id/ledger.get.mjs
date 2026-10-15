@@ -33,7 +33,7 @@ const ledger_get = defineEventHandler(async (event) => {
     )
   ]);
   if (!customer.length) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
-  const [[balanceRow]] = await query(
+  const [balanceRow] = await query(
     `SELECT COALESCE(SUM(debit_amount), 0) - COALESCE(SUM(credit_amount), 0) AS bal
      FROM pos_customer_ledger WHERE customer_id = ?`,
     [customerId]

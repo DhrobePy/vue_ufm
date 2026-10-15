@@ -37,7 +37,9 @@ const login_post = defineEventHandler(async (event) => {
     console.warn("[login] DB unreachable, falling back to dev-mode credentials:", (_a = err == null ? void 0 : err.code) != null ? _a : err == null ? void 0 : err.message);
   }
   const config = useRuntimeConfig();
-  const devLoginEnabled = config.devLogin === "true" || config.devLogin === true || !!dbError;
+  const devLoginEnabled = String(config.devLogin) === "true";
+  if (dbError && !devLoginEnabled)
+    throw createError({ statusCode: 503, statusMessage: "Service temporarily unavailable \u2014 please try again in a moment" });
   if (!user && devLoginEnabled) {
     const devUser = DEV_USERS[emailLower];
     if (!devUser || devUser.password !== password)

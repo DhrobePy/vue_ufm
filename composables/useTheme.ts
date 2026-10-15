@@ -186,9 +186,7 @@ export function useTheme() {
   return {
     baseId, accentId, customHex, pickerOpen,
     currentBase, currentAccent,
-    isDark, isDarkRef,
-    // Keep legacy alias for AppTopbar
-    get isDark() { return isDarkRef },
+    isDark, isDarkRef,   // isDarkRef kept as the legacy alias
     BASE_THEMES, ACCENTS,
     setBase, setAccent, init, toggle,
     openPicker, closePicker,

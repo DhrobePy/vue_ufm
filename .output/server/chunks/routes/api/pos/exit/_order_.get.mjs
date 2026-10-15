@@ -21,7 +21,7 @@ const _order__get = defineEventHandler(async (event) => {
   const orderId = Number(getRouterParam(event, "order"));
   if (!orderId) throw createError({ statusCode: 400, statusMessage: "Invalid order" });
   const sig = String((_b = getQuery(event).sig) != null ? _b : "");
-  const [[order]] = await query(
+  const [order] = await query(
     `SELECT o.*, c.name AS customer_name, b.name AS branch_name
      FROM orders o
      LEFT JOIN customers c ON c.id = o.customer_id

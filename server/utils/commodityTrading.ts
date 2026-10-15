@@ -216,7 +216,7 @@ export async function postCommoditySale(conn: any, s: CommoditySaleInput): Promi
 
   const { cogs } = await postCommoditySaleCost(conn, { commodityId: s.commodityId, branchId, origin, qty })
 
-  const saleNumber = await nextDocNumber(conn, 'CTS', 'commodity_sales')
+  const saleNumber = await nextDocNumber(conn, 'CTS', 'commodity_sales', 'sale_number')
 
   // ONE compound JE: DR AR / CR Trading Revenue / DR COGS / CR Inventory
   const arId  = await getGLAccountId(conn, 'Accounts Receivable')
