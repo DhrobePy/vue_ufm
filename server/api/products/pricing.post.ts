@@ -1,6 +1,9 @@
+import { requireAction } from '~/server/utils/permissions'
 import { query } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
+  await requireAction(event, { module: 'products', page: 'pricing', action: 'edit', roleFallback: [] },
+    'Only admin (or a user granted Products → Pricing) may change prices')
   const body = await readBody(event)
   const { action, variantId, branchId, unitPrice, effectiveDate, status, priceId } = body ?? {}
 

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, au as readBody, X as getUserSession, m as createError, z as getDb, g as auditLog, a8 as notify, a9 as notifyAdmins } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, R as getRouterParam, av as readBody, aH as requireAction, A as ACCOUNTS_ROLES, X as getUserSession, m as createError, z as getDb, g as auditLog, a8 as notify, a9 as notifyAdmins } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -17,6 +17,12 @@ const approve_post = defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const { action, reason } = body != null ? body : {};
+  if (action === "approve" || action === "reject")
+    await requireAction(
+      event,
+      { module: "expenses", page: "approve", action: "approve", roleFallback: ["expense approver", ...ACCOUNTS_ROLES] },
+      "Only an Expense Approver / admin may approve or reject expenses"
+    );
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
   const actorName = (_f = (_e = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.name) != null ? _e : (_d = session == null ? void 0 : session.user) == null ? void 0 : _d.email) != null ? _f : "System";

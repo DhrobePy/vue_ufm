@@ -1,4 +1,4 @@
-import { q as defineEventHandler, au as readBody, m as createError, ar as query } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, aH as requireAction, av as readBody, m as createError, as as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,6 +13,11 @@ import 'mysql2/promise';
 import 'node:url';
 
 const pricing_post = defineEventHandler(async (event) => {
+  await requireAction(
+    event,
+    { module: "products", page: "pricing", action: "edit", roleFallback: [] },
+    "Only admin (or a user granted Products \u2192 Pricing) may change prices"
+  );
   const body = await readBody(event);
   const { action, variantId, branchId, unitPrice, effectiveDate, status, priceId } = body != null ? body : {};
   if (action === "set_price") {

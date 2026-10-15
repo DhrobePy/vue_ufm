@@ -1,26 +1,26 @@
 /**
  * Server middleware: API-level permission enforcement.
  *
- * Runs on every request.  For non-admin users, any request to a
- * module-specific API path is blocked (403) unless the user has that
- * module enabled in their user_permissions row.
+ * Runs on every request.  No session → 401 (except the PUBLIC_PREFIXES list).
+ * Non-admin users are blocked (403) from a module's API paths unless the
+ * module is enabled for them (own user_permissions row, else role preset).
  *
  * This is the authoritative security layer — client-side guards
  * (sidebar v-if, route middleware) are just UX conveniences and CANNOT
  * be relied on for security.
  */
-import { getCachedPerms, setCachedPerms } from '~/server/utils/permCache'
-import { getDb } from '~/server/utils/db'
+import { resolvePermissions } from '~/server/utils/permissions'
 
-// Paths that are always accessible regardless of permissions
-const FREE_PREFIXES = [
+// Paths reachable WITHOUT a login. Everything else under /api/ needs a session.
+// (cron endpoints check their own secret; kiosk/device are the face-clock and biometric
+// machines; verify is the delivery QR scan; /api/branches GET feeds the kiosk branch picker.)
+const PUBLIC_PREFIXES = [
   '/api/auth/',
-  '/api/me/',
+  '/api/_',         // nuxt-auth-utils session endpoint, nuxt icon, etc.
   '/api/kiosk/',
   '/api/device/',
-  '/api/verify/',   // Public QR delivery scan endpoints — no auth required
-  '/_nuxt/',
-  '/__nuxt',
+  '/api/verify/',
+  '/api/cron/',
 ]
 
 /**
@@ -58,56 +58,34 @@ export default defineEventHandler(async (event) => {
   // 1. Only guard /api/* paths
   if (!path.startsWith('/api/')) return
 
-  // 2. Always allow free paths (auth, me, kiosk, etc.)
-  if (FREE_PREFIXES.some(p => path.startsWith(p))) return
+  // 2. Public paths
+  if (PUBLIC_PREFIXES.some(p => path.startsWith(p))) return
+  if (path.split('?')[0] === '/api/branches' && event.method === 'GET') return
 
-  // 3. Require a valid session
+  // 3. Everything else needs a valid session — secure by default
   const session = await getUserSession(event)
-  if (!session?.user?.id) return // 401 is the individual endpoint's job
+  if (!session?.user?.id) {
+    throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  }
 
   const role = (session.user.role ?? '').toLowerCase()
 
   // 4. Admin / Superadmin bypass everything
   if (['admin', 'superadmin'].includes(role)) return
 
-  // 5. Settings READS are app-wide config (invoice T&C, delivery toggles, …)
-  //    — any authenticated user may fetch them. Writes still require admin.
+  // 5. Own-profile endpoints, and settings READS (app-wide config: invoice T&C, delivery toggles…)
+  if (path.startsWith('/api/me/')) return
   if (path.startsWith('/api/settings') && event.method === 'GET') return
 
   // 6. Find which module(s) this path requires
   const entry = PATH_MODULE_MAP.find(e => path.startsWith(e.prefix))
   if (!entry) return // Unknown path — let the endpoint handle it
 
-  // 6. Fetch (or use cached) permissions for this user
-  const userId = session.user.id as number | string
-  let permissions = getCachedPerms(userId)
-
-  if (permissions === null) {
-    // Cache miss — query DB
-    try {
-      const db  = getDb()
-      const conn = await db.getConnection()
-      try {
-        const [[row]] = await conn.query<any>(
-          'SELECT permissions FROM user_permissions WHERE user_id = ?',
-          [userId],
-        )
-        permissions = {}
-        if (row?.permissions) {
-          try { permissions = JSON.parse(row.permissions) } catch { /* keep empty */ }
-        }
-      } finally {
-        conn.release()
-      }
-    } catch {
-      // DB error — fail closed (deny)
-      permissions = {}
-    }
-    setCachedPerms(userId, permissions)
-  }
+  // 6. Own row, else the role preset (shared resolver, cached 3 min)
+  const permissions = await resolvePermissions(session.user.id as number | string, role)
 
   // 7. Check if any of the required modules are enabled
-  const hasAccess = entry.modules.some(m => permissions![m]?.enabled === true)
+  const hasAccess = entry.modules.some(m => permissions[m]?.enabled === true)
   if (!hasAccess) {
     throw createError({
       statusCode: 403,

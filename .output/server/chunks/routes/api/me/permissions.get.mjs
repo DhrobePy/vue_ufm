@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, m as createError, z as getDb } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, X as getUserSession, m as createError, aJ as resolvePermissions, aq as presetBranches, as as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const permissions_get = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d;
   const session = await getUserSession(event);
   if (!((_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id)) {
     throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
@@ -23,34 +23,26 @@ const permissions_get = defineEventHandler(async (event) => {
   if (["admin", "superadmin"].includes(role)) {
     return { isAdmin: true, permissions: {}, data_scope: "all", allowed_branches: [] };
   }
-  const db = getDb();
-  const conn = await db.getConnection();
+  const perms = await resolvePermissions(userId, role);
+  const { __preset, ...permissions } = perms;
+  let data_scope = "branch";
+  let allowed_branches = presetBranches(role);
   try {
-    let permissions = {};
-    let data_scope = "branch";
-    let allowed_branches = [];
-    try {
-      const [[row]] = await conn.query(
-        `SELECT data_scope, allowed_branches, permissions FROM user_permissions WHERE user_id = ?`,
-        [userId]
-      );
-      if (row) {
-        data_scope = (_c = row.data_scope) != null ? _c : "branch";
-        try {
-          allowed_branches = JSON.parse((_d = row.allowed_branches) != null ? _d : "[]");
-        } catch {
-        }
-        try {
-          permissions = JSON.parse((_e = row.permissions) != null ? _e : "{}");
-        } catch {
-        }
+    const [row] = await query(
+      `SELECT data_scope, allowed_branches FROM user_permissions WHERE user_id = ?`,
+      [userId]
+    );
+    if (row) {
+      data_scope = (_c = row.data_scope) != null ? _c : "branch";
+      try {
+        allowed_branches = JSON.parse((_d = row.allowed_branches) != null ? _d : "[]");
+      } catch {
+        allowed_branches = [];
       }
-    } catch {
     }
-    return { isAdmin: false, permissions, data_scope, allowed_branches };
-  } finally {
-    conn.release();
+  } catch {
   }
+  return { isAdmin: false, permissions, data_scope, allowed_branches };
 });
 
 export { permissions_get as default };

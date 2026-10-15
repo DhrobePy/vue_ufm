@@ -1,6 +1,8 @@
+import { requireAction } from '~/server/utils/permissions'
 import { query } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
+  await requireAction(event, { module: 'products', page: 'base', action: 'edit', roleFallback: ['production manager-srg', 'production manager-demra'] })
   const id   = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid product ID' })
 

@@ -1,3 +1,5 @@
+import { requireAction } from '~/server/utils/permissions'
+import { ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { notify, notifyAdmins } from '~/server/utils/notify'
@@ -20,6 +22,9 @@ export default defineEventHandler(async (event) => {
   const id   = Number(getRouterParam(event, 'id'))
   const body = await readBody(event)
   const { action, reason } = body ?? {}
+  if (action === 'approve' || action === 'reject')
+    await requireAction(event, { module: 'expenses', page: 'approve', action: 'approve', roleFallback: ['expense approver', ...ACCOUNTS_ROLES] },
+      'Only an Expense Approver / admin may approve or reject expenses')
   const session   = await getUserSession(event)
   const userId    = session?.user?.id   ?? 1
   const actorName = session?.user?.name ?? session?.user?.email ?? 'System'

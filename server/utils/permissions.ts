@@ -16,28 +16,33 @@
  */
 import { getDb } from '~/server/utils/db'
 import { getCachedPerms, setCachedPerms } from '~/server/utils/permCache'
+import { presetPermissions } from '~/server/utils/permCatalog'
 
-async function loadPerms(userId: number): Promise<Record<string, any> | null> {
+/**
+ * The ONE place that answers "what may this user open?" — used by the API gate,
+ * /api/me/permissions and userCanAction. Own row wins; no row → role preset.
+ */
+export async function resolvePermissions(userId: number | string, role: string): Promise<Record<string, any>> {
   const cached = getCachedPerms(userId)
   if (cached) return cached
-  const conn = await getDb().getConnection()
+  let perms: Record<string, any> | null = null
   try {
-    const [[row]] = await conn.query<any>(
-      `SELECT permissions FROM user_permissions WHERE user_id = ?`, [userId],
-    )
-    if (!row) {
-      setCachedPerms(userId, { __none: true })
-      return null
+    const conn = await getDb().getConnection()
+    try {
+      const [[row]] = await conn.query<any>(`SELECT permissions FROM user_permissions WHERE user_id = ?`, [userId])
+      if (row) {
+        perms = {}
+        try { perms = JSON.parse(row.permissions ?? '{}') } catch { /* empty = no access, same as before */ }
+      }
+    } finally {
+      conn.release()
     }
-    let perms: Record<string, any> = {}
-    try { perms = JSON.parse(row.permissions ?? '{}') } catch { /* empty */ }
-    setCachedPerms(userId, perms)
-    return perms
   } catch {
-    return null // table missing → fall back to roles
-  } finally {
-    conn.release()
+    return { __preset: true } // DB error — no module access; action checks fall back to roles; not cached
   }
+  perms ??= { ...presetPermissions(role), __preset: true as any }
+  setCachedPerms(userId, perms)
+  return perms
 }
 
 export async function userCanAction(opts: {
@@ -46,20 +51,35 @@ export async function userCanAction(opts: {
   module: string
   page: string
   action: string
-  /** roles allowed when the user has NO user_permissions row */
+  /** roles always allowed (legacy back-compat for users with no row) */
   roleFallback: string[]
 }): Promise<boolean> {
   const role = opts.role.toLowerCase()
   if (['admin', 'superadmin'].includes(role)) return true
 
-  const perms = await loadPerms(opts.userId)
-  if (!perms || perms.__none) return opts.roleFallback.includes(role)
-
+  const perms = await resolvePermissions(opts.userId, role)
+  // A role preset only ever WIDENS access — it never removes what the caller's roleFallback already granted.
+  const deny = () => !!perms.__preset && opts.roleFallback.includes(role)
   const mod = perms[opts.module]
-  if (!mod?.enabled) return false
+  if (!mod?.enabled) return deny()
   if (!Array.isArray(mod.pages) || mod.pages.length === 0) return true // module-level grant
-  if (!mod.pages.includes(opts.page)) return false
+  if (!mod.pages.includes(opts.page)) return deny()
   const pageActions = mod.actions?.[opts.page]
   if (!pageActions || !(opts.action in pageActions)) return true // never configured — default allow
-  return pageActions[opts.action] === true
+  return pageActions[opts.action] === true || deny()
+}
+
+/** Session + userCanAction in one call; throws 401/403. Returns the caller. */
+export async function requireAction(
+  event: any,
+  rule: { module: string; page: string; action: string; roleFallback: string[] },
+  deniedMessage = 'Your account is not allowed to do this',
+): Promise<{ userId: number; role: string }> {
+  const session = await getUserSession(event)
+  if (!session?.user?.id) throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  const userId = Number(session.user.id)
+  const role = String(session.user.role ?? '').toLowerCase()
+  if (!(await userCanAction({ userId, role, ...rule })))
+    throw createError({ statusCode: 403, statusMessage: deniedMessage })
+  return { userId, role }
 }

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, au as readBody, m as createError, z as getDb } from '../../../nitro/nitro.mjs';
+import { q as defineEventHandler, aH as requireAction, av as readBody, m as createError, z as getDb, A as ACCOUNTS_ROLES } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -14,6 +14,11 @@ import 'node:url';
 
 const creditLimits_patch = defineEventHandler(async (event) => {
   var _a;
+  await requireAction(
+    event,
+    { module: "credit_sales", page: "credit-limits", action: "update", roleFallback: ACCOUNTS_ROLES },
+    "Only Accounts / admin (or a user granted Credit Limits) may change credit limits"
+  );
   const { updates } = (_a = await readBody(event)) != null ? _a : {};
   if (!Array.isArray(updates) || !updates.length) {
     throw createError({ statusCode: 400, statusMessage: "updates array is required" });

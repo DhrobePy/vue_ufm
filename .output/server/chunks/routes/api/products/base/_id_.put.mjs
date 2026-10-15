@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, au as readBody, ar as query } from '../../../../nitro/nitro.mjs';
+import { q as defineEventHandler, aH as requireAction, R as getRouterParam, m as createError, av as readBody, as as query } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,6 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__put = defineEventHandler(async (event) => {
+  await requireAction(event, { module: "products", page: "base", action: "edit", roleFallback: ["production manager-srg", "production manager-demra"] });
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid product ID" });
   const body = await readBody(event);
