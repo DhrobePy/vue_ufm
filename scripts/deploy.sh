@@ -52,7 +52,7 @@ git pull -q --ff-only
 echo "server at $(git rev-parse --short HEAD)"
 
 T0=$(date +%s)
-/usr/sbin/cloudlinux-selector restart --interpreter nodejs --user ujjalfmc --app-root "$APP" | tr -d '\n' | cut -c1-120; echo
+/usr/sbin/cloudlinux-selector restart --json --interpreter nodejs --user ujjalfmc --app-root "$APP" | tr -d '\n' | cut -c1-120; echo
 sleep 2
 curl -s -o /dev/null "$URL/auth/login"        # workers spawn on first request
 sleep 3
