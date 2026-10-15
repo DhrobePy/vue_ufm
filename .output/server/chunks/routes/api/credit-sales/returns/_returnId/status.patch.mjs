@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, X as getUserSession, av as readBody, K as getRequestHeader, z as getDb, g as auditLog } from '../../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, o as createError, aL as requireAction, az as readBody, N as getRequestHeader, E as getDb, i as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,19 +13,18 @@ import 'mysql2/promise';
 import 'node:url';
 
 const status_patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e;
   const returnId = Number(getRouterParam(event, "returnId"));
   if (!returnId) throw createError({ statusCode: 400, statusMessage: "Invalid return ID" });
-  const session = await getUserSession(event);
-  const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
-  const role = ((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase();
-  if (!["admin", "superadmin"].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: "Admin access required to approve returns" });
-  }
+  const { userId } = await requireAction(
+    event,
+    { module: "credit_sales", page: "all", action: "approve_return", roleFallback: [], explicit: true },
+    'Only admin / superadmin, or a user granted "Approve / Reject Returns", may decide returns'
+  );
   const body = await readBody(event);
   const action = body == null ? void 0 : body.action;
   const notes = body == null ? void 0 : body.notes;
-  const ipAddress = (_f = (_e = getRequestHeader(event, "x-forwarded-for")) != null ? _e : getRequestHeader(event, "x-real-ip")) != null ? _f : void 0;
+  const ipAddress = (_b = (_a = getRequestHeader(event, "x-forwarded-for")) != null ? _a : getRequestHeader(event, "x-real-ip")) != null ? _b : void 0;
   if (!["approve", "reject"].includes(action)) {
     throw createError({ statusCode: 400, statusMessage: 'action must be "approve" or "reject"' });
   }
@@ -64,7 +63,7 @@ const status_patch = defineEventHandler(async (event) => {
          ORDER BY created_at DESC, id DESC LIMIT 1`,
         [ret.customer_id]
       );
-      const prevBal = Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0);
+      const prevBal = Number((_c = lastLedger == null ? void 0 : lastLedger.bal) != null ? _c : 0);
       const newBal = Math.max(0, prevBal - totalRetAmount);
       await conn.query(
         `INSERT INTO customer_ledger
@@ -104,7 +103,7 @@ const status_patch = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [ret.order_id, (_h = ret.status) != null ? _h : "delivered", (_i = ret.status) != null ? _i : "delivered", wfAction, userId, wfComment]
+      [ret.order_id, (_d = ret.status) != null ? _d : "delivered", (_e = ret.status) != null ? _e : "delivered", wfAction, userId, wfComment]
     );
     await auditLog(conn, {
       userId,

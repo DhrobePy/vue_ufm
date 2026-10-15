@@ -43,7 +43,8 @@ export default defineEventHandler(async (event) => {
     let items: any[]
     if (deliveryId) {
       const [[d]] = await conn.query<any>(
-        `SELECT id, delivery_number, delivery_date, truck_number, driver_name, driver_contact, is_final
+        `SELECT id, delivery_number, delivery_date, truck_number, driver_name, driver_contact, is_final,
+                delivery_slip_number, bags_boarded, bag_size_kg
          FROM credit_order_deliveries WHERE id = ? AND order_id = ?`,
         [deliveryId, id],
       )
@@ -81,6 +82,17 @@ export default defineEventHandler(async (event) => {
          FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`
     const [[conf]] = await conn.query<any>(confSql, confParams)
 
+    const [[ship]] = await conn.query<any>(
+      `SELECT truck_number, driver_name, driver_contact, delivery_slip_number, bags_boarded, bag_size_kg
+       FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id])
+    const src = delivery ?? ship ?? null
+    const shipping = src ? {
+      slip_number: src.delivery_slip_number ?? ship?.delivery_slip_number ?? null,
+      truck_number: src.truck_number ?? null, driver_name: src.driver_name ?? null,
+      driver_contact: src.driver_contact ?? null,
+      bags_boarded: src.bags_boarded ?? null, bag_size_kg: src.bag_size_kg ?? null,
+    } : null
+
     let qrSig = ''
     try {
       const secret = await getDeliveryQrSecret(conn)
@@ -110,6 +122,7 @@ export default defineEventHandler(async (event) => {
         grade:          i.grade ?? null,
         quantity:       Number(i.quantity ?? 0),
       })),
+      shipping,
       confirmation: conf ?? null,
       qr_sig: qrSig,
       delivery_id: deliveryId,

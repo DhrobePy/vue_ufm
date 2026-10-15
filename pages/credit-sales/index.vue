@@ -21,6 +21,16 @@
       </template>
     </UiPageHeader>
 
+    <!-- Needs attention (live counters; only non-zero items are shown) -->
+    <div v-if="attentionItems.length" class="flex flex-wrap gap-2">
+      <NuxtLink v-for="a in attentionItems" :key="a.label" :to="a.to"
+                class="glass-card px-3 py-2 text-xs flex items-center gap-2 hover:bg-white/[0.04]">
+        <span class="text-base">{{ a.icon }}</span>
+        <strong class="font-mono text-gold-400">{{ a.n }}</strong>
+        <span class="text-gray-400">{{ a.label }}</span>
+      </NuxtLink>
+    </div>
+
     <!-- KPIs -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <KpiCard label="Pending Approval"  :value="String(kpiPending)"    trend="awaiting review"  :trend-up="false" icon="check"   color="yellow" />
@@ -353,6 +363,21 @@ const recentOrders = computed(() =>
     priority: o.priority ?? 'normal',
   }))
 )
+
+// ── Needs attention ─────────
+const { data: attention } = useFetch<any>('/api/credit-sales/attention', { server: false })
+const attentionItems = computed(() => {
+  const a = attention.value ?? {}
+  return [
+    { icon: '🔶', n: a.escalated, label: 'escalated for approval', to: '/credit-sales/approve' },
+    { icon: '⛔', n: a.holds, label: 'on dispatch hold', to: '/credit-sales/payment-watch' },
+    { icon: '↩️', n: a.returns, label: 'returns awaiting decision', to: '/credit-sales/all' },
+    { icon: '📦', n: a.overDeliveries, label: 'over-deliveries pending', to: '/credit-sales/over-deliveries' },
+    { icon: '🧾', n: a.amendments, label: 'amendments pending', to: '/credit-sales/all' },
+    { icon: '💳', n: a.paymentApprovals, label: 'payments awaiting approval', to: '/credit-sales/approval-requests' },
+    { icon: '⏰', n: a.overdue, label: 'past required date', to: '/credit-sales/delivery-schedule' },
+  ].filter(x => Number(x.n) > 0)
+})
 
 // ── Pipeline (counts from loaded orders) ─────────
 const PIPELINE_META = [

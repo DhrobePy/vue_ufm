@@ -7,6 +7,7 @@ Run these from the project folder. Everything here is safe by default.
 | Put my changes live | `npm run deploy -- "short note of what changed"` |
 | Check my changes build, without deploying | `npm run deploy -- --check` |
 | Find pages/APIs that crash | `npm run crawl -- http://127.0.0.1:3100 "<session cookie>"` |
+| Check the business rules still hold (scratch DB, never production) | `npm run rules` (setup steps at the top of `scripts/run-rule-tests.sh`) |
 | Type-check the server code | `npm run typecheck` |
 | Catch up Vue's data from the old (legacy) system | `npm run sync:legacy` (preview) then `npm run sync:legacy -- --apply` |
 

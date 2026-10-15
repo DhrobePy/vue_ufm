@@ -121,6 +121,19 @@
               <input v-model.number="allocations[o.id]" type="number" min="0" :max="o.balance_due" step="1"
                      class="input-glass w-28 py-1.5 text-xs font-mono text-right" placeholder="0" />
             </div>
+            <button v-if="canHide" type="button" class="text-[11px] text-gray-600 hover:text-gray-300" title="Hide from this list (visibility only)" @click="setHidden(o, true)">🙈 Hide</button>
+          </div>
+        </div>
+        <div v-if="canHide && hiddenOrders.length" class="px-5 py-2.5 border-t border-white/[0.06]">
+          <button type="button" class="text-[11px] text-gray-500 hover:text-gray-300" @click="showHidden = !showHidden">
+            {{ showHidden ? '▾' : '▸' }} {{ hiddenOrders.length }} hidden invoice{{ hiddenOrders.length > 1 ? 's' : '' }}
+          </button>
+          <div v-if="showHidden" class="mt-2 space-y-1.5">
+            <div v-for="h in hiddenOrders" :key="h.id" class="flex items-center gap-3 text-xs text-gray-500">
+              <span class="font-bold text-gray-400">{{ h.order_number }}</span>
+              <span class="font-mono">৳{{ Number(h.balance_due).toLocaleString() }}</span>
+              <button type="button" class="ml-auto text-sky-400 hover:text-sky-300" @click="setHidden(h, false)">↩ Recall</button>
+            </div>
           </div>
         </div>
 
@@ -178,13 +191,33 @@ function searchCustomers() {
 }
 
 const openOrders = ref<any[]>([])
+const hiddenOrders = ref<any[]>([])
+const canHide = ref(false)
+const showHidden = ref(false)
+async function loadOpenOrders() {
+  if (!selectedCustomer.value) return
+  const id = selectedCustomer.value.id
+  const res: any = await $fetch(`/api/customers/${id}/open-orders`)
+  openOrders.value = res?.orders ?? []
+  canHide.value = !!res?.canHide
+  hiddenOrders.value = canHide.value ? ((await $fetch<any>(`/api/customers/${id}/open-orders`, { query: { hidden: 1 } }))?.orders ?? []) : []
+}
 async function pickCustomer(c: any) {
   selectedCustomer.value = c
   customerResults.value = []
   customerSearch.value = c.name
-  const res: any = await $fetch(`/api/customers/${c.id}/open-orders`)
-  openOrders.value = res?.orders ?? []
+  showHidden.value = false
+  await loadOpenOrders()
   clearAllocations()
+}
+async function setHidden(o: any, hide: boolean) {
+  const reason = hide ? (prompt(`Hide ${o.order_number} from the collection list? Optional reason:`) ?? null) : ''
+  if (reason === null) return
+  try {
+    await $fetch(`/api/customers/${selectedCustomer.value.id}/collection-hide`, { method: 'POST', body: { order_id: o.id, hide, reason } })
+    delete allocations[o.id]
+    await loadOpenOrders()
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') }
 }
 function resetCustomer() {
   selectedCustomer.value = null

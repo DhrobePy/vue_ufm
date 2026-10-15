@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, J as getQuery, X as getUserSession, z as getDb, B as getDeliveryQrSecret, t as deliveryQrSignature } from '../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, o as createError, M as getQuery, _ as getUserSession, E as getDb, F as getDeliveryQrSecret, v as deliveryQrSignature } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const dispatchSlip_get = defineEventHandler(async (event) => {
-  var _a, _b;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const deliveryId = Number(getQuery(event).delivery_id) || null;
@@ -37,7 +37,8 @@ const dispatchSlip_get = defineEventHandler(async (event) => {
     let items;
     if (deliveryId) {
       const [[d]] = await conn.query(
-        `SELECT id, delivery_number, delivery_date, truck_number, driver_name, driver_contact, is_final
+        `SELECT id, delivery_number, delivery_date, truck_number, driver_name, driver_contact, is_final,
+                delivery_slip_number, bags_boarded, bag_size_kg
          FROM credit_order_deliveries WHERE id = ? AND order_id = ?`,
         [deliveryId, id]
       );
@@ -71,6 +72,20 @@ const dispatchSlip_get = defineEventHandler(async (event) => {
                 confirmed_at, confirmed_by_name, received_by
          FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`;
     const [[conf]] = await conn.query(confSql, confParams);
+    const [[ship]] = await conn.query(
+      `SELECT truck_number, driver_name, driver_contact, delivery_slip_number, bags_boarded, bag_size_kg
+       FROM credit_order_shipping WHERE order_id = ? LIMIT 1`,
+      [id]
+    );
+    const src = (_a = delivery != null ? delivery : ship) != null ? _a : null;
+    const shipping = src ? {
+      slip_number: (_c = (_b = src.delivery_slip_number) != null ? _b : ship == null ? void 0 : ship.delivery_slip_number) != null ? _c : null,
+      truck_number: (_d = src.truck_number) != null ? _d : null,
+      driver_name: (_e = src.driver_name) != null ? _e : null,
+      driver_contact: (_f = src.driver_contact) != null ? _f : null,
+      bags_boarded: (_g = src.bags_boarded) != null ? _g : null,
+      bag_size_kg: (_h = src.bag_size_kg) != null ? _h : null
+    } : null;
     let qrSig = "";
     try {
       const secret = await getDeliveryQrSecret(conn);
@@ -81,27 +96,28 @@ const dispatchSlip_get = defineEventHandler(async (event) => {
     return {
       order: {
         ...order,
-        order_date: String((_a = order.order_date) != null ? _a : "").slice(0, 10),
+        order_date: String((_i = order.order_date) != null ? _i : "").slice(0, 10),
         required_date: order.required_date ? String(order.required_date).slice(0, 10) : null
       },
       delivery: delivery ? {
         id: delivery.id,
         delivery_number: delivery.delivery_number,
-        delivery_date: String((_b = delivery.delivery_date) != null ? _b : "").slice(0, 10),
+        delivery_date: String((_j = delivery.delivery_date) != null ? _j : "").slice(0, 10),
         truck_number: delivery.truck_number,
         driver_name: delivery.driver_name,
         driver_contact: delivery.driver_contact,
         is_final: !!delivery.is_final
       } : null,
       items: items.map((i) => {
-        var _a2, _b2, _c, _d;
+        var _a2, _b2, _c2, _d2;
         return {
           product_name: (_a2 = i.product_name) != null ? _a2 : "Product",
           weight_variant: (_b2 = i.weight_variant) != null ? _b2 : null,
-          grade: (_c = i.grade) != null ? _c : null,
-          quantity: Number((_d = i.quantity) != null ? _d : 0)
+          grade: (_c2 = i.grade) != null ? _c2 : null,
+          quantity: Number((_d2 = i.quantity) != null ? _d2 : 0)
         };
       }),
+      shipping,
       confirmation: conf != null ? conf : null,
       qr_sig: qrSig,
       delivery_id: deliveryId

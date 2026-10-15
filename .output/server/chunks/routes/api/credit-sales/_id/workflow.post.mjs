@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, av as readBody, X as getUserSession, m as createError, K as getRequestHeader, a1 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, aY as userCanAction, z as getDb, V as getUserApprovalLimit, y as getCustomerOutstanding, o as creditUsagePct, x as getCreditWorkflowSettings, a0 as isAccountsRole, H as getOrderGateState, al as postGoodsOnBoardInvoice, an as postOtherSalesCOGS, g as auditLog, aR as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, az as readBody, _ as getUserSession, o as createError, N as getRequestHeader, a4 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, b0 as userCanAction, E as getDb, Y as getUserApprovalLimit, C as getCustomerOutstanding, q as creditUsagePct, B as getCreditWorkflowSettings, a3 as isAccountsRole, K as getOrderGateState, h as assertDispatchClear, y as generateDeliverySlipNumber, ao as postGoodsOnBoardInvoice, aq as postOtherSalesCOGS, i as auditLog, aV as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -22,7 +22,7 @@ const TRANSITIONS = {
   escalated: { from: ["pending_approval"], roles: [...ACCOUNTS_ROLES] },
   // flag up to admin
   in_production: { from: ["approved"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "production" },
-  ready_to_ship: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
+  ready_to_ship: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "ready_to_ship" },
   goods_on_board: { from: ["ready_to_ship"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: "goods_on_board" },
   shipped: { from: ["goods_on_board"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] },
   // truck departed — no money logic
@@ -32,7 +32,7 @@ const TRANSITIONS = {
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -220,19 +220,86 @@ Reason: ${comments}` : ""}`;
           statusMessage: `Production HOLD on this order${((_s = gate.raw) == null ? void 0 : _s.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
         });
     }
+    if (rule.enforce === "ready_to_ship") {
+      const { autoReleased } = await assertDispatchClear(conn, id, userId);
+      if (autoReleased) wfComment = `Dispatch clearance auto-released (condition met) \xB7 ${wfComment}`.trim();
+    }
     if (rule.enforce === "goods_on_board") {
+      const d = (_t = body == null ? void 0 : body.dispatch) != null ? _t : {};
+      const truck = String((_u = d.truck_number) != null ? _u : "").trim();
+      const driver = String((_v = d.driver_name) != null ? _v : "").trim();
+      if (!truck || !driver)
+        throw createError({ statusCode: 400, statusMessage: "Truck number and driver name are required to put goods on board" });
+      const extra = Math.round(Number((_w = d.extra_discount_amount) != null ? _w : 0) * 100) / 100;
+      const extraReason = String((_x = d.extra_discount_reason) != null ? _x : "").trim();
+      if (!(extra >= 0)) throw createError({ statusCode: 400, statusMessage: "Discount amount cannot be negative" });
+      if (extra > 0 && !extraReason) throw createError({ statusCode: 400, statusMessage: "Please enter a reason for the additional discount" });
+      if (extra > Number((_y = order.subtotal) != null ? _y : 0))
+        throw createError({ statusCode: 400, statusMessage: `Discount (\u09F3${extra.toLocaleString()}) cannot exceed the order subtotal (\u09F3${Number(order.subtotal).toLocaleString()})` });
+      const bags = Math.max(0, Math.floor(Number((_z = d.bags_boarded) != null ? _z : 0))) || null;
+      const bagKg = Math.max(0, Number((_A = d.bag_size_kg) != null ? _A : 0)) || null;
+      await assertDispatchClear(conn, id, userId);
+      if (extra > 0) {
+        await conn.query(
+          `UPDATE credit_orders
+           SET discount_amount = discount_amount + ?, total_amount = total_amount - ?,
+               balance_due = GREATEST(0, total_amount - advance_paid - amount_paid), updated_at = NOW()
+           WHERE id = ?`,
+          [extra, extra, id]
+        );
+        const [[fresh]] = await conn.query(`SELECT total_amount, balance_due FROM credit_orders WHERE id = ?`, [id]);
+        order.total_amount = fresh.total_amount;
+        order.balance_due = fresh.balance_due;
+        wfComment = `Dispatcher discount \u09F3${extra.toLocaleString()} (${extraReason}) \xB7 ${wfComment}`.trim();
+      }
+      const [[ship]] = await conn.query(`SELECT id, delivery_slip_number FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id]);
+      const slip = (ship == null ? void 0 : ship.delivery_slip_number) || await generateDeliverySlipNumber(conn, (_B = order.assigned_branch_id) != null ? _B : null);
+      if (ship) {
+        await conn.query(
+          `UPDATE credit_order_shipping SET truck_number=?, driver_name=?, driver_contact=?, shipped_date=NOW(), shipped_by_user_id=?,
+             bags_boarded=?, bag_size_kg=?, delivery_slip_number=?,
+             extra_discount_amount = extra_discount_amount + ?,
+             extra_discount_reason = IF(? > 0, ?, extra_discount_reason),
+             extra_discount_by_user_id = IF(? > 0, ?, extra_discount_by_user_id),
+             extra_discount_at = IF(? > 0, NOW(), extra_discount_at)
+           WHERE id = ?`,
+          [truck, driver, d.driver_contact || null, userId, bags, bagKg, slip, extra, extra, extraReason, extra, userId, extra, ship.id]
+        );
+      } else {
+        await conn.query(
+          `INSERT INTO credit_order_shipping
+             (order_id, truck_number, driver_name, driver_contact, shipped_date, shipped_by_user_id,
+              bags_boarded, bag_size_kg, delivery_slip_number,
+              extra_discount_amount, extra_discount_reason, extra_discount_by_user_id, extra_discount_at)
+           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ${extra > 0 ? "NOW()" : "NULL"})`,
+          [
+            id,
+            truck,
+            driver,
+            d.driver_contact || null,
+            userId,
+            bags,
+            bagKg,
+            slip,
+            extra,
+            extra > 0 ? extraReason : null,
+            extra > 0 ? userId : null
+          ]
+        );
+      }
+      wfComment = `Truck ${truck} \xB7 driver ${driver} \xB7 slip ${slip} \xB7 ${wfComment}`.trim();
       const result = await postGoodsOnBoardInvoice(conn, {
         orderId: id,
         orderNumber: order.order_number,
         customerId: order.customer_id,
         customerName: order.customer_name,
-        totalAmount,
-        balanceDue: Number((_t = order.balance_due) != null ? _t : 0),
+        totalAmount: Number((_C = order.total_amount) != null ? _C : 0),
+        balanceDue: Number((_D = order.balance_due) != null ? _D : 0),
         userId,
         userName
       });
       if (!result.alreadyPosted)
-        wfComment = `Goods on board \u2014 invoice \u09F3${totalAmount.toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
+        wfComment = `Goods on board \u2014 invoice \u09F3${Number((_E = order.total_amount) != null ? _E : 0).toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
       if (result.autoReleased)
         wfComment += " \xB7 dispatch clearance auto-released (condition met)";
       telegramMsg = result.telegramMsg;
@@ -240,7 +307,7 @@ Reason: ${comments}` : ""}`;
         const cogs = await postOtherSalesCOGS(conn, {
           orderId: id,
           orderNumber: order.order_number,
-          branchId: (_u = order.assigned_branch_id) != null ? _u : null,
+          branchId: (_F = order.assigned_branch_id) != null ? _F : null,
           userId
         });
         if (cogs > 0) wfComment += ` \xB7 trading COGS \u09F3${cogs.toLocaleString()} posted`;
@@ -285,7 +352,7 @@ Truck has departed \xB7 by ${userName}`;
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_w = (_v = e == null ? void 0 : e.sqlMessage) != null ? _v : e == null ? void 0 : e.message) != null ? _w : "Workflow transition failed"
+      statusMessage: (_H = (_G = e == null ? void 0 : e.sqlMessage) != null ? _G : e == null ? void 0 : e.message) != null ? _H : "Workflow transition failed"
     });
   } finally {
     conn.release();

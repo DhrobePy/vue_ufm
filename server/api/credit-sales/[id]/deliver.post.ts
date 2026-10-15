@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { getUserActionLimit, nextDocNumber, isAdminRole } from '~/server/utils/creditOrders'
+import { getUserActionLimit, nextDocNumber, isAdminRole, generateDeliverySlipNumber } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -69,18 +69,31 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    // Slip number: the order's first truck reuses the one issued at Goods on Board;
+    // every further truck gets the next number in the branch's monthly series.
+    const [[ordBranch]] = await conn.query<any>(`SELECT assigned_branch_id FROM credit_orders WHERE id = ?`, [id])
+    const [[prevDel]] = await conn.query<any>(`SELECT COUNT(*) n FROM credit_order_deliveries WHERE order_id = ?`, [id])
+    const [[ship]] = await conn.query<any>(`SELECT delivery_slip_number FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id])
+    const slipNo = (Number(prevDel.n) === 0 && ship?.delivery_slip_number)
+      ? ship.delivery_slip_number
+      : await generateDeliverySlipNumber(conn, ordBranch?.assigned_branch_id ?? null, delivDate)
+    const bags = Math.max(0, Math.floor(Number(body?.bags_boarded ?? 0))) || null
+    const bagKg = Math.max(0, Number(body?.bag_size_kg ?? 0)) || null
+
     // Insert delivery header
     const [result] = await conn.query<any>(
       `INSERT INTO credit_order_deliveries
          (delivery_number, order_id, customer_id, delivery_date,
           truck_number, driver_name, driver_contact,
-          total_qty_delivered, total_amount_delivered, is_final, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          total_qty_delivered, total_amount_delivered, is_final, notes, created_by_user_id,
+          delivery_slip_number, bags_boarded, bag_size_kg)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         delNo, id, order.customer_id,
         delivDate,
         truck_number ?? null, driver_name ?? null, driver_contact ?? null,
         totalQty, totalAmount, is_final ? 1 : 0, notes ?? null, userId,
+        slipNo, bags, bagKg,
       ],
     )
     const deliveryId = result.insertId

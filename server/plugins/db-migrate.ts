@@ -1594,5 +1594,70 @@ export default defineNitroPlugin(async () => {
     if (e?.errno !== 1091) console.warn('[db-migrate] cr_delivery_confirmations DROP INDEX uk_dc_order failed:', e)
   }
 
+  // ── Legacy dispatch parity (Option B, phase 2) ─────────────────────────────
+  // credit_order_shipping already exists (imported legacy rows); the app now writes it at
+  // Goods on Board. Column names/shapes match the legacy app so a later sync stays trivial.
+  await addCol(db, 'credit_order_shipping', 'bags_boarded', 'INT UNSIGNED NULL')
+  await addCol(db, 'credit_order_shipping', 'bag_size_kg', 'DECIMAL(8,2) NULL')
+  await addCol(db, 'credit_order_shipping', 'delivery_slip_number', 'VARCHAR(30) NULL')
+  await addCol(db, 'credit_order_shipping', 'extra_discount_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00')
+  await addCol(db, 'credit_order_shipping', 'extra_discount_reason', 'TEXT NULL')
+  await addCol(db, 'credit_order_shipping', 'extra_discount_by_user_id', 'BIGINT UNSIGNED NULL')
+  await addCol(db, 'credit_order_shipping', 'extra_discount_at', 'TIMESTAMP NULL')
+  await addCol(db, 'credit_order_deliveries', 'bags_boarded', 'INT UNSIGNED NULL')
+  await addCol(db, 'credit_order_deliveries', 'bag_size_kg', 'DECIMAL(8,2) NULL')
+  await addCol(db, 'credit_order_deliveries', 'delivery_slip_number', 'VARCHAR(30) NULL')
+  await addCol(db, 'credit_order_deliveries', 'extra_discount_amount', 'DECIMAL(12,2) NOT NULL DEFAULT 0.00')
+  await addCol(db, 'credit_order_deliveries', 'extra_discount_reason', 'TEXT NULL')
+  await addCol(db, 'credit_order_deliveries', 'extra_discount_by_user_id', 'BIGINT UNSIGNED NULL')
+  await addCol(db, 'credit_order_deliveries', 'extra_discount_at', 'TIMESTAMP NULL')
+  await addCol(db, 'branches', 'delivery_slip_prefix', 'VARCHAR(3) NULL')
+  for (const [name, code] of [['Sirajgonj', 'SRG'], ['Demra', 'DEM'], ['Rampura', 'RAM'], ['Head Office', 'HOF'], ['Coxsbazar Branch', 'COX']]) {
+    try {
+      await db.query(`UPDATE branches SET delivery_slip_prefix = ? WHERE name = ? AND (delivery_slip_prefix IS NULL OR delivery_slip_prefix = '')`, [code, name])
+    } catch { /* branches table shape differs — prefix is self-healed on first use */ }
+  }
+
+  // Hide / recall an outstanding invoice from Collect Payment (visibility only — never touches money). Legacy table shape.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_order_collection_hides (
+        id                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id          BIGINT UNSIGNED NOT NULL,
+        customer_id       BIGINT UNSIGNED NOT NULL,
+        hidden_by_user_id BIGINT UNSIGNED NULL,
+        hidden_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        reason            VARCHAR(255) NULL,
+        PRIMARY KEY (id), UNIQUE KEY uk_cochide_order (order_id), KEY idx_cochide_customer (customer_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] credit_order_collection_hides failed:', e) }
+
+  // Per-line price revision log (legacy shape) — written when a catalog price change is auto-applied to open orders.
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS credit_order_price_revisions (
+        id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        order_id           BIGINT UNSIGNED NOT NULL,
+        order_item_id      BIGINT UNSIGNED NULL,
+        product_id         BIGINT UNSIGNED NOT NULL,
+        variant_id         BIGINT UNSIGNED NULL,
+        quantity           DECIMAL(10,2) NOT NULL,
+        old_unit_price     DECIMAL(12,2) NOT NULL,
+        new_unit_price     DECIMAL(12,2) NOT NULL,
+        reason             TEXT NOT NULL,
+        changed_by_user_id BIGINT UNSIGNED NOT NULL,
+        created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY idx_copr_order (order_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] credit_order_price_revisions failed:', e) }
+
+  // Post-dispatch amendments change money the customer already owes → record how/when they consented (legacy rule).
+  await addCol(db, 'order_amendments', 'customer_consent_note', 'VARCHAR(255) NULL')
+
+  // Delivery Schedule drag-and-drop order (legacy column name).
+  await addCol(db, 'credit_orders', 'delivery_priority', 'INT NOT NULL DEFAULT 0')
+
   console.log('[db-migrate] startup migrations complete')
 })

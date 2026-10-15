@@ -86,7 +86,7 @@
               <option value="60">60 days</option>
             </select>
           </div>
-          <div class="space-y-1.5">
+          <div v-if="perms.canExplicit('customers', 'list', 'set_opening_balance')" class="space-y-1.5">
             <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Opening Balance (৳)</label>
             <input v-model.number="form.initialDue" type="number" min="0" class="input-glass" placeholder="0" />
             <p class="text-[11px] text-gray-600">Existing outstanding balance from before system entry</p>
@@ -111,6 +111,7 @@
 </template>
 
 <script setup lang="ts">
+const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 // Real PHP customer types: Credit or POS (never "Cash")
@@ -161,7 +162,7 @@ async function submit() {
         business_address: form.address      || undefined,
         customer_type:    form.type === 'POS' ? 'POS' : 'Credit',
         credit_limit:     form.type === 'Credit' ? form.creditLimit : 0,
-        opening_balance:  form.initialDue || 0,
+        opening_balance:  perms.canExplicit('customers', 'list', 'set_opening_balance') ? (form.initialDue || 0) : 0,
       },
     })
     success('Customer created successfully ✓')

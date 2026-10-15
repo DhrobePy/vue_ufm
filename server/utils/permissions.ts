@@ -53,11 +53,17 @@ export async function userCanAction(opts: {
   action: string
   /** roles always allowed (legacy back-compat for users with no row) */
   roleFallback: string[]
+  /** delegable power: only an explicit `true` grant in the user's own row counts (admin always passes) */
+  explicit?: boolean
 }): Promise<boolean> {
   const role = opts.role.toLowerCase()
   if (['admin', 'superadmin'].includes(role)) return true
 
   const perms = await resolvePermissions(opts.userId, role)
+  if (opts.explicit)
+    return !perms.__preset && perms[opts.module]?.enabled === true
+      && Array.isArray(perms[opts.module].pages) && perms[opts.module].pages.includes(opts.page)
+      && perms[opts.module].actions?.[opts.page]?.[opts.action] === true
   // A role preset only ever WIDENS access — it never removes what the caller's roleFallback already granted.
   const deny = () => !!perms.__preset && opts.roleFallback.includes(role)
   const mod = perms[opts.module]
@@ -72,7 +78,7 @@ export async function userCanAction(opts: {
 /** Session + userCanAction in one call; throws 401/403. Returns the caller. */
 export async function requireAction(
   event: any,
-  rule: { module: string; page: string; action: string; roleFallback: string[] },
+  rule: { module: string; page: string; action: string; roleFallback: string[]; explicit?: boolean },
   deniedMessage = 'Your account is not allowed to do this',
 ): Promise<{ userId: number; role: string }> {
   const session = await getUserSession(event)

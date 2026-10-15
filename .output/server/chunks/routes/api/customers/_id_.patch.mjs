@@ -1,4 +1,4 @@
-import { q as defineEventHandler, aH as requireAction, R as getRouterParam, m as createError, av as readBody, at as queryOne, as as query, A as ACCOUNTS_ROLES } from '../../../nitro/nitro.mjs';
+import { s as defineEventHandler, aL as requireAction, W as getRouterParam, o as createError, az as readBody, ax as queryOne, aw as query, A as ACCOUNTS_ROLES } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -33,6 +33,8 @@ const _id__patch = defineEventHandler(async (event) => {
   } = body != null ? body : {};
   if (!name || !phone_number)
     throw createError({ statusCode: 400, statusMessage: "name and phone_number are required" });
+  const dup = await queryOne("SELECT id, name FROM customers WHERE phone_number = ? AND id <> ? LIMIT 1", [phone_number, id]);
+  if (dup) throw createError({ statusCode: 409, statusMessage: `Another customer already uses this phone number (${dup.name})` });
   const cur = await queryOne("SELECT credit_limit FROM customers WHERE id = ?", [id]);
   if (cur && Number((_a = cur.credit_limit) != null ? _a : 0) !== (credit_limit ? Number(credit_limit) : 0))
     await requireAction(

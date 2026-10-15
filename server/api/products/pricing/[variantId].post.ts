@@ -1,4 +1,5 @@
 import { query, getDb } from '~/server/utils/db'
+import { priceAutoApplyEnabled, applyPriceChangeToOpenOrders } from '~/server/utils/priceSync'
 
 const PRICING_ROLES = ['admin', 'superadmin']
 
@@ -60,8 +61,15 @@ export default defineEventHandler(async (event) => {
       [variantId, branch_id, oldPrice, price, changeType, changedBy],
     )
 
+    let applied = { orders: 0, items: 0 }
+    if (await priceAutoApplyEnabled(conn))
+      applied = await applyPriceChangeToOpenOrders(conn, {
+        variantId, branchId: Number(branch_id), oldPrice: oldPrice === null ? null : Number(oldPrice), newPrice: price,
+        userId: Number((session?.user as any)?.id), label: changedBy,
+      })
+
     await conn.commit()
-    return { ok: true, priceId: ins.insertId, changeType }
+    return { ok: true, priceId: ins.insertId, changeType, appliedToOrders: applied.orders }
   } catch (e) {
     await conn.rollback()
     throw e

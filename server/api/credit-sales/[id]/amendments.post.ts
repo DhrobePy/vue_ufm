@@ -47,6 +47,15 @@ export default defineEventHandler(async (event) => {
     if (!regime)
       throw createError({ statusCode: 409, statusMessage: `Order status "${order.status}" cannot be amended` })
 
+    // Post-dispatch changes alter an invoice the customer already owes — consent must be attested.
+    const consentNote = regime === 'post' ? String(body?.consent_note ?? '').trim().slice(0, 255) : ''
+    if (regime === 'post') {
+      if (!body?.consent_confirmed)
+        throw createError({ statusCode: 400, statusMessage: 'Please confirm the customer has consented to this change' })
+      if (!consentNote)
+        throw createError({ statusCode: 400, statusMessage: "Please note how/when the customer's consent was obtained" })
+    }
+
     // ── Compute the money delta + snapshots ─────────────────────────────────
     let delta = 0
     let oldValues: any = null
@@ -87,12 +96,12 @@ export default defineEventHandler(async (event) => {
     const [res] = await conn.query<any>(
       `INSERT INTO order_amendments
          (amendment_number, order_id, regime, amend_type, description,
-          old_values, new_values, flat_amount, status, requested_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          old_values, new_values, flat_amount, status, requested_by, customer_consent_note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         amdNo, id, regime, amendType, description,
         JSON.stringify(oldValues), JSON.stringify(newValues), flatAmount,
-        canAutoApply ? 'approved' : 'pending', userId,
+        canAutoApply ? 'approved' : 'pending', userId, consentNote || null,
       ],
     )
     const amendmentId = res.insertId

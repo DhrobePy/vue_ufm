@@ -55,6 +55,12 @@
                      class="input-glass w-full text-xs py-1.5 text-center font-mono" />
             </div>
           </div>
+          <label class="mt-3 flex items-start gap-2 text-xs text-gray-400 cursor-pointer">
+            <input v-model="cfg.auto_apply" type="checkbox" class="mt-0.5 accent-amber-500" />
+            <span>Apply price changes to open orders automatically
+              <span class="block text-[11px] text-gray-600">Orders not yet invoiced move by the same ৳ change; every changed line is logged on the order. Off = open orders keep the price they were created at.</span>
+            </span>
+          </label>
           <p class="mt-2 text-[11px] text-gray-600">
             Example (base ৳2,500): ⌊(2500÷{{ cfg.formula.bag_50 }})×{{ cfg.formula.bag_74 }}+{{ cfg.formula.packaging_fee }}⌋₅
             = <strong class="text-gray-400">৳{{ fmt(calc74(2500)) }}</strong>
@@ -494,13 +500,14 @@ function factoryCode(id: number | null): string {
 }
 
 // ── Config ────────────────────────────────────────────────────────────────────
-const cfg = reactive({ formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 } })
+const cfg = reactive({ formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 }, auto_apply: false })
 watch(data, () => {
   const c = raw.value?.config
   if (!c) return
   cfg.formula.bag_50        = c.formula?.bag_50        ?? 50
   cfg.formula.bag_74        = c.formula?.bag_74        ?? 74
   cfg.formula.packaging_fee = c.formula?.packaging_fee ?? 150
+  cfg.auto_apply            = !!c.auto_apply_to_orders
 }, { immediate: true })
 
 // ── Charge components (editable local copy per branch) ───────────────────────
@@ -627,7 +634,7 @@ async function saveConfig() {
   try {
     await $fetch('/api/products/pricing-engine', {
       method: 'POST',
-      body: { action: 'save_config', ...cfg.formula },
+      body: { action: 'save_config', ...cfg.formula, auto_apply_to_orders: cfg.auto_apply },
     })
     flashMsg('Formula constants saved.')
   } catch (e: any) {

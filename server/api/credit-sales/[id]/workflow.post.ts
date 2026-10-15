@@ -5,7 +5,7 @@ import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
   getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
-  getOrderGateState, postGoodsOnBoardInvoice, getCreditWorkflowSettings,
+  getOrderGateState, assertDispatchClear, postGoodsOnBoardInvoice, generateDeliverySlipNumber, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
@@ -32,7 +32,7 @@ interface TransitionRule {
   /** roles allowed (admin always allowed) */
   roles: string[]
   /** run extra enforcement; throw createError to block */
-  enforce?: 'approve' | 'production' | 'goods_on_board'
+  enforce?: 'approve' | 'production' | 'ready_to_ship' | 'goods_on_board'
 }
 
 const TRANSITIONS: Record<string, TransitionRule> = {
@@ -40,7 +40,7 @@ const TRANSITIONS: Record<string, TransitionRule> = {
   rejected:        { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
   escalated:       { from: ['pending_approval'], roles: [...ACCOUNTS_ROLES] },  // flag up to admin
   in_production:   { from: ['approved'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'production' },
-  ready_to_ship:   { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
+  ready_to_ship:   { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'ready_to_ship' },
   goods_on_board:  { from: ['ready_to_ship'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: 'goods_on_board' },
   shipped:         { from: ['goods_on_board'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] }, // truck departed — no money logic
   completed:       { from: ['delivered'], roles: [] },  // admin only (payments auto-complete otherwise)
@@ -267,20 +267,87 @@ export default defineEventHandler(async (event) => {
         })
     }
 
+    // ── Enforcement: READY TO SHIP needs dispatch clearance (payment hold) ───
+    if (rule.enforce === 'ready_to_ship') {
+      const { autoReleased } = await assertDispatchClear(conn, id, userId)
+      if (autoReleased) wfComment = `Dispatch clearance auto-released (condition met) · ${wfComment}`.trim()
+    }
+
     // ── Enforcement + LEDGER POSTING: GOODS ON BOARD (the accounting pivot) ──
     if (rule.enforce === 'goods_on_board') {
+      // Truck details are mandatory (legacy rule) — and the dispatcher may add a
+      // final discount (reason required) BEFORE the invoice is posted, so the
+      // ledger/JE carry the discounted total from the first post.
+      const d = body?.dispatch ?? {}
+      const truck = String(d.truck_number ?? '').trim()
+      const driver = String(d.driver_name ?? '').trim()
+      if (!truck || !driver)
+        throw createError({ statusCode: 400, statusMessage: 'Truck number and driver name are required to put goods on board' })
+      const extra = Math.round(Number(d.extra_discount_amount ?? 0) * 100) / 100
+      const extraReason = String(d.extra_discount_reason ?? '').trim()
+      if (!(extra >= 0)) throw createError({ statusCode: 400, statusMessage: 'Discount amount cannot be negative' })
+      if (extra > 0 && !extraReason) throw createError({ statusCode: 400, statusMessage: 'Please enter a reason for the additional discount' })
+      if (extra > Number(order.subtotal ?? 0))
+        throw createError({ statusCode: 400, statusMessage: `Discount (৳${extra.toLocaleString()}) cannot exceed the order subtotal (৳${Number(order.subtotal).toLocaleString()})` })
+      const bags = Math.max(0, Math.floor(Number(d.bags_boarded ?? 0))) || null
+      const bagKg = Math.max(0, Number(d.bag_size_kg ?? 0)) || null
+
+      // Hold check first — a blocked order must not have its totals touched.
+      await assertDispatchClear(conn, id, userId)
+
+      if (extra > 0) {
+        await conn.query(
+          `UPDATE credit_orders
+           SET discount_amount = discount_amount + ?, total_amount = total_amount - ?,
+               balance_due = GREATEST(0, total_amount - advance_paid - amount_paid), updated_at = NOW()
+           WHERE id = ?`,
+          [extra, extra, id],
+        )
+        const [[fresh]] = await conn.query<any>(`SELECT total_amount, balance_due FROM credit_orders WHERE id = ?`, [id])
+        order.total_amount = fresh.total_amount
+        order.balance_due = fresh.balance_due
+        wfComment = `Dispatcher discount ৳${extra.toLocaleString()} (${extraReason}) · ${wfComment}`.trim()
+      }
+
+      const [[ship]] = await conn.query<any>(`SELECT id, delivery_slip_number FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id])
+      // Slip number is assigned once per order and kept on a correction/re-dispatch.
+      const slip = ship?.delivery_slip_number || await generateDeliverySlipNumber(conn, order.assigned_branch_id ?? null)
+      if (ship) {
+        await conn.query(
+          `UPDATE credit_order_shipping SET truck_number=?, driver_name=?, driver_contact=?, shipped_date=NOW(), shipped_by_user_id=?,
+             bags_boarded=?, bag_size_kg=?, delivery_slip_number=?,
+             extra_discount_amount = extra_discount_amount + ?,
+             extra_discount_reason = IF(? > 0, ?, extra_discount_reason),
+             extra_discount_by_user_id = IF(? > 0, ?, extra_discount_by_user_id),
+             extra_discount_at = IF(? > 0, NOW(), extra_discount_at)
+           WHERE id = ?`,
+          [truck, driver, d.driver_contact || null, userId, bags, bagKg, slip, extra, extra, extraReason, extra, userId, extra, ship.id],
+        )
+      } else {
+        await conn.query(
+          `INSERT INTO credit_order_shipping
+             (order_id, truck_number, driver_name, driver_contact, shipped_date, shipped_by_user_id,
+              bags_boarded, bag_size_kg, delivery_slip_number,
+              extra_discount_amount, extra_discount_reason, extra_discount_by_user_id, extra_discount_at)
+           VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, ?, ?, ${extra > 0 ? 'NOW()' : 'NULL'})`,
+          [id, truck, driver, d.driver_contact || null, userId, bags, bagKg, slip,
+           extra, extra > 0 ? extraReason : null, extra > 0 ? userId : null],
+        )
+      }
+      wfComment = `Truck ${truck} · driver ${driver} · slip ${slip} · ${wfComment}`.trim()
+
       const result = await postGoodsOnBoardInvoice(conn, {
         orderId: id,
         orderNumber: order.order_number,
         customerId: order.customer_id,
         customerName: order.customer_name,
-        totalAmount,
+        totalAmount: Number(order.total_amount ?? 0),
         balanceDue: Number(order.balance_due ?? 0),
         userId,
         userName,
       })
       if (!result.alreadyPosted)
-        wfComment = `Goods on board — invoice ৳${totalAmount.toLocaleString()} posted to ledger · ${wfComment}`.trim()
+        wfComment = `Goods on board — invoice ৳${Number(order.total_amount ?? 0).toLocaleString()} posted to ledger · ${wfComment}`.trim()
       if (result.autoReleased)
         wfComment += ' · dispatch clearance auto-released (condition met)'
       telegramMsg = result.telegramMsg

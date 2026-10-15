@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, m as createError, av as readBody, as as query, z as getDb } from '../../../nitro/nitro.mjs';
+import { s as defineEventHandler, _ as getUserSession, o as createError, az as readBody, aw as query, E as getDb, au as priceAutoApplyEnabled, g as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -62,7 +62,7 @@ function sumBaseCharges(components, wc) {
   return components.filter((c) => c.is_active && c.charge_type === "base" && (c.weight_class === wc || c.weight_class === "all")).reduce((s, c) => s + Number(c.amount), 0);
 }
 const pricingEngine_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   if (!ACCOUNTS_ROLES.includes(role))
@@ -71,8 +71,9 @@ const pricingEngine_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
   const { action } = body != null ? body : {};
   if (action === "save_config") {
-    const { bag_50, bag_74, packaging_fee } = body;
+    const { bag_50, bag_74, packaging_fee, auto_apply_to_orders } = body;
     const cfg = {
+      auto_apply_to_orders: !!auto_apply_to_orders,
       formula: {
         bag_50: Math.max(1, Number(bag_50) || DEFAULT_CONFIG.formula.bag_50),
         bag_74: Math.max(1, Number(bag_74) || DEFAULT_CONFIG.formula.bag_74),
@@ -214,6 +215,7 @@ const pricingEngine_post = defineEventHandler(async (event) => {
     if (!priceRows.length)
       return { ok: true, totalUpdated: 0, skippedRegions, message: "No prices to apply." };
     const effDate = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+    let autoApplied = 0;
     const affectedVariantIds = [...new Set(priceRows.map((r) => r.variant_id))];
     const db = getDb();
     const conn = await db.getConnection();
@@ -247,6 +249,22 @@ const pricingEngine_post = defineEventHandler(async (event) => {
         `INSERT INTO price_change_log (variant_id, branch_id, old_price, new_price, change_type, changed_by, note) VALUES ?`,
         [logValues]
       );
+      let appliedOrders = 0;
+      if (await priceAutoApplyEnabled(conn)) {
+        for (const r of priceRows) {
+          const old = (_j = oldPriceMap.get(`${r.variant_id}:${r.branch_id}`)) != null ? _j : null;
+          const a = await applyPriceChangeToOpenOrders(conn, {
+            variantId: r.variant_id,
+            branchId: r.branch_id,
+            oldPrice: old,
+            newPrice: r.unit_price,
+            userId: Number((_k = session == null ? void 0 : session.user) == null ? void 0 : _k.id),
+            label: changedBy
+          });
+          appliedOrders += a.orders;
+        }
+      }
+      autoApplied = appliedOrders;
       await conn.commit();
     } catch (e) {
       await conn.rollback();
@@ -256,6 +274,7 @@ const pricingEngine_post = defineEventHandler(async (event) => {
     }
     return {
       ok: true,
+      appliedToOrders: autoApplied,
       totalUpdated: priceRows.length,
       skippedRegions,
       message: `Applied \u2014 ${priceRows.length} price records updated.` + (skippedRegions.length ? ` Skipped (no source factory): ${skippedRegions.join(", ")}.` : "")

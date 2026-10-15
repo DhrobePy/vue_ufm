@@ -1,4 +1,4 @@
-import { q as defineEventHandler, X as getUserSession, m as createError, R as getRouterParam, av as readBody, z as getDb } from '../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, _ as getUserSession, o as createError, W as getRouterParam, az as readBody, E as getDb, au as priceAutoApplyEnabled, g as applyPriceChangeToOpenOrders } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -14,7 +14,7 @@ import 'node:url';
 
 const PRICING_ROLES = ["admin", "superadmin"];
 const _variantId__post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g;
   const session = await getUserSession(event);
   const role = ((_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.role) != null ? _b : "").toLowerCase();
   if (!PRICING_ROLES.includes(role))
@@ -57,8 +57,18 @@ const _variantId__post = defineEventHandler(async (event) => {
        VALUES (?, ?, ?, ?, ?, ?)`,
       [variantId, branch_id, oldPrice, price, changeType, changedBy]
     );
+    let applied = { orders: 0, items: 0 };
+    if (await priceAutoApplyEnabled(conn))
+      applied = await applyPriceChangeToOpenOrders(conn, {
+        variantId,
+        branchId: Number(branch_id),
+        oldPrice: oldPrice === null ? null : Number(oldPrice),
+        newPrice: price,
+        userId: Number((_g = session == null ? void 0 : session.user) == null ? void 0 : _g.id),
+        label: changedBy
+      });
     await conn.commit();
-    return { ok: true, priceId: ins.insertId, changeType };
+    return { ok: true, priceId: ins.insertId, changeType, appliedToOrders: applied.orders };
   } catch (e) {
     await conn.rollback();
     throw e;

@@ -79,6 +79,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/create')" label="Create Order"      route="/credit-sales/create"       :collapsed="collapsed" icon-type="plus"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/approve')" label="Approve Orders"    route="/credit-sales/approve"      :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/production')" label="Production Queue"  route="/credit-sales/production"   :collapsed="collapsed" icon-type="factory"   sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/delivery-schedule')" label="Delivery Schedule" route="/credit-sales/delivery-schedule" :collapsed="collapsed" icon-type="factory" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/dispatch')" label="Dispatch Queue"    route="/credit-sales/dispatch"     :collapsed="collapsed" icon-type="truck"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ledger')" label="Customer Ledger"   route="/credit-sales/ledger"       :collapsed="collapsed" icon-type="book"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/payment-watch')" label="Payment Watch"     route="/credit-sales/payment-watch" :collapsed="collapsed" icon-type="check"     sub />

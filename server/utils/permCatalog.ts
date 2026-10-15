@@ -28,7 +28,7 @@ const PRESETS: Record<string, PermMap> = {
   'accounts': {
     dashboard: on(['main']),
     credit_sales: on([...CS_COMMON, 'create', 'approve', 'payment-watch', 'approval-requests', 'over-deliveries',
-      'collect', 'payments', 'amendments', 'ledger', 'ageing', 'credit-limits'], { all: { ...NO_ADMIN_EDITS } }),
+      'collect', 'payments', 'amendments', 'ledger', 'ageing', 'credit-limits', 'delivery-schedule'], { all: { ...NO_ADMIN_EDITS } }),
     customers: on(['list']),
     collector: on(['collections']),
     sales: on(['report']),
@@ -43,7 +43,7 @@ const PRESETS: Record<string, PermMap> = {
   },
   'production-group': {
     dashboard: on(['main']),
-    credit_sales: on([...CS_COMMON, 'production', 'over-deliveries', 'amendments'],
+    credit_sales: on([...CS_COMMON, 'production', 'over-deliveries', 'amendments', 'delivery-schedule'],
       { all: { ...NO_ADMIN_EDITS, collect_payment: false } }),
     production: on(),
     products: on(['overview', 'base', 'variants', 'inventory']),

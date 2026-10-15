@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, av as readBody, X as getUserSession, m as createError, a0 as isAccountsRole, z as getDb, d as AMD_PRE_STATUSES, c as AMD_POST_STATUSES, V as getUserApprovalLimit, a6 as nextDocNumber, f as applyAmendment, g as auditLog, aR as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, az as readBody, _ as getUserSession, o as createError, a3 as isAccountsRole, E as getDb, d as AMD_PRE_STATUSES, c as AMD_POST_STATUSES, Y as getUserApprovalLimit, a9 as nextDocNumber, f as applyAmendment, i as auditLog, aV as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const amendments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d;
+  var _a, _b, _c, _d, _e;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -39,6 +39,13 @@ const amendments_post = defineEventHandler(async (event) => {
     const regime = AMD_PRE_STATUSES.includes(order.status) ? "pre" : AMD_POST_STATUSES.includes(order.status) ? "post" : null;
     if (!regime)
       throw createError({ statusCode: 409, statusMessage: `Order status "${order.status}" cannot be amended` });
+    const consentNote = regime === "post" ? String((_d = body == null ? void 0 : body.consent_note) != null ? _d : "").trim().slice(0, 255) : "";
+    if (regime === "post") {
+      if (!(body == null ? void 0 : body.consent_confirmed))
+        throw createError({ statusCode: 400, statusMessage: "Please confirm the customer has consented to this change" });
+      if (!consentNote)
+        throw createError({ statusCode: 400, statusMessage: "Please note how/when the customer's consent was obtained" });
+    }
     let delta = 0;
     let oldValues = null;
     let newValues = null;
@@ -60,7 +67,7 @@ const amendments_post = defineEventHandler(async (event) => {
       oldValues = { items: oldItems, total_amount: Number(order.total_amount) };
       newValues = { items: newItems, total_amount: newTotal };
     } else {
-      flatAmount = Number((_d = body == null ? void 0 : body.flat_amount) != null ? _d : 0);
+      flatAmount = Number((_e = body == null ? void 0 : body.flat_amount) != null ? _e : 0);
       if (!flatAmount || Math.abs(flatAmount) < 0.01)
         throw createError({ statusCode: 400, statusMessage: "flat_amount (\xB1) required for post-dispatch amendment" });
       if (amendType === "rebate" && flatAmount > 0) flatAmount = -flatAmount;
@@ -74,8 +81,8 @@ const amendments_post = defineEventHandler(async (event) => {
     const [res] = await conn.query(
       `INSERT INTO order_amendments
          (amendment_number, order_id, regime, amend_type, description,
-          old_values, new_values, flat_amount, status, requested_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          old_values, new_values, flat_amount, status, requested_by, customer_consent_note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         amdNo,
         id,
@@ -86,7 +93,8 @@ const amendments_post = defineEventHandler(async (event) => {
         JSON.stringify(newValues),
         flatAmount,
         canAutoApply ? "approved" : "pending",
-        userId
+        userId,
+        consentNote || null
       ]
     );
     const amendmentId = res.insertId;

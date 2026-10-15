@@ -119,6 +119,13 @@
           <textarea v-model="description" rows="2" class="input-glass w-full resize-none"
                     placeholder="e.g. Truck changed from big to mini at gate — freight difference" />
         </div>
+        <div v-if="regime === 'post'" class="space-y-2 rounded-xl p-3" style="border:1px solid rgba(255,255,255,0.08)">
+          <label class="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
+            <input v-model="consentConfirmed" type="checkbox" class="accent-amber-500" />
+            Customer has consented to this change *
+          </label>
+          <input v-model="consentNote" class="input-glass w-full" maxlength="255" placeholder="How / when was consent obtained? (e.g. phone call 10:30, with Mr. Karim) *" />
+        </div>
         <div class="flex items-center justify-end gap-3">
           <button @click="submit" :disabled="!canSubmit || saving" class="btn-gold text-xs px-6 py-2 disabled:opacity-50">
             {{ saving ? 'Submitting…' : 'Submit Amendment' }}
@@ -180,6 +187,7 @@
             <span class="px-2 py-0.5 rounded-full text-[10px] bg-white/[0.06] text-gray-500">{{ a.regime }} · {{ a.amend_type }}</span>
             <div class="flex-1 text-xs text-gray-500 min-w-[160px]">
               {{ a.description || '—' }}
+              <span v-if="a.customer_consent_note" class="block text-[10px] text-amber-500/80">Consent: {{ a.customer_consent_note }}</span>
               <span v-if="a.flat_amount" class="font-mono ml-1"
                     :class="Number(a.flat_amount) > 0 ? 'text-emerald-400' : 'text-red-400'">
                 {{ Number(a.flat_amount) > 0 ? '+' : '' }}৳{{ Number(a.flat_amount).toLocaleString() }}
@@ -243,11 +251,13 @@ const delta    = computed(() => regime.value === 'pre'
 // ── POST form ─────────────────────────────────────────────────────────────────
 const postForm = reactive({ amend_type: 'freight', flat_amount: null as number | null })
 const description = ref('')
+const consentConfirmed = ref(false)
+const consentNote = ref('')
 
 const canSubmit = computed(() => {
   if (!description.value.trim()) return false
   if (regime.value === 'pre') return Math.abs(delta.value) > 0.005 && editItems.value.every(it => it.quantity >= 0 && it.unit_price >= 0)
-  return !!Number(postForm.flat_amount)
+  return !!Number(postForm.flat_amount) && consentConfirmed.value && !!consentNote.value.trim()
 })
 
 const saving = ref(false)
@@ -258,13 +268,15 @@ async function submit() {
       method: 'POST',
       body: regime.value === 'pre'
         ? { amend_type: 'correction', description: description.value, new_items: editItems.value }
-        : { amend_type: postForm.amend_type, description: description.value, flat_amount: Number(postForm.flat_amount) },
+        : { amend_type: postForm.amend_type, description: description.value, flat_amount: Number(postForm.flat_amount), consent_confirmed: consentConfirmed.value, consent_note: consentNote.value },
     })
     success(res.status === 'approved'
       ? `${res.amendment_number} applied ✓`
       : `${res.amendment_number} submitted — pending admin approval`)
     description.value = ''
     postForm.flat_amount = null
+    consentConfirmed.value = false
+    consentNote.value = ''
     await Promise.all([refresh(), refreshAmd()])
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to submit amendment')

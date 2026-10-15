@@ -161,5 +161,24 @@ export default defineEventHandler(async (event) => {
     )
   }
 
-  return { order, items, workflow, deliveries, returns, payments }
+  let price_revisions: any[] = []
+  try {
+    price_revisions = await query(
+      `SELECT r.id, r.old_unit_price, r.new_unit_price, r.quantity, r.reason, r.created_at,
+              p.base_name AS product_name, pv.weight_variant, pv.grade
+       FROM credit_order_price_revisions r
+       LEFT JOIN products p ON p.id = r.product_id
+       LEFT JOIN product_variants pv ON pv.id = r.variant_id
+       WHERE r.order_id = ? ORDER BY r.id DESC`, [id]) as any[]
+  } catch { /* table not created yet */ }
+
+  let shipping: any = null
+  try {
+    shipping = (await query<any>(
+      `SELECT truck_number, driver_name, driver_contact, delivery_slip_number, bags_boarded, bag_size_kg,
+              extra_discount_amount, extra_discount_reason, shipped_date
+       FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id]))[0] ?? null
+  } catch { /* table/columns not migrated yet */ }
+
+  return { order, items, workflow, deliveries, returns, payments, price_revisions, shipping }
 })

@@ -334,6 +334,33 @@ export async function getOrderGateState(conn: any, orderId: number): Promise<Gat
 export const SYSTEM_USER_ID = 1
 
 /**
+ * Payment/dispatch hold check. Throws 423 while a dispatch hold is uncleared;
+ * self-clears (and says so) when the condition is met and auto-release is on.
+ * Enforced at READY TO SHIP (legacy rule — a held order must not even be
+ * staged for loading) and again at GOODS ON BOARD as a backstop.
+ */
+export async function assertDispatchClear(conn: any, orderId: number, userId: number): Promise<{ autoReleased: boolean }> {
+  const gate = await getOrderGateState(conn, orderId)
+  if (!(gate.dispatchHold && !gate.dispatchCleared)) return { autoReleased: false }
+  if (gate.conditionMet && gate.autoRelease) {
+    await conn.query(
+      `UPDATE order_approval_conditions
+       SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
+           dispatch_cleared_note = 'Auto-released: condition met'
+       WHERE order_id = ?`,
+      [userId, orderId],
+    )
+    return { autoReleased: true }
+  }
+  throw createError({
+    statusCode: 423,
+    statusMessage: gate.conditionMet
+      ? 'Payment condition met but clearance is manual — ask accounts to grant it (Payment Watch)'
+      : `Dispatch blocked — payment clearance pending (${gate.conditionType ?? 'manual'}${gate.conditionAmount ? ` ৳${gate.conditionAmount.toLocaleString()}` : ''})`,
+  })
+}
+
+/**
  * Move an order to GOODS ON BOARD — the accounting pivot (spec §2.3). Posts
  * the full invoice to customer_ledger + a balanced JE (Dr AR / Cr Revenue),
  * exactly once (idempotent — checks for an existing invoice row first).
@@ -357,28 +384,7 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
   /** Backdated entries post with a historical date instead of today. */
   postDate?: string
 }): Promise<{ alreadyPosted: boolean; autoReleased: boolean; telegramMsg: string }> {
-  const gate = await getOrderGateState(conn, opts.orderId)
-  let autoReleased = false
-
-  if (gate.dispatchHold && !gate.dispatchCleared) {
-    if (gate.conditionMet && gate.autoRelease) {
-      await conn.query(
-        `UPDATE order_approval_conditions
-         SET dispatch_cleared = 1, dispatch_cleared_by = ?, dispatch_cleared_at = NOW(),
-             dispatch_cleared_note = 'Auto-released: condition met at goods-on-board'
-         WHERE order_id = ?`,
-        [opts.userId, opts.orderId],
-      )
-      autoReleased = true
-    } else {
-      throw createError({
-        statusCode: 423,
-        statusMessage: gate.conditionMet
-          ? 'Payment condition met but clearance is manual — ask accounts to grant it (Payment Watch)'
-          : `Dispatch blocked — payment clearance pending (${gate.conditionType ?? 'manual'}${gate.conditionAmount ? ` ৳${gate.conditionAmount.toLocaleString()}` : ''})`,
-      })
-    }
-  }
+  const { autoReleased } = await assertDispatchClear(conn, opts.orderId, opts.userId)
 
   const [[already]] = await conn.query(
     `SELECT id FROM customer_ledger
@@ -565,4 +571,30 @@ export async function getUserBranchScope(conn: any, userId: number, role: string
     if (br) return Number(br.id)
   }
   return null
+}
+
+/**
+ * Branch-coded delivery slip number "{Code}-{Year}-{Month}-{Seq}" (legacy format):
+ * Month is bare 1..12, Seq is 3-digit and restarts each month, shared by full
+ * (credit_order_shipping) and partial (credit_order_deliveries) dispatches.
+ * Call inside the caller's transaction after locking the order row.
+ */
+export async function generateDeliverySlipNumber(conn: any, branchId: number | null, date?: string): Promise<string> {
+  const d = date ? new Date(date) : new Date()
+  const [[branch]] = await conn.query(`SELECT name, delivery_slip_prefix FROM branches WHERE id = ?`, [branchId ?? 0])
+  let code: string = branch?.delivery_slip_prefix || ''
+  if (!code) {
+    const letters = String(branch?.name ?? 'BRN').replace(/[^A-Za-z]/g, '')
+    code = (letters || 'BRN').slice(0, 3).toUpperCase()
+    if (branch) await conn.query(`UPDATE branches SET delivery_slip_prefix = ? WHERE id = ? AND (delivery_slip_prefix IS NULL OR delivery_slip_prefix = '')`, [code, branchId])
+  }
+  const prefix = `${code}-${d.getFullYear()}-${d.getMonth() + 1}-`
+  const maxOf = async (table: string) => {
+    const [[r]] = await conn.query(
+      `SELECT MAX(CAST(SUBSTRING_INDEX(delivery_slip_number, '-', -1) AS UNSIGNED)) m FROM ${table} WHERE delivery_slip_number LIKE ?`,
+      [prefix + '%'])
+    return Number(r?.m ?? 0)
+  }
+  const seq = Math.max(await maxOf('credit_order_shipping'), await maxOf('credit_order_deliveries')) + 1
+  return prefix + String(seq).padStart(3, '0')
 }

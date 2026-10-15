@@ -23,6 +23,10 @@ export default defineEventHandler(async (event) => {
   if (!name || !phone_number)
     throw createError({ statusCode: 400, statusMessage: 'name and phone_number are required' })
 
+  // Legacy rule: one customer per phone number (checked against everyone else).
+  const dup = await queryOne<any>('SELECT id, name FROM customers WHERE phone_number = ? AND id <> ? LIMIT 1', [phone_number, id])
+  if (dup) throw createError({ statusCode: 409, statusMessage: `Another customer already uses this phone number (${dup.name})` })
+
   // Changing the credit limit is its own power (Credit Limits page), not part of plain "edit customer".
   const cur = await queryOne<any>('SELECT credit_limit FROM customers WHERE id = ?', [id])
   if (cur && Number(cur.credit_limit ?? 0) !== (credit_limit ? Number(credit_limit) : 0))

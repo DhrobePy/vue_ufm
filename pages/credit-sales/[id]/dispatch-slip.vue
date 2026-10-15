@@ -70,8 +70,10 @@
           <div>
             <h3 style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:8px;">Driver &amp; Vehicle</h3>
             <div style="font-size:12px;color:#374151;line-height:1.9;">
-              <div>Driver: <strong style="color:#111;">{{ confirmation?.driver_name || '— to be filled at gate —' }}</strong></div>
-              <div>Vehicle: <strong style="color:#111;">{{ confirmation?.vehicle_number || '— to be filled at gate —' }}</strong></div>
+              <div v-if="shipping?.slip_number">Slip No: <strong style="color:#111;">{{ shipping.slip_number }}</strong></div>
+              <div>Driver: <strong style="color:#111;">{{ confirmation?.driver_name || shipping?.driver_name || '— to be filled at gate —' }}</strong></div>
+              <div>Vehicle: <strong style="color:#111;">{{ confirmation?.vehicle_number || shipping?.truck_number || '— to be filled at gate —' }}</strong></div>
+              <div v-if="shipping?.bags_boarded">Bags: <strong style="color:#111;">{{ shipping.bags_boarded }}<template v-if="shipping.bag_size_kg"> × {{ shipping.bag_size_kg }} kg</template></strong></div>
               <div v-if="order.delivery_type">Truck Type: <strong style="color:#111;">{{ order.delivery_type === 'mini_truck' ? 'Mini Truck' : 'Big Truck' }}</strong></div>
               <div v-if="order.total_weight_kg">Total Weight: <strong style="color:#111;">{{ Number(order.total_weight_kg).toLocaleString() }} KG</strong></div>
             </div>
@@ -153,6 +155,7 @@ const { data, pending, error } = await useFetch(`/api/credit-sales/${route.param
 
 const order        = computed(() => (data.value?.order ?? {}) as any)
 const delivery      = computed(() => data.value?.delivery as any)
+const shipping      = computed(() => data.value?.shipping as any)
 const items        = computed(() => (data.value?.items ?? []) as any[])
 const confirmation = computed(() => data.value?.confirmation as any)
 const totalQty      = computed(() => items.value.reduce((s, i) => s + Number(i.quantity ?? 0), 0))

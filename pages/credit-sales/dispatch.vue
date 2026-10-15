@@ -77,6 +77,8 @@
         </UiDataTable>
       </div>
     </template>
+    <DispatchSlideOver v-model="dispatchOpen" :order-id="dispatchTarget?.id ?? null"
+                       :order-label="dispatchTarget?.order_number" @done="refresh" />
   </div>
 </template>
 
@@ -137,21 +139,9 @@ const onBoardCols = [
 
 const acting = ref<number | null>(null)
 
-async function dispatch(row: any) {
-  acting.value = row.id
-  try {
-    await $fetch(`/api/credit-sales/${row.id}/workflow`, {
-      method: 'POST',
-      body: { to_status: 'goods_on_board', comments: 'Goods on board — from dispatch queue' },
-    })
-    success(`Order ${row.order_number} — goods on board, invoice posted`)
-    await refresh()
-  } catch (e: any) {
-    toastError(e?.data?.statusMessage ?? 'Failed to mark goods on board')
-  } finally {
-    acting.value = null
-  }
-}
+const dispatchTarget = ref<any>(null)
+const dispatchOpen = ref(false)
+function dispatch(row: any) { dispatchTarget.value = row; dispatchOpen.value = true }
 
 async function markShipped(row: any) {
   acting.value = row.id

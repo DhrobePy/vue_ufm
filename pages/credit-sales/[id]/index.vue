@@ -49,6 +49,11 @@
             @click="navigateTo(`/credit-sales/${id}/deliver`)">
             📦 Record Delivery
           </button>
+          <button v-if="isAdmin && order.status === 'goods_on_board'" class="btn-ghost text-xs" :disabled="acting"
+            title="Undo Goods on Board — removes the invoice and returns the order to Ready to Ship"
+            @click="reverseDispatch">
+            ↩️ Reverse Dispatch
+          </button>
           <button v-if="isAdmin"
             class="btn-ghost text-xs text-red-400 hover:bg-red-500/10 border-red-500/20"
             @click="deleteModal = true">
@@ -367,6 +372,16 @@
           </div>
 
           <!-- ── Returns / Credit Notes ─────────────────────── -->
+          <div v-if="priceRevisions.length" class="glass-card p-5 space-y-3">
+            <h3 class="section-title">Price Revision History</h3>
+            <div v-for="r in priceRevisions" :key="r.id" class="text-xs text-gray-400 border-b border-white/[0.05] pb-2 last:border-0">
+              <span class="font-semibold text-gray-300">{{ r.product_name }} {{ r.weight_variant }} {{ r.grade }}</span>
+              · ৳{{ Number(r.old_unit_price).toLocaleString() }} → <strong class="text-gold-400">৳{{ Number(r.new_unit_price).toLocaleString() }}</strong> × {{ Number(r.quantity) }}
+              <span class="text-gray-600"> · {{ String(r.created_at).slice(0, 16).replace('T', ' ') }}</span>
+              <p class="text-[11px] text-gray-600 mt-0.5">{{ r.reason }}</p>
+            </div>
+          </div>
+
           <div v-if="returns.length" class="glass-card p-5 space-y-4">
             <div class="flex items-center justify-between">
               <h3 class="section-title">Returns &amp; Credit Notes</h3>
@@ -428,7 +443,7 @@
                 </div>
 
                 <!-- Approval controls (admin only, pending returns) -->
-                <div v-if="isAdmin && ret.status === 'pending'" class="flex items-center gap-2 pt-1">
+                <div v-if="perms.canExplicit('credit_sales', 'all', 'approve_return') && ret.status === 'pending'" class="flex items-center gap-2 pt-1">
                   <span class="text-[10px] text-yellow-400/70 flex-1">⏳ Awaiting your approval — balance will be adjusted upon approval</span>
                   <button @click="openReturnApproval(ret, 'approve')"
                     class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25 transition-all">
@@ -843,6 +858,7 @@
         </Transition>
       </Teleport>
     </template>
+    <DispatchSlideOver v-model="dispatchOpen" :order-id="order?.id ?? null" :order-label="order?.order_number" @done="refresh" />
   </div>
 </template>
 
@@ -864,6 +880,7 @@ const { data, pending, error, refresh } = await useFetch(
 const order     = computed(() => (data.value?.order     ?? {}) as any)
 const items     = computed(() => (data.value?.items     ?? []) as any[])
 const returns   = computed(() => (data.value?.returns   ?? []) as any[])
+const priceRevisions = computed(() => (data.value?.price_revisions ?? []) as any[])
 const payments  = computed(() => (data.value?.payments  ?? []) as any[])
 const apiWorkflow = computed(() => (data.value?.workflow ?? []) as any[])
 
@@ -1019,18 +1036,29 @@ const holdHeadline = computed(() => {
   return '⚠ Order Held'
 })
 
-async function doDispatch() {
+const dispatchOpen = ref(false)
+async function reverseDispatch() {
+  const reason = prompt(`Reverse dispatch of ${order.value.order_number}? The invoice is removed from the customer ledger (kept in the Recycle Bin) and the order returns to Ready to Ship.\n\nReason (min 5 characters):`)
+  if (!reason) return
+  acting.value = true
+  try {
+    await $fetch(`/api/credit-sales/${id.value}/reverse-dispatch`, { method: 'POST', body: { reason } })
+    success('Dispatch reversed — order is back at Ready to Ship')
+    await refresh()
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Could not reverse dispatch')
+  } finally {
+    acting.value = false
+  }
+}
+function doDispatch() {
   if (dispatchBlocked.value) {
     toastError(gate.value?.conditionMet
       ? 'Condition met but clearance is manual — grant clearance first'
-      : `Dispatch blocked — ${gateConditionLabel.value}`)
+      : `Dispatch blocked — ${gate.value ? gateConditionLabel.value : 'payment clearance pending'}`)
     return
   }
-  if (!confirm(`Mark ${order.value.order_number} as goods on board? This posts the invoice to the customer ledger.`)) return
-  try {
-    await callWorkflow('goods_on_board', 'Goods on board — from order page')
-    success(`${order.value.order_number} — goods on board, invoice posted ✓`)
-  } catch {}
+  dispatchOpen.value = true
 }
 
 // ── Horizontal event timeline (keyword-mapped icon/color per action) ─────────

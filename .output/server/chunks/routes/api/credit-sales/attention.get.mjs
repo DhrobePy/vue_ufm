@@ -1,0 +1,38 @@
+import { s as defineEventHandler, aw as query } from '../../../nitro/nitro.mjs';
+import 'node:child_process';
+import 'node:zlib';
+import 'node:stream';
+import 'node:crypto';
+import 'node:http';
+import 'node:https';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'mysql2/promise';
+import 'node:url';
+
+const attention_get = defineEventHandler(async () => {
+  const count = async (sql) => {
+    var _a, _b;
+    try {
+      return Number((_b = (_a = (await query(sql))[0]) == null ? void 0 : _a.c) != null ? _b : 0);
+    } catch {
+      return 0;
+    }
+  };
+  const [escalated, holds, returns, overDeliveries, amendments, paymentApprovals, overdue] = await Promise.all([
+    count(`SELECT COUNT(*) c FROM credit_orders WHERE status = 'escalated'`),
+    count(`SELECT COUNT(*) c FROM order_approval_conditions oac JOIN credit_orders co ON co.id = oac.order_id
+           WHERE oac.dispatch_hold = 1 AND oac.dispatch_cleared = 0 AND co.status IN ('approved','in_production','produced','ready_to_ship')`),
+    count(`SELECT COUNT(*) c FROM credit_order_returns WHERE status = 'pending'`),
+    count(`SELECT COUNT(*) c FROM credit_order_over_deliveries WHERE status = 'pending'`),
+    count(`SELECT COUNT(*) c FROM order_amendments WHERE status = 'pending'`),
+    count(`SELECT COUNT(*) c FROM credit_pending_requests WHERE status = 'pending'`),
+    count(`SELECT COUNT(*) c FROM credit_orders WHERE status IN ('approved','in_production','produced','ready_to_ship','shipped') AND required_date < CURDATE()`)
+  ]);
+  return { escalated, holds, returns, overDeliveries, amendments, paymentApprovals, overdue };
+});
+
+export { attention_get as default };
+//# sourceMappingURL=attention.get.mjs.map

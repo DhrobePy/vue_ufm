@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, at as queryOne, as as query, B as getDeliveryQrSecret, z as getDb, t as deliveryQrSignature } from '../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, o as createError, ax as queryOne, aw as query, F as getDeliveryQrSecret, E as getDb, v as deliveryQrSignature } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,6 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__get = defineEventHandler(async (event) => {
+  var _a;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
   const [order, items, workflow, deliveries, returns, payments] = await Promise.all([
@@ -160,7 +161,30 @@ const _id__get = defineEventHandler(async (event) => {
       [ret.id]
     );
   }
-  return { order, items, workflow, deliveries, returns, payments };
+  let price_revisions = [];
+  try {
+    price_revisions = await query(
+      `SELECT r.id, r.old_unit_price, r.new_unit_price, r.quantity, r.reason, r.created_at,
+              p.base_name AS product_name, pv.weight_variant, pv.grade
+       FROM credit_order_price_revisions r
+       LEFT JOIN products p ON p.id = r.product_id
+       LEFT JOIN product_variants pv ON pv.id = r.variant_id
+       WHERE r.order_id = ? ORDER BY r.id DESC`,
+      [id]
+    );
+  } catch {
+  }
+  let shipping = null;
+  try {
+    shipping = (_a = (await query(
+      `SELECT truck_number, driver_name, driver_contact, delivery_slip_number, bags_boarded, bag_size_kg,
+              extra_discount_amount, extra_discount_reason, shipped_date
+       FROM credit_order_shipping WHERE order_id = ? LIMIT 1`,
+      [id]
+    ))[0]) != null ? _a : null;
+  } catch {
+  }
+  return { order, items, workflow, deliveries, returns, payments, price_revisions, shipping };
 });
 
 export { _id__get as default };

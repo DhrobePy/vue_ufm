@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { m as createError$1, ac as parseURL, u as encodePath, p as decodePath, Y as hasProtocol, a2 as isScriptProtocol, a3 as joinURL, a$ as withQuery, s as defu, aP as sanitizeStatusCode, w as getContext, $ as $fetch$1, h as baseURL, n as createHooks, v as executeAsync } from '../nitro/nitro.mjs';
+import { o as createError$1, af as parseURL, w as encodePath, r as decodePath, a0 as hasProtocol, a5 as isScriptProtocol, a6 as joinURL, b3 as withQuery, u as defu, aT as sanitizeStatusCode, z as getContext, $ as $fetch$1, j as baseURL, p as createHooks, x as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -630,7 +630,7 @@ const _routes = [
   {
     name: "index",
     path: "/",
-    component: () => import('./index-B1cMQb2H.mjs')
+    component: () => import('./index-B2T7FLYl.mjs')
   },
   {
     name: "pos-eod",
@@ -840,7 +840,7 @@ const _routes = [
     name: "products",
     path: "/products",
     meta: __nuxt_page_meta$2n || {},
-    component: () => import('./index-C3Oh7_dF.mjs')
+    component: () => import('./index-DiQtzCSI.mjs')
   },
   {
     name: "purchase",
@@ -858,13 +858,13 @@ const _routes = [
     name: "customers",
     path: "/customers",
     meta: __nuxt_page_meta$2k || {},
-    component: () => import('./index-B7WtqSTq.mjs')
+    component: () => import('./index-Da53G22U.mjs')
   },
   {
     name: "dashboard",
     path: "/dashboard",
     meta: __nuxt_page_meta$2j || {},
-    component: () => import('./index-Dgb5wCQX.mjs')
+    component: () => import('./index-D-a6nLdL.mjs')
   },
   {
     name: "expenses-create",
@@ -888,13 +888,13 @@ const _routes = [
     name: "credit-sales-all",
     path: "/credit-sales/all",
     meta: __nuxt_page_meta$2f || {},
-    component: () => import('./all-CkUEzaRi.mjs')
+    component: () => import('./all-B2pQoe83.mjs')
   },
   {
     name: "customers-create",
     path: "/customers/create",
     meta: __nuxt_page_meta$2e || {},
-    component: () => import('./create-C6Mhp1tg.mjs')
+    component: () => import('./create-OH5KGuKu.mjs')
   },
   {
     name: "expenses-approve",
@@ -1044,7 +1044,7 @@ const _routes = [
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1R || {},
-    component: () => import('./index-DHlSKzRF.mjs')
+    component: () => import('./index-pY2UlvKA.mjs')
   },
   {
     name: "expenses-id-edit",
@@ -1104,7 +1104,7 @@ const _routes = [
     name: "credit-sales-ageing",
     path: "/credit-sales/ageing",
     meta: __nuxt_page_meta$1H || {},
-    component: () => import('./ageing-Bcuxlyfe.mjs')
+    component: () => import('./ageing-DAag84oC.mjs')
   },
   {
     name: "credit-sales-create",
@@ -1116,7 +1116,7 @@ const _routes = [
     name: "credit-sales-ledger",
     path: "/credit-sales/ledger",
     meta: __nuxt_page_meta$1F || {},
-    component: () => import('./ledger-CZFHgrBP.mjs')
+    component: () => import('./ledger-Cde9mndA.mjs')
   },
   {
     name: "customers-id-edit",
@@ -1188,13 +1188,13 @@ const _routes = [
     name: "credit-sales-approve",
     path: "/credit-sales/approve",
     meta: __nuxt_page_meta$1t || {},
-    component: () => import('./approve-q_BD5I2-.mjs')
+    component: () => import('./approve-Diw--JdO.mjs')
   },
   {
     name: "credit-sales-collect",
     path: "/credit-sales/collect",
     meta: __nuxt_page_meta$1s || {},
-    component: () => import('./collect-D86lMR8V.mjs')
+    component: () => import('./collect-DM8wCd-C.mjs')
   },
   {
     name: "customers-id",
@@ -1242,7 +1242,7 @@ const _routes = [
     name: "credit-sales-dispatch",
     path: "/credit-sales/dispatch",
     meta: __nuxt_page_meta$1k || {},
-    component: () => import('./dispatch-BIp1ySyR.mjs')
+    component: () => import('./dispatch-BTQROGE2.mjs')
   },
   {
     name: "credit-sales-payments",
@@ -1422,19 +1422,19 @@ const _routes = [
     name: "credit-sales-id-amend",
     path: "/credit-sales/:id()/amend",
     meta: __nuxt_page_meta$S || {},
-    component: () => import('./amend-M-aSzTjK.mjs')
+    component: () => import('./amend-CVpV3hHW.mjs')
   },
   {
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$R || {},
-    component: () => import('./index-BWtQW9lB.mjs')
+    component: () => import('./index-BHgofar4.mjs')
   },
   {
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$Q || {},
-    component: () => import('./production-DYco3qyz.mjs')
+    component: () => import('./production-CaIVWotB.mjs')
   },
   {
     name: "fleet-drivers-id-edit",
@@ -1458,7 +1458,7 @@ const _routes = [
     name: "products-pricing-engine",
     path: "/products/pricing-engine",
     meta: __nuxt_page_meta$M || {},
-    component: () => import('./pricing-engine-C4KBf2Yq.mjs')
+    component: () => import('./pricing-engine-sIMXD-PT.mjs')
   },
   {
     name: "purchase-grn-id",
@@ -1554,7 +1554,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$w || {},
-    component: () => import('./invoice-Dax8gcXT.mjs')
+    component: () => import('./invoice-2dM4TZH2.mjs')
   },
   {
     name: "credit-sales-id-payment",
@@ -1656,7 +1656,7 @@ const _routes = [
     name: "admin-users-id-permissions",
     path: "/admin/users/:id()/permissions",
     meta: __nuxt_page_meta$f || {},
-    component: () => import('./permissions-P8Mv4xyB.mjs')
+    component: () => import('./permissions-BC3tsJKm.mjs')
   },
   {
     name: "credit-sales-backdated-entry",
@@ -1707,6 +1707,11 @@ const _routes = [
     component: () => import('./approval-requests-oSayRYif.mjs')
   },
   {
+    name: "credit-sales-delivery-schedule",
+    path: "/credit-sales/delivery-schedule",
+    component: () => import('./delivery-schedule-CwievVpv.mjs')
+  },
+  {
     name: "purchase-suppliers-id-ledger",
     path: "/purchase/suppliers/:id()/ledger",
     meta: __nuxt_page_meta$6 || {},
@@ -1722,7 +1727,7 @@ const _routes = [
     name: "credit-sales-id-dispatch-slip",
     path: "/credit-sales/:id()/dispatch-slip",
     meta: __nuxt_page_meta$4 || {},
-    component: () => import('./dispatch-slip-BplOON8g.mjs')
+    component: () => import('./dispatch-slip-CKSbxVyb.mjs')
   },
   {
     name: "credit-sales-id-over-delivery",
@@ -1959,7 +1964,7 @@ const globalMiddleware = [
   manifest_45route_45rule
 ];
 const namedMiddleware = {
-  "permissions-global-client": () => import('./permissions.global.client-Big4rTC9.mjs')
+  "permissions-global-client": () => import('./permissions.global.client-DnTFTke0.mjs')
 };
 const pageIslandRoutes = {};
 const plugin$1 = /* @__PURE__ */ defineNuxtPlugin({
@@ -2347,7 +2352,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-B7nvNbSi.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-Bb4uNfrz.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };

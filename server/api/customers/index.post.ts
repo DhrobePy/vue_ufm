@@ -34,11 +34,22 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, statusMessage: 'Customer name is required' })
   }
   const openingBal = Math.max(0, Number(opening_balance) || 0)
+  if (openingBal > 0.009 && !(await userCanAction({
+    userId, role, module: 'customers', page: 'list', action: 'set_opening_balance', roleFallback: [], explicit: true,
+  })))
+    throw createError({ statusCode: 403, statusMessage: 'Only admin / superadmin, or a user granted "Set Opening Balance", may set an opening balance' })
 
   const db   = getDb()
   const conn = await db.getConnection()
   try {
     await conn.beginTransaction()
+
+    // Legacy rule: one customer per phone number / email.
+    const [dups] = await conn.query<any>(
+      `SELECT id, name FROM customers WHERE (? <> '' AND phone_number = ?) OR (? <> '' AND email = ?) LIMIT 1`,
+      [phone_number || '', phone_number || '', email || '', email || ''])
+    if (dups.length)
+      throw createError({ statusCode: 409, statusMessage: `A customer with this phone number or email already exists (${dups[0].name})` })
 
     const [result] = await conn.query<any>(
       `INSERT INTO customers

@@ -1,22 +1,19 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { requireAction } from '~/server/utils/permissions'
 
 /**
  * PATCH /api/credit-sales/returns/:returnId/status
  * Body: { action: 'approve' | 'reject', notes?: string }
- * Admin / superadmin only.
+ * Admin / superadmin, or a user explicitly granted "Approve / Reject Returns".
  */
 export default defineEventHandler(async (event) => {
   const returnId = Number(getRouterParam(event, 'returnId'))
   if (!returnId) throw createError({ statusCode: 400, statusMessage: 'Invalid return ID' })
 
-  const session = await getUserSession(event)
-  const userId  = session?.user?.id ?? 1
-  const role    = (session?.user?.role ?? '').toLowerCase()
-
-  if (!['admin', 'superadmin'].includes(role)) {
-    throw createError({ statusCode: 403, statusMessage: 'Admin access required to approve returns' })
-  }
+  const { userId } = await requireAction(event,
+    { module: 'credit_sales', page: 'all', action: 'approve_return', roleFallback: [], explicit: true },
+    'Only admin / superadmin, or a user granted "Approve / Reject Returns", may decide returns')
 
   const body      = await readBody(event)
   const action    = body?.action as 'approve' | 'reject'

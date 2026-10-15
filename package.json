@@ -8,6 +8,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "rules": "scripts/run-rule-tests.sh",
     "typecheck": "nuxt prepare && tsc --noEmit -p .nuxt/tsconfig.server.json",
     "crawl": "node scripts/api-crawl.mjs",
     "sync:legacy": "node scripts/sync-legacy-transactional.mjs",

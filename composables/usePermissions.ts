@@ -170,6 +170,15 @@ export const usePermissions = () => {
     return pageActions[action] === true
   }
 
+  /** Delegable power: admin, or an explicit `true` grant in the user's own row (no default-allow). */
+  function canExplicit(module: string, page: string, action: string): boolean {
+    if (sessionIsAdmin.value || state.value.isAdmin) return true
+    if (!state.value.loaded) return false
+    const mod = state.value.permissions[module]
+    return mod?.enabled === true && Array.isArray(mod.pages) && mod.pages.includes(page)
+      && mod.actions?.[page]?.[action] === true
+  }
+
   /**
    * Route-based page check used by the sidebar and the route guard.
    * '/credit-sales/create' → canAccessPage('credit_sales', 'create').
@@ -215,6 +224,7 @@ export const usePermissions = () => {
     canAccessPage,
     canAccessRoute,
     canDo,
+    canExplicit,
     moduleFromPath,
     firstAllowedRoute,
   }

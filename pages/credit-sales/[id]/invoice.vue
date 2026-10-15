@@ -200,8 +200,8 @@
               <span style="font-family:monospace;color:#dc2626;">-৳{{ totalDiscount.toLocaleString() }}</span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;">
-              <span style="color:#6b7280;">Overall Discount</span>
-              <span style="font-family:monospace;color:#dc2626;">৳0</span>
+              <span style="color:#6b7280;">Overall Discount<template v-if="data?.shipping?.extra_discount_reason"> ({{ data.shipping.extra_discount_reason }})</template></span>
+              <span style="font-family:monospace;color:#dc2626;">{{ order?.discount > 0 ? `-৳${order.discount.toLocaleString()}` : '৳0' }}</span>
             </div>
             <div style="border-top:1px solid #e5e0d8;margin:8px 0;"></div>
             <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:15px;font-weight:800;">
@@ -361,6 +361,7 @@ const order = computed(() => {
     status:          o.status,
     priority:        o.priority,
     total:           Number(o.total_amount  ?? 0),
+    discount:        Number(o.discount_amount ?? 0),
     advance:         Number(o.amount_paid   ?? 0),
     orderDate:       String(o.order_date).slice(0, 10),
     requiredDate:    o.required_date ? String(o.required_date).slice(0, 10) : '—',

@@ -1,4 +1,4 @@
-import { q as defineEventHandler, R as getRouterParam, m as createError, av as readBody, X as getUserSession, K as getRequestHeader, z as getDb, a6 as nextDocNumber, U as getUserActionLimit, a1 as isAdminRole, g as auditLog } from '../../../../nitro/nitro.mjs';
+import { s as defineEventHandler, W as getRouterParam, o as createError, az as readBody, _ as getUserSession, N as getRequestHeader, E as getDb, a9 as nextDocNumber, X as getUserActionLimit, y as generateDeliverySlipNumber, a4 as isAdminRole, i as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -77,12 +77,19 @@ const deliver_post = defineEventHandler(async (event) => {
         });
       }
     }
+    const [[ordBranch]] = await conn.query(`SELECT assigned_branch_id FROM credit_orders WHERE id = ?`, [id]);
+    const [[prevDel]] = await conn.query(`SELECT COUNT(*) n FROM credit_order_deliveries WHERE order_id = ?`, [id]);
+    const [[ship]] = await conn.query(`SELECT delivery_slip_number FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id]);
+    const slipNo = Number(prevDel.n) === 0 && (ship == null ? void 0 : ship.delivery_slip_number) ? ship.delivery_slip_number : await generateDeliverySlipNumber(conn, (_d = ordBranch == null ? void 0 : ordBranch.assigned_branch_id) != null ? _d : null, delivDate);
+    const bags = Math.max(0, Math.floor(Number((_e = body == null ? void 0 : body.bags_boarded) != null ? _e : 0))) || null;
+    const bagKg = Math.max(0, Number((_f = body == null ? void 0 : body.bag_size_kg) != null ? _f : 0)) || null;
     const [result] = await conn.query(
       `INSERT INTO credit_order_deliveries
          (delivery_number, order_id, customer_id, delivery_date,
           truck_number, driver_name, driver_contact,
-          total_qty_delivered, total_amount_delivered, is_final, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          total_qty_delivered, total_amount_delivered, is_final, notes, created_by_user_id,
+          delivery_slip_number, bags_boarded, bag_size_kg)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         delNo,
         id,
@@ -95,7 +102,10 @@ const deliver_post = defineEventHandler(async (event) => {
         totalAmount,
         is_final ? 1 : 0,
         notes != null ? notes : null,
-        userId
+        userId,
+        slipNo,
+        bags,
+        bagKg
       ]
     );
     const deliveryId = result.insertId;
@@ -108,7 +118,7 @@ const deliver_post = defineEventHandler(async (event) => {
           deliveryId,
           item.order_item_id,
           item.product_id,
-          (_d = item.variant_id) != null ? _d : null,
+          (_g = item.variant_id) != null ? _g : null,
           Number(item.qty_delivered),
           Number(item.unit_price),
           Number(item.qty_delivered) * Number(item.unit_price)
@@ -129,7 +139,7 @@ const deliver_post = defineEventHandler(async (event) => {
         [id]
       );
       const thisSubmission = /* @__PURE__ */ new Map();
-      for (const it of items) thisSubmission.set(Number(it.order_item_id), ((_e = thisSubmission.get(Number(it.order_item_id))) != null ? _e : 0) + Number(it.qty_delivered));
+      for (const it of items) thisSubmission.set(Number(it.order_item_id), ((_h = thisSubmission.get(Number(it.order_item_id))) != null ? _h : 0) + Number(it.qty_delivered));
       shortfallItems = allItems.map((oi) => {
         var _a2;
         return {

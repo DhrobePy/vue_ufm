@@ -1,4 +1,5 @@
 import { query, getDb } from '~/server/utils/db'
+import { priceAutoApplyEnabled, applyPriceChangeToOpenOrders } from '~/server/utils/priceSync'
 
 const DEFAULT_CONFIG = {
   formula: { bag_50: 50, bag_74: 74, packaging_fee: 150 },
@@ -74,8 +75,9 @@ export default defineEventHandler(async (event) => {
 
   // ── SAVE CONFIG (formula constants) ────────────────────────────────────────
   if (action === 'save_config') {
-    const { bag_50, bag_74, packaging_fee } = body
+    const { bag_50, bag_74, packaging_fee, auto_apply_to_orders } = body
     const cfg = {
+      auto_apply_to_orders: !!auto_apply_to_orders,
       formula: {
         bag_50:        Math.max(1, Number(bag_50) || DEFAULT_CONFIG.formula.bag_50),
         bag_74:        Math.max(1, Number(bag_74) || DEFAULT_CONFIG.formula.bag_74),
@@ -251,6 +253,7 @@ export default defineEventHandler(async (event) => {
       return { ok: true, totalUpdated: 0, skippedRegions, message: 'No prices to apply.' }
 
     const effDate = new Date().toISOString().slice(0, 10)
+    let autoApplied = 0
 
     // Batch all writes inside a single transaction
     const affectedVariantIds = [...new Set(priceRows.map(r => r.variant_id))]
@@ -292,6 +295,19 @@ export default defineEventHandler(async (event) => {
         [logValues],
       )
 
+      let appliedOrders = 0
+      if (await priceAutoApplyEnabled(conn)) {
+        for (const r of priceRows) {
+          const old = oldPriceMap.get(`${r.variant_id}:${r.branch_id}`) ?? null
+          const a = await applyPriceChangeToOpenOrders(conn, {
+            variantId: r.variant_id, branchId: r.branch_id, oldPrice: old, newPrice: r.unit_price,
+            userId: Number((session?.user as any)?.id), label: changedBy,
+          })
+          appliedOrders += a.orders
+        }
+      }
+      autoApplied = appliedOrders
+
       await conn.commit()
     } catch (e) {
       await conn.rollback()
@@ -302,6 +318,7 @@ export default defineEventHandler(async (event) => {
 
     return {
       ok: true,
+      appliedToOrders: autoApplied,
       totalUpdated: priceRows.length,
       skippedRegions,
       message: `Applied — ${priceRows.length} price records updated.`

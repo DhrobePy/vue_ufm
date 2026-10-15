@@ -287,6 +287,7 @@ const moduleRegistry = [
           { key: 'collect_payment', label: 'Collect Payment' },
           { key: 'record_delivery', label: 'Record Delivery' },
           { key: 'record_return',   label: 'Record Return' },
+          { key: 'approve_return',  label: 'Approve / Reject Returns (explicit grant only; not your own)' },
           { key: 'record_over_delivery', label: 'Record Over-Delivery' },
           { key: 'request_amendment', label: 'Request Amendment' },
           { key: 'telegram',        label: 'Send Telegram Alert' },
@@ -331,10 +332,16 @@ const moduleRegistry = [
           { key: 'decide',           label: 'Approve / Reject Over-Deliveries' },
           { key: 'mark_retrieved',   label: 'Mark Goods Retrieved' },
         ] },
+      { key: 'delivery-schedule', label: 'Delivery Schedule', route: 'credit-sales/delivery-schedule',
+        actions: [
+          { key: 'can_change_priority', label: 'Drag to reorder (priority)' },
+          { key: 'can_edit',            label: 'Edit truck type / required date / branch (explicit grant only)' },
+        ] },
       { key: 'collect',   label: 'Collect Payment (customer-level)', route: 'credit-sales/collect',
         actions: [
           { key: 'collect',         label: 'Record Payment' },
           { key: 'allocate',        label: 'Allocate Across Orders' },
+          { key: 'hide_invoice',    label: 'Hide / Recall Invoice from collection (explicit grant only)' },
         ] },
       { key: 'payments',  label: 'Payment History',   route: 'credit-sales/payments',
         actions: [
@@ -613,6 +620,7 @@ const moduleRegistry = [
           { key: 'delete',    label: 'Delete' },
           { key: 'blacklist', label: 'Blacklist' },
           { key: 'export',    label: 'Export' },
+          { key: 'set_opening_balance', label: 'Set Opening Balance (explicit grant only)' },
         ] },
     ],
   },
