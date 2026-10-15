@@ -1100,6 +1100,26 @@ const timelineNodes = computed(() => {
       pulse: true,
     })
   }
+
+  // The log can lag behind the order: a step done outside the normal screens
+  // (a gate-pass scan on the old system, a bulk status update) changes the
+  // status without writing a log row, so the timeline would stop at an older
+  // step while the order says otherwise. If the current status never appears
+  // as a transition in the log, show it as the final step, honestly labelled.
+  const o = order.value
+  if (o?.status && !['draft', 'cancelled', 'rejected'].includes(o.status)) {
+    const reached = new Set(apiWorkflow.value.filter((w: any) => w.from_status !== w.to_status).map((w: any) => w.to_status))
+    if (apiWorkflow.value.length && !reached.has(o.status)) {
+      const meta = eventMeta('', o.status)
+      nodes.push({
+        id: 'current-status', icon: meta.icon, color: meta.color, title: meta.title,
+        date: fmtDateTime(o.updated_at),
+        description: `Order is now ${meta.title}. No log entry was recorded for this step (done outside the normal screens, e.g. a gate-pass scan) — the time shown is when the status last changed.`,
+        by: 'System',
+        pulse: true,
+      })
+    }
+  }
   return nodes
 })
 
