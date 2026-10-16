@@ -22,6 +22,8 @@ const on = (pages: string[] = [], actions: ModulePerm['actions'] = {}): ModulePe
 const NO_ADMIN_EDITS = { edit: false, delete: false, cancel: false, telegram: false }
 
 const CS_COMMON = ['dashboard', 'all']
+// Roles that may VIEW customers but not edit them or change their status (Accounts/admin only).
+const CUSTOMERS_VIEW_ONLY = { list: { edit: false, blacklist: false, delete: false } }
 
 const PRESETS: Record<string, PermMap> = {
   // Accounts family: approvals, collection, ledger, credit limits, Payment Watch, returns
@@ -38,7 +40,7 @@ const PRESETS: Record<string, PermMap> = {
     dashboard: on(['main']),
     credit_sales: on([...CS_COMMON, 'create', 'ledger', 'amendments'],
       { all: { ...NO_ADMIN_EDITS, collect_payment: false, record_delivery: false } }),
-    customers: on(['list']),
+    customers: on(['list'], CUSTOMERS_VIEW_ONLY),
     products: on(['overview']),
   },
   'production-group': {
@@ -57,12 +59,12 @@ const PRESETS: Record<string, PermMap> = {
   },
   'accountspos-group': {
     credit_sales: on(['ledger']),
-    customers: on(['list']),
+    customers: on(['list'], CUSTOMERS_VIEW_ONLY),
   },
   'collector': {
     credit_sales: on(['collect', 'payments', 'ledger', 'approval-requests']),
     collector: on(['collections']),
-    customers: on(['list']),
+    customers: on(['list'], CUSTOMERS_VIEW_ONLY),
   },
   'transport manager': { dashboard: on(['main']), fleet: on() },
   'expense initiator': { dashboard: on(['main']), expenses: on(['dashboard', 'create', 'history']) },

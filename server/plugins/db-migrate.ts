@@ -1659,5 +1659,20 @@ export default defineNitroPlugin(async () => {
   // Delivery Schedule drag-and-drop order (legacy column name).
   await addCol(db, 'credit_orders', 'delivery_priority', 'INT NOT NULL DEFAULT 0')
 
+  // Internal notes on a customer (profile page → Notes tab; also logs blacklist/status changes).
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS customer_notes (
+        id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        customer_id        BIGINT UNSIGNED NOT NULL,
+        note               TEXT NOT NULL,
+        kind               VARCHAR(20) NOT NULL DEFAULT 'note' COMMENT 'note | status',
+        created_by_user_id BIGINT UNSIGNED NULL,
+        created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id), KEY idx_cnotes_customer (customer_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] customer_notes failed:', e) }
+
   console.log('[db-migrate] startup migrations complete')
 })

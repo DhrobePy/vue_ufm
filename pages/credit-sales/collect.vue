@@ -166,6 +166,7 @@
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 const router = useRouter()
+const route = useRoute()
 
 // ── Accounts for the money leg ────────────────────────────────────────────────
 const [{ data: bankData }, { data: cashData }] = await Promise.all([
@@ -219,6 +220,12 @@ async function setHidden(o: any, hide: boolean) {
     await loadOpenOrders()
   } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') }
 }
+// Arrived from a customer profile (?customer=ID) → preselect them
+onMounted(async () => {
+  const pre = Number(route.query.customer)
+  if (!pre) return
+  try { const r: any = await $fetch(`/api/customers/${pre}`); if (r?.customer) await pickCustomer(r.customer) } catch { /* pick manually */ }
+})
 function resetCustomer() {
   selectedCustomer.value = null
   customerSearch.value = ''

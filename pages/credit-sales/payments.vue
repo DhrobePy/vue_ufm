@@ -262,7 +262,7 @@ const page      = ref(1)
 const selected  = ref<any>(null)
 
 const filters = reactive({
-  search: '',
+  search: String(useRoute().query.search ?? ''),
   method: '',
   status: '',
 })

@@ -108,12 +108,13 @@ const { success, error: toastError } = useToast()
 const isAdmin = computed(() =>
   ['admin', 'superadmin'].includes((user.value?.role ?? '').toLowerCase()))
 
-const selectedCustomerId = ref('')
+const route = useRoute()
+const selectedCustomerId = ref(String(route.query.customer ?? ''))
 const dateFrom = ref('')
 const dateTo   = ref('')
 
 // Applied filter state — only changes when "Filter" is clicked
-const appliedCustomerId = ref('')
+const appliedCustomerId = ref(String(route.query.customer ?? ''))
 const appliedFrom       = ref('')
 const appliedTo         = ref('')
 

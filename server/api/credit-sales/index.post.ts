@@ -1,4 +1,4 @@
-import { getDb } from '~/server/utils/db'
+import { getDb, query } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber, postCustomerLedger, postJournalEntry } from '~/server/utils/creditOrders'
@@ -47,6 +47,13 @@ export default defineEventHandler(async (event) => {
 
   if (!customer_id || !items?.length) {
     throw createError({ statusCode: 400, statusMessage: 'customer_id and items are required' })
+  }
+
+  {
+    const [cust] = await query<any>('SELECT name, status FROM customers WHERE id = ?', [Number(customer_id)])
+    if (!cust) throw createError({ statusCode: 404, statusMessage: 'Customer not found' })
+    if (cust.status !== 'active')
+      throw createError({ statusCode: 403, statusMessage: `${cust.name} is ${cust.status} — new orders are blocked (reactivate the customer on their profile first)` })
   }
 
   const db   = getDb()

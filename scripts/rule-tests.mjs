@@ -225,6 +225,25 @@ await expectStatus('plain Accounts sees every branch', call('acct', 'GET', `/api
 const ds = (await call('demra', 'GET', '/api/credit-sales/delivery-schedule')).json
 check('delivery schedule is branch-limited too', (ds?.orders ?? []).every(o => Number(o.assigned_branch_id) === 2), JSON.stringify((ds?.orders ?? []).map(o => o.assigned_branch_id)))
 
+
+// ── 13. Customer profile ─────────────────────────────────────────────────────
+const prof = (await call('acct', 'GET', '/api/customers/2/profile')).json
+check('profile returns credit position that matches the ledger', prof?.credit && Number(prof.credit.outstanding) === (await ledgerSum(2)), JSON.stringify(prof?.credit))
+check('profile lists orders, payments, ledger and activity', prof?.orders?.length > 0 && prof?.payments?.length > 0 && prof?.ledger?.length > 0 && prof?.activity?.length > 0)
+check('Accounts may take the main actions; only admin may delete', prof?.can?.collect === true && prof?.can?.createOrder === true && prof?.can?.delete === false, JSON.stringify(prof?.can))
+check('sales user cannot collect / change status from the profile', (await call('sales', 'GET', '/api/customers/2/profile')).json?.can?.collect === false)
+await expectStatus('customer statement for a period', call('acct', 'GET', '/api/customers/2/statement?from=2020-01-01&to=2099-12-31'), 200)
+const st = (await call('acct', 'GET', '/api/customers/2/statement?from=2020-01-01&to=2099-12-31')).json
+check('statement closing balance equals the ledger', Number(st?.closingBalance) === (await ledgerSum(2)), `${st?.closingBalance}`)
+await expectStatus('a note can be added', call('sales', 'POST', '/api/customers/2/notes', { note: 'Promised to pay on Thursday' }), 200)
+await expectStatus('sales cannot blacklist a customer', call('sales', 'POST', '/api/customers/2/status', { status: 'blacklisted', reason: 'bad payer' }), 403)
+await expectStatus('status change needs a reason', call('acct', 'POST', '/api/customers/2/status', { status: 'blacklisted', reason: '' }), 400)
+await expectStatus('Accounts blacklists with a reason', call('acct', 'POST', '/api/customers/2/status', { status: 'blacklisted', reason: 'cheque bounced twice' }), 200)
+await expectStatus('a blacklisted customer cannot be given a new order', call('super', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), 403)
+check('status change is kept permanently in the notes', (await call('acct', 'GET', '/api/customers/2/profile')).json?.notes?.some(n => n.kind === 'status'))
+await expectStatus('reactivated customer can be ordered for again', call('acct', 'POST', '/api/customers/2/status', { status: 'active', reason: 'paid the dues' }), 200)
+await expectStatus('new order works after reactivation', call('super', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), [200, 201])
+
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','ready_to_ship','goods_on_board')`, [o1.id])
 check('workflow log has every transition of order 1', Number(wfc.n) >= 4, wfc.n)

@@ -1,4 +1,4 @@
-import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, O as getRequestHeader, b3 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, F as getDb, ab as nextDocNumber, E as getCustomerOutstanding, ar as postJournalEntry, an as postCustomerLedger, i as auditLog, aX as sendTelegram } from '../../nitro/nitro.mjs';
+import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, O as getRequestHeader, b3 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, ay as query, F as getDb, ab as nextDocNumber, E as getCustomerOutstanding, ar as postJournalEntry, an as postCustomerLedger, i as auditLog, aX as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -71,6 +71,12 @@ const index_post = defineEventHandler(async (event) => {
   } = body != null ? body : {};
   if (!customer_id || !(items == null ? void 0 : items.length)) {
     throw createError({ statusCode: 400, statusMessage: "customer_id and items are required" });
+  }
+  {
+    const [cust] = await query("SELECT name, status FROM customers WHERE id = ?", [Number(customer_id)]);
+    if (!cust) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
+    if (cust.status !== "active")
+      throw createError({ statusCode: 403, statusMessage: `${cust.name} is ${cust.status} \u2014 new orders are blocked (reactivate the customer on their profile first)` });
   }
   const db = getDb();
   const conn = await db.getConnection();

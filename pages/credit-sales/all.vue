@@ -123,7 +123,7 @@
 const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
-const search        = ref('')
+const search        = ref(String(useRoute().query.search ?? ''))
 const activeFilter  = ref('')
 const priorityFilter = ref('')
 const page          = ref(1)

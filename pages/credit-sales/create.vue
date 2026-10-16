@@ -373,6 +373,7 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+const route = useRoute()
 const { success, error: toastError } = useToast()
 
 // Determine current user's role so we can show role-aware credit messaging
@@ -436,15 +437,18 @@ const { data: prodData } = await useFetch('/api/products', {
   query: computed(() => form.branchId ? { branch_id: form.branchId } : {}),
 })
 
-const customers = computed(() =>
-  (custData.value?.customers ?? []).map((c: any) => ({
+const extraCustomer = ref<any>(null)   // a customer opened via ?customer=ID that is not in the first page of the list
+const customers = computed(() => {
+  const list = (custData.value?.customers ?? []).map((c: any) => ({
     id: String(c.id),
     name: c.name,
     business: c.business_name || c.customer_type || '',
     credit_limit:     c.credit_limit,
     current_balance:  c.current_balance,
   }))
-)
+  const x = extraCustomer.value
+  return x && !list.some((c: any) => c.id === x.id) ? [...list, x] : list
+})
 const bankAccounts     = computed(() => (bankData.value?.accounts  ?? []) as any[])
 const pettyCashAccounts = computed(() => (pettyData.value?.accounts ?? []) as any[])
 const employees        = computed(() => (empData.value?.employees   ?? []) as any[])
@@ -499,6 +503,21 @@ function clearCustomer() {
   customerQuery.value    = ''
   customerDropdownOpen.value = true
 }
+
+// Arrived from a customer profile (?customer=ID): preselect them — fetch if they are not in the first 200.
+onMounted(async () => {
+  const pre = String(route.query.customer ?? '')
+  if (!pre || form.customerId) return
+  let c = customers.value.find(x => x.id === pre)
+  if (!c) {
+    try {
+      const r: any = await $fetch(`/api/customers/${pre}`)
+      const k = r?.customer
+      if (k) { c = { id: String(k.id), name: k.name, business: k.business_name || k.customer_type || '', credit_limit: k.credit_limit, current_balance: k.current_balance }; extraCustomer.value = c }
+    } catch { /* ignore — user can pick manually */ }
+  }
+  if (c) selectCustomer(c)
+})
 
 // Pending exposure for selected customer (pre-delivery orders not yet on ledger)
 const customerPendingExposure = ref(0)
