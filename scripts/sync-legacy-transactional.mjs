@@ -59,6 +59,7 @@ import { dirname, join } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APPLY = process.argv.includes('--apply')
+const CATCHUP = process.argv.includes('--catchup')   // also bring ALREADY-SYNCED orders up to legacy's current state (status, money, item prices)
 
 // ---- tiny .env loader (no extra dependency) --------------------------------
 function loadEnvFile(path) {
@@ -837,6 +838,165 @@ async function main() {
         }
       },
     })
+
+    // ======================================================================
+    // DOCUMENTS BEHIND THE LEDGER — payments, allocations, returns, amendments.
+    // customer_ledger rows already point at these ids; without them a customer's
+    // ledger line "Payment received (Receipt #PAY-…)" has no payment behind it.
+    // ======================================================================
+    const [vueCustomers] = await vue.query('SELECT id FROM customers')
+    const customerIds = new Set(vueCustomers.map(r => String(r.id)))
+
+    // ---- customer_payments ------------------------------------------------
+    const insertedPaymentIds = await syncTable(legacy, vue, {
+      table: 'customer_payments',
+      columns: ['id', 'payment_number', 'receipt_number', 'customer_id', 'payment_date', 'amount', 'payment_method', 'payment_type',
+        'bank_account_id', 'cash_account_id', 'cheque_number', 'cheque_date', 'bank_transaction_type', 'allocation_status',
+        'allocated_amount', 'reference_number', 'notes', 'allocated_to_invoices', 'created_by_user_id', 'collected_by_employee_id',
+        'branch_id', 'journal_entry_id', 'created_at', 'updated_at'],
+      transform: (row) => {
+        if (!customerIds.has(String(row.customer_id))) { report.warnings.push(`customer_payments #${row.id}: customer ${row.customer_id} missing in vue — skipped`); return null }
+        const notes = []
+        const createdBy = mapUser(userMap, row.created_by_user_id, notes)
+        let bankAccountId = row.bank_account_id
+        if (bankAccountId != null) {
+          if (safeBankAccountIds.has(bankAccountId)) bankAccountId = safeBankAccountIds.resolve(bankAccountId)
+          else { report.warnings.push(`customer_payments #${row.id}: bank_account_id ${bankAccountId} not in vue — set NULL`); bankAccountId = null }
+        }
+        let journalEntryId = row.journal_entry_id
+        if (journalEntryId != null && !safeJournalEntryIds.has(String(journalEntryId))) {
+          report.warnings.push(`customer_payments #${row.id}: journal_entry_id ${journalEntryId} not verified in vue — set NULL`)
+          journalEntryId = null
+        }
+        return { ...row, created_by_user_id: createdBy.value, bank_account_id: bankAccountId, journal_entry_id: journalEntryId,
+          notes: [row.notes, ...notes].filter(Boolean).join(' | ') || null }
+      },
+    })
+    const safePaymentIds = await buildSafeParentIds(legacy, vue, 'customer_payments', insertedPaymentIds, ['payment_number'])
+
+    // ---- payment_allocations ----------------------------------------------
+    await syncTable(legacy, vue, {
+      table: 'payment_allocations',
+      columns: ['id', 'payment_id', 'order_id', 'allocated_amount', 'allocation_date', 'allocated_by_user_id', 'created_at'],
+      transform: (row) => {
+        if (!safePaymentIds.has(String(row.payment_id))) { report.warnings.push(`payment_allocations #${row.id}: payment ${row.payment_id} missing/unverified in vue — skipped`); return null }
+        if (!safeOrderIds.has(String(row.order_id))) { report.warnings.push(`payment_allocations #${row.id}: order ${row.order_id} missing in vue — skipped`); return null }
+        return { ...row, allocated_by_user_id: mapUser(userMap, row.allocated_by_user_id, []).value }
+      },
+    })
+
+    // ---- credit_order_returns (+ items) -----------------------------------
+    const insertedReturnIds = await syncTable(legacy, vue, {
+      table: 'credit_order_returns',
+      columns: ['id', 'return_number', 'order_id', 'customer_id', 'return_date', 'return_type', 'return_reason', 'total_returned_amount',
+        'total_returned_qty', 'status', 'created_by_user_id', 'approved_by_user_id', 'approved_at', 'notes', 'created_at'],
+      transform: (row) => {
+        if (!safeOrderIds.has(String(row.order_id))) { report.warnings.push(`credit_order_returns #${row.id}: order ${row.order_id} missing in vue — skipped`); return null }
+        const notes = []
+        const createdBy = mapUser(userMap, row.created_by_user_id, notes)
+        const approvedBy = mapUser(userMap, row.approved_by_user_id, notes)
+        return { ...row, created_by_user_id: createdBy.value, approved_by_user_id: approvedBy.value,
+          notes: [row.notes, ...notes].filter(Boolean).join(' | ') || null }
+      },
+    })
+    const safeReturnIds = await buildSafeParentIds(legacy, vue, 'credit_order_returns', insertedReturnIds, ['return_number'])
+    await syncTable(legacy, vue, {
+      table: 'credit_order_return_items',
+      columns: ['id', 'return_id', 'order_item_id', 'product_id', 'variant_id', 'original_qty', 'returned_qty', 'unit_price', 'returned_amount'],
+      transform: (row) => {
+        if (!safeReturnIds.has(String(row.return_id))) { report.warnings.push(`credit_order_return_items #${row.id}: return ${row.return_id} missing/unverified in vue — skipped`); return null }
+        return row
+      },
+    })
+
+    // ---- order_amendments (legacy column names → vue's) --------------------
+    {
+      const [lA] = await legacy.query('SELECT * FROM order_amendments')
+      const [vA] = await vue.query('SELECT id, amendment_number FROM order_amendments')
+      const haveId = new Set(vA.map(r => String(r.id))), haveNo = new Set(vA.map(r => r.amendment_number))
+      const toInsert = []
+      let skipped = 0
+      for (const r of lA) {
+        if (haveId.has(String(r.id)) || haveNo.has(r.amd_number)) continue
+        if (!safeOrderIds.has(String(r.order_id))) { skipped++; report.warnings.push(`order_amendments #${r.id}: order ${r.order_id} missing in vue — skipped`); continue }
+        toInsert.push({
+          id: r.id, amendment_number: r.amd_number, order_id: r.order_id, regime: r.mode, amend_type: r.amendment_type,
+          description: r.reason ? String(r.reason).slice(0, 500) : null, old_values: r.old_values, new_values: r.new_values,
+          flat_amount: r.delta_amount, status: r.status,
+          requested_by: mapUser(userMap, r.requested_by_user_id, []).value ?? FALLBACK_USER_ID,
+          decided_by: r.approved_by_user_id != null ? mapUser(userMap, r.approved_by_user_id, []).value : null,
+          decided_at: r.approved_at, created_at: r.created_at, customer_consent_note: r.customer_consent_note ? String(r.customer_consent_note).slice(0, 255) : null,
+        })
+      }
+      report.tables.push({ table: 'order_amendments', missing: toInsert.length + skipped, inserted: toInsert.length, skipped, note: 'legacy columns mapped: amd_number/mode/amendment_type/reason/delta_amount → vue names' })
+      if (APPLY && toInsert.length) {
+        const cs = Object.keys(toInsert[0]); const per = Math.max(1, Math.floor(5000 / cs.length))
+        for (let i = 0; i < toInsert.length; i += per) {
+          const b = toInsert.slice(i, i + per)
+          await vue.query(`INSERT INTO order_amendments (${cs.map(c => `\`${c}\``).join(',')}) VALUES ${b.map(() => `(${cs.map(() => '?').join(',')})`).join(',')}`, b.flatMap(r => cs.map(c => r[c] ?? null)))
+        }
+      }
+    }
+
+    // ======================================================================
+    // CATCH-UP (opt-in: --catchup). Orders synced earlier froze at the status/amounts they had that
+    // day. The legacy app kept going (delivered, paid, price-revised) and its ledger rows already
+    // arrived — so the order screens disagree with the ledger. Copy legacy's CURRENT values onto the
+    // matching Vue order (matched by order_number). Rules: status only ever moves FORWARD; an order
+    // where Vue shows more money received than legacy is left alone and reported (needs a human).
+    // ======================================================================
+    if (CATCHUP) {
+      const RANK = { draft: 0, pending_approval: 1, escalated: 1, hold: 1, approved: 2, in_production: 3, produced: 4, ready_to_ship: 4,
+        goods_on_board: 5, dispatched: 5, shipped: 6, delivered: 7, completed: 8 }
+      const [lO] = await legacy.query('SELECT id, order_number, status, total_amount, subtotal, discount_amount, tax_amount, amount_paid, advance_paid, balance_due FROM credit_orders')
+      const [vO] = await vue.query('SELECT id, order_number, status, total_amount, subtotal, discount_amount, tax_amount, amount_paid, advance_paid, balance_due FROM credit_orders')
+      const lByNo = new Map(lO.map(o => [o.order_number, o]))
+      const n = (v) => Number(v ?? 0)
+      let statusFwd = 0, money = 0, itemsFixed = 0, skippedVueAhead = 0
+      const touched = []
+      for (const v of vO) {
+        const l = lByNo.get(v.order_number)
+        if (!l) continue
+        const sets = {}
+        const legacyPaid = n(l.amount_paid) + n(l.advance_paid), vuePaid = n(v.amount_paid) + n(v.advance_paid)
+        if (vuePaid > legacyPaid + 0.01) { skippedVueAhead++; report.warnings.push(`catch-up: ${v.order_number} — Vue shows ৳${vuePaid} received but legacy only ৳${legacyPaid}; left untouched (cross-check)`); continue }
+        const lr = RANK[l.status], vr = RANK[v.status]
+        const terminalFromEarly = ['cancelled', 'rejected'].includes(l.status) && (vr ?? 99) <= 2
+        if (l.status !== v.status && (terminalFromEarly || (lr !== undefined && vr !== undefined && lr > vr))) { sets.status = l.status; statusFwd++ }
+        for (const c of ['total_amount', 'subtotal', 'discount_amount', 'tax_amount', 'amount_paid', 'advance_paid', 'balance_due'])
+          if (Math.abs(n(l[c]) - n(v[c])) > 0.01) sets[c] = l[c]
+        if (Object.keys(sets).some(k => k !== 'status')) money++
+        if (!Object.keys(sets).length) continue
+        touched.push({ vueId: v.id, legacyId: l.id, sets })
+      }
+      // item lines of touched orders: copy legacy price/qty where the SAME item id belongs to the same order in both
+      const itemFixes = []
+      if (touched.length) {
+        const lIds = touched.map(t => t.legacyId)
+        const [lI] = await legacy.query('SELECT id, order_id, quantity, unit_price, discount_amount, tax_amount, line_total FROM credit_order_items WHERE order_id IN (?)', [lIds])
+        const vIds = touched.map(t => t.vueId)
+        const [vI] = await vue.query('SELECT id, order_id, quantity, unit_price, discount_amount, tax_amount, line_total FROM credit_order_items WHERE order_id IN (?)', [vIds])
+        const vById = new Map(vI.map(i => [String(i.id), i]))
+        const legToVue = new Map(touched.map(t => [String(t.legacyId), t.vueId]))
+        for (const li of lI) {
+          const vi = vById.get(String(li.id))
+          if (!vi || String(vi.order_id) !== String(legToVue.get(String(li.order_id)))) continue
+          if (['quantity', 'unit_price', 'discount_amount', 'tax_amount', 'line_total'].some(c => Math.abs(n(li[c]) - n(vi[c])) > 0.001)) itemFixes.push({ id: vi.id, li })
+        }
+        itemsFixed = itemFixes.length
+      }
+      report.tables.push({ table: 'credit_orders (catch-up)', missing: touched.length, inserted: touched.length, skipped: skippedVueAhead,
+        note: `status moved forward on ${statusFwd}; amounts updated on ${money}; ${itemsFixed} item lines re-priced; ${skippedVueAhead} left alone (Vue ahead of legacy)` })
+      if (APPLY) {
+        for (const t of touched) {
+          const cols = Object.keys(t.sets)
+          await vue.query(`UPDATE credit_orders SET ${cols.map(c => `\`${c}\` = ?`).join(', ')}, updated_at = NOW() WHERE id = ?`, [...cols.map(c => t.sets[c]), t.vueId])
+        }
+        for (const f of itemFixes)
+          await vue.query('UPDATE credit_order_items SET quantity = ?, unit_price = ?, discount_amount = ?, tax_amount = ?, line_total = ? WHERE id = ?',
+            [f.li.quantity, f.li.unit_price, f.li.discount_amount, f.li.tax_amount, f.li.line_total, f.id])
+      }
+    }
 
     if (APPLY) await vue.commit()
   } catch (err) {

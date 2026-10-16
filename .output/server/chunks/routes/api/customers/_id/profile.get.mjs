@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, p as createError, a2 as getUserSession, aA as queryOne, F as getDb, E as getCustomerOutstanding, a0 as getUserBranchIds, az as query, b4 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, Z as getRouterParam, q as createError, a3 as getUserSession, aB as queryOne, G as getDb, F as getCustomerOutstanding, a1 as getUserBranchIds, aA as query, b6 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -15,7 +15,7 @@ import 'node:url';
 const NOT_SALE = `('draft','cancelled','rejected')`;
 const DISPATCHED = `('goods_on_board','shipped','dispatched','delivered','completed')`;
 const profile_get = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid customer ID" });
   const session = await getUserSession(event);
@@ -35,7 +35,8 @@ const profile_get = defineEventHandler(async (event) => {
   }
   const scopeSql = branchIds ? " AND o.assigned_branch_id IN (?)" : "";
   const scopeP = branchIds ? [branchIds] : [];
-  const [ledgerTot, stats, paidAgg, lastPay, ageing, monthly, orders, ledger, payments, returns, amendments, products, notes, wf] = await Promise.all([
+  const [reviewAgg, ledgerTot, stats, paidAgg, lastPay, ageing, monthly, orders, ledger, payments, returns, amendments, products, notes, wf] = await Promise.all([
+    queryOne(`SELECT COUNT(*) n, COALESCE(SUM(debit_amount - credit_amount), 0) net FROM customer_ledger WHERE customer_id = ? AND review_status = 'review'`, [id]),
     queryOne(`SELECT COALESCE(SUM(debit_amount),0) d, COALESCE(SUM(credit_amount),0) c FROM customer_ledger WHERE customer_id = ?`, [id]),
     queryOne(
       `SELECT COUNT(*) orders, COALESCE(SUM(o.total_amount),0) sales, COALESCE(AVG(o.total_amount),0) avg_order,
@@ -70,7 +71,7 @@ const profile_get = defineEventHandler(async (event) => {
     query(
       `SELECT * FROM (
          SELECT l.id, DATE_FORMAT(l.transaction_date, '%Y-%m-%d') date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
-                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type,
+                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type, l.reference_id, l.review_status, l.review_reason, l.review_note,
                 COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
          FROM customer_ledger l
          LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
@@ -163,7 +164,8 @@ const profile_get = defineEventHandler(async (event) => {
     status: await userCanAction({ userId, role, module: "customers", page: "list", action: "blacklist", roleFallback: ACCOUNTS_ROLES }),
     creditLimit: await userCanAction({ userId, role, module: "credit_sales", page: "credit-limits", action: "update", roleFallback: ACCOUNTS_ROLES }),
     delete: isAdmin,
-    notes: true
+    notes: true,
+    reviewLedger: await userCanAction({ userId, role, module: "customers", page: "list", action: "review_ledger", roleFallback: [], explicit: true })
   };
   return {
     customer,
@@ -171,6 +173,7 @@ const profile_get = defineEventHandler(async (event) => {
     can,
     stats: { ...stats, paid: Number((_e = paidAgg == null ? void 0 : paidAgg.paid) != null ? _e : 0), payments: Number((_f = paidAgg == null ? void 0 : paidAgg.n) != null ? _f : 0), lastPayment: lastPay != null ? lastPay : null },
     ledgerTotals: { debit: Number((_g = ledgerTot == null ? void 0 : ledgerTot.d) != null ? _g : 0), credit: Number((_h = ledgerTot == null ? void 0 : ledgerTot.c) != null ? _h : 0) },
+    review: { flagged: Number((_i = reviewAgg == null ? void 0 : reviewAgg.n) != null ? _i : 0), net: Number((_j = reviewAgg == null ? void 0 : reviewAgg.net) != null ? _j : 0), balanceWithoutFlagged: credit.outstanding - Number((_k = reviewAgg == null ? void 0 : reviewAgg.net) != null ? _k : 0) },
     ageing,
     monthly,
     orders,

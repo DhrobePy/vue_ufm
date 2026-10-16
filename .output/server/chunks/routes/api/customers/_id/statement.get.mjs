@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, a2 as getUserSession, p as createError, N as getQuery, aA as queryOne, az as query } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, Z as getRouterParam, a3 as getUserSession, q as createError, O as getQuery, aB as queryOne, aA as query } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -28,14 +28,38 @@ const statement_get = defineEventHandler(async (event) => {
     [id, from]
   );
   const rows = await query(
-    `SELECT transaction_date date, transaction_type type, COALESCE(invoice_number, reference_id) ref, description,
-            debit_amount debit, credit_amount credit
-     FROM customer_ledger WHERE customer_id = ? AND transaction_date BETWEEN ? AND ? ORDER BY transaction_date, id`,
+    `SELECT DATE_FORMAT(l.transaction_date, '%Y-%m-%d') date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
+            l.debit_amount debit, l.credit_amount credit, l.reference_type, l.reference_id, l.review_status, l.review_reason,
+            COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
+     FROM customer_ledger l
+     LEFT JOIN credit_order_returns ret ON l.reference_type IN ('credit_order_return','credit_order_returns') AND ret.id = l.reference_id
+     LEFT JOIN order_amendments amd ON l.reference_type IN ('order_amendment','order_amendments') AND amd.id = l.reference_id
+     WHERE l.customer_id = ? AND l.transaction_date BETWEEN ? AND ? ORDER BY l.transaction_date, l.id`,
     [id, from, to]
   );
   let running = Number((_b = opening == null ? void 0 : opening.b) != null ? _b : 0);
   const lines = rows.map((r) => ({ ...r, debit: Number(r.debit), credit: Number(r.credit), balance: running += Number(r.debit) - Number(r.credit) }));
+  const [openOrders, pendingPayments, reversedPayments] = await Promise.all([
+    query(
+      `SELECT id, order_number, order_date, status, total_amount, balance_due FROM credit_orders
+       WHERE customer_id = ? AND status IN ('pending_approval','escalated','approved','in_production','produced','ready_to_ship') ORDER BY order_date`,
+      [id]
+    ),
+    query(
+      `SELECT id, request_type, amount, reference_label, created_at, requested_reason FROM credit_pending_requests
+       WHERE customer_id = ? AND status = 'pending' ORDER BY id`,
+      [id]
+    ).catch(() => []),
+    query(
+      `SELECT id, payment_number, payment_date, amount, reversed_at, reversal_reason FROM customer_payments
+       WHERE customer_id = ? AND reversed_at IS NOT NULL ORDER BY reversed_at`,
+      [id]
+    )
+  ]);
   return {
+    openOrders,
+    pendingPayments,
+    reversedPayments,
     customer,
     from,
     to,

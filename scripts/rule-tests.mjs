@@ -131,7 +131,7 @@ await expectStatus('return decision: admin passes the gate (404 = no such return
 await db.query(`insert ignore into users (id, display_name, email, password_hash, role) values (8,'Granted','g@t','x','sales-srg')`)
 await db.query(`insert into user_permissions (user_id, data_scope, allowed_branches, permissions) values (8,'branch','[]',?)`, [JSON.stringify({
   credit_sales: { enabled: true, pages: ['all', 'collect', 'delivery-schedule'], actions: { all: { approve_return: true }, collect: { hide_invoice: true }, 'delivery-schedule': { can_edit: true } } },
-  customers: { enabled: true, pages: ['list'], actions: { list: { set_opening_balance: true } } },
+  customers: { enabled: true, pages: ['list'], actions: { list: { set_opening_balance: true, review_ledger: true } } },
 })])
 {
   const r = await fetch(`http://127.0.0.1:${sealPort}/?u=8,sales-srg`); cookie.granted = r.headers.get('set-cookie').split(';')[0]
@@ -264,6 +264,33 @@ const a = byRef(lg.ledger), b = byRef(pf.ledger), c2 = byRef(sm.lines)
 check('ledger page, profile tab and statement show identical running balances', a === b && a === c2, JSON.stringify({ a, b, c2 }))
 check('latest balance on every screen equals the true closing balance (-32,500)', Number(lg.ledger[0].balance) === -32500 && Number(pf.credit.outstanding) === -32500 && Number(sm.closingBalance) === -32500, `${lg.ledger[0].balance}/${pf.credit.outstanding}/${sm.closingBalance}`)
 check('CSV export carries the same balances and plain dates', /2026-09-05,Statement Mismatch,adjustment,ADJ-2,ADJ-2,0(\.00)?,14000(\.00)?,587250(\.00)?/.test(csv) && !csv.includes('T00:00'), csv.split('\n').slice(0, 4).join(' | '))
+
+
+// ── 15. Ledger review: every line stays visible; flagged lines are kept or deleted by a reviewer ──
+const ids = (await db.query(`select id, invoice_number ref from customer_ledger where customer_id=3`))[0].reduce((m, r) => (m[r.ref] = r.id, m), {})
+await db.query(`insert into journal_entries (id, transaction_date, description, created_by_user_id) values (900001,'2026-09-08','adv2 journal',1)`)
+await db.query(`insert into transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount) values (900001,1,18500,0),(900001,2,0,18500)`)
+await db.query(`update customer_ledger set review_status='review', review_reason='NOT_IN_LEGACY', journal_entry_id=900001 where id=?`, [ids['ADV-2']])
+await db.query(`update customer_ledger set review_status='review', review_reason='PILOT_ERA' where id=?`, [ids['ADJ-2']])
+await expectStatus('review list: user without the grant → 403', call('sales', 'GET', '/api/ledger/review'), 403)
+const rv = (await call('granted', 'GET', '/api/ledger/review?customer_id=3')).json
+check('review list shows the flagged lines with the balance legacy would show', rv?.rows?.length === 2 && rv.customers?.[0]?.balance_now === -32500 && rv.customers[0].balance_without_flagged === 0 + 570000 - 570000 + 601250 - 601250 + 0, JSON.stringify(rv?.customers?.[0]))
+check('profile ledger tab carries the review flags', (await call('acct', 'GET', '/api/customers/3/profile')).json.ledger.filter(l => l.review_status === 'review').length === 2)
+check('statement carries the review flags too', (await call('acct', 'GET', '/api/customers/3/statement?from=2020-01-01&to=2099-12-31')).json.lines.filter(l => l.review_status === 'review').length === 2)
+await expectStatus('sales cannot decide a line', call('sales', 'POST', '/api/ledger/review', { ids: [ids['ADJ-2']], action: 'keep' }), 403)
+await expectStatus('KEEP a flagged line', call('granted', 'POST', '/api/ledger/review', { ids: [ids['ADJ-2']], action: 'keep', note: 'checked, genuine' }), 200)
+check('kept line is still counted and marked reviewed', Number((await ledgerSum(3))) === -32500 && (await db.query('select review_status s from customer_ledger where id=?', [ids['ADJ-2']]))[0][0].s === 'kept')
+await expectStatus('a decided line cannot be decided again', call('granted', 'POST', '/api/ledger/review', { ids: [ids['ADJ-2']], action: 'delete', note: 'oops' }), 409)
+await expectStatus('a normal (legacy) line cannot be deleted from here', call('granted', 'POST', '/api/ledger/review', { ids: [ids['INV-1']], action: 'delete', note: 'try' }), 409)
+await expectStatus('DELETE needs a reason', call('granted', 'POST', '/api/ledger/review', { ids: [ids['ADV-2']], action: 'delete' }), 400)
+const dres = await call('granted', 'POST', '/api/ledger/review', { ids: [ids['ADV-2']], action: 'delete', note: 'deleted in legacy' })
+check('DELETE moves the line to the Recycle Bin (with its journal entry)', dres.status === 200 && dres.json.journalEntriesRemoved === 1 && dres.json.recycleBatch > 0, JSON.stringify(dres.json))
+check('deleted line is gone and the customer balance is recalculated (-14,000)', (await ledgerSum(3)) === -14000 && (await custBal(3)) === -14000, `${await ledgerSum(3)}/${await custBal(3)}`)
+check('its journal entry left the books too', Number((await db.query('select count(*) n from journal_entries where id=900001'))[0][0].n) === 0)
+await expectStatus('cross-checks list: user without the grant → 403', call('sales', 'GET', '/api/ledger/audit'), 403)
+const au = (await call('granted', 'GET', '/api/ledger/audit')).json
+check('cross-checks list returns grouped exceptions with titles', Array.isArray(au?.groups) && au.groups.every(g => g.title && g.n > 0) && Array.isArray(au.exceptions), JSON.stringify(au?.groups?.slice(0, 2)))
+check('the Recycle Bin holds it for restore', Number((await db.query(`select count(*) n from recycle_bin_items where batch_id=? and table_name='customer_ledger'`, [dres.json.recycleBatch]))[0][0].n) === 1)
 
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','ready_to_ship','goods_on_board')`, [o1.id])

@@ -59,11 +59,14 @@ const props = withDefaults(defineProps<{
 }>(), { active: undefined })
 
 const currentRoute = useRoute()
-const isActive = computed(() =>
-  props.active !== undefined ? props.active : props.route === '/dashboard'
-    ? currentRoute.path === props.route
-    : currentRoute.path.startsWith(props.route)
-)
+// A page is "on" this item when its path equals the route or sits beneath it. A sub-item that points at its module's
+// root (e.g. Credit Sales → Dashboard = /credit-sales) must match exactly, or it would light up on every page of the module.
+const isActive = computed(() => {
+  if (props.active !== undefined) return props.active
+  const p = currentRoute.path, r = props.route
+  if (r === '/dashboard' || (props.sub && r.split('/').filter(Boolean).length === 1)) return p === r
+  return p === r || p.startsWith(r + '/')
+})
 </script>
 
 <style scoped>

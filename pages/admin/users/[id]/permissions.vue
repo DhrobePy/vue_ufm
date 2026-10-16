@@ -621,6 +621,7 @@ const moduleRegistry = [
           { key: 'blacklist', label: 'Blacklist' },
           { key: 'export',    label: 'Export' },
           { key: 'set_opening_balance', label: 'Set Opening Balance (explicit grant only)' },
+          { key: 'review_ledger', label: 'Review Ledger Lines — keep or delete flagged entries (explicit grant only)' },
         ] },
     ],
   },

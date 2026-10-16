@@ -1,4 +1,4 @@
-import { t as defineEventHandler, N as getQuery, az as query, R as RUNNING_BALANCE_SQL, aA as queryOne } from '../../../nitro/nitro.mjs';
+import { u as defineEventHandler, O as getQuery, aA as query, R as RUNNING_BALANCE_SQL, aB as queryOne } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -55,7 +55,7 @@ const ledger_get = defineEventHandler(async (event) => {
                 l.debit_amount AS debit, l.credit_amount AS credit,
                 ${RUNNING_BALANCE_SQL} AS balance,
                 c.name AS customer_name,
-                l.reference_type, l.reference_id,
+                l.reference_type, l.reference_id, l.customer_id, l.review_status, l.review_reason,
                 COALESCE(
                   CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END,
                   ret_link.order_id,

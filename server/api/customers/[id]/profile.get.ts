@@ -33,7 +33,8 @@ export default defineEventHandler(async (event) => {
   const scopeSql = branchIds ? ' AND o.assigned_branch_id IN (?)' : ''
   const scopeP = branchIds ? [branchIds] : []
 
-  const [ledgerTot, stats, paidAgg, lastPay, ageing, monthly, orders, ledger, payments, returns, amendments, products, notes, wf] = await Promise.all([
+  const [reviewAgg, ledgerTot, stats, paidAgg, lastPay, ageing, monthly, orders, ledger, payments, returns, amendments, products, notes, wf] = await Promise.all([
+    queryOne<any>(`SELECT COUNT(*) n, COALESCE(SUM(debit_amount - credit_amount), 0) net FROM customer_ledger WHERE customer_id = ? AND review_status = 'review'`, [id]),
     queryOne<any>(`SELECT COALESCE(SUM(debit_amount),0) d, COALESCE(SUM(credit_amount),0) c FROM customer_ledger WHERE customer_id = ?`, [id]),
     queryOne<any>(
       `SELECT COUNT(*) orders, COALESCE(SUM(o.total_amount),0) sales, COALESCE(AVG(o.total_amount),0) avg_order,
@@ -60,7 +61,7 @@ export default defineEventHandler(async (event) => {
     query<any>(
       `SELECT * FROM (
          SELECT l.id, DATE_FORMAT(l.transaction_date, '%Y-%m-%d') date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
-                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type,
+                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type, l.reference_id, l.review_status, l.review_reason, l.review_note,
                 COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
          FROM customer_ledger l
          LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
@@ -124,12 +125,14 @@ export default defineEventHandler(async (event) => {
     creditLimit: await userCanAction({ userId, role, module: 'credit_sales', page: 'credit-limits', action: 'update', roleFallback: ACCOUNTS_ROLES }),
     delete: isAdmin,
     notes: true,
+    reviewLedger: await userCanAction({ userId, role, module: 'customers', page: 'list', action: 'review_ledger', roleFallback: [], explicit: true }),
   }
 
   return {
     customer, credit, can,
     stats: { ...stats, paid: Number(paidAgg?.paid ?? 0), payments: Number(paidAgg?.n ?? 0), lastPayment: lastPay ?? null },
     ledgerTotals: { debit: Number(ledgerTot?.d ?? 0), credit: Number(ledgerTot?.c ?? 0) },
+    review: { flagged: Number(reviewAgg?.n ?? 0), net: Number(reviewAgg?.net ?? 0), balanceWithoutFlagged: credit.outstanding - Number(reviewAgg?.net ?? 0) },
     ageing, monthly, orders, ledger, payments, returns, amendments, products, notes, activity,
     branchLimited: !!branchIds,
   }

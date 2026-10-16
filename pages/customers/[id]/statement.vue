@@ -13,8 +13,8 @@
     <div v-if="pending" style="padding:40px;text-align:center;color:#666;">Loading…</div>
     <div v-else-if="error" style="padding:40px;text-align:center;color:#b91c1c;">{{ (error as any).statusMessage ?? 'Could not load the statement' }}</div>
 
-    <div v-else-if="d" id="statement" style="max-width:820px;margin:24px auto;background:#fff;padding:36px 40px;box-shadow:0 8px 30px rgba(0,0,0,0.15);">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:14px;">
+    <div v-else-if="d" id="statement" style="max-width:820px;margin:16px auto;background:#fff;padding:clamp(14px,4vw,40px);box-shadow:0 8px 30px rgba(0,0,0,0.15);">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:14px;">
         <div>
           <h1 style="font-size:20px;font-weight:800;margin:0;">Ujjal Flour Mills</h1>
         </div>
@@ -24,7 +24,7 @@
         </div>
       </div>
 
-      <div style="display:flex;justify-content:space-between;margin:16px 0;font-size:12px;line-height:1.6;">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;margin:16px 0;font-size:12px;line-height:1.6;">
         <div>
           <strong style="font-size:14px;">{{ d.customer.name }}</strong>
           <div v-if="d.customer.business_name">{{ d.customer.business_name }}</div>
@@ -37,7 +37,7 @@
         </div>
       </div>
 
-      <table style="width:100%;border-collapse:collapse;font-size:11.5px;">
+      <div style="overflow-x:auto;"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:11.5px;">
         <thead><tr style="background:#111;color:#fff;">
           <th style="padding:7px 8px;text-align:left;">Date</th><th style="padding:7px 8px;text-align:left;">Reference</th><th style="padding:7px 8px;text-align:left;">Description</th>
           <th style="padding:7px 8px;text-align:right;">Debit</th><th style="padding:7px 8px;text-align:right;">Credit</th><th style="padding:7px 8px;text-align:right;">Balance</th></tr></thead>
@@ -45,8 +45,12 @@
           <tr style="background:#f5f3ef;font-weight:700;"><td colspan="5" style="padding:6px 8px;">Opening balance</td><td style="padding:6px 8px;text-align:right;">৳{{ money(d.openingBalance) }}</td></tr>
           <tr v-for="(l, i) in d.lines" :key="i" style="border-bottom:1px solid #e7e3dc;">
             <td style="padding:6px 8px;white-space:nowrap;">{{ day(l.date) }}</td>
-            <td style="padding:6px 8px;font-family:monospace;">{{ l.ref }}</td>
-            <td style="padding:6px 8px;color:#444;">{{ l.description }}</td>
+            <td style="padding:6px 8px;font-family:monospace;word-break:break-all;">
+              <NuxtLink v-if="l.linked_order_id" :to="`/credit-sales/${l.linked_order_id}`" style="color:inherit;text-decoration:underline dotted;">{{ l.ref }}</NuxtLink>
+              <NuxtLink v-else-if="l.reference_type === 'customer_payments'" :to="`/credit-sales/receipt/${l.reference_id}`" style="color:inherit;text-decoration:underline dotted;">{{ l.ref }}</NuxtLink>
+              <template v-else>{{ l.ref }}</template>
+            </td>
+            <td style="padding:6px 8px;color:#444;">{{ l.description }}<span v-if="l.review_status === 'review'" style="color:#b45309;font-weight:700;" title="Under review"> ⚠</span></td>
             <td style="padding:6px 8px;text-align:right;">{{ l.debit ? money(l.debit) : '' }}</td>
             <td style="padding:6px 8px;text-align:right;color:#15803d;">{{ l.credit ? money(l.credit) : '' }}</td>
             <td style="padding:6px 8px;text-align:right;font-weight:600;">{{ money(l.balance) }}</td>
@@ -58,7 +62,30 @@
             <td style="padding:8px;text-align:right;">{{ money(d.totalDebit) }}</td><td style="padding:8px;text-align:right;">{{ money(d.totalCredit) }}</td><td></td></tr>
           <tr style="background:#fef3c7;font-weight:800;font-size:13px;"><td colspan="5" style="padding:9px 8px;">Closing balance (amount due)</td><td style="padding:9px 8px;text-align:right;">৳{{ money(d.closingBalance) }}</td></tr>
         </tfoot>
-      </table>
+      </table></div>
+
+      <!-- Everything that concerns the customer but is not (yet) a ledger line -->
+      <div v-if="d.openOrders.length || d.pendingPayments.length || d.reversedPayments.length" style="margin-top:22px;font-size:11.5px;">
+        <h3 style="font-size:11px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#555;margin:0 0 6px;">Not in the account yet (for information)</h3>
+        <div style="overflow-x:auto;"><table style="width:100%;min-width:520px;border-collapse:collapse;">
+          <tr v-for="o in d.openOrders" :key="'o'+o.id" style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 6px;white-space:nowrap;">{{ day(o.order_date) }}</td>
+            <td style="padding:4px 6px;font-family:monospace;"><NuxtLink :to="`/credit-sales/${o.id}`" style="color:inherit;">{{ o.order_number }}</NuxtLink></td>
+            <td style="padding:4px 6px;color:#555;">Order {{ String(o.status).replace(/_/g,' ') }} — posts to the account when goods are loaded</td>
+            <td style="padding:4px 6px;text-align:right;">৳{{ money(o.total_amount) }}</td></tr>
+          <tr v-for="p in d.pendingPayments" :key="'p'+p.id" style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 6px;white-space:nowrap;">{{ day(p.created_at) }}</td>
+            <td style="padding:4px 6px;font-family:monospace;">{{ p.reference_label || 'request #'+p.id }}</td>
+            <td style="padding:4px 6px;color:#555;">Payment waiting for approval</td>
+            <td style="padding:4px 6px;text-align:right;color:#15803d;">৳{{ money(p.amount) }}</td></tr>
+          <tr v-for="r in d.reversedPayments" :key="'r'+r.id" style="border-bottom:1px solid #eee;">
+            <td style="padding:4px 6px;white-space:nowrap;">{{ day(r.payment_date) }}</td>
+            <td style="padding:4px 6px;font-family:monospace;">{{ r.payment_number }}</td>
+            <td style="padding:4px 6px;color:#555;">Payment reversed{{ r.reversal_reason ? ' — ' + r.reversal_reason : '' }}</td>
+            <td style="padding:4px 6px;text-align:right;text-decoration:line-through;">৳{{ money(r.amount) }}</td></tr>
+        </table></div>
+      </div>
+      <p v-if="d.lines.some((l: any) => l.review_status === 'review')" style="font-size:10.5px;color:#b45309;margin-top:14px;">⚠ Lines marked ⚠ are being checked against the records and may be corrected.</p>
       <p style="font-size:10px;color:#777;margin-top:18px;">This is a computer-generated statement. Please report any discrepancy within 7 days.</p>
     </div>
   </div>

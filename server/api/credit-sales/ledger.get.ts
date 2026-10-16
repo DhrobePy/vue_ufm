@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
                 l.debit_amount AS debit, l.credit_amount AS credit,
                 ${RUNNING_BALANCE_SQL} AS balance,
                 c.name AS customer_name,
-                l.reference_type, l.reference_id,
+                l.reference_type, l.reference_id, l.customer_id, l.review_status, l.review_reason,
                 COALESCE(
                   CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END,
                   ret_link.order_id,

@@ -36,6 +36,10 @@
       </div>
 
       <UiDataTable :columns="cols" :rows="ledger" :per-page="15" exportable search-placeholder="Search transactions…">
+        <template #cell-description="{ value, row }">
+          <span class="text-xs text-gray-300">{{ value }}</span>
+          <span v-if="row.review_status === 'review'" class="ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30" :title="REVIEW_REASONS[row.review_reason]?.hint">⚠ {{ reasonLabel(row.review_reason) }}</span>
+        </template>
         <template #cell-date="{ value }"><span class="text-gray-300 text-xs whitespace-nowrap">{{ fmtDate(value) }}</span></template>
         <template #cell-debit="{ value }"><span class="text-red-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
         <template #cell-credit="{ value }"><span class="text-emerald-400 font-mono text-xs">{{ Number(value) > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>

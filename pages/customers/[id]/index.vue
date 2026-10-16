@@ -217,7 +217,12 @@
       </div>
 
       <!-- ═════════════ LEDGER ═════════════ -->
-      <div v-else-if="tab === 'ledger'" class="glass-card p-5 space-y-3">
+      <div v-else-if="tab === 'ledger'" class="glass-card p-4 sm:p-5 space-y-3">
+        <div v-if="p.review.flagged" class="rounded-xl px-3 py-2.5 text-xs bg-amber-500/10 border border-amber-500/30 text-amber-200 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span>⚠ <b>{{ p.review.flagged }}</b> line(s) below are flagged for review (net ৳{{ money(p.review.net) }}).</span>
+          <span>Balance if they were all deleted: <b class="font-mono">৳{{ money(p.review.balanceWithoutFlagged) }}</b></span>
+          <NuxtLink v-if="p.can.reviewLedger" :to="`/credit-sales/ledger-review?customer=${c.id}`" class="underline ml-auto">Open in Ledger Review →</NuxtLink>
+        </div>
         <div class="flex flex-wrap items-center gap-2">
           <div class="text-xs text-gray-500">Invoiced <strong class="font-mono text-gray-300">৳{{ money(ledgerDebit) }}</strong> · Received <strong class="font-mono text-emerald-400">৳{{ money(ledgerCredit) }}</strong> · Balance <strong class="font-mono" :class="credit.outstanding > 0 ? 'text-red-400' : 'text-emerald-400'">৳{{ money(credit.outstanding) }}</strong></div>
           <span class="flex-1" />
@@ -232,9 +237,20 @@
             <NuxtLink v-if="row.linked_order_id" :to="`/credit-sales/${row.linked_order_id}`" class="font-mono text-xs text-gold-400/90 hover:underline">{{ value }}</NuxtLink>
             <span v-else class="font-mono text-xs text-gray-400">{{ value }}</span>
           </template>
+          <template #cell-description="{ value, row }">
+            <span class="text-xs text-gray-300">{{ value }}</span>
+            <span v-if="row.review_status === 'review'" class="ml-1.5 inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30" :title="REVIEW_REASONS[row.review_reason]?.hint">⚠ {{ reasonLabel(row.review_reason) }}</span>
+            <span v-else-if="row.review_status === 'kept'" class="ml-1.5 text-[10px] text-emerald-500" :title="row.review_note">✓ reviewed</span>
+          </template>
           <template #cell-debit="{ value }"><span class="font-mono text-xs">{{ Number(value) ? '৳' + money(value) : '' }}</span></template>
           <template #cell-credit="{ value }"><span class="font-mono text-xs text-emerald-400">{{ Number(value) ? '৳' + money(value) : '' }}</span></template>
           <template #cell-balance="{ value }"><span class="font-mono text-xs text-gray-200">৳{{ money(value) }}</span></template>
+          <template v-if="p.can.reviewLedger" #actions="{ row }">
+            <div v-if="row.review_status === 'review'" class="flex gap-1 justify-end">
+              <button class="btn-ghost text-[11px] py-1 px-2" @click="reviewLine(row, 'keep')">Keep</button>
+              <button class="text-[11px] py-1 px-2 rounded-lg text-red-400 hover:bg-red-500/10" @click="reviewLine(row, 'delete')">Delete</button>
+            </div>
+          </template>
         </UiDataTable>
       </div>
 
@@ -516,6 +532,18 @@ async function saveLimit() {
     await $fetch('/api/credit-sales/credit-limits', { method: 'PATCH', body: { updates: [{ id: c.value.id, credit_limit: limitDlg.value }] } })
     success('Credit limit updated'); limitDlg.open = false; await refresh()
   } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Could not update the limit') } finally { limitDlg.busy = false }
+}
+
+// ── ledger review (keep / delete a flagged line) ─────────────────────────────
+async function reviewLine(row: any, action: 'keep' | 'delete') {
+  let note = ''
+  if (action === 'delete') {
+    const r = prompt(`Delete this ledger line (৳${money(Number(row.debit) || Number(row.credit))} ${Number(row.credit) ? 'credit' : 'debit'}, ${day(row.date)})?\nIt moves to the Recycle Bin and can be restored.\n\nReason (required):`)
+    if (!r || r.trim().length < 3) return
+    note = r.trim()
+  }
+  try { await $fetch('/api/ledger/review', { method: 'POST', body: { ids: [row.id], action, note } }); success(action === 'keep' ? 'Line kept' : 'Line moved to the Recycle Bin'); await refresh() }
+  catch (e: any) { toastError(e?.data?.statusMessage ?? 'Could not save the decision') }
 }
 
 // ── delete ───────────────────────────────────────────────────────────────────

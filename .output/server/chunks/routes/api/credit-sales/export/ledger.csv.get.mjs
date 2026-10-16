@@ -1,4 +1,4 @@
-import { t as defineEventHandler, a2 as getUserSession, p as createError, N as getQuery, az as query, a_ as setHeader, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a3 as getUserSession, q as createError, O as getQuery, aA as query, b0 as setHeader, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -34,7 +34,7 @@ const ledger_csv_get = defineEventHandler(async (event) => {
   const rows = await query(
     `SELECT * FROM (
        SELECT DATE_FORMAT(l.transaction_date, '%Y-%m-%d') AS d, l.id, l.customer_id, c.name AS customer, l.transaction_type, l.invoice_number,
-              l.description, l.debit_amount, l.credit_amount, ${RUNNING_BALANCE_SQL} AS balance
+              l.description, l.debit_amount, l.credit_amount, ${RUNNING_BALANCE_SQL} AS balance, l.review_status, l.review_reason
        FROM customer_ledger l JOIN customers c ON c.id = l.customer_id
        ${inner}
      ) t ${outer.length ? "WHERE " + outer.join(" AND ") : ""}
@@ -42,7 +42,7 @@ const ledger_csv_get = defineEventHandler(async (event) => {
      LIMIT 50000`,
     params
   );
-  const header = "Date,Customer,Type,Reference,Description,Debit,Credit,Balance";
+  const header = "Date,Customer,Type,Reference,Description,Debit,Credit,Balance,Review";
   const lines = rows.map((r) => [
     r.d,
     r.customer,
@@ -51,7 +51,8 @@ const ledger_csv_get = defineEventHandler(async (event) => {
     r.description,
     r.debit_amount,
     r.credit_amount,
-    r.balance
+    r.balance,
+    r.review_status === "ok" ? "" : `${r.review_status}${r.review_reason ? ": " + r.review_reason : ""}`
   ].map(csvCell).join(","));
   setHeader(event, "Content-Type", "text/csv; charset=utf-8");
   setHeader(

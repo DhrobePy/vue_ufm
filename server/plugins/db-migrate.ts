@@ -1674,5 +1674,26 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] customer_notes failed:', e) }
 
+  // ── Ledger review (true-ledger project) ─────────────────────────────────────
+  // Every ledger line stays visible. A line that exists only in Vue (pilot period / deleted in legacy) or looks
+  // wrong is flagged 'review' with a reason; a reviewer then Keeps it or Deletes it (→ Recycle Bin, restorable).
+  await addCol(db, 'customer_ledger', 'review_status', "VARCHAR(10) NOT NULL DEFAULT 'ok' COMMENT 'ok | review | kept'")
+  await addCol(db, 'customer_ledger', 'review_reason', 'VARCHAR(40) NULL')
+  await addCol(db, 'customer_ledger', 'reviewed_by_user_id', 'BIGINT UNSIGNED NULL')
+  await addCol(db, 'customer_ledger', 'reviewed_at', 'DATETIME NULL')
+  await addCol(db, 'customer_ledger', 'review_note', 'VARCHAR(255) NULL')
+  try { await db.query('CREATE INDEX idx_cl_review ON customer_ledger (review_status)') } catch (e: any) { if (e?.errno !== 1061) console.warn('[db-migrate] idx_cl_review failed:', e) }
+
+  // The periodic legacy sync preserves legacy ids. A Vue-native row that takes an id legacy is about to use makes the
+  // sync silently skip the legacy row — so Vue's own new rows start at 1,000,000 on every table the sync copies.
+  for (const t of ['customer_ledger', 'customer_payments', 'payment_allocations', 'credit_orders', 'credit_order_items', 'credit_order_workflow',
+    'journal_entries', 'transaction_lines', 'credit_order_deliveries', 'credit_order_delivery_items', 'credit_order_returns',
+    'credit_order_return_items', 'order_amendments', 'credit_order_shipping']) {
+    try {
+      const [[r]] = await db.query(`SELECT AUTO_INCREMENT a FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`, [t]) as any
+      if (r && Number(r.a) < 1000000) await db.query(`ALTER TABLE \`${t}\` AUTO_INCREMENT = 1000000`)
+    } catch (e) { console.warn(`[db-migrate] AUTO_INCREMENT bump on ${t} failed:`, e) }
+  }
+
   console.log('[db-migrate] startup migrations complete')
 })

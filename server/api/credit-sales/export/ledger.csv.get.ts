@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   const rows = await query<any>(
     `SELECT * FROM (
        SELECT DATE_FORMAT(l.transaction_date, '%Y-%m-%d') AS d, l.id, l.customer_id, c.name AS customer, l.transaction_type, l.invoice_number,
-              l.description, l.debit_amount, l.credit_amount, ${RUNNING_BALANCE_SQL} AS balance
+              l.description, l.debit_amount, l.credit_amount, ${RUNNING_BALANCE_SQL} AS balance, l.review_status, l.review_reason
        FROM customer_ledger l JOIN customers c ON c.id = l.customer_id
        ${inner}
      ) t ${outer.length ? 'WHERE ' + outer.join(' AND ') : ''}
@@ -30,10 +30,10 @@ export default defineEventHandler(async (event) => {
     params,
   )
 
-  const header = 'Date,Customer,Type,Reference,Description,Debit,Credit,Balance'
+  const header = 'Date,Customer,Type,Reference,Description,Debit,Credit,Balance,Review'
   const lines = rows.map((r: any) => [
     r.d, r.customer, r.transaction_type,
-    r.invoice_number, r.description, r.debit_amount, r.credit_amount, r.balance,
+    r.invoice_number, r.description, r.debit_amount, r.credit_amount, r.balance, r.review_status === 'ok' ? '' : `${r.review_status}${r.review_reason ? ': ' + r.review_reason : ''}`,
   ].map(csvCell).join(','))
 
   setHeader(event, 'Content-Type', 'text/csv; charset=utf-8')
