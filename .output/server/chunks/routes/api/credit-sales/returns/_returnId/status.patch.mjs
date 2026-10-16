@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, o as createError, aL as requireAction, az as readBody, N as getRequestHeader, E as getDb, i as auditLog } from '../../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, p as createError, aN as requireAction, aB as readBody, O as getRequestHeader, F as getDb, an as postCustomerLedger, i as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const status_patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d;
   const returnId = Number(getRouterParam(event, "returnId"));
   if (!returnId) throw createError({ statusCode: 400, statusMessage: "Invalid return ID" });
   const { userId } = await requireAction(
@@ -57,30 +57,18 @@ const status_patch = defineEventHandler(async (event) => {
     if (action === "approve") {
       const totalRetAmount = Number(ret.total_returned_amount);
       const retDate = ret.return_date;
-      const [[lastLedger]] = await conn.query(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [ret.customer_id]
-      );
-      const prevBal = Number((_c = lastLedger == null ? void 0 : lastLedger.bal) != null ? _c : 0);
-      const newBal = Math.max(0, prevBal - totalRetAmount);
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'credit_note', 'credit_order_return', ?, ?, ?, 0, ?, ?, ?)`,
-        [
-          ret.customer_id,
-          retDate,
-          returnId,
-          ret.return_number,
-          `Goods Return Credit Note \u2014 ${ret.return_number} (Order ${ret.order_number})`,
-          totalRetAmount,
-          newBal,
-          userId
-        ]
-      );
+      await postCustomerLedger(conn, {
+        customerId: ret.customer_id,
+        date: retDate,
+        transactionType: "credit_note",
+        referenceType: "credit_order_return",
+        referenceId: returnId,
+        invoiceNumber: ret.return_number,
+        description: `Goods Return Credit Note \u2014 ${ret.return_number} (Order ${ret.order_number})`,
+        debit: 0,
+        credit: totalRetAmount,
+        userId
+      });
       await conn.query(
         `UPDATE credit_orders
          SET total_amount = GREATEST(0, total_amount - ?),
@@ -89,13 +77,6 @@ const status_patch = defineEventHandler(async (event) => {
          WHERE id = ?`,
         [totalRetAmount, totalRetAmount, ret.order_id]
       );
-      await conn.query(
-        `UPDATE customers
-         SET current_balance = GREATEST(0, current_balance - ?),
-             updated_at = NOW()
-         WHERE id = ?`,
-        [totalRetAmount, ret.customer_id]
-      );
     }
     const wfAction = action === "approve" ? "return_approved" : "return_rejected";
     const wfComment = `${action === "approve" ? "Approved" : "Rejected"} return ${ret.return_number} \u2014 \u09F3${Number(ret.total_returned_amount).toLocaleString()}${notes ? ` | ${notes}` : ""}`;
@@ -103,7 +84,7 @@ const status_patch = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [ret.order_id, (_d = ret.status) != null ? _d : "delivered", (_e = ret.status) != null ? _e : "delivered", wfAction, userId, wfComment]
+      [ret.order_id, (_c = ret.status) != null ? _c : "delivered", (_d = ret.status) != null ? _d : "delivered", wfAction, userId, wfComment]
     );
     await auditLog(conn, {
       userId,

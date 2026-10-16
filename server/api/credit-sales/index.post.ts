@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber } from '~/server/utils/creditOrders'
+import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber, postCustomerLedger, postJournalEntry } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 
 export default defineEventHandler(async (event) => {
@@ -265,15 +265,6 @@ export default defineEventHandler(async (event) => {
       )
       const advPaymentId = advResult.insertId
 
-      // 2. Get current running ledger balance
-      const [[lastLedger]] = await conn.query<any>(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [customer_id],
-      )
-      const prevBal = Number(lastLedger?.bal ?? 0)
-      const newBal  = Math.max(0, prevBal - advancePaid)
 
       // 3. GL journal entry for the advance
       let advJeId: number | null = null
@@ -305,24 +296,13 @@ export default defineEventHandler(async (event) => {
 
         if (drAccountId && crAccountId) {
           const jeDesc = `Advance received — ${advNo} (Order ${orderNo}, ${customer_id})`
-          const [jeRes] = await conn.query<any>(
-            `INSERT INTO journal_entries
-               (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-             VALUES (?, ?, 'CustomerPayment', ?, ?)`,
-            [order_date, jeDesc.slice(0, 255), advPaymentId, userId],
-          )
-          advJeId = jeRes.insertId
-
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, ?, 0.00, ?)`,
-            [advJeId, drAccountId, advancePaid, advNo],
-          )
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, 0.00, ?, ?)`,
-            [advJeId, crAccountId, advancePaid, advNo],
-          )
+          advJeId = await postJournalEntry(conn, {
+            date: order_date, description: jeDesc, docType: 'CustomerPayment', docId: advPaymentId, userId,
+            lines: [
+              { accountId: drAccountId, debit: advancePaid, credit: 0, memo: advNo },
+              { accountId: crAccountId, debit: 0, credit: advancePaid, memo: advNo },
+            ],
+          })
 
           // Link JE back to payment record
           await conn.query(
@@ -360,30 +340,13 @@ export default defineEventHandler(async (event) => {
         console.warn(`[advance-payment] JE creation failed for ${advNo}:`, jeErr)
       }
 
-      // 4. Credit the customer ledger (with JE link)
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after,
-            journal_entry_id, created_by_user_id)
-         VALUES (?, ?, 'advance_payment', 'customer_payment', ?,
-                 ?, ?, 0, ?, ?,
-                 ?, ?)`,
-        [
-          customer_id, order_date, advPaymentId,
-          advNo, `Advance payment — ${advNo} (Order ${orderNo}) via ${payMethod}`,
-          advancePaid, newBal,
-          advJeId, userId,
-        ],
-      )
-
-      // 5. Reduce customer running balance
-      await conn.query(
-        `UPDATE customers
-         SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
-         WHERE id = ?`,
-        [advancePaid, customer_id],
-      )
+      // 4. Credit the customer ledger (with JE link) — also syncs customers.current_balance
+      await postCustomerLedger(conn, {
+        customerId: customer_id, date: order_date, transactionType: 'advance_payment',
+        referenceType: 'customer_payment', referenceId: advPaymentId, invoiceNumber: advNo,
+        description: `Advance payment — ${advNo} (Order ${orderNo}) via ${payMethod}`,
+        debit: 0, credit: advancePaid, journalEntryId: advJeId, userId,
+      })
     }
 
     // ── Audit log ───────────────────────────────────────────────────────────

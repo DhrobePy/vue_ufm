@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, o as createError, az as readBody, _ as getUserSession, N as getRequestHeader, b0 as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, E as getDb, a9 as nextDocNumber, i as auditLog } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, p as createError, aB as readBody, a1 as getUserSession, O as getRequestHeader, b3 as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, F as getDb, ab as nextDocNumber, an as postCustomerLedger, i as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const return_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -111,7 +111,7 @@ const return_post = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_workflow
          (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
        VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, (_g = order.status) != null ? _g : "delivered", (_h = order.status) != null ? _h : "delivered", wfAction, userId, wfComment]
+      [id, (_f = order.status) != null ? _f : "delivered", (_g = order.status) != null ? _g : "delivered", wfAction, userId, wfComment]
     );
     await auditLog(conn, {
       userId,

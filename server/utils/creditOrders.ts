@@ -1,3 +1,4 @@
+import { getDb } from '~/server/utils/db'
 /**
  * Shared evaluators + posting helpers for the credit-sales module.
  *
@@ -553,24 +554,43 @@ export async function nextDocNumber(conn: any, prefix: string, table: string, co
 
 // ─── Branch scoping ───────────────────────────────────────────────────────────
 /**
- * Branch id this user's data should be scoped to, or null for full access
- * (admins + accounts see everything). Resolution: employees.branch_id first,
- * then the role suffix (-srg / -demra) against branches.code.
+ * Which branches may this user see? null = all branches.
+ * Order of precedence: admin/superadmin → all; the user's own Permissions row
+ * (data_scope 'all' → all; 'branch' + allowed_branches → those branches, matched by branch
+ * code); else employee record branch; else the role suffix (-srg / -demra, so accounts-srg
+ * is branch-bound too); plain roles such as "Accounts" see everything.
  */
-export async function getUserBranchScope(conn: any, userId: number, role: string): Promise<number | null> {
-  if (isAdminRole(role) || ACCOUNTS_ROLES.includes(role)) return null
+export async function getUserBranchIds(conn: any, userId: number, role: string): Promise<number[] | null> {
+  if (isAdminRole(role)) return null
+  try {
+    const [[row]] = await conn.query(`SELECT data_scope, allowed_branches FROM user_permissions WHERE user_id = ?`, [userId])
+    if (row) {
+      if (row.data_scope === 'all') return null
+      if (row.data_scope === 'branch') {
+        let slugs: string[] = []
+        try { slugs = JSON.parse(row.allowed_branches ?? '[]') } catch { /* ignore */ }
+        slugs = slugs.map(x => String(x).toLowerCase()).filter(Boolean)
+        if (slugs.length) {
+          const [rows] = await conn.query(`SELECT id FROM branches WHERE LOWER(code) IN (?) OR LOWER(name) IN (?)`, [slugs, slugs])
+          if (rows.length) return rows.map((r: any) => Number(r.id))
+        }
+      }
+    }
+  } catch { /* user_permissions missing — role rules below */ }
   const suffixed = /-(srg|demra)$/.exec(role)?.[1]
-  const [[emp]] = await conn.query(
-    `SELECT branch_id FROM employees WHERE user_id = ? LIMIT 1`, [userId],
-  )
-  if (emp?.branch_id) return Number(emp.branch_id)
+  const [[emp]] = await conn.query(`SELECT branch_id FROM employees WHERE user_id = ? LIMIT 1`, [userId])
+  if (emp?.branch_id && (suffixed || !ACCOUNTS_ROLES.includes(role))) return [Number(emp.branch_id)]
   if (suffixed) {
-    const [[br]] = await conn.query(
-      `SELECT id FROM branches WHERE LOWER(code) = ? LIMIT 1`, [suffixed],
-    )
-    if (br) return Number(br.id)
+    const [[br]] = await conn.query(`SELECT id FROM branches WHERE LOWER(code) = ? LIMIT 1`, [suffixed])
+    if (br) return [Number(br.id)]
   }
   return null
+}
+
+/** Single-branch form for screens that lock to ONE branch (production requirement). */
+export async function getUserBranchScope(conn: any, userId: number, role: string): Promise<number | null> {
+  const ids = await getUserBranchIds(conn, userId, role)
+  return ids?.length ? (ids[0] ?? null) : null
 }
 
 /**
@@ -597,4 +617,36 @@ export async function generateDeliverySlipNumber(conn: any, branchId: number | n
   }
   const seq = Math.max(await maxOf('credit_order_shipping'), await maxOf('credit_order_deliveries')) + 1
   return prefix + String(seq).padStart(3, '0')
+}
+
+/**
+ * THE way an order's status changes: updates credit_orders.status and writes the
+ * credit_order_workflow row in one go, so the timeline can never miss a transition.
+ * Caller holds the order row in its own transaction. `to === from` logs an event
+ * (partial delivery, hide/recall…) without touching the status.
+ */
+export async function transitionOrder(conn: any, o: {
+  orderId: number; from: string; to: string; action?: string; userId: number; comment?: string | null
+}): Promise<void> {
+  if (o.to !== o.from)
+    await conn.query(`UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`, [o.to, o.orderId])
+  await conn.query(
+    `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+    [o.orderId, o.from, o.to, o.action ?? o.to, o.userId, o.comment || null],
+  )
+}
+
+/**
+ * Event-level shortcut: " AND <col> IN (?)" + params for the caller's branch scope
+ * ('' / [] when the user sees every branch). Use in order list/count queries.
+ */
+export async function branchScopeFor(event: any, col: string): Promise<{ sql: string; params: any[] }> {
+  const session = await getUserSession(event)
+  if (!session?.user?.id) return { sql: '', params: [] }
+  const conn = await getDb().getConnection()
+  try {
+    const ids = await getUserBranchIds(conn, Number(session.user.id), String(session.user.role ?? '').toLowerCase())
+    return ids ? { sql: ` AND ${col} IN (?)`, params: [ids] } : { sql: '', params: [] }
+  } finally { conn.release() }
 }

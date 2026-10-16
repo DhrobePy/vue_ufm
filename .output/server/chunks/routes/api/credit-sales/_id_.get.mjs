@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, o as createError, ax as queryOne, aw as query, F as getDeliveryQrSecret, E as getDb, v as deliveryQrSignature } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, p as createError, a1 as getUserSession, F as getDb, _ as getUserBranchIds, az as queryOne, ay as query, G as getDeliveryQrSecret, w as deliveryQrSignature } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,9 +13,23 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__get = defineEventHandler(async (event) => {
-  var _a;
+  var _a, _b, _c;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
+  const sess = await getUserSession(event);
+  if ((_a = sess == null ? void 0 : sess.user) == null ? void 0 : _a.id) {
+    const c = await getDb().getConnection();
+    try {
+      const ids = await getUserBranchIds(c, Number(sess.user.id), String((_b = sess.user.role) != null ? _b : "").toLowerCase());
+      if (ids) {
+        const [[ob]] = await c.query(`SELECT assigned_branch_id b FROM credit_orders WHERE id = ?`, [id]);
+        if (ob && ob.b != null && !ids.includes(Number(ob.b)))
+          throw createError({ statusCode: 403, statusMessage: "This order belongs to a branch outside your access" });
+      }
+    } finally {
+      c.release();
+    }
+  }
   const [order, items, workflow, deliveries, returns, payments] = await Promise.all([
     queryOne(
       `SELECT o.*,
@@ -176,12 +190,12 @@ const _id__get = defineEventHandler(async (event) => {
   }
   let shipping = null;
   try {
-    shipping = (_a = (await query(
+    shipping = (_c = (await query(
       `SELECT truck_number, driver_name, driver_contact, delivery_slip_number, bags_boarded, bag_size_kg,
               extra_discount_amount, extra_discount_reason, shipped_date
        FROM credit_order_shipping WHERE order_id = ? LIMIT 1`,
       [id]
-    ))[0]) != null ? _a : null;
+    ))[0]) != null ? _c : null;
   } catch {
   }
   return { order, items, workflow, deliveries, returns, payments, price_revisions, shipping };

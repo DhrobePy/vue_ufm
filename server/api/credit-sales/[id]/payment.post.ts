@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
-import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES, nextDocNumber } from '~/server/utils/creditOrders'
+import { getOrderGateState, checkTransactionLimit, queuePendingRequest, ACCOUNTS_ROLES, nextDocNumber, postCustomerLedger, postJournalEntry } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 import { bridgeCustomerPayment } from '~/server/utils/bankBridge'
 
@@ -144,40 +144,15 @@ export default defineEventHandler(async (event) => {
       [newPaid, newBalance, id],
     )
 
-    // Reduce customer current_balance
-    await conn.query(
-      `UPDATE customers SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW() WHERE id = ?`,
-      [pmtAmount, order.customer_id],
-    )
 
     // ── Customer ledger entry (payment credit) ─────────────
-    const [[lastLedger]] = await conn.query<any>(
-      `SELECT COALESCE(balance_after, 0) AS bal
-       FROM customer_ledger WHERE customer_id = ?
-       ORDER BY created_at DESC, id DESC LIMIT 1`,
-      [order.customer_id],
-    )
-    const prevBal = Number(lastLedger?.bal ?? 0)
-    const newBal  = Math.max(0, prevBal - pmtAmount)
-
-    await conn.query(
-      `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'payment', 'customer_payment', ?,
-               ?, ?, 0, ?, ?, ?)`,
-      [
-        order.customer_id,
-        pmtDate,
-        paymentId,
-        payNo,   // always the system PAY-number — autoRef may be a customer-typed bank slip
-                 // reference (reference_number), which belongs on the payment row, not here
-        `Payment received — ${payNo} (${mappedMethod})`,
-        pmtAmount,
-        newBal,
-        userId,
-      ],
-    )
+    await postCustomerLedger(conn, {
+      customerId: order.customer_id, date: pmtDate, transactionType: 'payment',
+      referenceType: 'customer_payment', referenceId: paymentId,
+      invoiceNumber: payNo,   // always the system PAY-number — autoRef may be a customer-typed bank slip
+      description: `Payment received — ${payNo} (${mappedMethod})`,
+      debit: 0, credit: pmtAmount, userId,
+    })
 
     // ── GL Journal Entry ───────────────────────────────────
     // DR: cash or bank GL account (asset increases — money received)
@@ -216,26 +191,13 @@ export default defineEventHandler(async (event) => {
 
       if (drAccountId && crAccountId) {
         const jeDesc = `Payment received — ${payNo} (Order ${id}, ${mappedMethod})`
-        const [jeRes] = await conn.query<any>(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'CustomerPayment', ?, ?)`,
-          [pmtDate, jeDesc.slice(0, 255), paymentId, userId],
-        )
-        const jeId = jeRes.insertId
-
-        // DR cash/bank (money in)
-        await conn.query(
-          `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, drAccountId, pmtAmount, payNo],
-        )
-        // CR accounts receivable (reduces balance owed)
-        await conn.query(
-          `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, crAccountId, pmtAmount, payNo],
-        )
+        const jeId = await postJournalEntry(conn, {
+          date: pmtDate, description: jeDesc, docType: 'CustomerPayment', docId: paymentId, userId,
+          lines: [
+            { accountId: drAccountId, debit: pmtAmount, credit: 0, memo: payNo },    // cash/bank in
+            { accountId: crAccountId, debit: 0, credit: pmtAmount, memo: payNo },    // receivable down
+          ],
+        })
 
         // Link JE back to payment
         await conn.query(

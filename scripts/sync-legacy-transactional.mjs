@@ -181,7 +181,17 @@ async function buildSafeParentIds(legacy, vue, table, missingIds, naturalKeyCols
  * @param opts.columns   columns to SELECT from legacy, in insert order
  * @param opts.transform (row, ctx) => row for vue, or null to skip the row (with a warning)
  */
-async function syncTable(legacy, vue, { table, columns, transform, note }) {
+async function presentColumns(conn, table) {
+  const [r] = await conn.query(`SELECT COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`, [table])
+  return new Set(r.map(x => x.c))
+}
+
+async function syncTable(legacy, vue, { table, columns, optional = [], transform, note }) {
+  // `optional` columns are copied only when BOTH databases have them (newer features, e.g. delivery slip numbers).
+  if (optional.length) {
+    const [lc, vc] = [await presentColumns(legacy, table), await presentColumns(vue, table)]
+    columns = [...columns, ...optional.filter(c => lc.has(c) && vc.has(c))]
+  }
   const legacyIds = await idSet(legacy, table)
   const vueIds = await idSet(vue, table)
   const missing = [...legacyIds].filter(id => !vueIds.has(id)).sort((a, b) => Number(a) - Number(b))
@@ -391,6 +401,8 @@ async function main() {
         'driver_name', 'driver_contact', 'total_qty_delivered', 'total_amount_delivered',
         'is_final', 'notes', 'created_by_user_id', 'created_at',
       ],
+      optional: ['delivery_slip_number', 'bags_boarded', 'bag_size_kg', 'extra_discount_amount',
+        'extra_discount_reason', 'extra_discount_by_user_id', 'extra_discount_at'],
       transform: (row) => {
         if (!safeOrderIds.has(String(row.order_id))) {
           report.warnings.push(`credit_order_deliveries #${row.id}: order_id ${row.order_id} missing in vue — skipped`)
@@ -398,11 +410,14 @@ async function main() {
         }
         const notes = []
         const createdBy = mapUser(userMap, row.created_by_user_id, notes)
-        return {
+        const out = {
           ...row,
           created_by_user_id: createdBy.value,
           notes: [row.notes, ...notes].filter(Boolean).join(' | ') || null,
         }
+        if ('extra_discount_by_user_id' in row && row.extra_discount_by_user_id != null)
+          out.extra_discount_by_user_id = mapUser(userMap, row.extra_discount_by_user_id, []).value
+        return out
       },
     })
     const safeDeliveryIds = await buildSafeParentIds(legacy, vue, 'credit_order_deliveries', insertedDeliveryIds, ['delivery_number'])
@@ -419,6 +434,43 @@ async function main() {
         return row
       },
     })
+
+    // ---- credit_order_shipping --------------------------------------------
+    // Keyed by order_id, NOT id: both apps now write this table, so ids are not comparable.
+    // Only orders with no shipping row in vue yet are copied (vue-native dispatches are never overwritten).
+    {
+      const lc = await presentColumns(legacy, 'credit_order_shipping')
+      const vc = await presentColumns(vue, 'credit_order_shipping')
+      const cols = ['order_id', 'truck_number', 'driver_name', 'driver_contact', 'shipped_date', 'delivered_date',
+        'shipped_by_user_id', 'delivered_by_user_id', 'delivery_notes', 'created_at', 'updated_at',
+        'bags_boarded', 'bag_size_kg', 'delivery_slip_number', 'extra_discount_amount', 'extra_discount_reason',
+        'extra_discount_by_user_id', 'extra_discount_at'].filter(c => lc.has(c) && vc.has(c))
+      const [lRows] = await legacy.query(`SELECT ${cols.join(',')} FROM credit_order_shipping`)
+      const [vRows] = await vue.query(`SELECT order_id FROM credit_order_shipping`)
+      const have = new Set(vRows.map(r => String(r.order_id)))
+      const toInsert = []
+      let skipped = 0
+      for (const row of lRows) {
+        if (have.has(String(row.order_id))) continue
+        if (!safeOrderIds.has(String(row.order_id))) { skipped++; continue }
+        const out = { ...row }
+        for (const k of ['shipped_by_user_id', 'delivered_by_user_id', 'extra_discount_by_user_id'])
+          if (k in out && out[k] != null) out[k] = mapUser(userMap, out[k], []).value
+        toInsert.push(out)
+      }
+      report.tables.push({ table: 'credit_order_shipping', missing: toInsert.length + skipped, inserted: toInsert.length, skipped,
+        note: 'matched by order_id; vue-native dispatch rows are never touched' })
+      if (APPLY && toInsert.length) {
+        const outCols = Object.keys(toInsert[0])
+        const per = Math.max(1, Math.floor(5000 / outCols.length))
+        for (let i = 0; i < toInsert.length; i += per) {
+          const batch = toInsert.slice(i, i + per)
+          await vue.query(
+            `INSERT INTO credit_order_shipping (${outCols.map(c => `\`${c}\``).join(',')}) VALUES ${batch.map(() => `(${outCols.map(() => '?').join(',')})`).join(',')}`,
+            batch.flatMap(r => outCols.map(c => r[c] ?? null)))
+        }
+      }
+    }
 
     // ---- credit_order_workflow --------------------------------------------
     await syncTable(legacy, vue, {

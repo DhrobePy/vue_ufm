@@ -1,4 +1,4 @@
-import { s as defineEventHandler, _ as getUserSession, o as createError, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, e as PRODUCTION_ROLES, az as readBody, N as getRequestHeader, E as getDb, b1 as verifyDeliveryQrSignature, K as getOrderGateState, i as auditLog, aE as recordQrScan, aV as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, a1 as getUserSession, p as createError, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, e as PRODUCTION_ROLES, aB as readBody, O as getRequestHeader, F as getDb, b4 as verifyDeliveryQrSignature, L as getOrderGateState, b0 as transitionOrder, i as auditLog, aG as recordQrScan, aX as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -86,14 +86,14 @@ const gate_post = defineEventHandler(async (event) => {
         [order.id, order.order_number, deliveryId, userId, userName, driverName, vehicleNumber, gateNote]
       );
     }
-    if (order.status !== "shipped")
-      await conn.query(`UPDATE credit_orders SET status = 'shipped', updated_at = NOW() WHERE id = ?`, [order.id]);
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, 'shipped', 'gate_out', ?, ?, NOW())`,
-      [order.id, order.status, userId, `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` \xB7 delivery #${deliveryId}` : ""}`]
-    );
+    await transitionOrder(conn, {
+      orderId: order.id,
+      from: order.status,
+      to: "shipped",
+      action: "gate_out",
+      userId,
+      comment: `Gate pass \u2014 goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` \xB7 delivery #${deliveryId}` : ""}`
+    });
     await auditLog(conn, {
       userId,
       action: "other",

@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { getUserActionLimit, nextDocNumber, isAdminRole, generateDeliverySlipNumber } from '~/server/utils/creditOrders'
+import { getUserActionLimit, nextDocNumber, isAdminRole, generateDeliverySlipNumber, transitionOrder, postCustomerLedger, postJournalEntry, getGLAccountId } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -116,6 +116,49 @@ export default defineEventHandler(async (event) => {
       )
     }
 
+    // ── Dispatcher extra discount on this truck (legacy partial_delivery rule) ───────────
+    // The invoice already posted at Goods on Board, so the discount is a CREDIT NOTE:
+    // ledger credit + Dr Revenue / Cr Receivable, and the order total/balance drop with it.
+    const extraDisc = Math.round(Number(body?.extra_discount_amount ?? 0) * 100) / 100
+    const extraReason = String(body?.extra_discount_reason ?? '').trim()
+    let discountNote = ''
+    if (extraDisc < 0) throw createError({ statusCode: 400, statusMessage: 'Discount amount cannot be negative' })
+    if (extraDisc > 0) {
+      if (!extraReason) throw createError({ statusCode: 400, statusMessage: 'Please enter a reason for the additional discount' })
+      if (extraDisc > totalAmount)
+        throw createError({ statusCode: 400, statusMessage: `Discount (৳${extraDisc.toLocaleString()}) cannot exceed this delivery's amount (৳${totalAmount.toLocaleString()})` })
+      const [[ord]] = await conn.query<any>(`SELECT order_number, customer_id FROM credit_orders WHERE id = ?`, [id])
+      const [[cust]] = await conn.query<any>(`SELECT name FROM customers WHERE id = ?`, [ord.customer_id])
+      const arId = await getGLAccountId(conn, 'Accounts Receivable')
+      const revId = await getGLAccountId(conn, 'Revenue')
+      let jeId: number | null = null
+      if (arId && revId)
+        jeId = await postJournalEntry(conn, {
+          date: delivDate, description: `Delivery discount — ${delNo} (${ord.order_number}, ${cust?.name ?? ''}): ${extraReason}`,
+          docType: 'CreditOrderDiscount', docId: deliveryId, userId,
+          lines: [
+            { accountId: revId, debit: extraDisc, credit: 0, memo: delNo },
+            { accountId: arId, debit: 0, credit: extraDisc, memo: delNo },
+          ],
+        })
+      await postCustomerLedger(conn, {
+        customerId: ord.customer_id, date: delivDate, transactionType: 'credit_note',
+        referenceType: 'credit_order_delivery', referenceId: deliveryId, invoiceNumber: delNo,
+        description: `Delivery discount — ${delNo} (Order ${ord.order_number}): ${extraReason}`.slice(0, 250),
+        debit: 0, credit: extraDisc, journalEntryId: jeId, userId,
+      })
+      await conn.query(
+        `UPDATE credit_orders
+         SET discount_amount = discount_amount + ?, total_amount = GREATEST(0, total_amount - ?),
+             balance_due = GREATEST(0, balance_due - ?), updated_at = NOW() WHERE id = ?`,
+        [extraDisc, extraDisc, extraDisc, id])
+      await conn.query(
+        `UPDATE credit_order_deliveries SET extra_discount_amount = ?, extra_discount_reason = ?,
+           extra_discount_by_user_id = ?, extra_discount_at = NOW() WHERE id = ?`,
+        [extraDisc, extraReason, userId, deliveryId])
+      discountNote = ` · discount ৳${extraDisc.toLocaleString()} (${extraReason})`
+    }
+
     // NOTE: NO ledger / JE here. The invoice (full order value) posts to
     // customer_ledger + GL at DISPATCH (workflow ship transition) — the
     // accounting pivot. Deliveries only record physical movement.
@@ -169,21 +212,10 @@ export default defineEventHandler(async (event) => {
     // Update order status + write workflow timeline entry
     const wfToStatus = is_final ? 'delivered' : order.status
     const wfAction   = is_final ? 'delivered' : 'partial_delivery'
-    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}` +
+    const wfComment  = `${is_final ? 'Final' : 'Partial'} delivery ${delNo} — ${totalQty} bags · ৳${totalAmount.toLocaleString()}${truck_number ? ` · Truck ${truck_number}` : ''}${discountNote}` +
       (shortfallItems.length ? ` · ⚠ closed with ${shortfallItems.reduce((s, i) => s + i.qty_short, 0).toLocaleString()} units short (admin override, confirmed)` : '')
 
-    if (is_final) {
-      await conn.query(
-        `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [id],
-      )
-    }
-
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, order.status, wfToStatus, wfAction, userId, wfComment],
-    )
+    await transitionOrder(conn, { orderId: id, from: order.status, to: wfToStatus, action: wfAction, userId, comment: wfComment })
 
     // ── System audit log ───────────────────────────────────────────────
     await auditLog(conn, {

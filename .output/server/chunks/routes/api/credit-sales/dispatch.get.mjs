@@ -1,4 +1,4 @@
-import { s as defineEventHandler, _ as getUserSession, E as getDb, Z as getUserBranchScope, aw as query, ax as queryOne, K as getOrderGateState } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, a1 as getUserSession, F as getDb, _ as getUserBranchIds, ay as query, az as queryOne, L as getOrderGateState } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -20,13 +20,13 @@ const dispatch_get = defineEventHandler(async (event) => {
   const conn = await getDb().getConnection();
   try {
     if (session == null ? void 0 : session.user) {
-      const scope = await getUserBranchScope(
+      const scope = await getUserBranchIds(
         conn,
         Number(session.user.id),
         ((_a = session.user.role) != null ? _a : "").toLowerCase()
       );
       if (scope !== null) {
-        scopeSql = " AND o.assigned_branch_id = ?";
+        scopeSql = " AND o.assigned_branch_id IN (?)";
         scopeParams.push(scope);
       }
     }

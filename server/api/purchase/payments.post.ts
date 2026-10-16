@@ -1,6 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
-import { nextDocNumber } from '~/server/utils/creditOrders'
+import { nextDocNumber, postCustomerLedger } from '~/server/utils/creditOrders'
 import { postPurchasePaymentJE } from '~/server/utils/purchasePaymentGL'
 
 /**
@@ -166,40 +166,13 @@ export default defineEventHandler(async (event) => {
           [newCrPaid, newCrBalance, creditOrder.id],
         )
 
-        // Update customer current_balance
-        await conn.query(
-          `UPDATE customers
-           SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
-           WHERE id = ?`,
-          [pmtAmt, creditOrder.customer_id],
-        )
 
-        // Insert customer_ledger entry
-        const [[lastLedger]] = await conn.query<any>(
-          `SELECT COALESCE(balance_after, 0) AS bal
-           FROM customer_ledger WHERE customer_id = ?
-           ORDER BY created_at DESC, id DESC LIMIT 1`,
-          [creditOrder.customer_id],
-        )
-        const newLedgerBal = Math.max(0, Number(lastLedger?.bal ?? 0) - pmtAmt)
-
-        await conn.query(
-          `INSERT INTO customer_ledger
-             (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-              invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-           VALUES (?, ?, 'payment', 'customer_payment', ?,
-                   ?, ?, 0, ?, ?, ?)`,
-          [
-            creditOrder.customer_id,
-            pmtDate,
-            crPaymentId,
-            crPayNo.slice(0, 50),
-            `Contra offset — ${voucherNo} purchase payment set-off against ${reference_number}`,
-            pmtAmt,
-            newLedgerBal,
-            userId,
-          ],
-        )
+        await postCustomerLedger(conn, {
+          customerId: creditOrder.customer_id, date: pmtDate, transactionType: 'payment',
+          referenceType: 'customer_payment', referenceId: crPaymentId, invoiceNumber: crPayNo.slice(0, 50),
+          description: `Contra offset — ${voucherNo} purchase payment set-off against ${reference_number}`,
+          debit: 0, credit: pmtAmt, userId,
+        })
       } else {
         // Invoice not found — still commit the purchase-side payment, just warn
         console.warn(

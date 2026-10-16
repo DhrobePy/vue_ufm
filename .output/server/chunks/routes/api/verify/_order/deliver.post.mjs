@@ -1,4 +1,4 @@
-import { s as defineEventHandler, az as readBody, _ as getUserSession, o as createError, aw as query, N as getRequestHeader, b1 as verifyDeliveryQrSignature, E as getDb, a9 as nextDocNumber, i as auditLog, aV as sendTelegram, aE as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, ay as query, O as getRequestHeader, b4 as verifyDeliveryQrSignature, F as getDb, b0 as transitionOrder, ab as nextDocNumber, i as auditLog, aX as sendTelegram, aG as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -95,21 +95,14 @@ const deliver_post = defineEventHandler(async (event) => {
         [order.id]
       );
       const stillShort = remainingCheck.some((r) => Number(r.qty_remaining) > 5e-3);
-      if (!stillShort) {
-        await conn.query(`UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [order.id]);
-      }
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, ?, 'delivered', ?, ?, NOW())`,
-        [
-          order.id,
-          order.status,
-          stillShort ? order.status : "delivered",
-          userId,
-          `Delivery ${delNo} confirmed via QR scan${stillShort ? " \u2014 more deliveries still outstanding on this order" : " \u2014 order fully delivered"}`
-        ]
-      );
+      await transitionOrder(conn, {
+        orderId: order.id,
+        from: order.status,
+        to: stillShort ? order.status : "delivered",
+        action: "delivered",
+        userId,
+        comment: `Delivery ${delNo} confirmed via QR scan${stillShort ? " \u2014 more deliveries still outstanding on this order" : " \u2014 order fully delivered"}`
+      });
     } else {
       const [[confAny]] = await conn.query(
         `SELECT gate_out_at, confirmed_at FROM cr_delivery_confirmations WHERE order_id = ? AND delivery_id IS NULL`,
@@ -173,18 +166,14 @@ const deliver_post = defineEventHandler(async (event) => {
           );
         }
       }
-      await conn.query(`UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [order.id]);
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, 'delivered', 'delivered', ?, ?, NOW())`,
-        [
-          order.id,
-          order.status,
-          userId,
-          delNo ? `Final delivery ${delNo} confirmed via QR scan` : "Delivery confirmed via QR scan (all items already delivered)"
-        ]
-      );
+      await transitionOrder(conn, {
+        orderId: order.id,
+        from: order.status,
+        to: "delivered",
+        action: "delivered",
+        userId,
+        comment: delNo ? `Final delivery ${delNo} confirmed via QR scan` : "Delivery confirmed via QR scan (all items already delivered)"
+      });
       await conn.query(
         `UPDATE cr_delivery_confirmations
          SET confirmed_at = NOW(), confirmed_by_user_id = ?, confirmed_by_name = ?, received_by = ?, note = ?

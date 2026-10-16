@@ -1,4 +1,4 @@
-import { s as defineEventHandler, aL as requireAction, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, M as getQuery, aw as query } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, aN as requireAction, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, N as getQuery, k as branchScopeFor, ay as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -48,6 +48,7 @@ const deliverySchedule_get = defineEventHandler(async (event) => {
     where.push("co.assigned_branch_id = ?");
     params.push(Number(q.branch));
   }
+  const scope = await branchScopeFor(event, "co.assigned_branch_id");
   const orders = await query(
     `SELECT co.id, co.order_number, co.order_date, co.required_date, co.delivery_type, co.status,
             co.assigned_branch_id, co.delivery_priority,
@@ -55,10 +56,10 @@ const deliverySchedule_get = defineEventHandler(async (event) => {
      FROM credit_orders co
      JOIN customers c ON c.id = co.customer_id
      LEFT JOIN branches b ON b.id = co.assigned_branch_id
-     WHERE ${where.join(" AND ")}
+     WHERE ${where.join(" AND ")}${scope.sql}
      ORDER BY co.required_date ASC, co.delivery_priority ASC, co.id ASC
      LIMIT 500`,
-    params
+    [...params, ...scope.params]
   );
   if (orders.length) {
     const ids = orders.map((o) => o.id);

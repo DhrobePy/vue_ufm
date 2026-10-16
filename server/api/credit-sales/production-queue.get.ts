@@ -1,5 +1,5 @@
 import { query, queryOne, getDb } from '~/server/utils/db'
-import { getUserBranchScope } from '~/server/utils/creditOrders'
+import { getUserBranchIds } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   // Production managers only see their own factory's queue
@@ -9,11 +9,11 @@ export default defineEventHandler(async (event) => {
   if (session?.user) {
     const conn = await getDb().getConnection()
     try {
-      const scope = await getUserBranchScope(
+      const scope = await getUserBranchIds(
         conn, Number((session.user as any).id), ((session.user as any).role ?? '').toLowerCase(),
       )
       if (scope !== null) {
-        scopeSql = ' AND o.assigned_branch_id = ?'
+        scopeSql = ' AND o.assigned_branch_id IN (?)'
         scopeParams.push(scope)
       }
     } finally {

@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, _ as getUserSession, o as createError, az as readBody, E as getDb, aG as recycleBegin, aF as recycleArchiveDelete, aK as recycleSnapshotBefore, aH as recycleFinalize, i as auditLog, aV as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, a1 as getUserSession, p as createError, aB as readBody, F as getDb, aI as recycleBegin, aH as recycleArchiveDelete, aM as recycleSnapshotBefore, b0 as transitionOrder, aJ as recycleFinalize, i as auditLog, aX as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -75,12 +75,14 @@ const reverseDispatch_post = defineEventHandler(async (event) => {
     );
     const newBalance = Math.max(0, Number(agg.d) - Number(agg.c));
     await conn.query(`UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`, [newBalance, order.customer_id]);
-    await conn.query(`UPDATE credit_orders SET status = 'ready_to_ship', updated_at = NOW() WHERE id = ?`, [id]);
-    await conn.query(
-      `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, 'goods_on_board', 'ready_to_ship', 'dispatch_reversed', ?, ?, NOW())`,
-      [id, userId, `Dispatch reversed \u2014 reason: ${reason}. Invoice archived in Recycle Bin batch #${batch}; customer balance now \u09F3${newBalance.toLocaleString()}.`]
-    );
+    await transitionOrder(conn, {
+      orderId: id,
+      from: "goods_on_board",
+      to: "ready_to_ship",
+      action: "dispatch_reversed",
+      userId,
+      comment: `Dispatch reversed \u2014 reason: ${reason}. Invoice archived in Recycle Bin batch #${batch}; customer balance now \u09F3${newBalance.toLocaleString()}.`
+    });
     await recycleFinalize(conn, batch);
     await auditLog(conn, {
       userId,

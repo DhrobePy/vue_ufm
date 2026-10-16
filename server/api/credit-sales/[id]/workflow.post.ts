@@ -5,7 +5,7 @@ import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
   getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
-  getOrderGateState, assertDispatchClear, postGoodsOnBoardInvoice, generateDeliverySlipNumber, getCreditWorkflowSettings,
+  getOrderGateState, assertDispatchClear, transitionOrder, postGoodsOnBoardInvoice, generateDeliverySlipNumber, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
@@ -370,16 +370,7 @@ export default defineEventHandler(async (event) => {
     }
 
     // ── Apply the transition ─────────────────────────────────────────────────
-    await conn.query(
-      `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
-      [to_status, id],
-    )
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, order.status, to_status, to_status, userId, wfComment || null],
-    )
+    await transitionOrder(conn, { orderId: id, from: order.status, to: to_status, userId, comment: wfComment })
 
     await auditLog(conn, {
       userId,

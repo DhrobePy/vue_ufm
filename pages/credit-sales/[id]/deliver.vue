@@ -85,6 +85,30 @@
           </div>
         </div>
 
+        <!-- Loading details + optional discount -->
+        <div class="glass-card p-6 space-y-4">
+          <h3 class="section-title">Loading &amp; Discount <span class="text-xs font-normal text-gray-600">— all optional</span></h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bags boarded</label>
+              <input v-model.number="form.bags_boarded" type="number" min="0" step="1" class="input-glass" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Bag size (kg)</label>
+              <input v-model.number="form.bag_size_kg" type="number" min="0" step="0.01" class="input-glass" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Additional discount (৳)</label>
+              <input v-model.number="form.extra_discount_amount" type="number" min="0" step="0.01" class="input-glass" />
+            </div>
+            <div class="space-y-1.5">
+              <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reason {{ form.extra_discount_amount > 0 ? '*' : '' }}</label>
+              <input v-model="form.extra_discount_reason" type="text" maxlength="500" class="input-glass" :required="form.extra_discount_amount > 0" placeholder="e.g. short-weight adjustment" />
+            </div>
+          </div>
+          <p class="text-[11px] text-gray-600">A discount here is posted as a credit note on the customer's ledger.</p>
+        </div>
+
         <!-- Notes -->
         <div class="glass-card p-6 space-y-4">
           <h3 class="section-title">Notes</h3>
@@ -165,6 +189,10 @@ const form = reactive({
   truck_number:  '',
   driver_name:   '',
   driver_contact: '',
+  bags_boarded:  null as number | null,
+  bag_size_kg:   null as number | null,
+  extra_discount_amount: 0,
+  extra_discount_reason: '',
   notes:         '',
 })
 const saving = ref(false)

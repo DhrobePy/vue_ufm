@@ -1,4 +1,4 @@
-import { s as defineEventHandler, _ as getUserSession, e as PRODUCTION_ROLES, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, o as createError, az as readBody, E as getDb, i as auditLog, aV as sendTelegram } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, a1 as getUserSession, e as PRODUCTION_ROLES, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, p as createError, aB as readBody, F as getDb, h as assertDispatchClear, b0 as transitionOrder, i as auditLog, aX as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -76,27 +76,39 @@ const _id__patch = defineEventHandler(async (event) => {
           [ps.order_id]
         );
         if (order && order.status === "in_production") {
-          await conn.query(
-            `UPDATE credit_orders SET status = 'ready_to_ship', updated_at = NOW() WHERE id = ?`,
-            [order.id]
-          );
-          await conn.query(
-            `INSERT INTO credit_order_workflow
-               (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-             VALUES (?, 'in_production', 'ready_to_ship', 'ready_to_ship', ?, ?, NOW())`,
-            [order.id, userId, `Production batch #${numericId} marked complete by ${userName}`]
-          );
-          await auditLog(conn, {
-            userId,
-            action: "status_changed",
-            module: "credit_sales",
-            recordType: "credit_order",
-            recordId: order.id,
-            referenceNumber: order.order_number,
-            description: `Order ${order.order_number}: in_production \u2192 ready_to_ship (production batch #${numericId} completed)`,
-            severity: "info"
-          });
-          orderAdvanced = true;
+          let blocked = null;
+          try {
+            await assertDispatchClear(conn, order.id, userId);
+          } catch (e) {
+            if ((e == null ? void 0 : e.statusCode) === 423) blocked = e.statusMessage;
+            else throw e;
+          }
+          if (blocked) {
+            await conn.query(
+              `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+               VALUES (?, 'in_production', 'in_production', 'ready_blocked', ?, ?, NOW())`,
+              [order.id, userId, `Production batch #${numericId} complete \u2014 NOT moved to Ready to Ship: ${blocked}`]
+            );
+          } else {
+            await transitionOrder(conn, {
+              orderId: order.id,
+              from: "in_production",
+              to: "ready_to_ship",
+              userId,
+              comment: `Production batch #${numericId} marked complete by ${userName}`
+            });
+            await auditLog(conn, {
+              userId,
+              action: "status_changed",
+              module: "credit_sales",
+              recordType: "credit_order",
+              recordId: order.id,
+              referenceNumber: order.order_number,
+              description: `Order ${order.order_number}: in_production \u2192 ready_to_ship (production batch #${numericId} completed)`,
+              severity: "info"
+            });
+            orderAdvanced = true;
+          }
         }
       }
     }

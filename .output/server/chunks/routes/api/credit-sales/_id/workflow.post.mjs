@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, az as readBody, _ as getUserSession, o as createError, N as getRequestHeader, a4 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, b0 as userCanAction, E as getDb, Y as getUserApprovalLimit, C as getCustomerOutstanding, q as creditUsagePct, B as getCreditWorkflowSettings, a3 as isAccountsRole, K as getOrderGateState, h as assertDispatchClear, y as generateDeliverySlipNumber, ao as postGoodsOnBoardInvoice, aq as postOtherSalesCOGS, i as auditLog, aV as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, aB as readBody, a1 as getUserSession, p as createError, O as getRequestHeader, a6 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, e as PRODUCTION_ROLES, b3 as userCanAction, F as getDb, Z as getUserApprovalLimit, E as getCustomerOutstanding, r as creditUsagePct, C as getCreditWorkflowSettings, a5 as isAccountsRole, L as getOrderGateState, h as assertDispatchClear, z as generateDeliverySlipNumber, aq as postGoodsOnBoardInvoice, as as postOtherSalesCOGS, b0 as transitionOrder, i as auditLog, aX as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -319,16 +319,7 @@ Reason: ${comments}` : ""}`;
 ${order.order_number} \u2014 ${order.customer_name}
 Truck has departed \xB7 by ${userName}`;
     }
-    await conn.query(
-      `UPDATE credit_orders SET status = ?, updated_at = NOW() WHERE id = ?`,
-      [to_status, id]
-    );
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, order.status, to_status, to_status, userId, wfComment || null]
-    );
+    await transitionOrder(conn, { orderId: id, from: order.status, to: to_status, userId, comment: wfComment });
     await auditLog(conn, {
       userId,
       action: to_status === "approved" ? "approved" : to_status === "rejected" ? "rejected" : "status_changed",

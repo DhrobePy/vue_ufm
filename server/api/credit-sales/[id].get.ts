@@ -1,9 +1,24 @@
 import { queryOne, query, getDb } from '~/server/utils/db'
+import { getUserBranchIds } from '~/server/utils/creditOrders'
 import { getDeliveryQrSecret, deliveryQrSignature } from '~/server/utils/qrDelivery'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Invalid ID' })
+
+  // Branch-bound users (sales-demra, accounts-srg, a 'branch' data scope…) may only open their branch's orders.
+  const sess = await getUserSession(event)
+  if (sess?.user?.id) {
+    const c = await getDb().getConnection()
+    try {
+      const ids = await getUserBranchIds(c, Number(sess.user.id), String(sess.user.role ?? '').toLowerCase())
+      if (ids) {
+        const [[ob]] = await c.query<any>(`SELECT assigned_branch_id b FROM credit_orders WHERE id = ?`, [id])
+        if (ob && ob.b != null && !ids.includes(Number(ob.b)))
+          throw createError({ statusCode: 403, statusMessage: 'This order belongs to a branch outside your access' })
+      }
+    } finally { c.release() }
+  }
 
   const [order, items, workflow, deliveries, returns, payments] = await Promise.all([
     queryOne(

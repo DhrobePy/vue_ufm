@@ -1,4 +1,4 @@
-import { s as defineEventHandler, _ as getUserSession, o as createError, a3 as isAccountsRole, E as getDb, K as getOrderGateState } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, a1 as getUserSession, p as createError, a5 as isAccountsRole, k as branchScopeFor, F as getDb, L as getOrderGateState } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -19,6 +19,7 @@ const paymentWatch_get = defineEventHandler(async (event) => {
   const role = ((_a = session.user.role) != null ? _a : "").toLowerCase();
   if (!isAccountsRole(role))
     throw createError({ statusCode: 403, statusMessage: "Accounts family or admin only" });
+  const scope = await branchScopeFor(event, "o.assigned_branch_id");
   const conn = await getDb().getConnection();
   try {
     const [rows] = await conn.query(
@@ -35,8 +36,9 @@ const paymentWatch_get = defineEventHandler(async (event) => {
        JOIN customers c ON c.id = o.customer_id
        LEFT JOIN users cu ON cu.id = oac.dispatch_cleared_by
        WHERE (oac.dispatch_hold = 1 OR oac.production_hold = 1)
-         AND o.status NOT IN ('goods_on_board','shipped','dispatched','delivered','completed','cancelled','rejected')
-       ORDER BY o.required_date IS NULL, o.required_date ASC, o.id DESC`
+         AND o.status NOT IN ('goods_on_board','shipped','dispatched','delivered','completed','cancelled','rejected')${scope.sql}
+       ORDER BY o.required_date IS NULL, o.required_date ASC, o.id DESC`,
+      scope.params
     );
     const orders = [];
     for (const r of rows) {

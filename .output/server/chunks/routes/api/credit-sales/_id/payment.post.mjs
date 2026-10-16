@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, o as createError, az as readBody, _ as getUserSession, N as getRequestHeader, b0 as userCanAction, A as ACCOUNTS_ROLES, E as getDb, m as checkTransactionLimit, ay as queuePendingRequest, aV as sendTelegram, a9 as nextDocNumber, K as getOrderGateState, i as auditLog, k as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, p as createError, aB as readBody, a1 as getUserSession, O as getRequestHeader, b3 as userCanAction, A as ACCOUNTS_ROLES, F as getDb, n as checkTransactionLimit, aA as queuePendingRequest, aX as sendTelegram, ab as nextDocNumber, an as postCustomerLedger, ar as postJournalEntry, L as getOrderGateState, i as auditLog, l as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -133,37 +133,19 @@ ${order.order_number} \u2014 ${order.customer_name}
        WHERE id = ?`,
       [newPaid, newBalance, id]
     );
-    await conn.query(
-      `UPDATE customers SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW() WHERE id = ?`,
-      [pmtAmount, order.customer_id]
-    );
-    const [[lastLedger]] = await conn.query(
-      `SELECT COALESCE(balance_after, 0) AS bal
-       FROM customer_ledger WHERE customer_id = ?
-       ORDER BY created_at DESC, id DESC LIMIT 1`,
-      [order.customer_id]
-    );
-    const prevBal = Number((_j = lastLedger == null ? void 0 : lastLedger.bal) != null ? _j : 0);
-    const newBal = Math.max(0, prevBal - pmtAmount);
-    await conn.query(
-      `INSERT INTO customer_ledger
-         (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-          invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-       VALUES (?, ?, 'payment', 'customer_payment', ?,
-               ?, ?, 0, ?, ?, ?)`,
-      [
-        order.customer_id,
-        pmtDate,
-        paymentId,
-        payNo,
-        // always the system PAY-number — autoRef may be a customer-typed bank slip
-        // reference (reference_number), which belongs on the payment row, not here
-        `Payment received \u2014 ${payNo} (${mappedMethod})`,
-        pmtAmount,
-        newBal,
-        userId
-      ]
-    );
+    await postCustomerLedger(conn, {
+      customerId: order.customer_id,
+      date: pmtDate,
+      transactionType: "payment",
+      referenceType: "customer_payment",
+      referenceId: paymentId,
+      invoiceNumber: payNo,
+      // always the system PAY-number — autoRef may be a customer-typed bank slip
+      description: `Payment received \u2014 ${payNo} (${mappedMethod})`,
+      debit: 0,
+      credit: pmtAmount,
+      userId
+    });
     try {
       let drAccountId = null;
       if (mappedMethod === "Cash" && cash_account_id) {
@@ -171,45 +153,41 @@ ${order.order_number} \u2014 ${order.customer_name}
           `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
           [Number(cash_account_id)]
         );
-        drAccountId = (_k = ca == null ? void 0 : ca.chart_of_account_id) != null ? _k : null;
+        drAccountId = (_j = ca == null ? void 0 : ca.chart_of_account_id) != null ? _j : null;
       } else if (["Bank Transfer", "Cheque", "Card"].includes(mappedMethod) && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
+        drAccountId = (_k = ba == null ? void 0 : ba.chart_of_account_id) != null ? _k : null;
       } else if (mappedMethod === "Mobile Banking" && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_m = ba == null ? void 0 : ba.chart_of_account_id) != null ? _m : null;
+        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
       }
       const [[ar]] = await conn.query(
         `SELECT id FROM chart_of_accounts
          WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`
       );
-      const crAccountId = (_n = ar == null ? void 0 : ar.id) != null ? _n : null;
+      const crAccountId = (_m = ar == null ? void 0 : ar.id) != null ? _m : null;
       if (drAccountId && crAccountId) {
         const jeDesc = `Payment received \u2014 ${payNo} (Order ${id}, ${mappedMethod})`;
-        const [jeRes] = await conn.query(
-          `INSERT INTO journal_entries
-             (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-           VALUES (?, ?, 'CustomerPayment', ?, ?)`,
-          [pmtDate, jeDesc.slice(0, 255), paymentId, userId]
-        );
-        const jeId = jeRes.insertId;
-        await conn.query(
-          `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, ?, 0.00, ?)`,
-          [jeId, drAccountId, pmtAmount, payNo]
-        );
-        await conn.query(
-          `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-           VALUES (?, ?, 0.00, ?, ?)`,
-          [jeId, crAccountId, pmtAmount, payNo]
-        );
+        const jeId = await postJournalEntry(conn, {
+          date: pmtDate,
+          description: jeDesc,
+          docType: "CustomerPayment",
+          docId: paymentId,
+          userId,
+          lines: [
+            { accountId: drAccountId, debit: pmtAmount, credit: 0, memo: payNo },
+            // cash/bank in
+            { accountId: crAccountId, debit: 0, credit: pmtAmount, memo: payNo }
+            // receivable down
+          ]
+        });
         await conn.query(
           `UPDATE customer_payments SET journal_entry_id = ? WHERE id = ?`,
           [jeId, paymentId]
@@ -219,7 +197,7 @@ ${order.order_number} \u2014 ${order.customer_name}
             `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(cash_account_id)]
           );
-          const pcBal = Number((_o = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _o : 0);
+          const pcBal = Number((_n = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _n : 0);
           await conn.query(
             `INSERT INTO branch_petty_cash_transactions
                (account_id, branch_id, transaction_type, amount, balance_after,
@@ -227,7 +205,7 @@ ${order.order_number} \u2014 ${order.customer_name}
              VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
             [
               Number(cash_account_id),
-              (_p = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _p : null,
+              (_o = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _o : null,
               pmtAmount,
               pcBal + pmtAmount,
               paymentId,
@@ -317,7 +295,7 @@ ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
     console.error("[payment] Transaction failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno, "| code:", e == null ? void 0 : e.code);
     throw createError({
       statusCode: 500,
-      statusMessage: (_r = (_q = e == null ? void 0 : e.sqlMessage) != null ? _q : e == null ? void 0 : e.message) != null ? _r : "Payment transaction failed"
+      statusMessage: (_q = (_p = e == null ? void 0 : e.sqlMessage) != null ? _p : e == null ? void 0 : e.message) != null ? _q : "Payment transaction failed"
     });
   } finally {
     conn.release();

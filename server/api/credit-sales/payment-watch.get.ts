@@ -1,5 +1,5 @@
 import { getDb } from '~/server/utils/db'
-import { isAccountsRole, getOrderGateState } from '~/server/utils/creditOrders'
+import { isAccountsRole, getOrderGateState, branchScopeFor } from '~/server/utils/creditOrders'
 
 /**
  * Payment Watch — every order with a dispatch hold that hasn't shipped yet,
@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!isAccountsRole(role))
     throw createError({ statusCode: 403, statusMessage: 'Accounts family or admin only' })
 
+  const scope = await branchScopeFor(event, 'o.assigned_branch_id')
   const conn = await getDb().getConnection()
   try {
     const [rows] = await conn.query<any[]>(
@@ -28,8 +29,9 @@ export default defineEventHandler(async (event) => {
        JOIN customers c ON c.id = o.customer_id
        LEFT JOIN users cu ON cu.id = oac.dispatch_cleared_by
        WHERE (oac.dispatch_hold = 1 OR oac.production_hold = 1)
-         AND o.status NOT IN ('goods_on_board','shipped','dispatched','delivered','completed','cancelled','rejected')
+         AND o.status NOT IN ('goods_on_board','shipped','dispatched','delivered','completed','cancelled','rejected')${scope.sql}
        ORDER BY o.required_date IS NULL, o.required_date ASC, o.id DESC`,
+      scope.params,
     )
 
     // Enrich with live condition math (one evaluator — getOrderGateState)

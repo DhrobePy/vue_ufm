@@ -21,7 +21,7 @@ const db = await mysql.createConnection({ host: '127.0.0.1', port: Number(proces
 if (!/scratch/.test((await db.query('select database() d'))[0][0].d)) { console.error('refusing: not a scratch DB'); process.exit(2) }
 
 // ── session cookies for each seeded user (same sealing the app uses) ─────────
-const users = { super: [1, 'Superadmin'], acct: [2, 'Accounts'], sales: [3, 'sales-srg'], disp: [4, 'dispatch-srg'], prod: [5, 'production manager-srg'], staff: [6, 'Staff'], admin: [7, 'admin'] }
+const users = { super: [1, 'Superadmin'], acct: [2, 'Accounts'], sales: [3, 'sales-srg'], disp: [4, 'dispatch-srg'], prod: [5, 'production manager-srg'], staff: [6, 'Staff'], admin: [7, 'admin'], demra: [9, 'accounts-demra'] }
 const sealer = http.createServer(toNodeListener(createApp().use(eventHandler(async (e) => {
   const [id, role] = new URL(e.node.req.url, 'http://x').searchParams.get('u').split(',')
   const s = await useSession(e, { password: PW, name: 'nuxt-session', cookie: { httpOnly: true, path: '/' } })
@@ -173,6 +173,57 @@ await expectStatus('delivery schedule readable by accounts', call('acct', 'GET',
 await expectStatus('schedule edit: accounts without grant → 403', call('acct', 'POST', '/api/credit-sales/delivery-schedule', { action: 'edit', order_id: o3.id, required_date: today, delivery_type: 'mini_truck', branch_id: 1 }), 403)
 await expectStatus('schedule edit: granted user', call('granted', 'POST', '/api/credit-sales/delivery-schedule', { action: 'edit', order_id: o3.id, required_date: today, delivery_type: 'mini_truck', branch_id: 1 }), 200)
 await expectStatus('schedule reorder by accounts', call('acct', 'POST', '/api/credit-sales/delivery-schedule', { action: 'reorder', ids: [o3.id, adminOrder.id] }), 200)
+
+
+// ── 11. Money paths keep ledger, customer balance and journals in step ───────
+const ledgerSum = async (cid) => { const [[r]] = await db.query('select coalesce(sum(debit_amount),0)-coalesce(sum(credit_amount),0) b from customer_ledger where customer_id=?', [cid]); return Number(r.b) }
+const custBal = async (cid) => Number((await db.query('select current_balance b from customers where id=?', [cid]))[0][0].b)
+const jeBalanced = async (where, args) => { const [[r]] = await db.query(`select coalesce(sum(tl.debit_amount),0) d, coalesce(sum(tl.credit_amount),0) c from transaction_lines tl join journal_entries je on je.id=tl.journal_entry_id where ${where}`, args); return Number(r.d) === Number(r.c) && Number(r.d) > 0 }
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status) values (2,'Money Customer','01700000099',500000,'active')`)
+const mord = (await call('super', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck',
+  items: [{ product_id: 1, variant_id: 1, quantity: 10, unit_price: 1000, discount_amount: 0 }] })).json
+await wf('prod', mord.id, 'in_production'); await call('admin', 'POST', `/api/credit-sales/${mord.id}/gates`, { action: 'clear_dispatch', note: 'ok' }); await wf('prod', mord.id, 'ready_to_ship')
+await wf('disp', mord.id, 'goods_on_board', { dispatch: truck })
+check('after dispatch: customer balance = ledger = 10,000', (await custBal(2)) === 10000 && (await ledgerSum(2)) === 10000, `${await custBal(2)}/${await ledgerSum(2)}`)
+await expectStatus('admin records a ৳4,000 payment', call('admin', 'POST', `/api/credit-sales/${mord.id}/payment`, { amount: 4000, payment_method: 'bank', bank_account_id: null }), [200, 201])
+check('after payment: balance = ledger = 6,000', (await custBal(2)) === 6000 && (await ledgerSum(2)) === 6000, `${await custBal(2)}/${await ledgerSum(2)}`)
+const moRow = await orderRow(mord.id)
+const [[moItem]] = await db.query('select id from credit_order_items where order_id=?', [mord.id])
+const deliverBody = (extra) => ({ delivery_date: today, truck_number: 'T1', driver_name: 'D', is_final: false, items: [{ order_item_id: moItem.id, product_id: 1, variant_id: 1, qty_delivered: 4, unit_price: 1000 }], ...extra })
+await expectStatus('delivery discount without reason → 400', call('disp', 'POST', `/api/credit-sales/${mord.id}/deliver`, deliverBody({ extra_discount_amount: 300 })), 400)
+await expectStatus('delivery discount above the truck value → 400', call('disp', 'POST', `/api/credit-sales/${mord.id}/deliver`, deliverBody({ extra_discount_amount: 9000, extra_discount_reason: 'x' })), 400)
+await expectStatus('partial delivery with ৳300 discount', call('disp', 'POST', `/api/credit-sales/${mord.id}/deliver`, deliverBody({ extra_discount_amount: 300, extra_discount_reason: 'short weight', bags_boarded: 4, bag_size_kg: 50 })), [200, 201])
+check('discount is a credit note: balance = ledger = 5,700', (await custBal(2)) === 5700 && (await ledgerSum(2)) === 5700, `${await custBal(2)}/${await ledgerSum(2)}`)
+check('order total reduced to 9,700 and discount recorded', Number((await orderRow(mord.id)).total_amount) === 9700 && Number((await orderRow(mord.id)).discount_amount) === 300)
+check('discount journal is balanced', await jeBalanced(`je.related_document_type='CreditOrderDiscount'`, []))
+const [[dl]] = await db.query('select delivery_slip_number s, bags_boarded b from credit_order_deliveries where order_id=?', [mord.id])
+check('first truck reuses the Goods-on-Board slip number; bags saved', /^SRG-/.test(dl?.s ?? '') && dl?.b === 4, JSON.stringify(dl))
+const retItems = [{ order_item_id: moItem.id, product_id: 1, variant_id: 1, original_qty: 10, returned_qty: 1, unit_price: 1000 }]
+await expectStatus('admin records a return of 1 bag', call('admin', 'POST', `/api/credit-sales/${mord.id}/return`, { return_reason: 'damaged', items: retItems }), [200, 201])
+const [[retRow]] = await db.query('select status from credit_order_returns where order_id=? order by id desc limit 1', [mord.id])
+if (retRow?.status === 'approved')
+  check('approved return: balance = ledger = 4,700', (await custBal(2)) === 4700 && (await ledgerSum(2)) === 4700, `${await custBal(2)}/${await ledgerSum(2)}`)
+else
+  check('return waits for a second person (maker/checker) — balance unchanged until approved', (await custBal(2)) === 5700, `${await custBal(2)}`)
+if (retRow?.status === 'pending') {
+  const [[pr]] = await db.query('select id, created_by_user_id c from credit_order_returns where order_id=? order by id desc limit 1', [mord.id])
+  await expectStatus('the person who filed the return cannot decide it', call('admin', 'PATCH', `/api/credit-sales/returns/${pr.id}/status`, { action: 'approve' }), 403)
+  await expectStatus('a granted second person approves the return', call('granted', 'PATCH', `/api/credit-sales/returns/${pr.id}/status`, { action: 'approve' }), 200)
+  check('approved return: balance = ledger = 4,700', (await custBal(2)) === 4700 && (await ledgerSum(2)) === 4700, `${await custBal(2)}/${await ledgerSum(2)}`)
+}
+check('every payment/credit-note journal in this run is balanced', await jeBalanced(`je.related_document_type in ('CustomerPayment','CreditOrderDiscount')`, []))
+
+// ── 12. Branch scope ─────────────────────────────────────────────────────────
+const dm = (await call('super', 'POST', '/api/credit-sales', { customer_id: 1, branch_id: 2, order_date: today, required_date: today, delivery_type: 'big_truck',
+  items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] })).json
+const listDemra = (await call('demra', 'GET', '/api/credit-sales?per=200')).json
+const idsDemra = (listDemra?.orders ?? listDemra?.data ?? []).map(o => o.id)
+check('accounts-demra list shows only Demra orders', idsDemra.includes(dm.id) && !idsDemra.includes(o1.id), JSON.stringify(idsDemra.slice(0, 5)))
+await expectStatus('accounts-demra cannot open a Sirajgonj order', call('demra', 'GET', `/api/credit-sales/${o1.id}`), 403)
+await expectStatus('accounts-demra can open a Demra order', call('demra', 'GET', `/api/credit-sales/${dm.id}`), 200)
+await expectStatus('plain Accounts sees every branch', call('acct', 'GET', `/api/credit-sales/${dm.id}`), 200)
+const ds = (await call('demra', 'GET', '/api/credit-sales/delivery-schedule')).json
+check('delivery schedule is branch-limited too', (ds?.orders ?? []).every(o => Number(o.assigned_branch_id) === 2), JSON.stringify((ds?.orders ?? []).map(o => o.assigned_branch_id)))
 
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','ready_to_ship','goods_on_board')`, [o1.id])

@@ -1,6 +1,6 @@
 import { query } from '~/server/utils/db'
 import { requireAction } from '~/server/utils/permissions'
-import { ACCOUNTS_ROLES, PRODUCTION_ROLES } from '~/server/utils/creditOrders'
+import { ACCOUNTS_ROLES, PRODUCTION_ROLES, branchScopeFor } from '~/server/utils/creditOrders'
 
 /**
  * GET /api/credit-sales/delivery-schedule?tab=schedule|overdue&order=&customer=&vehicle=&from=&to=&branch=
@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
   if (q.to)       { where.push('co.required_date <= ?'); params.push(q.to) }
   if (Number(q.branch)) { where.push('co.assigned_branch_id = ?'); params.push(Number(q.branch)) }
 
+  const scope = await branchScopeFor(event, 'co.assigned_branch_id')
   const orders: any[] = await query(
     `SELECT co.id, co.order_number, co.order_date, co.required_date, co.delivery_type, co.status,
             co.assigned_branch_id, co.delivery_priority,
@@ -29,9 +30,9 @@ export default defineEventHandler(async (event) => {
      FROM credit_orders co
      JOIN customers c ON c.id = co.customer_id
      LEFT JOIN branches b ON b.id = co.assigned_branch_id
-     WHERE ${where.join(' AND ')}
+     WHERE ${where.join(' AND ')}${scope.sql}
      ORDER BY co.required_date ASC, co.delivery_priority ASC, co.id ASC
-     LIMIT 500`, params) as any[]
+     LIMIT 500`, [...params, ...scope.params]) as any[]
 
   if (orders.length) {
     const ids = orders.map(o => o.id)

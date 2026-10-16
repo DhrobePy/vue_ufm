@@ -1,3 +1,4 @@
+import { transitionOrder } from '~/server/utils/creditOrders'
 /**
  * POST /api/verify/:order_number/gate
  * Two-stage QR delivery, stage 1 (spec §2.8) — goods physically leaving the
@@ -112,15 +113,8 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    if (order.status !== 'shipped')
-      await conn.query(`UPDATE credit_orders SET status = 'shipped', updated_at = NOW() WHERE id = ?`, [order.id])
-
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, 'shipped', 'gate_out', ?, ?, NOW())`,
-      [order.id, order.status, userId, `Gate pass — goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` · delivery #${deliveryId}` : ''}`],
-    )
+    await transitionOrder(conn, { orderId: order.id, from: order.status, to: 'shipped', action: 'gate_out', userId,
+      comment: `Gate pass — goods released by ${userName} (driver ${driverName}, vehicle ${vehicleNumber})${deliveryId ? ` · delivery #${deliveryId}` : ''}` })
 
     await auditLog(conn, {
       userId,

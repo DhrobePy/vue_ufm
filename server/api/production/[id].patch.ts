@@ -1,3 +1,4 @@
+import { assertDispatchClear, transitionOrder } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
@@ -85,16 +86,19 @@ export default defineEventHandler(async (event) => {
           `SELECT id, order_number, status FROM credit_orders WHERE id = ? FOR UPDATE`, [ps.order_id],
         )
         if (order && order.status === 'in_production') {
-          await conn.query(
-            `UPDATE credit_orders SET status = 'ready_to_ship', updated_at = NOW() WHERE id = ?`,
-            [order.id],
-          )
-          await conn.query(
-            `INSERT INTO credit_order_workflow
-               (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-             VALUES (?, 'in_production', 'ready_to_ship', 'ready_to_ship', ?, ?, NOW())`,
-            [order.id, userId, `Production batch #${numericId} marked complete by ${userName}`],
-          )
+          // A payment-held order must NOT slip to Ready to Ship through the production
+          // screen — leave it in production; someone marks it ready once cleared.
+          let blocked: string | null = null
+          try { await assertDispatchClear(conn, order.id, userId) }
+          catch (e: any) { if (e?.statusCode === 423) blocked = e.statusMessage; else throw e }
+          if (blocked) {
+            await conn.query(
+              `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+               VALUES (?, 'in_production', 'in_production', 'ready_blocked', ?, ?, NOW())`,
+              [order.id, userId, `Production batch #${numericId} complete — NOT moved to Ready to Ship: ${blocked}`])
+          } else {
+          await transitionOrder(conn, { orderId: order.id, from: 'in_production', to: 'ready_to_ship', userId,
+            comment: `Production batch #${numericId} marked complete by ${userName}` })
           await auditLog(conn, {
             userId, action: 'status_changed', module: 'credit_sales',
             recordType: 'credit_order', recordId: order.id,
@@ -103,6 +107,7 @@ export default defineEventHandler(async (event) => {
             severity: 'info',
           })
           orderAdvanced = true
+          }
         }
       }
     }

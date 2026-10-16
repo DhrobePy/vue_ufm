@@ -1,4 +1,4 @@
-import { s as defineEventHandler, az as readBody, _ as getUserSession, o as createError, N as getRequestHeader, b0 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, E as getDb, a9 as nextDocNumber, C as getCustomerOutstanding, i as auditLog, aV as sendTelegram } from '../../nitro/nitro.mjs';
+import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, O as getRequestHeader, b3 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, F as getDb, ab as nextDocNumber, E as getCustomerOutstanding, ar as postJournalEntry, an as postCustomerLedger, i as auditLog, aX as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
   const body = await readBody(event);
   const session = await getUserSession(event);
   if (!(session == null ? void 0 : session.user))
@@ -254,14 +254,6 @@ const index_post = defineEventHandler(async (event) => {
         ]
       );
       const advPaymentId = advResult.insertId;
-      const [[lastLedger]] = await conn.query(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [customer_id]
-      );
-      const prevBal = Number((_u = lastLedger == null ? void 0 : lastLedger.bal) != null ? _u : 0);
-      const newBal = Math.max(0, prevBal - advancePaid);
       let advJeId = null;
       try {
         let drAccountId = null;
@@ -270,13 +262,13 @@ const index_post = defineEventHandler(async (event) => {
             `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(advance_cash_account_id)]
           );
-          drAccountId = (_v = ca == null ? void 0 : ca.chart_of_account_id) != null ? _v : null;
+          drAccountId = (_u = ca == null ? void 0 : ca.chart_of_account_id) != null ? _u : null;
         } else if (["Bank Transfer", "Cheque", "Card"].includes(payMethod) && advance_bank_account_id) {
           const [[ba]] = await conn.query(
             `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
             [Number(advance_bank_account_id)]
           );
-          drAccountId = (_w = ba == null ? void 0 : ba.chart_of_account_id) != null ? _w : null;
+          drAccountId = (_v = ba == null ? void 0 : ba.chart_of_account_id) != null ? _v : null;
         }
         let crAccountId = null;
         const [[ar]] = await conn.query(
@@ -284,26 +276,20 @@ const index_post = defineEventHandler(async (event) => {
            WHERE account_type = 'Accounts Receivable'
            ORDER BY id ASC LIMIT 1`
         );
-        crAccountId = (_x = ar == null ? void 0 : ar.id) != null ? _x : null;
+        crAccountId = (_w = ar == null ? void 0 : ar.id) != null ? _w : null;
         if (drAccountId && crAccountId) {
           const jeDesc = `Advance received \u2014 ${advNo} (Order ${orderNo}, ${customer_id})`;
-          const [jeRes] = await conn.query(
-            `INSERT INTO journal_entries
-               (transaction_date, description, related_document_type, related_document_id, created_by_user_id)
-             VALUES (?, ?, 'CustomerPayment', ?, ?)`,
-            [order_date, jeDesc.slice(0, 255), advPaymentId, userId]
-          );
-          advJeId = jeRes.insertId;
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, ?, 0.00, ?)`,
-            [advJeId, drAccountId, advancePaid, advNo]
-          );
-          await conn.query(
-            `INSERT INTO transaction_lines (journal_entry_id, account_id, debit_amount, credit_amount, description)
-             VALUES (?, ?, 0.00, ?, ?)`,
-            [advJeId, crAccountId, advancePaid, advNo]
-          );
+          advJeId = await postJournalEntry(conn, {
+            date: order_date,
+            description: jeDesc,
+            docType: "CustomerPayment",
+            docId: advPaymentId,
+            userId,
+            lines: [
+              { accountId: drAccountId, debit: advancePaid, credit: 0, memo: advNo },
+              { accountId: crAccountId, debit: 0, credit: advancePaid, memo: advNo }
+            ]
+          });
           await conn.query(
             `UPDATE customer_payments SET journal_entry_id = ? WHERE id = ?`,
             [advJeId, advPaymentId]
@@ -313,7 +299,7 @@ const index_post = defineEventHandler(async (event) => {
               `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
               [Number(advance_cash_account_id)]
             );
-            const pcBal = Number((_y = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _y : 0);
+            const pcBal = Number((_x = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _x : 0);
             await conn.query(
               `INSERT INTO branch_petty_cash_transactions
                  (account_id, branch_id, transaction_type, amount, balance_after,
@@ -321,7 +307,7 @@ const index_post = defineEventHandler(async (event) => {
                VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
               [
                 Number(advance_cash_account_id),
-                (_z = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _z : null,
+                (_y = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _y : null,
                 advancePaid,
                 pcBal + advancePaid,
                 advPaymentId,
@@ -341,32 +327,19 @@ const index_post = defineEventHandler(async (event) => {
       } catch (jeErr) {
         console.warn(`[advance-payment] JE creation failed for ${advNo}:`, jeErr);
       }
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after,
-            journal_entry_id, created_by_user_id)
-         VALUES (?, ?, 'advance_payment', 'customer_payment', ?,
-                 ?, ?, 0, ?, ?,
-                 ?, ?)`,
-        [
-          customer_id,
-          order_date,
-          advPaymentId,
-          advNo,
-          `Advance payment \u2014 ${advNo} (Order ${orderNo}) via ${payMethod}`,
-          advancePaid,
-          newBal,
-          advJeId,
-          userId
-        ]
-      );
-      await conn.query(
-        `UPDATE customers
-         SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
-         WHERE id = ?`,
-        [advancePaid, customer_id]
-      );
+      await postCustomerLedger(conn, {
+        customerId: customer_id,
+        date: order_date,
+        transactionType: "advance_payment",
+        referenceType: "customer_payment",
+        referenceId: advPaymentId,
+        invoiceNumber: advNo,
+        description: `Advance payment \u2014 ${advNo} (Order ${orderNo}) via ${payMethod}`,
+        debit: 0,
+        credit: advancePaid,
+        journalEntryId: advJeId,
+        userId
+      });
     }
     await auditLog(conn, {
       userId,
@@ -382,7 +355,7 @@ const index_post = defineEventHandler(async (event) => {
     await conn.commit();
     sendTelegram(
       `${overLimit ? "\u26A0\uFE0F" : "\u{1F9FE}"} <b>New Credit Order${overLimit ? " \u2014 ESCALATED" : ""}</b>
-${orderNo} \u2014 ${(_A = customer == null ? void 0 : customer.customer_name) != null ? _A : `Customer ${customer_id}`}
+${orderNo} \u2014 ${(_z = customer == null ? void 0 : customer.customer_name) != null ? _z : `Customer ${customer_id}`}
 \u09F3${totalAmount.toLocaleString()} \xB7 ${items.length} item(s)` + (deliveryType === "mini_truck" ? ` \xB7 Mini truck (+\u09F3${miniTruckSurcharge.toLocaleString()})` : "") + (advancePaid > 0 ? `
 Advance \u09F3${advancePaid.toLocaleString()} received` : "") + (overLimit ? `
 Credit limit exceeded by \u09F3${excessAmount.toLocaleString()} \u2014 needs senior approval` : ""),

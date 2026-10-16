@@ -1,4 +1,4 @@
-import { s as defineEventHandler, az as readBody, _ as getUserSession, o as createError, E as getDb, a9 as nextDocNumber, as as postPurchasePaymentJE, i as auditLog } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, F as getDb, ab as nextDocNumber, an as postCustomerLedger, au as postPurchasePaymentJE, i as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -135,36 +135,18 @@ const payments_post = defineEventHandler(async (event) => {
            WHERE id = ?`,
           [newCrPaid, newCrBalance, creditOrder.id]
         );
-        await conn.query(
-          `UPDATE customers
-           SET current_balance = GREATEST(0, current_balance - ?), updated_at = NOW()
-           WHERE id = ?`,
-          [pmtAmt, creditOrder.customer_id]
-        );
-        const [[lastLedger]] = await conn.query(
-          `SELECT COALESCE(balance_after, 0) AS bal
-           FROM customer_ledger WHERE customer_id = ?
-           ORDER BY created_at DESC, id DESC LIMIT 1`,
-          [creditOrder.customer_id]
-        );
-        const newLedgerBal = Math.max(0, Number((_g = lastLedger == null ? void 0 : lastLedger.bal) != null ? _g : 0) - pmtAmt);
-        await conn.query(
-          `INSERT INTO customer_ledger
-             (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-              invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-           VALUES (?, ?, 'payment', 'customer_payment', ?,
-                   ?, ?, 0, ?, ?, ?)`,
-          [
-            creditOrder.customer_id,
-            pmtDate,
-            crPaymentId,
-            crPayNo.slice(0, 50),
-            `Contra offset \u2014 ${voucherNo} purchase payment set-off against ${reference_number}`,
-            pmtAmt,
-            newLedgerBal,
-            userId
-          ]
-        );
+        await postCustomerLedger(conn, {
+          customerId: creditOrder.customer_id,
+          date: pmtDate,
+          transactionType: "payment",
+          referenceType: "customer_payment",
+          referenceId: crPaymentId,
+          invoiceNumber: crPayNo.slice(0, 50),
+          description: `Contra offset \u2014 ${voucherNo} purchase payment set-off against ${reference_number}`,
+          debit: 0,
+          credit: pmtAmt,
+          userId
+        });
       } else {
         console.warn(
           `[purchase/payments] Contra ref '${reference_number}' not found in credit_orders \u2014 purchase-side settled, credit-sales side NOT updated`
@@ -190,7 +172,7 @@ const payments_post = defineEventHandler(async (event) => {
     }
     const bankNote = bankName ? ` via ${bankName}` : "";
     const refNote = reference_number ? ` \xB7 ref: ${reference_number}` : "";
-    const typeLabel = (_h = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _h : "";
+    const typeLabel = (_g = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _g : "";
     await auditLog(conn, {
       userId,
       action: "payment_made",
@@ -208,7 +190,7 @@ const payments_post = defineEventHandler(async (event) => {
     console.error("[purchase/payments] Transaction failed:", e == null ? void 0 : e.message);
     throw createError({
       statusCode: 500,
-      statusMessage: (_j = (_i = e == null ? void 0 : e.sqlMessage) != null ? _i : e == null ? void 0 : e.message) != null ? _j : "Payment recording failed"
+      statusMessage: (_i = (_h = e == null ? void 0 : e.sqlMessage) != null ? _h : e == null ? void 0 : e.message) != null ? _i : "Payment recording failed"
     });
   } finally {
     conn.release();

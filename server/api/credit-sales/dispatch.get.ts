@@ -1,5 +1,5 @@
 import { query, queryOne, getDb } from '~/server/utils/db'
-import { getUserBranchScope, getOrderGateState } from '~/server/utils/creditOrders'
+import { getUserBranchIds, getOrderGateState } from '~/server/utils/creditOrders'
 
 export default defineEventHandler(async (event) => {
   // Branch-coded dispatch roles only see their branch's queue
@@ -9,11 +9,11 @@ export default defineEventHandler(async (event) => {
   const conn = await getDb().getConnection()
   try {
     if (session?.user) {
-      const scope = await getUserBranchScope(
+      const scope = await getUserBranchIds(
         conn, Number((session.user as any).id), ((session.user as any).role ?? '').toLowerCase(),
       )
       if (scope !== null) {
-        scopeSql = ' AND o.assigned_branch_id = ?'
+        scopeSql = ' AND o.assigned_branch_id IN (?)'
         scopeParams.push(scope)
       }
     }

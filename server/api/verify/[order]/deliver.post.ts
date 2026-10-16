@@ -1,3 +1,4 @@
+import { transitionOrder } from '~/server/utils/creditOrders'
 /**
  * POST /api/verify/:order_number/deliver
  * Two-stage QR delivery, stage 2 (spec §2.8) — confirms delivery at the
@@ -124,16 +125,8 @@ export default defineEventHandler(async (event) => {
       )
       const stillShort = remainingCheck.some((r: any) => Number(r.qty_remaining) > 0.005)
 
-      if (!stillShort) {
-        await conn.query(`UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [order.id])
-      }
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, ?, 'delivered', ?, ?, NOW())`,
-        [order.id, order.status, stillShort ? order.status : 'delivered', userId,
-         `Delivery ${delNo} confirmed via QR scan${stillShort ? ' — more deliveries still outstanding on this order' : ' — order fully delivered'}`],
-      )
+      await transitionOrder(conn, { orderId: order.id, from: order.status, to: stillShort ? order.status : 'delivered', action: 'delivered', userId,
+        comment: `Delivery ${delNo} confirmed via QR scan${stillShort ? ' — more deliveries still outstanding on this order' : ' — order fully delivered'}` })
     } else {
       // ── Original whole-order flow — sweep every remaining item ───────────
       const [[confAny]] = await conn.query<any>(
@@ -194,14 +187,8 @@ export default defineEventHandler(async (event) => {
         // accounting pivot). QR delivery only confirms physical handover.
       }
 
-      await conn.query(`UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`, [order.id])
-      await conn.query(
-        `INSERT INTO credit_order_workflow
-           (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-         VALUES (?, ?, 'delivered', 'delivered', ?, ?, NOW())`,
-        [order.id, order.status, userId,
-         delNo ? `Final delivery ${delNo} confirmed via QR scan` : 'Delivery confirmed via QR scan (all items already delivered)'],
-      )
+      await transitionOrder(conn, { orderId: order.id, from: order.status, to: 'delivered', action: 'delivered', userId,
+        comment: delNo ? `Final delivery ${delNo} confirmed via QR scan` : 'Delivery confirmed via QR scan (all items already delivered)' })
       await conn.query(
         `UPDATE cr_delivery_confirmations
          SET confirmed_at = NOW(), confirmed_by_user_id = ?, confirmed_by_name = ?, received_by = ?, note = ?

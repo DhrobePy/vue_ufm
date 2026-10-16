@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { o as createError$1, af as parseURL, w as encodePath, r as decodePath, a0 as hasProtocol, a5 as isScriptProtocol, a6 as joinURL, b3 as withQuery, u as defu, aT as sanitizeStatusCode, z as getContext, $ as $fetch$1, j as baseURL, p as createHooks, x as executeAsync } from '../nitro/nitro.mjs';
+import { p as createError$1, ah as parseURL, x as encodePath, s as decodePath, a2 as hasProtocol, a7 as isScriptProtocol, a8 as joinURL, b6 as withQuery, v as defu, aV as sanitizeStatusCode, B as getContext, $ as $fetch$1, j as baseURL, q as createHooks, y as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -1548,7 +1548,7 @@ const _routes = [
     name: "credit-sales-id-deliver",
     path: "/credit-sales/:id()/deliver",
     meta: __nuxt_page_meta$x || {},
-    component: () => import('./deliver-B5zrnnKg.mjs')
+    component: () => import('./deliver-DjkLuNYe.mjs')
   },
   {
     name: "credit-sales-id-invoice",

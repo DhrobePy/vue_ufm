@@ -1,4 +1,4 @@
-import { s as defineEventHandler, W as getRouterParam, o as createError, az as readBody, _ as getUserSession, N as getRequestHeader, E as getDb, a9 as nextDocNumber, X as getUserActionLimit, y as generateDeliverySlipNumber, a4 as isAdminRole, i as auditLog } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, X as getRouterParam, p as createError, aB as readBody, a1 as getUserSession, O as getRequestHeader, F as getDb, ab as nextDocNumber, Y as getUserActionLimit, z as generateDeliverySlipNumber, I as getGLAccountId, ar as postJournalEntry, an as postCustomerLedger, a6 as isAdminRole, b0 as transitionOrder, i as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const deliver_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -125,6 +125,57 @@ const deliver_post = defineEventHandler(async (event) => {
         ]
       );
     }
+    const extraDisc = Math.round(Number((_h = body == null ? void 0 : body.extra_discount_amount) != null ? _h : 0) * 100) / 100;
+    const extraReason = String((_i = body == null ? void 0 : body.extra_discount_reason) != null ? _i : "").trim();
+    let discountNote = "";
+    if (extraDisc < 0) throw createError({ statusCode: 400, statusMessage: "Discount amount cannot be negative" });
+    if (extraDisc > 0) {
+      if (!extraReason) throw createError({ statusCode: 400, statusMessage: "Please enter a reason for the additional discount" });
+      if (extraDisc > totalAmount)
+        throw createError({ statusCode: 400, statusMessage: `Discount (\u09F3${extraDisc.toLocaleString()}) cannot exceed this delivery's amount (\u09F3${totalAmount.toLocaleString()})` });
+      const [[ord]] = await conn.query(`SELECT order_number, customer_id FROM credit_orders WHERE id = ?`, [id]);
+      const [[cust]] = await conn.query(`SELECT name FROM customers WHERE id = ?`, [ord.customer_id]);
+      const arId = await getGLAccountId(conn, "Accounts Receivable");
+      const revId = await getGLAccountId(conn, "Revenue");
+      let jeId = null;
+      if (arId && revId)
+        jeId = await postJournalEntry(conn, {
+          date: delivDate,
+          description: `Delivery discount \u2014 ${delNo} (${ord.order_number}, ${(_j = cust == null ? void 0 : cust.name) != null ? _j : ""}): ${extraReason}`,
+          docType: "CreditOrderDiscount",
+          docId: deliveryId,
+          userId,
+          lines: [
+            { accountId: revId, debit: extraDisc, credit: 0, memo: delNo },
+            { accountId: arId, debit: 0, credit: extraDisc, memo: delNo }
+          ]
+        });
+      await postCustomerLedger(conn, {
+        customerId: ord.customer_id,
+        date: delivDate,
+        transactionType: "credit_note",
+        referenceType: "credit_order_delivery",
+        referenceId: deliveryId,
+        invoiceNumber: delNo,
+        description: `Delivery discount \u2014 ${delNo} (Order ${ord.order_number}): ${extraReason}`.slice(0, 250),
+        debit: 0,
+        credit: extraDisc,
+        journalEntryId: jeId,
+        userId
+      });
+      await conn.query(
+        `UPDATE credit_orders
+         SET discount_amount = discount_amount + ?, total_amount = GREATEST(0, total_amount - ?),
+             balance_due = GREATEST(0, balance_due - ?), updated_at = NOW() WHERE id = ?`,
+        [extraDisc, extraDisc, extraDisc, id]
+      );
+      await conn.query(
+        `UPDATE credit_order_deliveries SET extra_discount_amount = ?, extra_discount_reason = ?,
+           extra_discount_by_user_id = ?, extra_discount_at = NOW() WHERE id = ?`,
+        [extraDisc, extraReason, userId, deliveryId]
+      );
+      discountNote = ` \xB7 discount \u09F3${extraDisc.toLocaleString()} (${extraReason})`;
+    }
     let shortfallItems = [];
     if (is_final) {
       const [allItems] = await conn.query(
@@ -139,7 +190,7 @@ const deliver_post = defineEventHandler(async (event) => {
         [id]
       );
       const thisSubmission = /* @__PURE__ */ new Map();
-      for (const it of items) thisSubmission.set(Number(it.order_item_id), ((_h = thisSubmission.get(Number(it.order_item_id))) != null ? _h : 0) + Number(it.qty_delivered));
+      for (const it of items) thisSubmission.set(Number(it.order_item_id), ((_k = thisSubmission.get(Number(it.order_item_id))) != null ? _k : 0) + Number(it.qty_delivered));
       shortfallItems = allItems.map((oi) => {
         var _a2;
         return {
@@ -166,19 +217,8 @@ const deliver_post = defineEventHandler(async (event) => {
     }
     const wfToStatus = is_final ? "delivered" : order.status;
     const wfAction = is_final ? "delivered" : "partial_delivery";
-    const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}` + (shortfallItems.length ? ` \xB7 \u26A0 closed with ${shortfallItems.reduce((s, i) => s + i.qty_short, 0).toLocaleString()} units short (admin override, confirmed)` : "");
-    if (is_final) {
-      await conn.query(
-        `UPDATE credit_orders SET status = 'delivered', updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
-    }
-    await conn.query(
-      `INSERT INTO credit_order_workflow
-         (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-       VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [id, order.status, wfToStatus, wfAction, userId, wfComment]
-    );
+    const wfComment = `${is_final ? "Final" : "Partial"} delivery ${delNo} \u2014 ${totalQty} bags \xB7 \u09F3${totalAmount.toLocaleString()}${truck_number ? ` \xB7 Truck ${truck_number}` : ""}${discountNote}` + (shortfallItems.length ? ` \xB7 \u26A0 closed with ${shortfallItems.reduce((s, i) => s + i.qty_short, 0).toLocaleString()} units short (admin override, confirmed)` : "");
+    await transitionOrder(conn, { orderId: id, from: order.status, to: wfToStatus, action: wfAction, userId, comment: wfComment });
     await auditLog(conn, {
       userId,
       action: wfAction,

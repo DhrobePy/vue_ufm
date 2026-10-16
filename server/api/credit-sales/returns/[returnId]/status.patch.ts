@@ -1,3 +1,4 @@
+import { postCustomerLedger } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { requireAction } from '~/server/utils/permissions'
@@ -65,26 +66,12 @@ export default defineEventHandler(async (event) => {
       const retDate        = ret.return_date
 
       // ── Ledger: credit note reduces customer balance ──────────
-      const [[lastLedger]] = await conn.query<any>(
-        `SELECT COALESCE(balance_after, 0) AS bal
-         FROM customer_ledger WHERE customer_id = ?
-         ORDER BY created_at DESC, id DESC LIMIT 1`,
-        [ret.customer_id],
-      )
-      const prevBal = Number(lastLedger?.bal ?? 0)
-      const newBal  = Math.max(0, prevBal - totalRetAmount)
-
-      await conn.query(
-        `INSERT INTO customer_ledger
-           (customer_id, transaction_date, transaction_type, reference_type, reference_id,
-            invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id)
-         VALUES (?, ?, 'credit_note', 'credit_order_return', ?, ?, ?, 0, ?, ?, ?)`,
-        [
-          ret.customer_id, retDate, returnId, ret.return_number,
-          `Goods Return Credit Note — ${ret.return_number} (Order ${ret.order_number})`,
-          totalRetAmount, newBal, userId,
-        ],
-      )
+      await postCustomerLedger(conn, {
+        customerId: ret.customer_id, date: retDate, transactionType: 'credit_note',
+        referenceType: 'credit_order_return', referenceId: returnId, invoiceNumber: ret.return_number,
+        description: `Goods Return Credit Note — ${ret.return_number} (Order ${ret.order_number})`,
+        debit: 0, credit: totalRetAmount, userId,
+      })
 
       // ── Reduce order total_amount and balance_due ─────────────
       await conn.query(
@@ -96,14 +83,6 @@ export default defineEventHandler(async (event) => {
         [totalRetAmount, totalRetAmount, ret.order_id],
       )
 
-      // ── Reduce customer running balance ───────────────────────
-      await conn.query(
-        `UPDATE customers
-         SET current_balance = GREATEST(0, current_balance - ?),
-             updated_at = NOW()
-         WHERE id = ?`,
-        [totalRetAmount, ret.customer_id],
-      )
     }
 
     // ── Workflow timeline entry ────────────────────────────
