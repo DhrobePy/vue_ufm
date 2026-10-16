@@ -27,7 +27,7 @@ export default defineEventHandler(async (event) => {
   if (!isAccountsRole(role) && !['sales-srg', 'sales-demra', 'sales-other'].includes(role))
     throw createError({ statusCode: 403, statusMessage: 'Your role cannot request amendments' })
 
-  const amendType   = String(body?.amend_type ?? 'correction')
+  let amendType     = String(body?.amend_type ?? 'correction')
   const description = body?.description ? String(body.description).slice(0, 500) : null
 
   const db   = getDb()
@@ -62,20 +62,34 @@ export default defineEventHandler(async (event) => {
     let newValues: any = null
     let flatAmount: number | null = null
 
-    if (regime === 'pre') {
-      const newItems = body?.new_items as any[]
-      if (!Array.isArray(newItems) || !newItems.length)
-        throw createError({ statusCode: 400, statusMessage: 'new_items required for pre-dispatch amendment' })
+    const newItems = Array.isArray(body?.new_items) ? body.new_items as any[] : null
+    if (newItems) {
+      if (!newItems.length || newItems.some(it => !(Number(it.quantity) >= 0) || !(Number(it.unit_price) >= 0)))
+        throw createError({ statusCode: 400, statusMessage: 'Quantity and price cannot be negative' })
+    }
 
+    if (regime === 'pre' && !newItems)
+      throw createError({ statusCode: 400, statusMessage: 'new_items required for pre-dispatch amendment' })
+
+    if (newItems) {
+      // Item grid (qty / price / discount) — legacy order_amendment.php parity, both before and after dispatch.
       const [oldItems] = await conn.query<any[]>(
         `SELECT id, product_id, variant_id, quantity, unit_price, discount_amount, line_total
          FROM credit_order_items WHERE order_id = ?`, [id],
       )
-      const newTotal = newItems.reduce((s, it) =>
+      const oldSub = oldItems.reduce((s, i) => s + Number(i.line_total), 0)
+      const newSub = newItems.reduce((s, it) =>
         s + Number(it.quantity) * Number(it.unit_price) - Number(it.discount_amount ?? 0), 0)
-      delta      = newTotal - Number(order.total_amount)
-      oldValues  = { items: oldItems, total_amount: Number(order.total_amount) }
-      newValues  = { items: newItems, total_amount: newTotal }
+      delta = Math.round((newSub - oldSub) * 100) / 100
+      if (Math.abs(delta) < 0.005 && !newItems.some(it => {
+        const o = oldItems.find(x => Number(x.id) === Number(it.item_id)); return !o || Number(o.unit_price) !== Number(it.unit_price)
+      })) throw createError({ statusCode: 400, statusMessage: 'Nothing changed' })
+      const priceChanged = oldItems.some(o => { const n = newItems.find(it => Number(it.item_id) === Number(o.id)); return n && Number(n.unit_price) !== Number(o.unit_price) })
+      const qtyChanged   = oldItems.some(o => { const n = newItems.find(it => Number(it.item_id) === Number(o.id)); return n && Number(n.quantity) !== Number(o.quantity) })
+      amendType = priceChanged && !qtyChanged ? 'price_revision' : qtyChanged && !priceChanged ? 'qty_change' : 'correction'
+      oldValues = { items: oldItems, subtotal: oldSub, total_amount: Number(order.total_amount) }
+      newValues = { items: newItems, new_subtotal: newSub, total_amount: Number(order.total_amount) + delta }
+      if (regime === 'post') flatAmount = delta
     } else {
       flatAmount = Number(body?.flat_amount ?? 0)
       if (!flatAmount || Math.abs(flatAmount) < 0.01)
@@ -107,7 +121,7 @@ export default defineEventHandler(async (event) => {
     const amendmentId = res.insertId
 
     if (canAutoApply) {
-      await applyAmendment(conn, { amendmentId, order, regime, flatAmount, newValues, amdNo, userId })
+      await applyAmendment(conn, { amendmentId, order, regime, flatAmount, newValues, amdNo, userId, reason: description })
       await conn.query(
         `UPDATE order_amendments SET decided_by = ?, decided_at = NOW(),
            decision_note = ? WHERE id = ?`,

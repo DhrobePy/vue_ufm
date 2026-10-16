@@ -128,6 +128,20 @@
           </div>
         </div>
 
+        <!-- ═══ AMENDMENTS (legacy invoice parity) ═══════ -->
+        <div v-if="appliedAmendments.length" style="margin:14px 40px 0;border:1px solid #1a1208;border-radius:6px;padding:8px 12px;">
+          <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;color:#111;">This order has been amended ({{ appliedAmendments.length }})</div>
+          <div v-for="a in appliedAmendments" :key="a.id" style="font-size:10.5px;line-height:1.55;color:#374151;">
+            <strong>{{ a.amendment_number }}</strong> — {{ a.amend_type.replace(/_/g, ' ') }}<template v-if="a.delta"> ({{ a.delta > 0 ? '+' : '−' }}৳{{ Math.abs(a.delta).toLocaleString() }})</template> — {{ a.description }}
+            <div v-if="a.consent" style="font-size:9.5px;color:#7a5b00;">Customer consent: {{ a.consent }}</div>
+            <ul v-if="a.changes.length" style="margin:2px 0 2px 16px;padding:0;font-size:9.5px;color:#4b5563;">
+              <li v-for="c in a.changes" :key="c.item_id">{{ itemName(c.item_id) }}:
+                <template v-if="c.old_qty !== c.new_qty">Qty {{ c.old_qty }} → {{ c.new_qty }}</template><template v-if="c.old_qty !== c.new_qty && c.old_price !== c.new_price">, </template><template v-if="c.old_price !== c.new_price">Price ৳{{ c.old_price.toLocaleString() }} → ৳{{ c.new_price.toLocaleString() }}</template>
+              </li>
+            </ul>
+          </div>
+        </div>
+
         <!-- ═══ LINE ITEMS TABLE ═════════════════════════ -->
         <div style="padding:0 40px;">
           <table style="width:100%;border-collapse:collapse;margin:0;">
@@ -343,10 +357,15 @@ definePageMeta({ layout: false })
 const route   = useRoute()
 const orderId = computed(() => Number(route.params.id))
 
-const [{ data, error }, { data: settingsData }] = await Promise.all([
+const [{ data, error }, { data: settingsData }, { data: impactData }] = await Promise.all([
   useFetch(() => `/api/credit-sales/${orderId.value}`),
   useFetch('/api/settings/documents'),
+  useFetch(() => `/api/credit-sales/${orderId.value}/price-impact`),
 ])
+// Approved amendments that actually changed a line — printed on the invoice like the legacy app does.
+const appliedAmendments = computed(() =>
+  ((impactData.value as any)?.amendments ?? []).filter((a: any) => a.status === 'approved' && (a.changes.length || a.delta)))
+const itemName = (id: number) => items.value.find((i: any) => Number(i.id) === Number(id))?.product ?? `Item #${id}`
 
 const invoiceNo = computed(() => data.value?.order?.order_number ?? `INV-${orderId.value}`)
 

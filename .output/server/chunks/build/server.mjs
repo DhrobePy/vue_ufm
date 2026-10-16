@@ -1423,13 +1423,13 @@ const _routes = [
     name: "credit-sales-id-amend",
     path: "/credit-sales/:id()/amend",
     meta: __nuxt_page_meta$T || {},
-    component: () => import('./amend-CR1K2rE2.mjs')
+    component: () => import('./amend-Ctn6nLVC.mjs')
   },
   {
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$S || {},
-    component: () => import('./index-Civ1FRlf.mjs')
+    component: () => import('./index-qs6dUKfK.mjs')
   },
   {
     name: "credit-sales-production",
@@ -1561,7 +1561,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$w || {},
-    component: () => import('./invoice-DqEOhkVe.mjs')
+    component: () => import('./invoice-Dh9-4dK_.mjs')
   },
   {
     name: "credit-sales-id-payment",

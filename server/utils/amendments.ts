@@ -1,8 +1,8 @@
 import {
-  getGLAccountId, postJournalEntry, postCustomerLedger,
+  getGLAccountId, getCreditRevenueAccountId, postJournalEntry, postCustomerLedger,
 } from '~/server/utils/creditOrders'
 
-export const AMD_PRE_STATUSES  = ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship']
+export const AMD_PRE_STATUSES  = ['pending_approval', 'escalated', 'approved', 'in_production', 'produced', 'ready_to_ship']
 export const AMD_POST_STATUSES = ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed']
 
 /**
@@ -18,8 +18,10 @@ export async function applyAmendment(conn: any, opts: {
   newValues: any
   amdNo: string
   userId: number
+  reason?: string | null
 }) {
-  const { order, regime, flatAmount, newValues, amdNo, userId } = opts
+  const { order, regime, newValues, amdNo, userId } = opts
+  let flatAmount = opts.flatAmount
 
   if (regime === 'pre') {
     // Order must STILL be pre-dispatch (may have shipped since the request)
@@ -29,33 +31,32 @@ export async function applyAmendment(conn: any, opts: {
     if (!AMD_PRE_STATUSES.includes(fresh.status))
       throw createError({ statusCode: 409, statusMessage: 'Order was dispatched after this amendment was requested — use a post-dispatch amendment instead' })
 
-    await conn.query(`DELETE FROM credit_order_items WHERE order_id = ?`, [order.id])
-    for (const it of newValues.items) {
-      const lineTotal = Number(it.quantity) * Number(it.unit_price) - Number(it.discount_amount ?? 0)
-      await conn.query(
-        `INSERT INTO credit_order_items
-           (order_id, product_id, variant_id, quantity, unit_price, discount_amount, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [order.id, it.product_id, it.variant_id ?? null, Number(it.quantity),
-         Number(it.unit_price), Number(it.discount_amount ?? 0), lineTotal],
-      )
-    }
-    const newTotal   = Number(newValues.total_amount)
+    const { newSub, delta } = await applyItemGrid(conn, order.id, newValues.items, amdNo, opts.reason, userId, 'pre')
+    const [[cur]] = await conn.query(`SELECT total_amount FROM credit_orders WHERE id = ?`, [order.id])
+    // Only the item delta moves the total — delivery surcharge, order discount and tax stay as they were.
+    const newTotal   = Math.round((Number(cur.total_amount) + delta) * 100) / 100
     const newBalance = Math.max(0, newTotal - Number(fresh.advance_paid ?? 0) - Number(fresh.amount_paid ?? 0))
     await conn.query(
       `UPDATE credit_orders SET subtotal = ?, total_amount = ?, balance_due = ?, updated_at = NOW()
        WHERE id = ?`,
-      [newTotal, newTotal, newBalance, order.id],
+      [newSub, newTotal, newBalance, order.id],
     )
     return
   }
 
-  // POST regime — debit/credit note into ledger + balanced JE
+  // POST regime — debit/credit note into ledger + balanced JE.
+  // A line-item grid (price / qty change) rewrites the lines too, so the invoice view and the ledger agree.
+  let itemSub: number | null = null
+  if (Array.isArray(newValues?.items) && newValues.items.length) {
+    const g = await applyItemGrid(conn, order.id, newValues.items, amdNo, opts.reason, userId, 'post')
+    itemSub = g.newSub
+    flatAmount = g.delta
+  }
   const amt  = Number(flatAmount)
   const abs  = Math.abs(amt)
   const date = new Date().toISOString().slice(0, 10)
   const arId  = await getGLAccountId(conn, 'Accounts Receivable')
-  const revId = await getGLAccountId(conn, 'Revenue')
+  const revId = await getCreditRevenueAccountId(conn, order.id)
 
   let jeId: number | null = null
   if (arId && revId) {
@@ -91,10 +92,66 @@ export async function applyAmendment(conn: any, opts: {
   )
   await conn.query(
     `UPDATE credit_orders
-     SET total_amount = GREATEST(0, total_amount + ?),
+     SET subtotal     = COALESCE(?, subtotal),
+         total_amount = GREATEST(0, total_amount + ?),
          balance_due  = GREATEST(0, balance_due + ?),
          updated_at   = NOW()
      WHERE id = ?`,
-    [amt, amt, order.id],
+    [itemSub, amt, amt, order.id],
   )
+}
+
+/**
+ * Apply a qty / price / discount grid to existing lines BY ID (legacy order_amendment.php parity):
+ * ids survive, so deliveries, returns and over-deliveries that point at a line stay linked.
+ * Every unit-price change is logged in credit_order_price_revisions (the order's price history).
+ * Returns the new subtotal (sum of line totals) and the change versus the old sum of line totals.
+ */
+async function applyItemGrid(conn: any, orderId: number, grid: any[], amdNo: string, reason: string | null | undefined, userId: number, regime: 'pre' | 'post') {
+  const [oldItems] = await conn.query(
+    `SELECT id, product_id, variant_id, quantity, unit_price, discount_amount, line_total FROM credit_order_items WHERE order_id = ?`, [orderId])
+  const byId = new Map<number, any>(oldItems.map((i: any) => [Number(i.id), i]))
+  const oldSub = oldItems.reduce((s: number, i: any) => s + Number(i.line_total), 0)
+  const note = `Amendment ${amdNo}${reason ? `: ${reason}` : ''}`.slice(0, 500)
+  const keep = new Set<number>()
+  let newSub = 0
+
+  for (const it of grid) {
+    const qty = Number(it.quantity), price = Number(it.unit_price), disc = Number(it.discount_amount ?? 0)
+    const lineTotal = Math.round((qty * price - disc) * 100) / 100
+    newSub += lineTotal
+    const old = it.item_id ? byId.get(Number(it.item_id)) : null
+    if (it.item_id && !old)
+      throw createError({ statusCode: 409, statusMessage: 'An order line changed since this amendment was requested — please redo it' })
+    if (!old) {
+      if (regime === 'post') throw createError({ statusCode: 400, statusMessage: 'Lines cannot be added after dispatch' })
+      await conn.query(
+        `INSERT INTO credit_order_items (order_id, product_id, variant_id, quantity, unit_price, discount_amount, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`, [orderId, it.product_id, it.variant_id ?? null, qty, price, disc, lineTotal])
+      continue
+    }
+    keep.add(Number(old.id))
+    if (regime === 'post') {
+      const [[d]] = await conn.query(
+        `SELECT COALESCE(SUM(qty_delivered),0) q FROM credit_order_delivery_items WHERE order_item_id = ?`, [old.id])
+      if (qty < Number(d.q))
+        throw createError({ statusCode: 400, statusMessage: `Quantity cannot go below what is already delivered (${Number(d.q)})` })
+    }
+    await conn.query(
+      `UPDATE credit_order_items SET quantity = ?, unit_price = ?, discount_amount = ?, line_total = ? WHERE id = ?`,
+      [qty, price, disc, lineTotal, old.id])
+    if (Math.abs(Number(old.unit_price) - price) > 0.004) {
+      await conn.query(
+        `INSERT INTO credit_order_price_revisions
+           (order_id, order_item_id, product_id, variant_id, quantity, old_unit_price, new_unit_price, reason, changed_by_user_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [orderId, old.id, old.product_id, old.variant_id ?? null, qty, Number(old.unit_price), price, note, userId])
+    }
+  }
+  if (regime === 'post' && keep.size !== byId.size)
+    throw createError({ statusCode: 400, statusMessage: 'Lines cannot be removed after dispatch' })
+  for (const [oid] of byId) if (!keep.has(oid)) await conn.query(`DELETE FROM credit_order_items WHERE id = ?`, [oid])
+
+  newSub = Math.round(newSub * 100) / 100
+  return { newSub, delta: Math.round((newSub - oldSub) * 100) / 100 }
 }

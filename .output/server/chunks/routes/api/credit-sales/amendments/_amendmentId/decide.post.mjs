@@ -61,7 +61,8 @@ const decide_post = defineEventHandler(async (event) => {
         flatAmount: amd.flat_amount != null ? Number(amd.flat_amount) : null,
         newValues,
         amdNo: amd.amendment_number,
-        userId
+        userId,
+        reason: amd.description
       });
     }
     await conn.query(

@@ -25,17 +25,26 @@
           <p class="text-gray-500 mt-0.5">
             {{ regime === 'pre'
               ? 'The invoice has not hit the ledger yet, so items can be edited directly. Every change is snapshotted.'
-              : 'The invoice is already posted. Changes go through the ledger as a debit note (+) or credit note (−) with a balanced journal entry — the original invoice is never touched.' }}
+              : 'The invoice is already posted. A price / quantity change rewrites the lines (the invoice shows the new price and the amendment note) and posts the difference to the ledger as a debit note (+) or credit note (−). Customer consent is required.' }}
           </p>
         </div>
         <UiStatusBadge :status="order.status" class="ml-auto" />
       </div>
 
-      <!-- ── PRE: item grid ─────────────────────────────────────────────── -->
-      <div v-if="regime === 'pre'" class="glass-card p-0 overflow-hidden">
+      <div v-if="regime === 'post'" class="flex gap-2 text-xs">
+        <button v-for="m in [['items','Change price / quantity'],['flat','Flat debit / credit note']]" :key="m[0]"
+                @click="postMode = m[0]"
+                class="px-3 py-1.5 rounded-lg border transition-colors"
+                :class="postMode === m[0] ? 'bg-gold-500/15 border-gold-500/40 text-gold-300 font-semibold' : 'border-white/[0.08] text-gray-500 hover:text-gray-300'">
+          {{ m[1] }}
+        </button>
+      </div>
+
+      <!-- ── Item grid (pre-dispatch always; post-dispatch in 'items' mode) ── -->
+      <div v-if="showGrid" class="glass-card p-0 overflow-hidden">
         <div class="px-5 py-3.5 border-b border-white/[0.06] flex items-center justify-between">
-          <h2 class="text-sm font-bold text-gray-200">Edit Items</h2>
-          <span class="text-[11px] text-gray-600">Current total ৳{{ Number(order.total_amount).toLocaleString() }}</span>
+          <h2 class="text-sm font-bold text-gray-200">{{ regime === 'pre' ? 'Edit Items' : 'Revise Price / Quantity' }}</h2>
+          <span class="text-[11px] text-gray-600">Items now ৳{{ oldSub.toLocaleString() }} · order total ৳{{ Number(order.total_amount).toLocaleString() }}</span>
         </div>
         <div class="overflow-x-auto">
           <table class="w-full text-xs">
@@ -54,7 +63,7 @@
                   {{ it.product_name }} <span class="text-gray-600">{{ it.weight_variant }}</span>
                 </td>
                 <td class="px-3 py-2">
-                  <input v-model.number="it.quantity" type="number" min="0" class="input-glass w-full py-1 text-center font-mono" />
+                  <input v-model.number="it.quantity" type="number" :min="it.delivered || 0" class="input-glass w-full py-1 text-center font-mono" />
                 </td>
                 <td class="px-3 py-2">
                   <input v-model.number="it.unit_price" type="number" min="0" class="input-glass w-full py-1 text-center font-mono" />
@@ -69,7 +78,7 @@
             </tbody>
             <tfoot>
               <tr class="border-t border-white/[0.08]">
-                <td colspan="4" class="px-4 py-3 text-right font-semibold text-gray-400">New Total</td>
+                <td colspan="4" class="px-4 py-3 text-right font-semibold text-gray-400">New Items Total</td>
                 <td class="px-3 py-3 text-right font-mono font-bold text-gold-300 text-sm">৳{{ newTotal.toLocaleString() }}</td>
               </tr>
               <tr>
@@ -218,7 +227,7 @@ const { success, error: toastError } = useToast()
 const isAdmin = computed(() =>
   ['admin', 'superadmin'].includes((user.value?.role ?? '').toLowerCase()))
 
-const PRE = ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship']
+const PRE = ['pending_approval', 'escalated', 'approved', 'in_production', 'produced', 'ready_to_ship']
 
 const [{ data, pending, refresh }, { data: amdData, refresh: refreshAmd }] = await Promise.all([
   useFetch(`/api/credit-sales/${orderId}`),
@@ -233,6 +242,7 @@ const regime     = computed(() => PRE.includes(order.value?.status) ? 'pre' : 'p
 const editItems = ref<any[]>([])
 watch(items, (its) => {
   editItems.value = its.map((it: any) => ({
+    item_id: it.id, delivered: Number(it.delivered_qty ?? 0),
     product_id: it.product_id, variant_id: it.variant_id,
     product_name: it.product_name, weight_variant: it.weight_variant,
     quantity: Number(it.quantity), unit_price: Number(it.unit_price),
@@ -244,9 +254,13 @@ function lineTotal(it: any): number {
   return Number(it.quantity || 0) * Number(it.unit_price || 0) - Number(it.discount_amount || 0)
 }
 const newTotal = computed(() => editItems.value.reduce((s, it) => s + lineTotal(it), 0))
-const delta    = computed(() => regime.value === 'pre'
-  ? newTotal.value - Number(order.value?.total_amount ?? 0)
+const oldSub   = computed(() => items.value.reduce((s, it) => s + Number(it.line_total), 0))
+const postMode = ref('items')
+const showGrid = computed(() => regime.value === 'pre' || postMode.value === 'items')
+const delta    = computed(() => showGrid.value
+  ? Math.round((newTotal.value - oldSub.value) * 100) / 100
   : Number(postForm.flat_amount || 0))
+const priceChanged = computed(() => editItems.value.some((it, i) => Number(it.unit_price) !== Number(items.value[i]?.unit_price)))
 
 // ── POST form ─────────────────────────────────────────────────────────────────
 const postForm = reactive({ amend_type: 'freight', flat_amount: null as number | null })
@@ -256,8 +270,10 @@ const consentNote = ref('')
 
 const canSubmit = computed(() => {
   if (!description.value.trim()) return false
-  if (regime.value === 'pre') return Math.abs(delta.value) > 0.005 && editItems.value.every(it => it.quantity >= 0 && it.unit_price >= 0)
-  return !!Number(postForm.flat_amount) && consentConfirmed.value && !!consentNote.value.trim()
+  const consentOk = regime.value === 'pre' || (consentConfirmed.value && !!consentNote.value.trim())
+  if (showGrid.value) return (Math.abs(delta.value) > 0.005 || priceChanged.value) && consentOk
+    && editItems.value.every(it => it.quantity >= (it.delivered || 0) && it.unit_price >= 0)
+  return !!Number(postForm.flat_amount) && consentOk
 })
 
 const saving = ref(false)
@@ -266,8 +282,8 @@ async function submit() {
   try {
     const res: any = await $fetch(`/api/credit-sales/${orderId}/amendments`, {
       method: 'POST',
-      body: regime.value === 'pre'
-        ? { amend_type: 'correction', description: description.value, new_items: editItems.value }
+      body: showGrid.value
+        ? { description: description.value, new_items: editItems.value, consent_confirmed: consentConfirmed.value, consent_note: consentNote.value }
         : { amend_type: postForm.amend_type, description: description.value, flat_amount: Number(postForm.flat_amount), consent_confirmed: consentConfirmed.value, consent_note: consentNote.value },
     })
     success(res.status === 'approved'

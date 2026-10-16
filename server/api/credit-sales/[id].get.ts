@@ -41,11 +41,11 @@ export default defineEventHandler(async (event) => {
                 SELECT SUM(o2.balance_due)
                 FROM credit_orders o2
                 WHERE o2.customer_id = c.id
-                  AND o2.status IN ('pending_approval','approved','in_production','ready_to_ship')
+                  AND o2.status IN ('pending_approval','escalated','approved','in_production','produced','ready_to_ship')
                   AND o2.id != o.id
               ), 0) AS other_pending_exposure,
               -- This order's own uncommitted balance (if not yet on the ledger)
-              CASE WHEN o.status IN ('pending_approval','approved','in_production','ready_to_ship')
+              CASE WHEN o.status IN ('pending_approval','escalated','approved','in_production','produced','ready_to_ship')
                    THEN o.balance_due ELSE 0 END AS this_order_pending
        FROM credit_orders o
        JOIN customers c ON c.id = o.customer_id
@@ -196,5 +196,10 @@ export default defineEventHandler(async (event) => {
        FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id]))[0] ?? null
   } catch { /* table/columns not migrated yet */ }
 
-  return { order, items, workflow, deliveries, returns, payments, price_revisions, shipping }
+  let over_delivery_count = 0
+  try {
+    over_delivery_count = Number((await query<any>(`SELECT COUNT(*) n FROM credit_order_over_deliveries WHERE order_id = ?`, [id]))[0]?.n ?? 0)
+  } catch { /* table missing */ }
+
+  return { order, items, workflow, deliveries, returns, payments, price_revisions, shipping, over_delivery_count }
 })

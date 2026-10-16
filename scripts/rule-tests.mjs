@@ -331,6 +331,33 @@ const esc = await call('acct', 'POST', `/api/credit-sales/${eighty.id}/workflow`
 check('Accounts approving an order that uses 80%+ of remaining credit → auto-escalated (not an error)', esc.status === 200 && esc.json.newStatus === 'escalated', `${esc.status} ${esc.msg} ${esc.json?.newStatus}`)
 await expectStatus('admin then approves the escalated order', call('admin', 'POST', `/api/credit-sales/${eighty.id}/workflow`, { to_status: 'approved', branch_id: 1, required_date: today }), 200)
 
+// ── 9b. Price amendments: lines keep their ids, surcharge survives, invoice + ledger follow ──
+await db.query(`update credit_orders set total_amount = total_amount + 500, balance_due = balance_due + 500 where id=?`, [o3.id])   // a delivery surcharge on top of the items
+const [o3items] = await db.query('select id, quantity, unit_price, discount_amount, product_id, variant_id from credit_order_items where order_id=?', [o3.id])
+const grid = (rows, bump) => rows.map(i => ({ item_id: i.id, product_id: i.product_id, variant_id: i.variant_id, quantity: Number(i.quantity), unit_price: Number(i.unit_price) + bump, discount_amount: Number(i.discount_amount) }))
+const preBefore = await orderRow(o3.id)
+await expectStatus('pre-dispatch price amendment (+100/bag)', call('admin', 'POST', `/api/credit-sales/${o3.id}/amendments`, { description: 'price correction', new_items: grid(o3items, 100) }), [200, 201])
+const preAfter = await orderRow(o3.id)
+const [o3items2] = await db.query('select id, unit_price from credit_order_items where order_id=?', [o3.id])
+check('amendment keeps the same line ids (deliveries/returns stay linked)', o3items2.length === o3items.length && o3items2[0].id === o3items[0].id)
+check('only the item delta moves the total (surcharge survives): +1,000', Number(preAfter.total_amount) - Number(preBefore.total_amount) === 1000, `${preBefore.total_amount} → ${preAfter.total_amount}`)
+const [[rev2]] = await db.query('select count(*) n from credit_order_price_revisions where order_id=?', [o3.id])
+check('amendment price change appears in the order price history', Number(rev2.n) === 2, rev2.n)
+
+const [o1items] = await db.query('select id, quantity, unit_price, discount_amount, product_id, variant_id from credit_order_items where order_id=?', [o1.id])
+const postBefore = await orderRow(o1.id)
+await expectStatus('post-dispatch price amendment without consent → 400', call('admin', 'POST', `/api/credit-sales/${o1.id}/amendments`, { description: 'x', new_items: grid(o1items, 10) }), 400)
+const postRes = await call('admin', 'POST', `/api/credit-sales/${o1.id}/amendments`, { description: 'price revision', new_items: grid(o1items, 10), consent_confirmed: true, consent_note: 'phone 11:00' })
+check('post-dispatch price amendment with consent applies', [200, 201].includes(postRes.status) && postRes.json.status === 'approved', `${postRes.status} ${postRes.msg}`)
+const postAfter = await orderRow(o1.id)
+const qtySum = o1items.reduce((a, i) => a + Number(i.quantity), 0)
+check('order total moves by the price delta', Math.round((Number(postAfter.total_amount) - Number(postBefore.total_amount)) * 100) === Math.round(qtySum * 10 * 100), `${postBefore.total_amount} → ${postAfter.total_amount}`)
+const impact = (await call('admin', 'GET', `/api/credit-sales/${o1.id}/price-impact`)).json
+check('price-impact: invoice + notes reconcile with the order total (gap 0)', impact?.invoice?.gap === 0, JSON.stringify(impact?.invoice))
+check('price-impact shows original vs current price per line', impact?.lines?.some(l => l.current_price - l.original_price === 10), JSON.stringify(impact?.lines))
+const [[balPA]] = await db.query(`select coalesce(sum(debit_amount-credit_amount),0) b from customer_ledger where customer_id=1 and reference_type<>'initial_due'`)
+check('ledger carries the debit note (customer owes the higher bill)', Number(balPA.b) > 0)
+
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','produced','ready_to_ship','goods_on_board')`, [o1.id])
 check('workflow log has every transition of order 1', Number(wfc.n) >= 5, wfc.n)

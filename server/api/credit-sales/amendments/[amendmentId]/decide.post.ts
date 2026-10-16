@@ -64,6 +64,7 @@ export default defineEventHandler(async (event) => {
         newValues,
         amdNo: amd.amendment_number,
         userId,
+        reason: amd.description,
       })
     }
 

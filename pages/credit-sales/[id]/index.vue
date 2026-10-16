@@ -68,6 +68,18 @@
         </template>
       </UiPageHeader>
 
+
+      <!-- ── Related records strip ─────────────────────────────────────── -->
+      <div class="-mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+        <NuxtLink :to="`/customers/${order.customer_id}`" class="rel-btn">👤 Customer Profile</NuxtLink>
+        <NuxtLink :to="`/credit-sales/ledger?customer=${order.customer_id}`" class="rel-btn">📒 Customer Ledger</NuxtLink>
+        <NuxtLink :to="`/credit-sales/payments?search=${encodeURIComponent(order.customer_name ?? '')}`" class="rel-btn">🧾 Payment History</NuxtLink>
+        <button class="rel-btn" @click="openViewer('advance')">🧷 Advance Proof<b v-if="advancePayments.length" class="rel-n">{{ advancePayments.length }}</b></button>
+        <button class="rel-btn" @click="openViewer('over')">📦 Over-Delivery<b v-if="data?.over_delivery_count" class="rel-n">{{ data.over_delivery_count }}</b></button>
+        <button class="rel-btn" @click="openViewer('return')">↩️ Delivery Return<b v-if="returns.length" class="rel-n">{{ returns.length }}</b></button>
+        <button class="rel-btn" @click="openViewer('price')">🏷️ Price Change Impact<b v-if="priceRevisions.length" class="rel-n">{{ priceRevisions.length }}</b></button>
+      </div>
+
       <!-- ── BOLD hold banner — impossible to miss ──────────────────────── -->
       <div v-if="hasActiveHold"
            class="rounded-2xl border-2 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4 hold-banner"
@@ -548,6 +560,150 @@
         </div>
       </div>
 
+
+      <!-- ── Related-record viewer (advance proof / over-delivery / return / price impact) ── -->
+      <Teleport to="body">
+        <Transition name="modal">
+          <div v-if="viewer" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
+            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="viewer = ''" />
+            <div class="relative w-full max-w-3xl max-h-[88vh] flex flex-col glass-card animate-slide-up">
+              <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
+                <h3 class="section-title">
+                  {{ { advance: '🧷 Advance Payment Proof', over: '📦 Over-Delivery', return: '↩️ Delivery Returns', price: '🏷️ Price Change Impact' }[viewer] }}
+                  <span class="text-gray-600 font-normal"> · {{ order.order_number }}</span>
+                </h3>
+                <button class="text-gray-500 hover:text-gray-200 text-lg leading-none" @click="viewer = ''">✕</button>
+              </div>
+              <div class="overflow-y-auto p-5 space-y-3 text-xs">
+
+                <!-- Advance proof -->
+                <template v-if="viewer === 'advance'">
+                  <p v-if="!advancePayments.length" class="text-gray-500 italic text-center py-6">No advance payment recorded against this order.</p>
+                  <div v-for="p in advancePayments" :key="p.id" class="rounded-xl border border-white/[0.08] p-3.5 space-y-1.5" :class="isReversed(p) ? 'opacity-50' : ''">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <span class="font-mono font-semibold text-gray-200">{{ p.payment_number }}
+                        <span v-if="isReversed(p)" class="ml-1 text-[9px] font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">REVERSED</span></span>
+                      <span class="font-bold text-emerald-400 text-sm">৳{{ Number(p.allocated_amount ?? p.amount).toLocaleString() }}</span>
+                    </div>
+                    <p class="text-gray-500">{{ String(p.payment_date).slice(0, 10) }} · <span class="text-gray-300">{{ p.payment_method }}</span>
+                      <template v-if="p.bank_name"> · {{ p.bank_name }} <span class="font-mono">{{ p.bank_account_number }}</span></template>
+                      <template v-else-if="p.cash_account_name"> · {{ p.cash_account_name }}</template>
+                      <template v-if="p.cheque_number"> · Cheque #{{ p.cheque_number }}<template v-if="p.cheque_date"> ({{ String(p.cheque_date).slice(0, 10) }})</template></template>
+                      <template v-if="p.reference_number && p.reference_number !== p.payment_number"> · Ref {{ p.reference_number }}</template>
+                    </p>
+                    <p class="text-gray-600">Received by {{ p.collector_first_name ? `${p.collector_first_name} ${p.collector_last_name ?? ''}` : (p.collected_by || '—') }}
+                      <template v-if="p.notes"> · {{ p.notes }}</template></p>
+                    <NuxtLink :to="`/credit-sales/receipt/${p.id}`" target="_blank" class="inline-block text-amber-400 hover:underline">🖨️ Open receipt</NuxtLink>
+                  </div>
+                  <div v-if="advancePayments.length" class="flex justify-between border-t border-white/[0.06] pt-3 font-semibold">
+                    <span class="text-gray-400">Total advance on this order</span>
+                    <span class="text-emerald-400">৳{{ advanceTotal.toLocaleString() }}</span>
+                  </div>
+                  <NuxtLink v-if="canCollectPayment" :to="`/credit-sales/${id}/payment`" class="btn-ghost text-xs inline-flex">💰 Collect another payment</NuxtLink>
+                </template>
+
+                <!-- Over-delivery -->
+                <template v-else-if="viewer === 'over'">
+                  <p v-if="viewerLoading" class="text-gray-500 text-center py-6">Loading…</p>
+                  <p v-else-if="!overDeliveries.length" class="text-gray-500 italic text-center py-6">No over-delivery recorded for this order.</p>
+                  <div v-for="od in overDeliveries" :key="od.id" class="rounded-xl border border-white/[0.08] p-3.5 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <span class="font-mono font-semibold text-gray-200">{{ od.od_number }}</span>
+                      <UiStatusBadge :status="od.status ?? 'pending'" />
+                    </div>
+                    <p class="text-gray-600">{{ String(od.od_date).slice(0, 10) }} · {{ od.resolution }} · by {{ od.created_by_name ?? '—' }}<template v-if="od.approved_by_name"> · approved by {{ od.approved_by_name }}</template></p>
+                    <ul class="text-gray-400 space-y-0.5">
+                      <li v-for="it in od.items" :key="it.id">{{ it.product_name }} {{ it.weight_variant }} — {{ Number(it.extra_qty) }} extra bags
+                        × ৳{{ Number(it.unit_price).toLocaleString() }}</li>
+                    </ul>
+                    <p v-if="Number(od.total_extra_amount)" class="font-semibold text-amber-400">Value ৳{{ Number(od.total_extra_amount).toLocaleString() }}</p>
+                  </div>
+                  <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_over_delivery')" :to="`/credit-sales/${id}/over-delivery`" class="btn-ghost text-xs inline-flex">📦 Record Over-Delivery</NuxtLink>
+                </template>
+
+                <!-- Returns -->
+                <template v-else-if="viewer === 'return'">
+                  <p v-if="!returns.length" class="text-gray-500 italic text-center py-6">No delivery return recorded for this order.</p>
+                  <div v-for="r in returns" :key="r.id" class="rounded-xl border border-white/[0.08] p-3.5 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2 flex-wrap">
+                      <span class="font-mono font-semibold text-gray-200">{{ r.return_number }}</span>
+                      <UiStatusBadge :status="r.status" />
+                      <span class="font-bold text-amber-400">−৳{{ Number(r.total_returned_amount).toLocaleString() }}</span>
+                    </div>
+                    <p class="text-gray-600">{{ String(r.return_date ?? r.created_at).slice(0, 10) }} · by {{ r.created_by_name ?? '—' }}<template v-if="r.approved_by_name"> · {{ r.status }} by {{ r.approved_by_name }}</template></p>
+                    <ul class="text-gray-400 space-y-0.5">
+                      <li v-for="it in r.items" :key="it.id">{{ it.product_name }} {{ it.weight_variant }} — {{ Number(it.returned_qty) }} bags</li>
+                    </ul>
+                    <p v-if="r.return_reason" class="text-gray-500 italic">{{ r.return_reason }}</p>
+                  </div>
+                  <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost text-xs inline-flex">↩️ Record Return</NuxtLink>
+                </template>
+
+                <!-- Price change impact -->
+                <template v-else-if="viewer === 'price'">
+                  <p v-if="viewerLoading || !impact" class="text-gray-500 text-center py-6">Loading…</p>
+                  <template v-else>
+                    <div class="rounded-xl p-3 text-[11px] leading-relaxed" :class="impact.invoice.gap ? 'bg-red-500/10 border border-red-500/30 text-red-300' : 'bg-white/[0.03] border border-white/[0.08] text-gray-400'">
+                      <template v-if="impact.invoice.posted">
+                        <b class="text-gray-200">Invoice posted</b> ৳{{ impact.invoice.amount.toLocaleString() }}<template v-if="impact.invoice.date"> on {{ String(impact.invoice.date).slice(0, 10) }}</template>
+                        <template v-if="impact.invoice.notes_net"> · amendment notes {{ impact.invoice.notes_net > 0 ? '+' : '−' }}৳{{ Math.abs(impact.invoice.notes_net).toLocaleString() }}</template>
+                        → ledger carries <b class="text-gray-200">৳{{ impact.invoice.net.toLocaleString() }}</b>; order total now <b class="text-gray-200">৳{{ impact.order_total.toLocaleString() }}</b>.
+                        <template v-if="impact.invoice.gap"><br>⚠ ৳{{ Math.abs(impact.invoice.gap).toLocaleString() }} {{ impact.invoice.gap > 0 ? 'not yet billed' : 'over-billed' }} — raise an amendment so the ledger and the order agree.</template>
+                        <template v-else> ✓ Order and ledger agree.</template>
+                      </template>
+                      <template v-else-if="impact.stage === 'open'">
+                        <b class="text-gray-200">Not invoiced yet.</b> A price change now just reprices the lines; the invoice is posted at the new total on Goods on Board.
+                        <template v-if="impact.auto_apply"> Pricing-engine changes are being applied to open orders automatically (same ৳ shift).</template>
+                        <template v-else> Automatic catalog-price sync is OFF — use Amend to reprice.</template>
+                      </template>
+                      <template v-else>This order is closed — no invoice was posted.</template>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                      <table class="w-full">
+                        <thead><tr class="text-[10px] uppercase text-gray-600 border-b border-white/[0.06]">
+                          <th class="py-1.5 text-left">Product</th><th class="text-right">Qty</th><th class="text-right">Original</th><th class="text-right">Now</th><th class="text-right">Impact</th></tr></thead>
+                        <tbody class="divide-y divide-white/[0.04]">
+                          <tr v-for="l in impact.lines" :key="l.id">
+                            <td class="py-2 text-gray-300">{{ l.product_name }} <span class="text-gray-600">{{ l.weight_variant }}</span></td>
+                            <td class="text-right text-gray-400">{{ l.quantity }}</td>
+                            <td class="text-right text-gray-500" :class="l.impact ? 'line-through' : ''">৳{{ l.original_price.toLocaleString() }}</td>
+                            <td class="text-right font-semibold text-gold-400">৳{{ l.current_price.toLocaleString() }}</td>
+                            <td class="text-right font-mono" :class="l.impact > 0 ? 'text-red-400' : l.impact < 0 ? 'text-emerald-400' : 'text-gray-600'">{{ l.impact ? (l.impact > 0 ? '+' : '−') + '৳' + Math.abs(l.impact).toLocaleString() : '—' }}</td>
+                          </tr>
+                        </tbody>
+                        <tfoot><tr class="border-t border-white/[0.08] font-bold"><td colspan="4" class="pt-2 text-right text-gray-400">Net effect of price changes</td>
+                          <td class="pt-2 text-right font-mono" :class="impact.total_impact > 0 ? 'text-red-400' : impact.total_impact < 0 ? 'text-emerald-400' : 'text-gray-600'">{{ impact.total_impact ? (impact.total_impact > 0 ? '+' : '−') + '৳' + Math.abs(impact.total_impact).toLocaleString() : '—' }}</td></tr></tfoot>
+                      </table>
+                    </div>
+
+                    <div v-if="impact.revisions.length" class="space-y-1.5">
+                      <p class="text-[10px] uppercase text-gray-600 font-semibold">Price history</p>
+                      <div v-for="r in [...impact.revisions].reverse()" :key="r.id" class="border-b border-white/[0.05] pb-1.5 last:border-0 text-gray-400">
+                        <b class="text-gray-300">{{ r.product_name }} {{ r.weight_variant }}</b> ৳{{ Number(r.old_unit_price).toLocaleString() }} → <b class="text-gold-400">৳{{ Number(r.new_unit_price).toLocaleString() }}</b> × {{ Number(r.quantity) }}
+                        <span class="text-gray-600"> · {{ String(r.created_at).slice(0, 16).replace('T', ' ') }}<template v-if="r.changed_by"> · {{ r.changed_by }}</template></span>
+                        <p class="text-[11px] text-gray-600">{{ r.reason }}</p>
+                      </div>
+                    </div>
+                    <p v-else class="text-gray-600 italic">No price change has ever been made on this order.</p>
+
+                    <div v-if="impact.amendments.length" class="space-y-1.5">
+                      <p class="text-[10px] uppercase text-gray-600 font-semibold">Amendments</p>
+                      <div v-for="a in impact.amendments" :key="a.id" class="text-gray-400 border-b border-white/[0.05] pb-1.5 last:border-0">
+                        <b class="font-mono text-gray-300">{{ a.amendment_number }}</b> · {{ a.regime }}-dispatch · {{ a.amend_type }} · <i>{{ a.status }}</i>
+                        <span v-if="a.delta" class="font-mono ml-1" :class="a.delta > 0 ? 'text-red-400' : 'text-emerald-400'">{{ a.delta > 0 ? '+' : '−' }}৳{{ Math.abs(a.delta).toLocaleString() }}</span>
+                        <p class="text-[11px] text-gray-600">{{ a.description }}<template v-if="a.consent"> · consent: {{ a.consent }}</template></p>
+                      </div>
+                    </div>
+                  </template>
+                  <NuxtLink v-if="!['cancelled', 'rejected'].includes(order.status)" :to="`/credit-sales/${id}/amend`" class="btn-ghost text-xs inline-flex">📝 Amend price / quantity</NuxtLink>
+                </template>
+              </div>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
+
       <!-- ── Approval / Escalation Modal ─────────────────── -->
       <Teleport to="body">
         <Transition name="modal">
@@ -946,6 +1102,26 @@ const creditPct = computed(() => {
   if (!limit) return 0
   return Math.min(150, Math.round((totalExposure.value / limit) * 100))
 })
+
+
+// ── Related-record viewer ──────────────────────────────────────────────────────
+const viewer = ref('')
+const viewerLoading = ref(false)
+const overDeliveries = ref<any[]>([])
+const impact = ref<any>(null)
+const advancePayments = computed(() => payments.value.filter((p: any) => p.payment_type === 'advance' || Number(p.as_advance)))
+const advanceTotal = computed(() => advancePayments.value.filter((p: any) => !isReversed(p))
+  .reduce((s: number, p: any) => s + Number(p.allocated_amount ?? p.amount), 0))
+async function openViewer(kind: string) {
+  viewer.value = kind
+  if (kind !== 'over' && kind !== 'price') return
+  viewerLoading.value = true
+  try {
+    if (kind === 'over') overDeliveries.value = ((await $fetch(`/api/credit-sales/${id.value}/over-deliveries`)) as any).over_deliveries ?? []
+    else impact.value = await $fetch(`/api/credit-sales/${id.value}/price-impact`)
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Could not load') }
+  finally { viewerLoading.value = false }
+}
 
 // Escalated/pending orders can still take advance payments — e.g. an
 // escalated (over-credit-limit) order's own dispatch-hold condition often
@@ -1365,4 +1541,6 @@ function printDispatchSlip() {
 <style scoped>
 .modal-enter-active, .modal-leave-active { transition: all .2s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+.rel-btn { @apply shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/[0.08] bg-white/[0.03] text-gray-300 hover:bg-white/[0.07] hover:text-gold-300 transition-colors whitespace-nowrap; }
+.rel-n { @apply px-1.5 py-px rounded-full bg-gold-500/20 text-gold-300 text-[10px] font-bold; }
 </style>
