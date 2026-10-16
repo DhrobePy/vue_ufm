@@ -137,6 +137,23 @@ async function applyItemGrid(conn: any, orderId: number, grid: any[], amdNo: str
       if (qty < Number(d.q))
         throw createError({ statusCode: 400, statusMessage: `Quantity cannot go below what is already delivered (${Number(d.q)})` })
     }
+    // Wrong product on the line (legacy "product correction"): allowed only while no delivery / return / over-delivery
+    // points at the line — otherwise those records would describe goods the line no longer is.
+    const newProduct = it.product_id != null ? Number(it.product_id) : Number(old.product_id)
+    const newVariant = it.variant_id != null ? Number(it.variant_id) : (old.variant_id != null ? Number(old.variant_id) : null)
+    const productChanged = newProduct !== Number(old.product_id) || (newVariant ?? 0) !== Number(old.variant_id ?? 0)
+    if (productChanged) {
+      for (const t of ['credit_order_delivery_items', 'credit_order_return_items', 'credit_order_over_delivery_items']) {
+        const [[ref]] = await conn.query(`SELECT COUNT(*) c FROM ${t} WHERE order_item_id = ?`, [old.id])
+        if (Number(ref.c) > 0)
+          throw createError({ statusCode: 409, statusMessage: 'This line already has a delivery / return / over-delivery recorded — its product cannot be changed. Record a return for it and raise a new order for the correct product.' })
+      }
+      if (newVariant != null) {
+        const [[v]] = await conn.query(`SELECT id FROM product_variants WHERE id = ? AND product_id = ?`, [newVariant, newProduct])
+        if (!v) throw createError({ statusCode: 400, statusMessage: 'The chosen variant does not belong to the chosen product' })
+      }
+      await conn.query(`UPDATE credit_order_items SET product_id = ?, variant_id = ? WHERE id = ?`, [newProduct, newVariant, old.id])
+    }
     await conn.query(
       `UPDATE credit_order_items SET quantity = ?, unit_price = ?, discount_amount = ?, line_total = ? WHERE id = ?`,
       [qty, price, disc, lineTotal, old.id])

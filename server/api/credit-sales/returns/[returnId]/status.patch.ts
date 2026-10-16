@@ -1,4 +1,4 @@
-import { postCustomerLedger } from '~/server/utils/creditOrders'
+import { postCustomerLedger, postJournalEntry, getGLAccountId, getCreditRevenueAccountId } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { requireAction } from '~/server/utils/permissions'
@@ -65,12 +65,27 @@ export default defineEventHandler(async (event) => {
       const totalRetAmount = Number(ret.total_returned_amount)
       const retDate        = ret.return_date
 
+      // ── GL: the sale is partly undone — Dr Revenue (sales returned) / Cr Accounts Receivable ──
+      let jeId: number | null = null
+      const arId  = await getGLAccountId(conn, 'Accounts Receivable')
+      const revId = await getCreditRevenueAccountId(conn, ret.order_id)
+      if (arId && revId && totalRetAmount > 0) {
+        jeId = await postJournalEntry(conn, {
+          date: retDate instanceof Date ? retDate.toISOString().slice(0, 10) : String(retDate).slice(0, 10),
+          description: `Goods return credit note ${ret.return_number} — Order ${ret.order_number}`,
+          docType: 'CreditOrderReturn', docId: returnId, userId,
+          lines: [
+            { accountId: revId, debit: totalRetAmount, credit: 0, memo: ret.return_number },
+            { accountId: arId, debit: 0, credit: totalRetAmount, memo: ret.return_number },
+          ],
+        })
+      }
       // ── Ledger: credit note reduces customer balance ──────────
       await postCustomerLedger(conn, {
         customerId: ret.customer_id, date: retDate, transactionType: 'credit_note',
         referenceType: 'credit_order_return', referenceId: returnId, invoiceNumber: ret.return_number,
         description: `Goods Return Credit Note — ${ret.return_number} (Order ${ret.order_number})`,
-        debit: 0, credit: totalRetAmount, userId,
+        debit: 0, credit: totalRetAmount, journalEntryId: jeId, userId,
       })
 
       // ── Reduce order total_amount and balance_due ─────────────

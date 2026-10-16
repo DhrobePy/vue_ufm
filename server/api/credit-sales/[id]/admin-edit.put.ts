@@ -7,7 +7,7 @@ import { ADMIN_ROLES } from '~/server/utils/creditOrders'
  * Money fields are NOT editable here — those go through amendments so the
  * ledger/GL stay consistent. Old/new snapshot lands in the workflow trail.
  */
-const EDITABLE = ['required_date', 'priority', 'shipping_address', 'special_instructions'] as const
+const EDITABLE = ['required_date', 'priority', 'shipping_address', 'special_instructions', 'assigned_branch_id'] as const
 
 export default defineEventHandler(async (event) => {
   const id      = Number(getRouterParam(event, 'id'))
@@ -27,6 +27,12 @@ export default defineEventHandler(async (event) => {
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
+    if (body.assigned_branch_id !== undefined && String(body.assigned_branch_id ?? '') !== String(order.assigned_branch_id ?? '')) {
+      if (!['pending_approval', 'escalated', 'approved', 'in_production', 'produced', 'ready_to_ship'].includes(order.status))
+        throw createError({ statusCode: 409, statusMessage: 'The production branch can only be changed before dispatch' })
+      const [[br]] = await conn.query<any>(`SELECT id FROM branches WHERE id = ? AND status = 'active'`, [Number(body.assigned_branch_id)])
+      if (!br) throw createError({ statusCode: 400, statusMessage: 'The chosen branch is not active' })
+    }
     const changes: Record<string, { from: any; to: any }> = {}
     const sets: string[] = []
     const params: any[] = []

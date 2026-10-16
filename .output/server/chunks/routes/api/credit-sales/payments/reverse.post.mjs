@@ -1,4 +1,4 @@
-import { t as defineEventHandler, aC as readBody, a2 as getUserSession, q as createError, O as getRequestHeader, b as ADMIN_ROLES, F as getDb, as as postJournalEntry, ao as postCustomerLedger, b7 as voidBridgedTransaction, j as auditLog, aZ as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, aF as readBody, a5 as getUserSession, r as createError, V as getRequestHeader, b as ADMIN_ROLES, I as getDb, av as postJournalEntry, ar as postCustomerLedger, bd as voidBridgedTransaction, k as auditLog, b1 as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -42,11 +42,11 @@ const reverse_post = defineEventHandler(async (event) => {
     const refNo = `REV-${(_e = pmt.payment_number) != null ? _e : pmt.id}`;
     const affected = [];
     if (pmt.order_id) {
-      affected.push({ orderId: pmt.order_id, amount: pmtAmount, asAdvance: false });
+      affected.push({ orderId: pmt.order_id, amount: pmtAmount, asAdvance: pmt.payment_type === "advance" });
     } else {
       const [allocs] = await conn.query(
         `SELECT order_id, allocated_amount, as_advance
-         FROM payment_allocations WHERE payment_id = ? AND reversed = 0`,
+         FROM payment_allocations WHERE payment_id = ? AND reversed = 0 AND released_at IS NULL AND target = 'order'`,
         [payment_id]
       );
       for (const a of allocs)

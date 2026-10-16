@@ -714,6 +714,46 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'payment_allocations', 'as_advance',
     "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = order not dispatched yet, counts as advance'")
 
+  // Advance-credit allotment: a payment can be allotted to an order OR to the customer's opening due,
+  // and an allocation is "released" (kept for history) when its order is cancelled.
+  await addCol(db, 'payment_allocations', 'target', "VARCHAR(10) NOT NULL DEFAULT 'order' COMMENT 'order | opening'")
+  await addCol(db, 'payment_allocations', 'released_at', 'DATETIME NULL DEFAULT NULL')
+  await addCol(db, 'payment_allocations', 'allocated_by_user_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'order_amendments', 'reverts_amendment_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'credit_order_returns', 'return_category', "VARCHAR(30) NULL COMMENT 'damaged | quality | wrong_product | excess | other'")
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS customer_refunds (
+        id               INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        refund_number    VARCHAR(30)  NOT NULL UNIQUE,
+        customer_id      INT UNSIGNED NOT NULL,
+        return_id        INT UNSIGNED NULL,
+        order_id         INT UNSIGNED NULL,
+        refund_date      DATE         NOT NULL,
+        amount           DECIMAL(14,2) NOT NULL,
+        payment_method   VARCHAR(30)  NOT NULL DEFAULT 'Cash',
+        bank_account_id  INT UNSIGNED NULL,
+        cash_account_id  INT UNSIGNED NULL,
+        reference_number VARCHAR(100) NULL,
+        notes            VARCHAR(500) NULL,
+        journal_entry_id INT UNSIGNED NULL,
+        created_by_user_id INT UNSIGNED NOT NULL,
+        created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_refund_customer (customer_id),
+        INDEX idx_refund_return (return_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `)
+  } catch (e) { console.warn('[db-migrate] customer_refunds failed:', e) }
+
+  // Data fix: orders created in this app BEFORE dispatch stored their advance in amount_paid AND advance_paid, so
+  // every `total − advance_paid − amount_paid` recompute subtracted it twice. Only the advance is on such orders, so amount_paid must be 0.
+  try {
+    await db.query(`UPDATE credit_orders SET amount_paid = 0, balance_due = GREATEST(0, total_amount - advance_paid), updated_at = NOW()
+      WHERE id >= 1000000 AND advance_paid > 0 AND ABS(amount_paid - advance_paid) < 0.005
+        AND NOT EXISTS (SELECT 1 FROM customer_payments p WHERE p.order_id = credit_orders.id AND p.payment_type <> 'advance')
+        AND NOT EXISTS (SELECT 1 FROM payment_allocations a WHERE a.order_id = credit_orders.id)`)
+  } catch (e) { console.warn('[db-migrate] advance double-count fix failed:', e) }
+
   // ── 41. user_approval_limits — transaction (payment) approval limit ───────
   await addCol(db, 'user_approval_limits', 'max_transaction_amount',
     "DECIMAL(14,2) NOT NULL DEFAULT 0 COMMENT 'Max single payment/transaction this user may record; 0 = no personal cap'")

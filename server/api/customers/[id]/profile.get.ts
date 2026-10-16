@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
          AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 11 MONTH) - INTERVAL (DAY(CURDATE()) - 1) DAY
        GROUP BY m ORDER BY m`, [id, ...scopeP]),
     query<any>(
-      `SELECT o.id, o.order_number, o.order_date, o.required_date, o.status, o.total_amount, o.amount_paid, o.balance_due,
+      `SELECT o.id, o.order_number, o.order_date, o.required_date, o.status, o.total_amount, (o.amount_paid + o.advance_paid) AS amount_paid, o.balance_due,
               o.delivery_type, b.name branch_name
        FROM credit_orders o LEFT JOIN branches b ON b.id = o.assigned_branch_id
        WHERE o.customer_id = ?${scopeSql} ORDER BY o.order_date DESC, o.id DESC LIMIT 300`, [id, ...scopeP]),

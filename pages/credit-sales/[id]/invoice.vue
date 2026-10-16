@@ -385,7 +385,7 @@ const order = computed(() => {
     priority:        o.priority,
     total:           Number(o.total_amount  ?? 0),
     discount:        Number(o.discount_amount ?? 0),
-    advance:         Number(o.amount_paid   ?? 0),
+    advance:         Number(o.amount_paid   ?? 0) + Number(o.advance_paid ?? 0),
     orderDate:       String(o.order_date).slice(0, 10),
     requiredDate:    o.required_date ? String(o.required_date).slice(0, 10) : '—',
     deliveryAddress: o.delivery_address ?? '',

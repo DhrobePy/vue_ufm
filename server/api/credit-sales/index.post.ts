@@ -3,6 +3,7 @@ import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber, postCustomerLedger, postJournalEntry } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
+import { getAdvanceCredit, suggestAllotment, applyAllotment } from '~/server/utils/advanceCredit'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
@@ -214,8 +215,8 @@ export default defineEventHandler(async (event) => {
         special_notes    || null,
         subtotal,
         totalAmount,
-        advancePaid,
-        advancePaid,
+        0,               // amount_paid: payments after dispatch. The advance lives ONLY in advance_paid (legacy rule) —
+        advancePaid,     // storing it in both made every `total − advance_paid − amount_paid` recompute subtract it twice
         balanceDue,
         deliveryType,
         miniTruckSurcharge,
@@ -388,6 +389,15 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    // ── Earlier advance money → this customer's orders, oldest first (this new order included) ──
+    // Only advances taken in this app are applied automatically; imported legacy advances are allotted by hand.
+    let advanceAllotted = 0
+    if (body?.use_advance_credit !== false) {
+      const credit = await getAdvanceCredit(conn, Number(customer_id))
+      const plan = suggestAllotment(credit, 'orders_first', { onlyNative: true }).filter(a => a.target === 'order')
+      if (plan.length) advanceAllotted = (await applyAllotment(conn, Number(customer_id), userId, plan, `placed with ${orderNo}`)).total
+    }
+
     // ── Audit log ───────────────────────────────────────────────────────────
     await auditLog(conn, {
       userId,
@@ -423,6 +433,7 @@ export default defineEventHandler(async (event) => {
       status:     orderStatus,
       over_limit: overLimit,
       mini_truck_surcharge: miniTruckSurcharge,
+      advance_allotted: advanceAllotted,
       ...(overLimit ? { excess_amount: excessAmount } : {}),
     }
   } catch (e) {

@@ -60,7 +60,7 @@ export default defineEventHandler(async (event) => {
 
     // Load the order (locked — concurrent payments must serialize)
     const [[order]] = await conn.query<any>(
-      `SELECT o.id, o.customer_id, o.order_number, o.balance_due, o.amount_paid, o.status,
+      `SELECT o.id, o.customer_id, o.order_number, o.balance_due, o.amount_paid, o.advance_paid, o.status,
               c.name AS customer_name
        FROM credit_orders o JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ? FOR UPDATE`, [id],
@@ -101,7 +101,14 @@ export default defineEventHandler(async (event) => {
     }
 
     const pmtAmount  = Number(amount)
-    const newPaid    = Number(order.amount_paid ?? 0) + pmtAmount
+    if (['cancelled', 'rejected'].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: `This order is ${order.status} — it cannot take payment` })
+    if (pmtAmount > Number(order.balance_due ?? 0) + 0.01)
+      throw createError({ statusCode: 400, statusMessage: `৳${pmtAmount.toLocaleString()} is more than this order owes (৳${Number(order.balance_due ?? 0).toLocaleString()}). Take only the balance here, and record the extra as an on-account advance from Collect Payment on the customer.` })
+    // Before dispatch the money is an ADVANCE on this order (advance_paid); after dispatch it is a payment (amount_paid).
+    const asAdvance  = !['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed'].includes(order.status)
+    const newPaid    = Number(order.amount_paid ?? 0) + (asAdvance ? 0 : pmtAmount)
+    const newAdvance = Number(order.advance_paid ?? 0) + (asAdvance ? pmtAmount : 0)
     const newBalance = Math.max(0, Number(order.balance_due ?? 0) - pmtAmount)
 
     // Generate payment number (PAY-YYYYMMDD-XXXX) — nextDocNumber() already
@@ -118,7 +125,7 @@ export default defineEventHandler(async (event) => {
           payment_type, reference_number, bank_account_id, cash_account_id,
           allocation_status, allocated_amount, notes, created_by_user_id)
        VALUES (?, ?, ?, ?, ?, ?,
-               'invoice_payment', ?, ?, ?,
+               ?, ?, ?, ?,
                'allocated', ?, ?, ?)`,
       [
         id,
@@ -127,6 +134,7 @@ export default defineEventHandler(async (event) => {
         pmtDate,
         pmtAmount,
         mappedMethod,
+        asAdvance ? 'advance' : 'invoice_payment',
         autoRef,
         bank_account_id  ? Number(bank_account_id)  : null,
         cash_account_id  ? Number(cash_account_id)  : null,
@@ -141,9 +149,9 @@ export default defineEventHandler(async (event) => {
     const isNowComplete = newBalance === 0 && order.status === 'delivered'
     await conn.query(
       `UPDATE credit_orders
-       SET amount_paid = ?, balance_due = ?, updated_at = NOW()
+       SET amount_paid = ?, advance_paid = ?, balance_due = ?, updated_at = NOW()
        WHERE id = ?`,
-      [newPaid, newBalance, id],
+      [newPaid, newAdvance, newBalance, id],
     )
 
 
@@ -315,6 +323,7 @@ export default defineEventHandler(async (event) => {
     }
   } catch (e: any) {
     await conn.rollback()
+    if (e?.statusCode && e.statusCode < 500) throw e   // a deliberate refusal (overpayment, cancelled order…) keeps its own status
     console.error('[payment] Transaction failed:', e?.message, '| errno:', e?.errno, '| code:', e?.code)
     // Surface the actual DB error so the client toast shows a useful message
     throw createError({

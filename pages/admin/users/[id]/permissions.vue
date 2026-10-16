@@ -288,6 +288,7 @@ const moduleRegistry = [
           { key: 'record_delivery', label: 'Record Delivery' },
           { key: 'record_return',   label: 'Record Return' },
           { key: 'approve_return',  label: 'Approve / Reject Returns (explicit grant only; not your own)' },
+          { key: 'refund_customer', label: 'Refund money to a customer (explicit grant only)' },
           { key: 'record_over_delivery', label: 'Record Over-Delivery' },
           { key: 'request_amendment', label: 'Request Amendment' },
           { key: 'telegram',        label: 'Send Telegram Alert' },

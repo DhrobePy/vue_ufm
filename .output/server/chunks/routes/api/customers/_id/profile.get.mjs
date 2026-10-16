@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, q as createError, a2 as getUserSession, aA as queryOne, F as getDb, E as getCustomerOutstanding, a0 as getUserBranchIds, az as query, b5 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, r as createError, a5 as getUserSession, aD as queryOne, I as getDb, H as getCustomerOutstanding, a3 as getUserBranchIds, aC as query, bb as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -62,7 +62,7 @@ const profile_get = defineEventHandler(async (event) => {
       [id, ...scopeP]
     ),
     query(
-      `SELECT o.id, o.order_number, o.order_date, o.required_date, o.status, o.total_amount, o.amount_paid, o.balance_due,
+      `SELECT o.id, o.order_number, o.order_date, o.required_date, o.status, o.total_amount, (o.amount_paid + o.advance_paid) AS amount_paid, o.balance_due,
               o.delivery_type, b.name branch_name
        FROM credit_orders o LEFT JOIN branches b ON b.id = o.assigned_branch_id
        WHERE o.customer_id = ?${scopeSql} ORDER BY o.order_date DESC, o.id DESC LIMIT 300`,

@@ -57,11 +57,11 @@ export default defineEventHandler(async (event) => {
     // 1. Which orders did this payment touch, and how much of each?
     const affected: { orderId: number; amount: number; asAdvance: boolean }[] = []
     if (pmt.order_id) {
-      affected.push({ orderId: pmt.order_id, amount: pmtAmount, asAdvance: false })
+      affected.push({ orderId: pmt.order_id, amount: pmtAmount, asAdvance: pmt.payment_type === 'advance' })
     } else {
       const [allocs] = await conn.query<any>(
         `SELECT order_id, allocated_amount, as_advance
-         FROM payment_allocations WHERE payment_id = ? AND reversed = 0`,
+         FROM payment_allocations WHERE payment_id = ? AND reversed = 0 AND released_at IS NULL AND target = 'order'`,
         [payment_id],
       )
       for (const a of allocs)

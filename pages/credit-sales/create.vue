@@ -185,6 +185,13 @@
             <div><dt class="text-gray-600">Open orders</dt><dd class="font-mono font-semibold text-yellow-300">৳{{ money(customerPendingExposure) }}</dd></div>
             <div><dt class="text-gray-600">Left after this</dt><dd class="font-mono font-bold" :class="creditLeft > 0 || creditLimit <= 0 ? 'text-emerald-300' : 'text-red-400'">{{ creditLimit > 0 ? '৳' + money(creditLeft) : '—' }}</dd></div>
           </dl>
+          <label v-if="advCredit.total > 0" class="flex items-start gap-2 rounded-lg border border-emerald-500/25 bg-emerald-500/[0.06] p-2 text-[11px] cursor-pointer">
+            <input v-model="useAdvanceCredit" type="checkbox" class="mt-0.5 accent-emerald-500" />
+            <span class="text-emerald-300 leading-snug">
+              <template v-if="advCredit.total - advCredit.legacy > 0">Earlier advance <b>৳{{ money(advCredit.total - advCredit.legacy) }}</b> is on account — apply it to this customer's open orders, oldest first (incl. this one).</template>
+              <template v-else>No new advance on account.</template>
+              <span v-if="advCredit.legacy" class="block text-gray-500">৳{{ money(advCredit.legacy) }} more is from the old app — allot that by hand from the customer page.</span></span>
+          </label>
         </section>
         <section v-else class="glass-card p-3 text-xs text-gray-600 text-center">Pick a customer to see their credit position.</section>
 
@@ -288,11 +295,17 @@ function selectCustomer(c: any) { form.customerId = c.id; customerQuery.value = 
 function clearCustomer() { form.customerId = ''; customerQuery.value = ''; customerDropdownOpen.value = true }
 
 // ── credit position (ledger truth + other open orders) ──
+const advCredit = reactive({ total: 0, legacy: 0 })
+const useAdvanceCredit = ref(true)
 const customerPendingExposure = ref(0)
 const customerData = ref<{ limit: number; ledger: number } | null>(null)
 watch(() => form.customerId, async (id) => {
-  customerPendingExposure.value = 0; customerData.value = null
+  customerPendingExposure.value = 0; customerData.value = null; advCredit.total = 0; advCredit.legacy = 0
   if (!id) return
+  $fetch(`/api/customers/${id}/advance-credit`).then((a: any) => {
+    advCredit.total = Number(a?.total ?? 0)
+    advCredit.legacy = (a?.payments ?? []).filter((p: any) => p.legacy).reduce((t: number, p: any) => t + Number(p.remaining), 0)
+  }).catch(() => {})
   try {
     const r: any = await $fetch(`/api/customers/${id}/credit-exposure`)
     customerPendingExposure.value = Number(r?.pending ?? 0)
@@ -407,6 +420,7 @@ async function submitOrder() {
         order_date: isAdminUser.value ? form.orderDate : undefined, required_date: form.requiredDate || null, priority: form.priority,
         delivery_address: form.shippingAddress || null, special_notes: form.notes || null, delivery_type: form.deliveryType,
         amount_paid: advance.value,
+        use_advance_credit: useAdvanceCredit.value,
         advance_payment_method: advance.value > 0 ? form.advanceMethod : undefined,
         advance_bank_account_id: advance.value > 0 ? form.advanceBankAccountId || undefined : undefined,
         advance_cash_account_id: advance.value > 0 ? form.advanceCashAccountId || undefined : undefined,

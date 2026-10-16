@@ -55,6 +55,12 @@
               <p class="text-[11px] text-gray-500 mt-0.5">{{ r.description }}</p>
             </button>
           </div>
+          <div v-if="form.reason === 'wrong_item'" class="rounded-xl p-3 text-[11px] leading-relaxed text-amber-300" style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25)">
+            <b>Wrong product delivered?</b> Pick the way it is being settled:<br>
+            • Customer <b>keeps</b> the wrong product → don't return it: on the order choose <i>Amend → Change product</i> (only possible while no delivery is recorded on that line).<br>
+            • Customer <b>sends it back</b> → record the return here (credit note at the ordered line's price). Then raise a new order, or record the right goods as an over-delivery to bill them.<br>
+            • Money already paid is kept as credit on the account — allot it to the next order or refund it from the order page / customer profile.
+          </div>
           <div v-if="form.reason === 'other'" class="space-y-1.5">
             <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Specify Reason *</label>
             <input v-model="form.reasonDetail" type="text" class="form-input" placeholder="Describe the reason…" />
@@ -179,7 +185,7 @@
             <div class="flex justify-between"><span class="text-gray-600">Order #</span><span class="font-mono text-gold-400/80">{{ order?.order_number }}</span></div>
             <div class="flex justify-between"><span class="text-gray-600">Customer</span><span class="text-gray-300">{{ order?.customer_name }}</span></div>
             <div class="flex justify-between"><span class="text-gray-600">Order Total</span><span class="text-gray-200">৳{{ Number(order?.total_amount ?? 0).toLocaleString() }}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Amount Paid</span><span class="text-emerald-400">৳{{ Number(order?.amount_paid ?? 0).toLocaleString() }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Paid (incl. advance)</span><span class="text-emerald-400">৳{{ (Number(order?.amount_paid ?? 0) + Number(order?.advance_paid ?? 0)).toLocaleString() }}</span></div>
             <div class="flex justify-between"><span class="text-gray-600">Balance Due</span><span class="text-red-400 font-semibold">৳{{ Number(order?.balance_due ?? 0).toLocaleString() }}</span></div>
             <div v-if="totalReturnValue > 0" class="flex justify-between border-t border-white/[0.06] pt-2">
               <span class="text-gray-500">After This Return</span>
@@ -343,6 +349,7 @@ async function submit() {
         return_date:   form.return_date,
         return_type:   form.return_type,
         return_reason: returnReason,
+        return_category: form.reason || undefined,
         notes:         notesText || null,
         items,
       },

@@ -1,3 +1,4 @@
+import { releaseOrderPayments } from '~/server/utils/advanceCredit'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
@@ -34,11 +35,11 @@ export default defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
     if (order.status !== 'goods_on_board') refuse(`Only an order that is Goods on Board can be reversed (this one is "${order.status}")`)
     if (order.is_other_sales) refuse('Other-Sales orders post COGS and stock drawdown at dispatch, which this reversal does not undo')
-    if (Number(order.amount_paid) > 0.005 || Number(order.advance_paid) > 0.005)
-      refuse('A payment/advance is recorded against this order — reversing the invoice would orphan it')
+    if (Number(order.amount_paid) > 0.005)
+      refuse('A payment was taken against this order after dispatch — reversing the invoice would orphan it')
 
     const count = async (sql: string) => Number((await conn.query<any>(sql, [id]))[0][0]?.c ?? 0)
-    if (await count(`SELECT COUNT(*) c FROM payment_allocations WHERE order_id = ?`)) refuse('Payments are allocated to this order')
+    if (await count(`SELECT COUNT(*) c FROM payment_allocations WHERE order_id = ? AND released_at IS NULL AND as_advance = 0`)) refuse('Payments are allocated to this order')
     if (await count(`SELECT COUNT(*) c FROM cr_delivery_confirmations WHERE order_id = ?`)) refuse('A gate scan / delivery confirmation exists — the truck may already have left')
     if (await count(`SELECT COUNT(*) c FROM credit_order_deliveries WHERE order_id = ?`)) refuse('Deliveries are recorded for this order')
     if (await count(`SELECT COUNT(*) c FROM credit_order_returns WHERE order_id = ?`)) refuse('A return exists for this order')
@@ -72,6 +73,8 @@ export default defineEventHandler(async (event) => {
     await conn.query(`UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`, [newBalance, order.customer_id])
     await transitionOrder(conn, { orderId: id, from: 'goods_on_board', to: 'ready_to_ship', action: 'dispatch_reversed', userId,
       comment: `Dispatch reversed — reason: ${reason}. Invoice archived in Recycle Bin batch #${batch}; customer balance now ৳${newBalance.toLocaleString()}.` })
+    // An advance only ever sat on the order (it was never part of the invoice) — give it back to the customer's advance credit.
+    const releasedAdvance = Number(order.advance_paid) > 0.005 ? await releaseOrderPayments(conn, id, userId, order.order_number) : 0
     await recycleFinalize(conn, batch)
     await auditLog(conn, {
       userId, action: 'status_changed', module: 'credit_sales', recordType: 'credit_order', recordId: id,

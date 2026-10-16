@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, aC as readBody, a2 as getUserSession, q as createError, a6 as isAccountsRole, F as getDb, d as AMD_PRE_STATUSES, c as AMD_POST_STATUSES, _ as getUserApprovalLimit, ac as nextDocNumber, g as applyAmendment, j as auditLog, aZ as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, aF as readBody, a5 as getUserSession, r as createError, a9 as isAccountsRole, I as getDb, d as AMD_PRE_STATUSES, c as AMD_POST_STATUSES, a2 as getUserApprovalLimit, af as nextDocNumber, h as applyAmendment, k as auditLog, b1 as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -70,18 +70,24 @@ const amendments_post = defineEventHandler(async (event) => {
       }, 0);
       delta = Math.round((newSub - oldSub) * 100) / 100;
       if (Math.abs(delta) < 5e-3 && !newItems.some((it) => {
+        var _a2, _b2;
         const o = oldItems.find((x) => Number(x.id) === Number(it.item_id));
-        return !o || Number(o.unit_price) !== Number(it.unit_price);
+        return !o || Number(o.unit_price) !== Number(it.unit_price) || it.product_id != null && (Number(it.product_id) !== Number(o.product_id) || Number((_a2 = it.variant_id) != null ? _a2 : 0) !== Number((_b2 = o.variant_id) != null ? _b2 : 0));
       })) throw createError({ statusCode: 400, statusMessage: "Nothing changed" });
       const priceChanged = oldItems.some((o) => {
         const n = newItems.find((it) => Number(it.item_id) === Number(o.id));
         return n && Number(n.unit_price) !== Number(o.unit_price);
       });
+      const productChanged = oldItems.some((o) => {
+        var _a2, _b2;
+        const n = newItems.find((it) => Number(it.item_id) === Number(o.id));
+        return n && n.product_id != null && (Number(n.product_id) !== Number(o.product_id) || Number((_a2 = n.variant_id) != null ? _a2 : 0) !== Number((_b2 = o.variant_id) != null ? _b2 : 0));
+      });
       const qtyChanged = oldItems.some((o) => {
         const n = newItems.find((it) => Number(it.item_id) === Number(o.id));
         return n && Number(n.quantity) !== Number(o.quantity);
       });
-      amendType = priceChanged && !qtyChanged ? "price_revision" : qtyChanged && !priceChanged ? "qty_change" : "correction";
+      amendType = productChanged ? "product_correction" : priceChanged && !qtyChanged ? "price_revision" : qtyChanged && !priceChanged ? "qty_change" : "correction";
       oldValues = { items: oldItems, subtotal: oldSub, total_amount: Number(order.total_amount) };
       newValues = { items: newItems, new_subtotal: newSub, total_amount: Number(order.total_amount) + delta };
       if (regime === "post") flatAmount = delta;

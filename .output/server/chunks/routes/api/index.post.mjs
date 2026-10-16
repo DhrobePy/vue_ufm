@@ -1,4 +1,4 @@
-import { t as defineEventHandler, aC as readBody, a2 as getUserSession, q as createError, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, az as query, F as getDb, ac as nextDocNumber, E as getCustomerOutstanding, as as postJournalEntry, ao as postCustomerLedger, j as auditLog, aZ as sendTelegram } from '../../nitro/nitro.mjs';
+import { u as defineEventHandler, aF as readBody, a5 as getUserSession, r as createError, V as getRequestHeader, bb as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aC as query, I as getDb, af as nextDocNumber, H as getCustomerOutstanding, av as postJournalEntry, ar as postCustomerLedger, C as getAdvanceCredit, b6 as suggestAllotment, g as applyAllotment, k as auditLog, b1 as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -209,8 +209,10 @@ const index_post = defineEventHandler(async (event) => {
         special_notes || null,
         subtotal,
         totalAmount,
+        0,
+        // amount_paid: payments after dispatch. The advance lives ONLY in advance_paid (legacy rule) —
         advancePaid,
-        advancePaid,
+        // storing it in both made every `total − advance_paid − amount_paid` recompute subtract it twice
         balanceDue,
         deliveryType,
         miniTruckSurcharge,
@@ -375,6 +377,12 @@ const index_post = defineEventHandler(async (event) => {
         userId
       });
     }
+    let advanceAllotted = 0;
+    if ((body == null ? void 0 : body.use_advance_credit) !== false) {
+      const credit = await getAdvanceCredit(conn, Number(customer_id));
+      const plan = suggestAllotment(credit, "orders_first", { onlyNative: true }).filter((a) => a.target === "order");
+      if (plan.length) advanceAllotted = (await applyAllotment(conn, Number(customer_id), userId, plan, `placed with ${orderNo}`)).total;
+    }
     await auditLog(conn, {
       userId,
       action: overLimit ? "other" : isAdmin ? "approved" : "other",
@@ -402,6 +410,7 @@ Credit limit exceeded by \u09F3${excessAmount.toLocaleString()} \u2014 needs sen
       status: orderStatus,
       over_limit: overLimit,
       mini_truck_surcharge: miniTruckSurcharge,
+      advance_allotted: advanceAllotted,
       ...overLimit ? { excess_amount: excessAmount } : {}
     };
   } catch (e) {

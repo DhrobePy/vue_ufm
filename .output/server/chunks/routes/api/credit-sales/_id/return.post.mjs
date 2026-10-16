@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, q as createError, aC as readBody, a2 as getUserSession, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, F as getDb, ac as nextDocNumber, ao as postCustomerLedger, j as auditLog } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, r as createError, aF as readBody, a5 as getUserSession, V as getRequestHeader, bb as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, I as getDb, af as nextDocNumber, ar as postCustomerLedger, k as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -37,6 +37,7 @@ const return_post = defineEventHandler(async (event) => {
     return_date,
     return_type = "partial",
     return_reason,
+    return_category,
     notes,
     items
     // [{ order_item_id, product_id, variant_id, original_qty, returned_qty, unit_price }]
@@ -90,8 +91,8 @@ const return_post = defineEventHandler(async (event) => {
       `INSERT INTO credit_order_returns
          (return_number, order_id, customer_id, return_date, return_type,
           return_reason, total_returned_amount, total_returned_qty,
-          status, approved_by_user_id, approved_at, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          status, approved_by_user_id, approved_at, notes, created_by_user_id, return_category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         retNo,
         id,
@@ -105,7 +106,8 @@ const return_post = defineEventHandler(async (event) => {
         autoApprove ? userId : null,
         autoApprove ? /* @__PURE__ */ new Date() : null,
         notes != null ? notes : null,
-        userId
+        userId,
+        ["damaged", "quality", "wrong_product", "wrong_item", "excess", "cancelled", "other"].includes(String(return_category)) ? String(return_category).replace("wrong_item", "wrong_product") : null
       ]
     );
     const returnId = result.insertId;

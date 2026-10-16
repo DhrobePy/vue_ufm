@@ -82,11 +82,13 @@ export default defineEventHandler(async (event) => {
         s + Number(it.quantity) * Number(it.unit_price) - Number(it.discount_amount ?? 0), 0)
       delta = Math.round((newSub - oldSub) * 100) / 100
       if (Math.abs(delta) < 0.005 && !newItems.some(it => {
-        const o = oldItems.find(x => Number(x.id) === Number(it.item_id)); return !o || Number(o.unit_price) !== Number(it.unit_price)
+        const o = oldItems.find(x => Number(x.id) === Number(it.item_id))
+        return !o || Number(o.unit_price) !== Number(it.unit_price) || (it.product_id != null && (Number(it.product_id) !== Number(o.product_id) || Number(it.variant_id ?? 0) !== Number(o.variant_id ?? 0)))
       })) throw createError({ statusCode: 400, statusMessage: 'Nothing changed' })
       const priceChanged = oldItems.some(o => { const n = newItems.find(it => Number(it.item_id) === Number(o.id)); return n && Number(n.unit_price) !== Number(o.unit_price) })
+      const productChanged = oldItems.some(o => { const n = newItems.find(it => Number(it.item_id) === Number(o.id)); return n && n.product_id != null && (Number(n.product_id) !== Number(o.product_id) || Number(n.variant_id ?? 0) !== Number(o.variant_id ?? 0)) })
       const qtyChanged   = oldItems.some(o => { const n = newItems.find(it => Number(it.item_id) === Number(o.id)); return n && Number(n.quantity) !== Number(o.quantity) })
-      amendType = priceChanged && !qtyChanged ? 'price_revision' : qtyChanged && !priceChanged ? 'qty_change' : 'correction'
+      amendType = productChanged ? 'product_correction' : priceChanged && !qtyChanged ? 'price_revision' : qtyChanged && !priceChanged ? 'qty_change' : 'correction'
       oldValues = { items: oldItems, subtotal: oldSub, total_amount: Number(order.total_amount) }
       newValues = { items: newItems, new_subtotal: newSub, total_amount: Number(order.total_amount) + delta }
       if (regime === 'post') flatAmount = delta

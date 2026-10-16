@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, a2 as getUserSession, q as createError, aC as readBody, F as getDb, aJ as recycleBegin, aI as recycleArchiveDelete, aN as recycleSnapshotBefore, b2 as transitionOrder, aK as recycleFinalize, j as auditLog, aZ as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, a5 as getUserSession, r as createError, aF as readBody, I as getDb, aM as recycleBegin, aL as recycleArchiveDelete, aQ as recycleSnapshotBefore, b8 as transitionOrder, aR as releaseOrderPayments, aN as recycleFinalize, k as auditLog, b1 as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -33,13 +33,13 @@ const reverseDispatch_post = defineEventHandler(async (event) => {
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
     if (order.status !== "goods_on_board") refuse(`Only an order that is Goods on Board can be reversed (this one is "${order.status}")`);
     if (order.is_other_sales) refuse("Other-Sales orders post COGS and stock drawdown at dispatch, which this reversal does not undo");
-    if (Number(order.amount_paid) > 5e-3 || Number(order.advance_paid) > 5e-3)
-      refuse("A payment/advance is recorded against this order \u2014 reversing the invoice would orphan it");
+    if (Number(order.amount_paid) > 5e-3)
+      refuse("A payment was taken against this order after dispatch \u2014 reversing the invoice would orphan it");
     const count = async (sql) => {
       var _a2, _b2;
       return Number((_b2 = (_a2 = (await conn.query(sql, [id]))[0][0]) == null ? void 0 : _a2.c) != null ? _b2 : 0);
     };
-    if (await count(`SELECT COUNT(*) c FROM payment_allocations WHERE order_id = ?`)) refuse("Payments are allocated to this order");
+    if (await count(`SELECT COUNT(*) c FROM payment_allocations WHERE order_id = ? AND released_at IS NULL AND as_advance = 0`)) refuse("Payments are allocated to this order");
     if (await count(`SELECT COUNT(*) c FROM cr_delivery_confirmations WHERE order_id = ?`)) refuse("A gate scan / delivery confirmation exists \u2014 the truck may already have left");
     if (await count(`SELECT COUNT(*) c FROM credit_order_deliveries WHERE order_id = ?`)) refuse("Deliveries are recorded for this order");
     if (await count(`SELECT COUNT(*) c FROM credit_order_returns WHERE order_id = ?`)) refuse("A return exists for this order");
@@ -83,6 +83,7 @@ const reverseDispatch_post = defineEventHandler(async (event) => {
       userId,
       comment: `Dispatch reversed \u2014 reason: ${reason}. Invoice archived in Recycle Bin batch #${batch}; customer balance now \u09F3${newBalance.toLocaleString()}.`
     });
+    const releasedAdvance = Number(order.advance_paid) > 5e-3 ? await releaseOrderPayments(conn, id, userId, order.order_number) : 0;
     await recycleFinalize(conn, batch);
     await auditLog(conn, {
       userId,

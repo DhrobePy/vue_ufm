@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, q as createError, aC as readBody, a2 as getUserSession, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, F as getDb, o as checkTransactionLimit, aB as queuePendingRequest, aZ as sendTelegram, ac as nextDocNumber, ao as postCustomerLedger, as as postJournalEntry, L as getOrderGateState, j as auditLog, m as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, r as createError, aF as readBody, a5 as getUserSession, V as getRequestHeader, bb as userCanAction, A as ACCOUNTS_ROLES, I as getDb, p as checkTransactionLimit, aE as queuePendingRequest, b1 as sendTelegram, af as nextDocNumber, ar as postCustomerLedger, av as postJournalEntry, O as getOrderGateState, k as auditLog, n as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payment_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid order ID" });
   const body = await readBody(event);
@@ -64,7 +64,7 @@ const payment_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[order]] = await conn.query(
-      `SELECT o.id, o.customer_id, o.order_number, o.balance_due, o.amount_paid, o.status,
+      `SELECT o.id, o.customer_id, o.order_number, o.balance_due, o.amount_paid, o.advance_paid, o.status,
               c.name AS customer_name
        FROM credit_orders o JOIN customers c ON c.id = o.customer_id
        WHERE o.id = ? FOR UPDATE`,
@@ -100,8 +100,14 @@ ${order.order_number} \u2014 ${order.customer_name}
       };
     }
     const pmtAmount = Number(amount);
-    const newPaid = Number((_h = order.amount_paid) != null ? _h : 0) + pmtAmount;
-    const newBalance = Math.max(0, Number((_i = order.balance_due) != null ? _i : 0) - pmtAmount);
+    if (["cancelled", "rejected"].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: `This order is ${order.status} \u2014 it cannot take payment` });
+    if (pmtAmount > Number((_h = order.balance_due) != null ? _h : 0) + 0.01)
+      throw createError({ statusCode: 400, statusMessage: `\u09F3${pmtAmount.toLocaleString()} is more than this order owes (\u09F3${Number((_i = order.balance_due) != null ? _i : 0).toLocaleString()}). Take only the balance here, and record the extra as an on-account advance from Collect Payment on the customer.` });
+    const asAdvance = !["goods_on_board", "shipped", "dispatched", "delivered", "completed"].includes(order.status);
+    const newPaid = Number((_j = order.amount_paid) != null ? _j : 0) + (asAdvance ? 0 : pmtAmount);
+    const newAdvance = Number((_k = order.advance_paid) != null ? _k : 0) + (asAdvance ? pmtAmount : 0);
+    const newBalance = Math.max(0, Number((_l = order.balance_due) != null ? _l : 0) - pmtAmount);
     const payNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
     const autoRef = reference_number || payNo;
     const [result] = await conn.query(
@@ -110,7 +116,7 @@ ${order.order_number} \u2014 ${order.customer_name}
           payment_type, reference_number, bank_account_id, cash_account_id,
           allocation_status, allocated_amount, notes, created_by_user_id)
        VALUES (?, ?, ?, ?, ?, ?,
-               'invoice_payment', ?, ?, ?,
+               ?, ?, ?, ?,
                'allocated', ?, ?, ?)`,
       [
         id,
@@ -119,6 +125,7 @@ ${order.order_number} \u2014 ${order.customer_name}
         pmtDate,
         pmtAmount,
         mappedMethod,
+        asAdvance ? "advance" : "invoice_payment",
         autoRef,
         bank_account_id ? Number(bank_account_id) : null,
         cash_account_id ? Number(cash_account_id) : null,
@@ -131,9 +138,9 @@ ${order.order_number} \u2014 ${order.customer_name}
     const isNowComplete = newBalance === 0 && order.status === "delivered";
     await conn.query(
       `UPDATE credit_orders
-       SET amount_paid = ?, balance_due = ?, updated_at = NOW()
+       SET amount_paid = ?, advance_paid = ?, balance_due = ?, updated_at = NOW()
        WHERE id = ?`,
-      [newPaid, newBalance, id]
+      [newPaid, newAdvance, newBalance, id]
     );
     await postCustomerLedger(conn, {
       customerId: order.customer_id,
@@ -155,26 +162,26 @@ ${order.order_number} \u2014 ${order.customer_name}
           `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
           [Number(cash_account_id)]
         );
-        drAccountId = (_j = ca == null ? void 0 : ca.chart_of_account_id) != null ? _j : null;
+        drAccountId = (_m = ca == null ? void 0 : ca.chart_of_account_id) != null ? _m : null;
       } else if (["Bank Transfer", "Cheque", "Card"].includes(mappedMethod) && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_k = ba == null ? void 0 : ba.chart_of_account_id) != null ? _k : null;
+        drAccountId = (_n = ba == null ? void 0 : ba.chart_of_account_id) != null ? _n : null;
       } else if (mappedMethod === "Mobile Banking" && bank_account_id) {
         const [[ba]] = await conn.query(
           `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
           [Number(bank_account_id)]
         );
-        drAccountId = (_l = ba == null ? void 0 : ba.chart_of_account_id) != null ? _l : null;
+        drAccountId = (_o = ba == null ? void 0 : ba.chart_of_account_id) != null ? _o : null;
       }
       const [[ar]] = await conn.query(
         `SELECT id FROM chart_of_accounts
          WHERE account_type = 'Accounts Receivable'
          ORDER BY id ASC LIMIT 1`
       );
-      const crAccountId = (_m = ar == null ? void 0 : ar.id) != null ? _m : null;
+      const crAccountId = (_p = ar == null ? void 0 : ar.id) != null ? _p : null;
       if (drAccountId && crAccountId) {
         const jeDesc = `Payment received \u2014 ${payNo} (Order ${id}, ${mappedMethod})`;
         const jeId = await postJournalEntry(conn, {
@@ -199,7 +206,7 @@ ${order.order_number} \u2014 ${order.customer_name}
             `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(cash_account_id)]
           );
-          const pcBal = Number((_n = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _n : 0);
+          const pcBal = Number((_q = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _q : 0);
           await conn.query(
             `INSERT INTO branch_petty_cash_transactions
                (account_id, branch_id, transaction_type, amount, balance_after,
@@ -207,7 +214,7 @@ ${order.order_number} \u2014 ${order.customer_name}
              VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
             [
               Number(cash_account_id),
-              (_o = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _o : null,
+              (_r = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _r : null,
               pmtAmount,
               pcBal + pmtAmount,
               paymentId,
@@ -294,10 +301,11 @@ ${payNo} \u2014 ${order.customer_name} (Order ${order.order_number})
     };
   } catch (e) {
     await conn.rollback();
+    if ((e == null ? void 0 : e.statusCode) && e.statusCode < 500) throw e;
     console.error("[payment] Transaction failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno, "| code:", e == null ? void 0 : e.code);
     throw createError({
       statusCode: 500,
-      statusMessage: (_q = (_p = e == null ? void 0 : e.sqlMessage) != null ? _p : e == null ? void 0 : e.message) != null ? _q : "Payment transaction failed"
+      statusMessage: (_t = (_s = e == null ? void 0 : e.sqlMessage) != null ? _s : e == null ? void 0 : e.message) != null ? _t : "Payment transaction failed"
     });
   } finally {
     conn.release();

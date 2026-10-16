@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, aC as readBody, a2 as getUserSession, q as createError, O as getRequestHeader, a7 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, f as PRODUCTION_ROLES, b5 as userCanAction, F as getDb, a0 as getUserBranchIds, _ as getUserApprovalLimit, E as getCustomerOutstanding, C as getCreditWorkflowSettings, a6 as isAccountsRole, L as getOrderGateState, i as assertDispatchClear, z as generateDeliverySlipNumber, ar as postGoodsOnBoardInvoice, at as postOtherSalesCOGS, b2 as transitionOrder, j as auditLog, aZ as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, aF as readBody, a5 as getUserSession, r as createError, V as getRequestHeader, aa as isAdminRole, bb as userCanAction, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, f as PRODUCTION_ROLES, I as getDb, a3 as getUserBranchIds, a2 as getUserApprovalLimit, H as getCustomerOutstanding, G as getCreditWorkflowSettings, a9 as isAccountsRole, O as getOrderGateState, j as assertDispatchClear, B as generateDeliverySlipNumber, au as postGoodsOnBoardInvoice, aw as postOtherSalesCOGS, aR as releaseOrderPayments, b8 as transitionOrder, k as auditLog, b1 as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -54,8 +54,9 @@ const workflow_post = defineEventHandler(async (event) => {
   const rule = TRANSITIONS[to_status];
   if (!rule)
     throw createError({ statusCode: 400, statusMessage: `Unknown target status "${to_status}"` });
-  if (!isAdminRole(role) && !rule.roles.includes(role))
-    throw createError({ statusCode: 403, statusMessage: `Your role cannot move orders to "${to_status}"` });
+  const mayCancel = to_status === "cancelled" && !isAdminRole(role) && await userCanAction({ userId, role, module: "credit_sales", page: "all", action: "cancel", roleFallback: [], explicit: true });
+  if (!isAdminRole(role) && !rule.roles.includes(role) && !mayCancel)
+    throw createError({ statusCode: 403, statusMessage: to_status === "cancelled" ? 'Only admin, or a user granted "Cancel orders", may cancel an order' : `Your role cannot move orders to "${to_status}"` });
   const TRANSITION_PERM = {
     approved: { page: "approve", action: "approve" },
     rejected: { page: "approve", action: "reject" },
@@ -108,6 +109,10 @@ const workflow_post = defineEventHandler(async (event) => {
     if (isOtherSales && ["in_production"].includes(to_status))
       throw createError({ statusCode: 409, statusMessage: "Other Sales orders skip production \u2014 move it straight to Ready to Ship" });
     const allowedFrom = isOtherSales && to_status === "ready_to_ship" ? [...rule.from, "approved"] : rule.from;
+    if (to_status === "cancelled" && ["goods_on_board", "shipped", "dispatched", "delivered", "completed"].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: order.status === "goods_on_board" ? "The invoice is already posted. Reverse the dispatch first (admin, only while nothing was paid after dispatch), then cancel \u2014 or record a full return to credit the customer." : "Goods have left. An order cannot be cancelled now \u2014 record a Delivery Return (credit note) and, if the customer is owed money, refund it." });
+    if (to_status === "cancelled" && !String(comments != null ? comments : "").trim())
+      throw createError({ statusCode: 400, statusMessage: "A reason is required to cancel an order" });
     if (!allowedFrom.includes(order.status))
       throw createError({
         statusCode: 409,
@@ -347,6 +352,15 @@ Reason: ${comments}` : ""}`;
       telegramMsg = `\u{1F6E3}\uFE0F <b>Order Shipped</b>
 ${order.order_number} \u2014 ${order.customer_name}
 Truck has departed \xB7 by ${userName}`;
+    }
+    if (to_status === "cancelled") {
+      const released = await releaseOrderPayments(conn, id, userId, order.order_number);
+      if (released > 0) wfComment += ` \xB7 \u09F3${released.toLocaleString()} received on it released to the customer's advance credit`;
+      telegramMsg = `\u274C <b>Order Cancelled</b>
+${order.order_number} \u2014 ${order.customer_name}
+\u09F3${totalAmount.toLocaleString()} \xB7 by ${userName}
+Reason: ${comments}${released > 0 ? `
+\u09F3${released.toLocaleString()} advance released to customer credit` : ""}`;
     }
     await transitionOrder(conn, { orderId: id, from: order.status, to: finalStatus, action: to_status === "approved" && finalStatus !== "approved" ? finalStatus === "escalated" ? "escalated" : "approved" : void 0, userId, comment: wfComment });
     await auditLog(conn, {

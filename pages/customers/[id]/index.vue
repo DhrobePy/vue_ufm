@@ -33,6 +33,8 @@
           <div class="flex flex-wrap items-center gap-2">
             <NuxtLink v-if="p.can.createOrder && c.status === 'active'" :to="`/credit-sales/create?customer=${c.id}`" class="btn-gold text-xs">+ New Order</NuxtLink>
             <NuxtLink v-if="p.can.collect" :to="`/credit-sales/collect?customer=${c.id}`" class="btn-ghost text-xs">💰 Collect Payment</NuxtLink>
+            <button v-if="p.can.collect" class="btn-ghost text-xs" @click="allotOpen = true">🧷 Allot Advance</button>
+            <button v-if="perms.canExplicit('credit_sales', 'all', 'refund_customer')" class="btn-ghost text-xs" @click="refundOpen = true">↩️ Refund</button>
             <NuxtLink :to="`/customers/${c.id}/statement`" class="btn-ghost text-xs">🧾 Statement</NuxtLink>
             <NuxtLink v-if="p.can.edit" :to="`/customers/${c.id}/edit`" class="btn-ghost text-xs">✏️ Edit</NuxtLink>
 
@@ -386,6 +388,8 @@
         </div>
       </div>
     </Teleport>
+    <AdvanceAllot :open="allotOpen" :customer-id="c.id" @close="allotOpen = false" @done="refresh()" />
+    <CustomerRefund :open="refundOpen" :customer-id="c.id" @close="refundOpen = false" @done="refresh()" />
   </div>
 </template>
 
@@ -398,6 +402,7 @@ const { success, error: toastError } = useToast()
 const { user: me } = useUserSession()
 const isAdmin = computed(() => ['admin', 'superadmin'].includes(String(me.value?.role ?? '').toLowerCase()))
 const can = (path: string) => perms.canAccessRoute(path)
+const allotOpen = ref(false), refundOpen = ref(false)
 
 const { data, pending, error, refresh } = await useFetch<any>(() => `/api/customers/${route.params.id}/profile`)
 const p = computed(() => data.value as any)

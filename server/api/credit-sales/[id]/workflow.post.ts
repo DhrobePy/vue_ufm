@@ -1,3 +1,4 @@
+import { releaseOrderPayments } from '~/server/utils/advanceCredit'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
@@ -74,8 +75,13 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: `Unknown target status "${to_status}"` })
 
   // Role gate (decorative UI check re-enforced here)
-  if (!isAdminRole(role) && !rule.roles.includes(role))
-    throw createError({ statusCode: 403, statusMessage: `Your role cannot move orders to "${to_status}"` })
+  // Cancelling = admin, or a user explicitly granted "Cancel orders" in their permissions.
+  const mayCancel = to_status === 'cancelled' && !isAdminRole(role) &&
+    await userCanAction({ userId, role, module: 'credit_sales', page: 'all', action: 'cancel', roleFallback: [], explicit: true })
+  if (!isAdminRole(role) && !rule.roles.includes(role) && !mayCancel)
+    throw createError({ statusCode: 403, statusMessage: to_status === 'cancelled'
+      ? 'Only admin, or a user granted "Cancel orders", may cancel an order'
+      : `Your role cannot move orders to "${to_status}"` })
 
   // Per-user action toggles from the privileges editor (admin bypasses;
   // users without a permissions row keep their role-family defaults)
@@ -135,6 +141,12 @@ export default defineEventHandler(async (event) => {
     const allowedFrom = isOtherSales && to_status === 'ready_to_ship'
       ? [...rule.from, 'approved']
       : rule.from
+    if (to_status === 'cancelled' && ['goods_on_board', 'shipped', 'dispatched', 'delivered', 'completed'].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: order.status === 'goods_on_board'
+        ? 'The invoice is already posted. Reverse the dispatch first (admin, only while nothing was paid after dispatch), then cancel — or record a full return to credit the customer.'
+        : 'Goods have left. An order cannot be cancelled now — record a Delivery Return (credit note) and, if the customer is owed money, refund it.' })
+    if (to_status === 'cancelled' && !String(comments ?? '').trim())
+      throw createError({ statusCode: 400, statusMessage: 'A reason is required to cancel an order' })
     if (!allowedFrom.includes(order.status))
       throw createError({
         statusCode: 409,
@@ -402,6 +414,14 @@ export default defineEventHandler(async (event) => {
     if (to_status === 'shipped') {
       wfComment = `Truck departed · ${wfComment}`.trim()
       telegramMsg = `🛣️ <b>Order Shipped</b>\n${order.order_number} — ${order.customer_name}\nTruck has departed · by ${userName}`
+    }
+
+    // ── CANCELLED (before dispatch) — nothing was invoiced, so nothing to reverse in the ledger/GL; money the customer already
+    //    paid on this order goes back to their advance credit (re-allot to another order, or refund).
+    if (to_status === 'cancelled') {
+      const released = await releaseOrderPayments(conn, id, userId, order.order_number)
+      if (released > 0) wfComment += ` · ৳${released.toLocaleString()} received on it released to the customer's advance credit`
+      telegramMsg = `❌ <b>Order Cancelled</b>\n${order.order_number} — ${order.customer_name}\n৳${totalAmount.toLocaleString()} · by ${userName}\nReason: ${comments}${released > 0 ? `\n৳${released.toLocaleString()} advance released to customer credit` : ''}`
     }
 
     // ── Apply the transition ─────────────────────────────────────────────────

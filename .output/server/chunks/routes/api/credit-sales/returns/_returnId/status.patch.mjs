@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, q as createError, aO as requireAction, aC as readBody, O as getRequestHeader, F as getDb, ao as postCustomerLedger, j as auditLog } from '../../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, r as createError, aS as requireAction, aF as readBody, V as getRequestHeader, I as getDb, L as getGLAccountId, F as getCreditRevenueAccountId, av as postJournalEntry, ar as postCustomerLedger, k as auditLog } from '../../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -57,6 +57,22 @@ const status_patch = defineEventHandler(async (event) => {
     if (action === "approve") {
       const totalRetAmount = Number(ret.total_returned_amount);
       const retDate = ret.return_date;
+      let jeId = null;
+      const arId = await getGLAccountId(conn, "Accounts Receivable");
+      const revId = await getCreditRevenueAccountId(conn, ret.order_id);
+      if (arId && revId && totalRetAmount > 0) {
+        jeId = await postJournalEntry(conn, {
+          date: retDate instanceof Date ? retDate.toISOString().slice(0, 10) : String(retDate).slice(0, 10),
+          description: `Goods return credit note ${ret.return_number} \u2014 Order ${ret.order_number}`,
+          docType: "CreditOrderReturn",
+          docId: returnId,
+          userId,
+          lines: [
+            { accountId: revId, debit: totalRetAmount, credit: 0, memo: ret.return_number },
+            { accountId: arId, debit: 0, credit: totalRetAmount, memo: ret.return_number }
+          ]
+        });
+      }
       await postCustomerLedger(conn, {
         customerId: ret.customer_id,
         date: retDate,
@@ -67,6 +83,7 @@ const status_patch = defineEventHandler(async (event) => {
         description: `Goods Return Credit Note \u2014 ${ret.return_number} (Order ${ret.order_number})`,
         debit: 0,
         credit: totalRetAmount,
+        journalEntryId: jeId,
         userId
       });
       await conn.query(

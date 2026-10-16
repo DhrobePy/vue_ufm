@@ -126,7 +126,7 @@
             <div class="flex justify-between"><span class="text-gray-600">Order #</span><span class="font-mono text-gold-400/80">{{ order.order_number }}</span></div>
             <div class="flex justify-between"><span class="text-gray-600">Customer</span><span class="text-gray-300">{{ order.customer_name }}</span></div>
             <div class="flex justify-between"><span class="text-gray-600">Order Total</span><span class="font-semibold text-gray-200">৳{{ Number(order.total_amount || 0).toLocaleString() }}</span></div>
-            <div class="flex justify-between"><span class="text-gray-600">Paid to Date</span><span class="font-semibold text-emerald-400">৳{{ Number(order.amount_paid || 0).toLocaleString() }}</span></div>
+            <div class="flex justify-between"><span class="text-gray-600">Paid to Date</span><span class="font-semibold text-emerald-400">৳{{ (Number(order.amount_paid || 0) + Number(order.advance_paid || 0)).toLocaleString() }}</span></div>
             <div class="h-px bg-white/[0.06]" />
             <div class="flex justify-between"><span class="text-gray-600 font-semibold">Outstanding</span><span class="font-bold text-red-400 text-sm">৳{{ outstanding.toLocaleString() }}</span></div>
           </div>
@@ -187,7 +187,7 @@ const cashAccountOptions = computed(() => pettyAccounts.value.map(a => ({
 const outstanding = computed(() => Number(order.value.balance_due ?? 0))
 const paidPct     = computed(() => {
   const total = Number(order.value.total_amount ?? 0)
-  const paid  = Number(order.value.amount_paid  ?? 0)
+  const paid  = Number(order.value.amount_paid  ?? 0) + Number(order.value.advance_paid ?? 0)
   if (!total) return 0
   return Math.min(100, Math.round(paid / total * 100))
 })

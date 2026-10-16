@@ -60,7 +60,11 @@
             <tbody class="divide-y divide-white/[0.03]">
               <tr v-for="(it, i) in editItems" :key="i">
                 <td class="px-4 py-2.5 text-gray-300">
-                  {{ it.product_name }} <span class="text-gray-600">{{ it.weight_variant }}</span>
+                  <template v-if="!it.changing">{{ it.product_name }} <span class="text-gray-600">{{ it.weight_variant }}</span>
+                    <button v-if="!it.delivered" type="button" class="ml-1 text-[10px] text-amber-400 hover:underline" title="Wrong product was entered on this line" @click="startChange(it)">change product</button></template>
+                  <select v-else v-model="it.pick" class="input-glass w-full py-1 text-xs" @change="pickProduct(it)">
+                    <option v-for="v in variantOptions" :key="v.vid" :value="v.vid">{{ v.name }}</option>
+                  </select>
                 </td>
                 <td class="px-3 py-2">
                   <input v-model.number="it.quantity" type="number" :min="it.delivered || 0" class="input-glass w-full py-1 text-center font-mono" />
@@ -150,6 +154,12 @@
             <label class="text-[11px] text-gray-500">Required Date</label>
             <input v-model="headerForm.required_date" type="date" class="input-glass w-full" />
           </div>
+          <div v-if="PRE.includes(order.status)" class="space-y-1.5">
+            <label class="text-[11px] text-gray-500">Production branch</label>
+            <select v-model="headerForm.assigned_branch_id" class="input-glass w-full">
+              <option v-for="b in branchList" :key="b.id" :value="b.id">{{ b.name }}</option>
+            </select>
+          </div>
           <div class="space-y-1.5">
             <label class="text-[11px] text-gray-500">Priority</label>
             <select v-model="headerForm.priority" class="input-glass w-full">
@@ -197,6 +207,9 @@
             <div class="flex-1 text-xs text-gray-500 min-w-[160px]">
               {{ a.description || '—' }}
               <span v-if="a.customer_consent_note" class="block text-[10px] text-amber-500/80">Consent: {{ a.customer_consent_note }}</span>
+              <ul v-if="changeLines(a).length" class="mt-1 text-[10px] text-gray-500 list-disc pl-4">
+                <li v-for="(l, i) in changeLines(a)" :key="i">{{ l }}</li>
+              </ul>
               <span v-if="a.flat_amount" class="font-mono ml-1"
                     :class="Number(a.flat_amount) > 0 ? 'text-emerald-400' : 'text-red-400'">
                 {{ Number(a.flat_amount) > 0 ? '+' : '' }}৳{{ Number(a.flat_amount).toLocaleString() }}
@@ -206,6 +219,10 @@
               <p>by {{ a.requested_by_name ?? '—' }}</p>
               <p v-if="a.decided_by_name">{{ a.status }} by {{ a.decided_by_name }}</p>
             </div>
+            <div v-if="a.status === 'approved' && isAdmin && !a.reverts_amendment_id && !amendments.some((x: any) => x.reverts_amendment_id === a.id && x.status !== 'rejected') && a.amend_type !== 'revert'">
+              <button @click="revert(a)" class="px-3 py-1 rounded-lg text-[11px] text-gray-400 border border-white/[0.1] hover:text-amber-300 hover:border-amber-500/30" title="Put the order back as it was before this amendment">↩ Revert</button>
+            </div>
+            <span v-else-if="a.reverts_amendment_id" class="text-[10px] text-gray-600">reverts #{{ amendments.find((x: any) => x.id === a.reverts_amendment_id)?.amendment_number }}</span>
             <div v-if="a.status === 'pending' && isAdmin" class="flex gap-2">
               <button @click="decide(a, 'approve')" class="px-3 py-1 rounded-lg text-[11px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/25">Approve</button>
               <button @click="decide(a, 'reject')" class="px-3 py-1 rounded-lg text-[11px] text-gray-500 border border-white/[0.08] hover:text-red-400 hover:border-red-500/25">Reject</button>
@@ -245,6 +262,7 @@ watch(items, (its) => {
     item_id: it.id, delivered: Number(it.delivered_qty ?? 0),
     product_id: it.product_id, variant_id: it.variant_id,
     product_name: it.product_name, weight_variant: it.weight_variant,
+    changing: false, pick: '',
     quantity: Number(it.quantity), unit_price: Number(it.unit_price),
     discount_amount: Number(it.discount_amount ?? 0),
   }))
@@ -256,6 +274,25 @@ function lineTotal(it: any): number {
 const newTotal = computed(() => editItems.value.reduce((s, it) => s + lineTotal(it), 0))
 const oldSub   = computed(() => items.value.reduce((s, it) => s + Number(it.line_total), 0))
 const postMode = ref('items')
+
+// ── "wrong product on this line" — swap the product/variant (not allowed once a delivery/return is recorded on it) ──
+const catalog = ref<any[]>([])
+const variantOptions = computed(() => catalog.value.flatMap((p: any) => (p.variants ?? []).map((v: any) => ({
+  vid: `${p.id}|${v.id}`, pid: p.id, variantId: v.id, price: v.unit_price ? Number(v.unit_price) : null,
+  name: `${p.base_name} (${v.weight_variant})${v.grade ? ` [${v.grade}]` : ''}${v.unit_price ? ` · ৳${Number(v.unit_price).toLocaleString()}` : ''}` }))))
+async function startChange(it: any) {
+  if (!catalog.value.length) {
+    try { catalog.value = ((await $fetch('/api/products')) as any).products ?? [] } catch { toastError('Could not load products'); return }
+  }
+  it.pick = `${it.product_id}|${it.variant_id}`; it.changing = true
+}
+function pickProduct(it: any) {
+  const v = variantOptions.value.find(x => x.vid === it.pick); if (!v) return
+  it.product_id = v.pid; it.variant_id = v.variantId
+  it.product_name = v.name.split(' (')[0]; it.weight_variant = ''
+  if (v.price) it.unit_price = v.price
+  it.changing = false
+}
 const showGrid = computed(() => regime.value === 'pre' || postMode.value === 'items')
 const delta    = computed(() => showGrid.value
   ? Math.round((newTotal.value - oldSub.value) * 100) / 100
@@ -301,6 +338,33 @@ async function submit() {
   }
 }
 
+function changeLines(a: any): string[] {
+  try {
+    const o = JSON.parse(a.old_values ?? '{}'), n = JSON.parse(a.new_values ?? '{}')
+    return (n.items ?? []).map((ni: any) => {
+      const oi = (o.items ?? []).find((x: any) => Number(x.id) === Number(ni.item_id)); if (!oi) return ''
+      const nm = items.value.find((x: any) => Number(x.id) === Number(ni.item_id))?.product_name ?? `Item #${ni.item_id}`
+      const bits: string[] = []
+      if (Number(oi.quantity) !== Number(ni.quantity)) bits.push(`qty ${Number(oi.quantity)} → ${Number(ni.quantity)}`)
+      if (Number(oi.unit_price) !== Number(ni.unit_price)) bits.push(`price ৳${Number(oi.unit_price).toLocaleString()} → ৳${Number(ni.unit_price).toLocaleString()}`)
+      if (ni.product_id != null && (Number(oi.product_id) !== Number(ni.product_id) || Number(oi.variant_id ?? 0) !== Number(ni.variant_id ?? 0))) bits.push('product changed')
+      return bits.length ? `${nm}: ${bits.join(', ')}` : ''
+    }).filter(Boolean)
+  } catch { return [] }
+}
+
+async function revert(a: any) {
+  const reason = prompt(`Why revert ${a.amendment_number}? (the order goes back to how it was before it)`)
+  if (!reason) return
+  const consent_note = a.regime === 'post' ? (prompt("How/when did the customer agree to this change? (required — it alters their invoice)") ?? '') : undefined
+  if (a.regime === 'post' && !consent_note) return
+  try {
+    const r: any = await $fetch(`/api/credit-sales/amendments/${a.id}/revert`, { method: 'POST', body: { reason, consent_note } })
+    success(`${r.amendment_number} applied — ${a.amendment_number} reverted ✓`)
+    await Promise.all([refresh(), refreshAmd()])
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Revert failed') }
+}
+
 async function decide(a: any, action: string) {
   const note = action === 'reject' ? (prompt('Reason for rejection:') ?? undefined) : undefined
   if (action === 'reject' && note === undefined) return
@@ -314,9 +378,12 @@ async function decide(a: any, action: string) {
 }
 
 // ── Admin header edit ─────────────────────────────────────────────────────────
-const headerForm  = reactive({ required_date: '', priority: 'normal', shipping_address: '', special_instructions: '' })
+const { data: brData } = await useFetch('/api/branches')
+const branchList = computed(() => (((brData.value as any)?.branches ?? []) as any[]).filter(b => b.status === 'active' && b.branch_type !== 'office'))
+const headerForm  = reactive({ assigned_branch_id: null as any, required_date: '', priority: 'normal', shipping_address: '', special_instructions: '' })
 watch(order, (o) => {
   if (!o) return
+  headerForm.assigned_branch_id   = o.assigned_branch_id ?? null
   headerForm.required_date        = o.required_date ? String(o.required_date).slice(0, 10) : ''
   headerForm.priority             = o.priority ?? 'normal'
   headerForm.shipping_address     = o.shipping_address ?? ''

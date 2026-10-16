@@ -1,4 +1,4 @@
-import { t as defineEventHandler, Y as getRouterParam, aC as readBody, a2 as getUserSession, b as ADMIN_ROLES, q as createError, F as getDb, j as auditLog } from '../../../../nitro/nitro.mjs';
+import { u as defineEventHandler, a0 as getRouterParam, aF as readBody, a5 as getUserSession, b as ADMIN_ROLES, r as createError, I as getDb, k as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -12,9 +12,9 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
-const EDITABLE = ["required_date", "priority", "shipping_address", "special_instructions"];
+const EDITABLE = ["required_date", "priority", "shipping_address", "special_instructions", "assigned_branch_id"];
 const adminEdit_put = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -31,11 +31,17 @@ const adminEdit_put = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+    if (body.assigned_branch_id !== void 0 && String((_e = body.assigned_branch_id) != null ? _e : "") !== String((_f = order.assigned_branch_id) != null ? _f : "")) {
+      if (!["pending_approval", "escalated", "approved", "in_production", "produced", "ready_to_ship"].includes(order.status))
+        throw createError({ statusCode: 409, statusMessage: "The production branch can only be changed before dispatch" });
+      const [[br]] = await conn.query(`SELECT id FROM branches WHERE id = ? AND status = 'active'`, [Number(body.assigned_branch_id)]);
+      if (!br) throw createError({ statusCode: 400, statusMessage: "The chosen branch is not active" });
+    }
     const changes = {};
     const sets = [];
     const params = [];
     for (const f of EDITABLE) {
-      if (body[f] !== void 0 && String((_e = body[f]) != null ? _e : "") !== String((_f = order[f]) != null ? _f : "")) {
+      if (body[f] !== void 0 && String((_g = body[f]) != null ? _g : "") !== String((_h = order[f]) != null ? _h : "")) {
         changes[f] = { from: order[f], to: body[f] };
         sets.push(`${f} = ?`);
         params.push(body[f] === "" ? null : body[f]);

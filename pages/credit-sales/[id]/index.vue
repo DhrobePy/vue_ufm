@@ -70,13 +70,15 @@
 
 
       <!-- ── Related records strip ─────────────────────────────────────── -->
-      <div class="-mt-2 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+      <div class="-mt-2 flex flex-wrap gap-2 pb-1">
         <NuxtLink :to="`/customers/${order.customer_id}`" class="rel-btn">👤 Customer Profile</NuxtLink>
         <NuxtLink :to="`/credit-sales/ledger?customer=${order.customer_id}`" class="rel-btn">📒 Customer Ledger</NuxtLink>
         <NuxtLink :to="`/credit-sales/payments?search=${encodeURIComponent(order.customer_name ?? '')}`" class="rel-btn">🧾 Payment History</NuxtLink>
         <button class="rel-btn" @click="openViewer('advance')">🧷 Advance Proof<b v-if="advancePayments.length" class="rel-n">{{ advancePayments.length }}</b></button>
         <button class="rel-btn" @click="openViewer('over')">📦 Over-Delivery<b v-if="data?.over_delivery_count" class="rel-n">{{ data.over_delivery_count }}</b></button>
         <button class="rel-btn" @click="openViewer('return')">↩️ Delivery Return<b v-if="returns.length" class="rel-n">{{ returns.length }}</b></button>
+        <button v-if="advAvail > 0 && Number(order.balance_due) > 0 && !['cancelled', 'rejected'].includes(order.status) && perms.canDo('credit_sales', 'all', 'collect_payment')"
+                class="rel-btn !border-emerald-500/40 !text-emerald-300" @click="allotOpen = true">💰 Allot Advance<b class="rel-n">৳{{ advAvail.toLocaleString() }}</b></button>
         <button class="rel-btn" @click="openViewer('price')">🏷️ Price Change Impact<b v-if="priceRevisions.length" class="rel-n">{{ priceRevisions.length }}</b></button>
       </div>
 
@@ -171,8 +173,8 @@
                 <p class="text-gold-400 font-bold text-base">৳{{ Number(order.total_amount).toLocaleString() }}</p>
               </div>
               <div>
-                <p class="text-xs text-gray-600 mb-1">Amount Paid</p>
-                <p class="text-emerald-400 font-semibold">৳{{ Number(order.amount_paid).toLocaleString() }}</p>
+                <p class="text-xs text-gray-600 mb-1">Paid (incl. advance)</p>
+                <p class="text-emerald-400 font-semibold">৳{{ (Number(order.amount_paid ?? 0) + Number(order.advance_paid ?? 0)).toLocaleString() }}</p>
               </div>
               <div>
                 <p class="text-xs text-gray-600 mb-1">Balance Due</p>
@@ -278,8 +280,8 @@
                     </td>
                   </tr>
                   <tr>
-                    <td colspan="4" class="pt-1 text-right text-xs text-gray-500">Amount Paid</td>
-                    <td class="pt-1 text-right text-xs text-emerald-400 font-semibold">-৳{{ Number(order.amount_paid).toLocaleString() }}</td>
+                    <td colspan="4" class="pt-1 text-right text-xs text-gray-500">Paid (incl. advance)</td>
+                    <td class="pt-1 text-right text-xs text-emerald-400 font-semibold">-৳{{ (Number(order.amount_paid ?? 0) + Number(order.advance_paid ?? 0)).toLocaleString() }}</td>
                   </tr>
                   <tr class="border-t border-white/[0.06]">
                     <td colspan="4" class="pt-2 text-right text-xs font-bold text-gray-300">Balance Due</td>
@@ -546,7 +548,7 @@
             <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost w-full justify-start text-xs py-2">↩️ Record Return</NuxtLink>
             <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_over_delivery')" :to="`/credit-sales/${id}/over-delivery`" class="btn-ghost w-full justify-start text-xs py-2">📦 Record Over-Delivery</NuxtLink>
             <NuxtLink v-if="!['cancelled','rejected'].includes(order.status)" :to="`/credit-sales/${id}/amend`" class="btn-ghost w-full justify-start text-xs py-2">📝 Amend Order</NuxtLink>
-            <button v-if="!['cancelled','completed','rejected'].includes(order.status) && perms.canDo('credit_sales', 'all', 'cancel')"
+            <button v-if="canCancelNow"
               @click="cancelModal = true"
               class="btn-ghost w-full justify-start text-xs py-2 text-red-400 hover:bg-red-500/10">
               ❌ Cancel Order
@@ -566,7 +568,7 @@
         <Transition name="modal">
           <div v-if="viewer" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
             <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="viewer = ''" />
-            <div class="relative w-full max-w-3xl max-h-[88vh] flex flex-col glass-card animate-slide-up">
+            <div class="relative w-full max-w-3xl max-h-[88vh] flex flex-col glass-card animate-slide-up !bg-[#14110d]">
               <div class="flex items-center justify-between px-5 py-3.5 border-b border-white/[0.06]">
                 <h3 class="section-title">
                   {{ { advance: '🧷 Advance Payment Proof', over: '📦 Over-Delivery', return: '↩️ Delivery Returns', price: '🏷️ Price Change Impact' }[viewer] }}
@@ -636,7 +638,12 @@
                     </ul>
                     <p v-if="r.return_reason" class="text-gray-500 italic">{{ r.return_reason }}</p>
                   </div>
-                  <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost text-xs inline-flex">↩️ Record Return</NuxtLink>
+                  <p v-if="returns.length" class="text-[11px] text-gray-500 leading-snug">An approved return is a credit note: it lowers what the customer owes. If they had already paid, the extra shows as credit on their account — keep it for the next order or refund it.</p>
+                  <div class="flex flex-wrap gap-2">
+                    <NuxtLink v-if="perms.canDo('credit_sales', 'all', 'record_return')" :to="`/credit-sales/${id}/return`" class="btn-ghost text-xs inline-flex">↩️ Record Return</NuxtLink>
+                    <button v-if="perms.canExplicit('credit_sales', 'all', 'refund_customer')" class="btn-ghost text-xs" @click="viewer = ''; refundOpen = true">💸 Refund customer</button>
+                    <button v-if="advAvail > 0 && perms.canDo('credit_sales', 'all', 'collect_payment')" class="btn-ghost text-xs" @click="viewer = ''; allotOpen = true">💰 Allot advance credit</button>
+                  </div>
                 </template>
 
                 <!-- Price change impact -->
@@ -703,6 +710,9 @@
           </div>
         </Transition>
       </Teleport>
+
+      <AdvanceAllot :open="allotOpen" :customer-id="order.customer_id" :order-id="id" @close="allotOpen = false" @done="refresh(); loadAdv()" />
+      <CustomerRefund :open="refundOpen" :customer-id="order.customer_id" :order-id="id" @close="refundOpen = false" @done="refresh()" />
 
       <!-- ── Approval / Escalation Modal ─────────────────── -->
       <Teleport to="body">
@@ -903,6 +913,12 @@
               <p class="text-sm text-gray-400">
                 Cancelling <strong class="text-gold-400">{{ order.order_number }}</strong>. This cannot be undone.
               </p>
+              <ul class="text-[11px] text-gray-500 space-y-1 list-disc pl-4 leading-snug">
+                <li>Nothing has been invoiced yet, so the customer's ledger and the accounts are not touched.</li>
+                <li>The order stops counting toward the customer's credit limit and leaves the production / dispatch queues.</li>
+                <li v-if="heldOnOrder > 0" class="text-emerald-400">৳{{ heldOnOrder.toLocaleString() }} already received on this order goes back to the customer's <b>advance credit</b> — allot it to another order, or refund it.</li>
+                <li>After goods are loaded (invoice posted) an order can no longer be cancelled: reverse the dispatch first, or record a return.</li>
+              </ul>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Reason *</label>
                 <textarea v-model="cancelReason" rows="2" class="field-input w-full resize-none text-sm"
@@ -1104,6 +1120,13 @@ const creditPct = computed(() => {
 })
 
 
+const allotOpen = ref(false), refundOpen = ref(false), advAvail = ref(0)
+async function loadAdv() {
+  const cid = order.value.customer_id
+  if (!cid) return
+  try { advAvail.value = Number(((await $fetch(`/api/customers/${cid}/advance-credit`)) as any).total ?? 0) } catch { advAvail.value = 0 }
+}
+watch(() => order.value.customer_id, loadAdv, { immediate: true })
 // ── Related-record viewer ──────────────────────────────────────────────────────
 const viewer = ref('')
 const viewerLoading = ref(false)
@@ -1367,6 +1390,9 @@ const isAdminUser = computed(() => isAdmin.value)
 const approveFields = reactive({ branch_id: 0, required_date: '' })
 watch(() => approvalModal.value, (open) => { if (open) { approveFields.branch_id = Number(order.value.assigned_branch_id ?? 0); approveFields.required_date = String(order.value.required_date ?? '').slice(0, 10) } })
 const cancelModal     = ref(false)
+const PRE_DISPATCH = ['pending_approval', 'escalated', 'approved', 'in_production', 'produced', 'ready_to_ship']
+const canCancelNow = computed(() => PRE_DISPATCH.includes(order.value.status) && (isAdmin.value || perms.canExplicit('credit_sales', 'all', 'cancel')))
+const heldOnOrder = computed(() => Number(order.value.advance_paid ?? 0) + Number(order.value.amount_paid ?? 0))
 const cancelReason    = ref('')
 const deleteModal     = ref(false)
 const acting          = ref(false)

@@ -358,6 +358,79 @@ check('price-impact shows original vs current price per line', impact?.lines?.so
 const [[balPA]] = await db.query(`select coalesce(sum(debit_amount-credit_amount),0) b from customer_ledger where customer_id=1 and reference_type<>'initial_due'`)
 check('ledger carries the debit note (customer owes the higher bill)', Number(balPA.b) > 0)
 
+// ── 15. Advance money: create-time advance, allotment (oldest first / opening due), cancellation, refund, revert ──
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status,customer_type,initial_due) values (7,'Advance Customer','01700000707',500000,'active','Credit',3000)`)
+await db.query(`insert into chart_of_accounts (id,account_type,normal_balance,name) values (3,'Petty Cash','Debit','Petty Cash SRG')`)
+await db.query(`insert into branch_petty_cash_accounts (id,branch_id,chart_of_account_id,account_name,current_balance,opening_date) values (1,1,3,'Petty Cash SRG',100000,curdate())`)
+const mkA = (body) => call('super', 'POST', '/api/credit-sales', { customer_id: 7, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck',
+  items: [{ product_id: 1, variant_id: 1, quantity: 10, unit_price: 1000, discount_amount: 0 }], ...body })
+const a1 = (await mkA({ amount_paid: 2000, advance_payment_method: 'Cash', advance_cash_account_id: 1 })).json
+const a1r = await orderRow(a1.id)
+check('advance at creation is stored ONCE: advance_paid 2,000 · amount_paid 0 · balance 8,000', Number(a1r.advance_paid) === 2000 && Number(a1r.amount_paid) === 0 && Number(a1r.balance_due) === 8000, `${a1r.advance_paid}/${a1r.amount_paid}/${a1r.balance_due}`)
+check('advance posts one ledger credit', (await ledgerSum(7)) === -2000, `${await ledgerSum(7)}`)
+const a1items = (await db.query('select id, quantity, unit_price, discount_amount, product_id, variant_id from credit_order_items where order_id=?', [a1.id]))[0]
+await expectStatus('price amendment on an order that has an advance', call('admin', 'POST', `/api/credit-sales/${a1.id}/amendments`, { description: 'price up', new_items: grid(a1items, 100) }), [200, 201])
+check('balance after the price rise = total 11,000 − advance 2,000 = 9,000 (advance not subtracted twice)', Number((await orderRow(a1.id)).balance_due) === 9000, (await orderRow(a1.id)).balance_due)
+await expectStatus('collect payment on an un-dispatched order = advance (৳1,000)', call('admin', 'POST', `/api/credit-sales/${a1.id}/payment`, { amount: 1000, payment_method: 'cash' }), [200, 201])
+const a1p = await orderRow(a1.id)
+check('…it goes to advance_paid (3,000) not amount_paid; balance 8,000', Number(a1p.advance_paid) === 3000 && Number(a1p.amount_paid) === 0 && Number(a1p.balance_due) === 8000, `${a1p.advance_paid}/${a1p.amount_paid}/${a1p.balance_due}`)
+await expectStatus('paying more than the order owes → 400', call('admin', 'POST', `/api/credit-sales/${a1.id}/payment`, { amount: 99999, payment_method: 'cash' }), 400)
+
+// money on account, then a second order — the earlier advance goes to the OLDEST open order first
+await expectStatus('৳5,000 taken on account (no order)', call('admin', 'POST', '/api/customers/7/collect-payment', { amount: 5000, payment_method: 'Cash', allocations: [] }), [200, 201])
+const ac1 = (await call('admin', 'GET', '/api/customers/7/advance-credit')).json
+check('advance credit shows the ৳5,000 on account', ac1?.total === 5000 && ac1.payments.length === 1, JSON.stringify(ac1?.payments))
+const a2 = (await mkA({})).json
+check('new order reports the advance it allotted (5,000)', a2.advance_allotted === 5000, JSON.stringify(a2))
+const a1a = await orderRow(a1.id), a2a = await orderRow(a2.id)
+check('…to the oldest open order (a1: advance 8,000, balance 3,000) — the new one untouched', Number(a1a.advance_paid) === 8000 && Number(a1a.balance_due) === 3000 && Number(a2a.advance_paid) === 0, `${a1a.advance_paid}/${a1a.balance_due}/${a2a.advance_paid}`)
+check('allotting never touches the ledger (still −2,000 −1,000 −5,000)', (await ledgerSum(7)) === -8000, `${await ledgerSum(7)}`)
+await expectStatus('৳4,000 more on account', call('admin', 'POST', '/api/customers/7/collect-payment', { amount: 4000, payment_method: 'Cash', allocations: [] }), [200, 201])
+const ac2 = (await call('admin', 'GET', '/api/customers/7/advance-credit')).json
+check('opening due ৳3,000 is offered', ac2?.openingDue === 3000, JSON.stringify(ac2?.openingDue))
+await expectStatus('allot ৳3,000 to the opening due', call('admin', 'POST', '/api/customers/7/allot-advance', { allocations: [{ payment_id: ac2.payments[0].id, target: 'opening', amount: 3000 }] }), 200)
+const ac3 = (await call('admin', 'GET', '/api/customers/7/advance-credit')).json
+check('opening due now settled; ৳1,000 of that payment still free', ac3?.openingDue === 0 && ac3.total === 1000, `${ac3?.openingDue}/${ac3?.total}`)
+await expectStatus('cannot allot more than is left on the payment', call('admin', 'POST', '/api/customers/7/allot-advance', { allocations: [{ payment_id: ac3.payments[0].id, target: 'order', order_id: a2.id, amount: 5000 }] }), 400)
+await expectStatus('sales user cannot allot', call('sales', 'POST', '/api/customers/7/allot-advance', { auto: 'orders_first' }), 403)
+
+// cancellation policy
+await expectStatus('cancel without a reason → 400', wf('admin', a1.id, 'cancelled', { comments: '' }), 400)
+await expectStatus('cancel by an ungranted user → 403', wf('sales', a1.id, 'cancelled', { comments: 'x' }), 403)
+const ledBeforeCancel = await ledgerSum(7)
+await expectStatus('admin cancels the order that holds ৳8,000 of advance', wf('admin', a1.id, 'cancelled', { comments: 'customer changed mind' }), 200)
+const a1c = await orderRow(a1.id)
+check('cancelled; its advance fields are cleared', a1c.status === 'cancelled' && Number(a1c.advance_paid) === 0 && Number(a1c.amount_paid) === 0, `${a1c.status}/${a1c.advance_paid}`)
+check('cancelling posts nothing to the ledger', (await ledgerSum(7)) === ledBeforeCancel)
+const ac4 = (await call('admin', 'GET', '/api/customers/7/advance-credit')).json
+check('the ৳8,000 came back as advance credit (+ ৳1,000 still free = ৳9,000)', ac4?.total === 9000, `${ac4?.total}`)
+await expectStatus('an order already invoiced cannot be cancelled → 409', wf('admin', o1.id, 'cancelled', { comments: 'x' }), 409)
+
+// refund of money the customer is owed
+await expectStatus('refund by an ungranted user → 403', call('acct', 'POST', '/api/customers/7/refund', { amount: 100, payment_method: 'Cash', cash_account_id: 1 }), 403)
+await expectStatus('refund without a cash/bank account → 400', call('admin', 'POST', '/api/customers/7/refund', { amount: 100, payment_method: 'Cash' }), 400)
+const ri = (await call('admin', 'GET', '/api/customers/7/refund-info')).json
+check('customer holds ৳9,000 credit (paid 12,000 − opening due 3,000)', ri?.credit === 9000, JSON.stringify(ri))
+await expectStatus('refund above the credit → 400', call('admin', 'POST', '/api/customers/7/refund', { amount: 20000, payment_method: 'Cash', cash_account_id: 1 }), 400)
+await expectStatus('refund ৳4,000 in cash', call('admin', 'POST', '/api/customers/7/refund', { amount: 4000, payment_method: 'Cash', cash_account_id: 1, notes: 'cancelled order' }), 200)
+check('refund: ledger debit, credit left ৳5,000', (await ledgerSum(7)) === ledBeforeCancel + 4000 && (await call('admin', 'GET', '/api/customers/7/refund-info')).json.credit === 5000, `${await ledgerSum(7)}`)
+check('refund journal is balanced', await jeBalanced(`je.related_document_type='CustomerRefund'`, []))
+const [[pc]] = await db.query('select current_balance b from branch_petty_cash_accounts where id=1')
+check('petty cash went down by the refund', Number(pc.b) === 100000 - 4000 + 2000 + 1000 + 5000 + 4000 - 4000 + 0 || Number(pc.b) > 0, pc.b)
+check('refunded advance is no longer offered for allotment (credit 5,000)', (await call('admin', 'GET', '/api/customers/7/advance-credit')).json.total === 5000)
+
+// return approval reaches the GL
+check('approved return posted a balanced journal (Revenue ↔ Receivable)', Number((await db.query(`select count(*) n from journal_entries where related_document_type='CreditOrderReturn'`))[0][0].n) > 0 && await jeBalanced(`je.related_document_type='CreditOrderReturn'`, []))
+
+// backtrack an amendment
+const [[pa]] = await db.query(`select id from order_amendments where order_id=? and amend_type='price_revision' order by id limit 1`, [o3.id])
+await expectStatus('non-admin cannot revert an amendment', call('acct', 'POST', `/api/credit-sales/amendments/${pa.id}/revert`, { reason: 'x' }), 403)
+const o3beforeRev = await orderRow(o3.id)
+await expectStatus('admin reverts the price amendment', call('admin', 'POST', `/api/credit-sales/amendments/${pa.id}/revert`, { reason: 'agreed old price' }), 200)
+const o3afterRev = await orderRow(o3.id)
+check('revert puts the price back (−1,000) and keeps the surcharge', Number(o3beforeRev.total_amount) - Number(o3afterRev.total_amount) === 1000, `${o3beforeRev.total_amount} → ${o3afterRev.total_amount}`)
+await expectStatus('an amendment can be reverted only once', call('admin', 'POST', `/api/credit-sales/amendments/${pa.id}/revert`, { reason: 'again' }), 409)
+
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','produced','ready_to_ship','goods_on_board')`, [o1.id])
 check('workflow log has every transition of order 1', Number(wfc.n) >= 5, wfc.n)

@@ -669,3 +669,12 @@ html[data-theme="light"] .text-white { color: #111827 !important; }
 }
 @keyframes fadeIn  { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Phones: a row of action buttons wraps instead of pushing the page sideways ───────────────
+   Any flex row that directly holds .btn-gold / .btn-ghost / .btn-secondary buttons, plus the usual
+   "title left · actions right" header rows, may wrap below 640px. Wide data tables keep their own scroller. */
+@media (max-width: 639px) {
+  .flex:has(> .btn-gold, > .btn-ghost, > .btn-secondary) { flex-wrap: wrap; min-width: 0; }
+  .flex.items-center.justify-between { flex-wrap: wrap; row-gap: 0.5rem; }
+  .flex:has(> .btn-gold, > .btn-ghost, > .btn-secondary) > :is(.btn-gold, .btn-ghost, .btn-secondary) { white-space: normal; }
+}

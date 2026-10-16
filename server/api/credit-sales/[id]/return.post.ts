@@ -26,6 +26,7 @@ export default defineEventHandler(async (event) => {
     return_date,
     return_type   = 'partial',
     return_reason,
+    return_category,
     notes,
     items,   // [{ order_item_id, product_id, variant_id, original_qty, returned_qty, unit_price }]
   } = body ?? {}
@@ -91,8 +92,8 @@ export default defineEventHandler(async (event) => {
       `INSERT INTO credit_order_returns
          (return_number, order_id, customer_id, return_date, return_type,
           return_reason, total_returned_amount, total_returned_qty,
-          status, approved_by_user_id, approved_at, notes, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          status, approved_by_user_id, approved_at, notes, created_by_user_id, return_category)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         retNo, id, order.customer_id, retDate,
         return_type, return_reason ?? null,
@@ -101,6 +102,7 @@ export default defineEventHandler(async (event) => {
         autoApprove ? userId : null,
         autoApprove ? new Date() : null,
         notes ?? null, userId,
+        ['damaged', 'quality', 'wrong_product', 'wrong_item', 'excess', 'cancelled', 'other'].includes(String(return_category)) ? String(return_category).replace('wrong_item', 'wrong_product') : null,
       ],
     )
     const returnId = result.insertId

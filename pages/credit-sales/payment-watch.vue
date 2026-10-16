@@ -70,7 +70,7 @@
           <!-- Money -->
           <div class="text-xs space-y-1 min-w-[150px]">
             <p class="text-gray-500">Invoice <span class="font-mono font-bold text-gray-300 float-right">৳{{ Number(o.total_amount).toLocaleString() }}</span></p>
-            <p class="text-gray-500">Received <span class="font-mono font-bold text-emerald-400 float-right">৳{{ Number(o.amount_paid).toLocaleString() }}</span></p>
+            <p class="text-gray-500">Received <span class="font-mono font-bold text-emerald-400 float-right">৳{{ (Number(o.amount_paid) + Number(o.advance_paid ?? 0)).toLocaleString() }}</span></p>
             <p class="text-gray-500">Balance <span class="font-mono font-bold text-gold-400 float-right">৳{{ Number(o.balance_due).toLocaleString() }}</span></p>
           </div>
 
