@@ -132,6 +132,7 @@ const customerTypes = [
 
 const { success, error: toastError } = useToast()
 const submitting = ref(false)
+const { data: appCfg } = await useFetch('/api/settings/app', { key: 'app-settings' })
 const form = reactive({
   type:         'Credit',
   name:         '',
@@ -142,8 +143,8 @@ const form = reactive({
   nid:          '',
   address:      '',
   city:         '',
-  creditLimit:  0,
-  paymentTerms: '30',
+  creditLimit:  Number((appCfg.value as any)?.finance_settings?.defaultCreditLimit ?? 0),   // Settings → Finance
+  paymentTerms: String((appCfg.value as any)?.finance_settings?.defaultPaymentTerms ?? 30),
   initialDue:   0,
   area:         '',
 })

@@ -33,7 +33,7 @@
     <div v-if="activeType === 'pl'" id="statement-print" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Profit & Loss Statement</h2>
-        <p class="text-xs text-gray-500 mt-1">Ujjal Flour Mills Company · For the period ending 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · For the period ending 31 May 2026</p>
       </div>
 
       <div class="max-w-lg mx-auto space-y-6">
@@ -100,7 +100,7 @@
     <div v-if="activeType === 'bs'" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Balance Sheet</h2>
-        <p class="text-xs text-gray-500 mt-1">Ujjal Flour Mills Company · As at 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at 31 May 2026</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <!-- Assets -->
@@ -169,7 +169,7 @@
     <div v-if="activeType === 'trial'" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Trial Balance</h2>
-        <p class="text-xs text-gray-500 mt-1">Ujjal Flour Mills Company · As at 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at 31 May 2026</p>
       </div>
       <table class="w-full text-xs">
         <thead>
@@ -201,6 +201,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: 'default' })
 const { printElement } = usePrint()
 

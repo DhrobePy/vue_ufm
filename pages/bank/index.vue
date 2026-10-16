@@ -349,6 +349,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 
@@ -536,7 +537,7 @@ function printReceipt(tx: any) {
   @media print{.no-print{display:none}}</style></head>
   <body>
   <h2>BANK TRANSACTION RECEIPT</h2>
-  <p class="sub">Ujjal Flour Mills</p>
+  <p class="sub">${company.value.name}</p>
   <hr class="divider">
   <div class="row"><span>Txn #</span><b>${tx.transaction_number || '—'}</b></div>
   <div class="row"><span>Date</span><b>${tx.transaction_date || '—'}</b></div>

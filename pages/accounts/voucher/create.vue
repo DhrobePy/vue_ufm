@@ -88,7 +88,7 @@
         <div class="rounded-xl border border-white/10 p-4 bg-white/[0.02] space-y-3 text-xs">
           <div class="text-center border-b border-white/[0.06] pb-3">
             <p class="font-bold text-gray-200 text-sm">DEBIT VOUCHER</p>
-            <p class="text-gray-500 mt-0.5">Ujjal Flour Mills Company</p>
+            <p class="text-gray-500 mt-0.5">{{ company.name }}</p>
           </div>
           <div class="space-y-1.5">
             <div class="flex justify-between"><span class="text-gray-600">Date</span><span class="text-gray-300">{{ form.date || '—' }}</span></div>
@@ -125,6 +125,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: 'default' })
 const { success, error } = useToast()
 

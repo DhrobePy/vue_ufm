@@ -69,12 +69,12 @@
           <div style="display:flex;align-items:flex-start;gap:16px;">
             <div style="width:52px;height:52px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#000;flex-shrink:0;box-shadow:0 4px 16px rgba(245,158,11,0.4);">U</div>
             <div>
-              <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.3px;">Ujjal Flour Mills Co.</div>
+              <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.3px;">{{ company.name }}</div>
               <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:3px;letter-spacing:0.05em;">PREMIUM WHEAT PRODUCTS</div>
               <div style="font-size:10.5px;color:#9ca3af;margin-top:6px;line-height:1.7;">
-                Sirajgonj Sadar, Sirajgonj-6700 · Demra, Dhaka-1361<br>
-                📞 +880 1711-000000 · ✉ accounts@ujjalfmc.com<br>
-                Trade Lic: TL-SRG-2018-4821 · BIN: 002148694
+                {{ company.address }}<br>
+                📞 {{ company.phone }} · ✉ {{ company.email }}<br>
+                <template v-if="company.regNo">Trade Lic: {{ company.regNo }}</template><template v-if="company.regNo && company.bin"> · </template><template v-if="company.bin">BIN: {{ company.bin }}</template><template v-if="company.tin"> · TIN: {{ company.tin }}</template>
               </div>
             </div>
           </div>
@@ -161,7 +161,7 @@
                 <td style="padding:9px 10px;font-size:11px;color:#9ca3af;font-weight:600;">{{ i + 1 }}</td>
                 <td style="padding:9px 10px;">
                   <div style="font-size:13px;font-weight:700;color:#111;">{{ item.product }}</div>
-                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Premium wheat flour · Ujjal FMC brand</div>
+                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">Premium wheat flour · {{ company.tradeName }} brand</div>
                 </td>
                 <td style="padding:9px 10px;text-align:center;font-size:13px;font-weight:700;color:#374151;">{{ item.qty.toLocaleString() }}</td>
                 <td style="padding:9px 10px;text-align:right;font-size:13px;color:#374151;font-family:monospace;">৳{{ item.price.toLocaleString() }}</td>
@@ -235,7 +235,7 @@
                 <span style="color:#92400e;">Balance Due</span>
                 <span style="font-family:monospace;color:#b45309;">৳{{ (order?.balanceDue ?? 0).toLocaleString() }}</span>
               </div>
-              <div style="font-size:10px;color:#b45309;margin-top:4px;opacity:0.8;">Due: {{ order?.requiredDate }}</div>
+              <div style="font-size:10px;color:#b45309;margin-top:4px;opacity:0.8;">Due: {{ dueDate }}<template v-if="Number(finance.lateRate) > 0"> · late payment charge {{ finance.lateRate }}% per month</template></div>
             </div>
           </div>
         </div>
@@ -350,6 +350,14 @@
 </template>
 
 <script setup lang="ts">
+const { company, finance } = useAppSettings()
+// Due date = order date + the company's payment terms (Settings → Finance); not the delivery date.
+const dueDate = computed(() => {
+  const d = new Date(`${order.value?.orderDate ?? ''}T00:00:00`)
+  if (isNaN(d.getTime())) return order.value?.requiredDate
+  d.setDate(d.getDate() + Number(finance.value.defaultPaymentTerms || 0))
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+})
 // NOTE: qrcode is imported dynamically inside onMounted (client-only).
 // A top-level import causes Nitro to try loading it server-side where
 // the canvas/PNG renderer may not be available, crashing SSR.

@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs'
-import { queryOne } from '~/server/utils/db'
+import { queryOne, query } from '~/server/utils/db'
+import { getAppSettings } from '~/server/utils/appSettings'
 
 interface DbUser {
   id: number
@@ -29,6 +30,21 @@ export default defineEventHandler(async (event) => {
 
   const emailLower = (email as string).toLowerCase().trim()
 
+  // Lock-out after too many wrong passwords (Settings → Security → Max login attempts): 15-minute window per email.
+  const maxAttempts = Math.max(3, Number((await getAppSettings()).security_policy.maxLoginAttempts) || 5)
+  const recentFails = async () => {
+    // failures in the last 15 minutes since this email's last successful login (the table is the legacy app's login_attempts)
+    try { return Number((await queryOne<any>(
+      `SELECT COUNT(*) c FROM login_attempts
+       WHERE email = ? AND success = 0 AND created_at > (NOW() - INTERVAL 15 MINUTE)
+         AND created_at > COALESCE((SELECT MAX(created_at) FROM login_attempts WHERE email = ? AND success = 1), '2000-01-01')`,
+      [emailLower, emailLower]))?.c ?? 0) }
+    catch { return 0 }
+  }
+  if (await recentFails() >= maxAttempts)
+    throw createError({ statusCode: 429, statusMessage: `Too many failed attempts — try again in 15 minutes` })
+  const failed = async () => { try { await query(`INSERT INTO login_attempts (email, success, ip_address, failure_reason) VALUES (?, 0, ?, 'bad credentials')`, [emailLower, String(getRequestIP(event, { xForwardedFor: true }) ?? '0.0.0.0').slice(0, 45)]) } catch { /* table missing — no lockout */ } }
+
   // ─── Try real DB first ────────────────────────────────────────────────────
   let user: DbUser | null = null
   let dbError: Error | null = null
@@ -56,18 +72,23 @@ export default defineEventHandler(async (event) => {
 
   if (!user && devLoginEnabled) {
     const devUser = DEV_USERS[emailLower]
-    if (!devUser || devUser.password !== password)
+    if (!devUser || devUser.password !== password) {
+      await failed()
       throw createError({ statusCode: 401, statusMessage: 'Invalid email or password' })
+    }
 
     await setUserSession(event, {
       user: { id: devUser.id, name: devUser.name, email: emailLower, role: devUser.role },
+      loggedInAt: Date.now(),
     })
     return { ok: true, user: { id: devUser.id, name: devUser.name, role: devUser.role } }
   }
 
   // ─── DB is up: normal auth path ──────────────────────────────────────────
-  if (!user)
+  if (!user) {
+    await failed()
     throw createError({ statusCode: 401, statusMessage: 'Invalid email or password' })
+  }
 
   if (user.status !== 'active')
     throw createError({ statusCode: 403, statusMessage: 'Account is not active' })
@@ -87,8 +108,11 @@ export default defineEventHandler(async (event) => {
     catch { /* malformed hash — treat as no match */ }
   }
 
-  if (!plainMatch && !bcryptMatch)
+  if (!plainMatch && !bcryptMatch) {
+    await failed()
     throw createError({ statusCode: 401, statusMessage: 'Invalid email or password' })
+  }
+  try { await query(`INSERT INTO login_attempts (email, success, ip_address) VALUES (?, 1, ?)`, [emailLower, String(getRequestIP(event, { xForwardedFor: true }) ?? '0.0.0.0').slice(0, 45)]) } catch { /* ignore */ }
 
   await setUserSession(event, {
     user: {
@@ -97,6 +121,7 @@ export default defineEventHandler(async (event) => {
       email: user.email,
       role:  user.role,
     },
+    loggedInAt: Date.now(),   // Settings → Security → Session timeout counts from here
   })
 
   return { ok: true, user: { id: user.id, name: user.display_name, role: user.role } }

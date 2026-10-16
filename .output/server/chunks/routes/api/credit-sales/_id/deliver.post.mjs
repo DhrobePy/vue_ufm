@@ -1,4 +1,4 @@
-import { u as defineEventHandler, a0 as getRouterParam, r as createError, aF as readBody, a5 as getUserSession, V as getRequestHeader, I as getDb, af as nextDocNumber, a1 as getUserActionLimit, B as generateDeliverySlipNumber, L as getGLAccountId, av as postJournalEntry, ar as postCustomerLedger, aa as isAdminRole, b8 as transitionOrder, k as auditLog } from '../../../../nitro/nitro.mjs';
+import { w as defineEventHandler, a3 as getRouterParam, t as createError, aI as readBody, a8 as getUserSession, Y as getRequestHeader, L as getDb, ai as nextDocNumber, a4 as getUserActionLimit, E as generateDeliverySlipNumber, O as getGLAccountId, ay as postJournalEntry, au as postCustomerLedger, G as getAppSettings, ad as isAdminRole, bc as transitionOrder, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -193,6 +193,19 @@ const deliver_post = defineEventHandler(async (event) => {
         [extraDisc, extraReason, userId, deliveryId]
       );
       discountNote = ` \xB7 discount \u09F3${extraDisc.toLocaleString()} (${extraReason})`;
+    }
+    if ((await getAppSettings()).order_policy.allow_partial === false) {
+      const [allLines] = await conn.query(
+        `SELECT oi.id, oi.quantity, COALESCE((SELECT SUM(di.qty_delivered) FROM credit_order_delivery_items di WHERE di.order_item_id = oi.id), 0) done
+         FROM credit_order_items oi WHERE oi.order_id = ?`,
+        [id]
+      );
+      const give = new Map(lines.map((l) => [Number(l.order_item_id), Number(l.qty_delivered)]));
+      if (allLines.some((r) => {
+        var _a2;
+        return Number(r.quantity) - Number(r.done) - ((_a2 = give.get(Number(r.id))) != null ? _a2 : 0) > 5e-3;
+      }))
+        throw createError({ statusCode: 400, statusMessage: "Partial deliveries are switched off (Settings \u2192 Orders) \u2014 this delivery must cover everything still owed on the order" });
     }
     let shortfallItems = [];
     if (is_final) {

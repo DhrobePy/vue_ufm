@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { r as createError$1, al as parseURL, y as encodePath, t as decodePath, a6 as hasProtocol, ab as isScriptProtocol, ac as joinURL, be as withQuery, w as defu, a$ as sanitizeStatusCode, E as getContext, $ as $fetch$1, l as baseURL, s as createHooks, z as executeAsync } from '../nitro/nitro.mjs';
+import { t as createError$1, ao as parseURL, B as encodePath, v as decodePath, a9 as hasProtocol, ae as isScriptProtocol, af as joinURL, bi as withQuery, y as defu, b3 as sanitizeStatusCode, H as getContext, $ as $fetch$1, m as baseURL, u as createHooks, C as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -685,7 +685,7 @@ const _routes = [
     name: "bank",
     path: "/bank",
     meta: __nuxt_page_meta$2O || {},
-    component: () => import('./index-BKp9dnRt.mjs')
+    component: () => import('./index-ugZBYwz2.mjs')
   },
   {
     name: "hr-bonuses",
@@ -811,7 +811,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$2t || {},
-    component: () => import('./settings-RAwcyiAG.mjs')
+    component: () => import('./settings-BkvNUcPA.mjs')
   },
   {
     name: "bank-statement",
@@ -895,7 +895,7 @@ const _routes = [
     name: "customers-create",
     path: "/customers/create",
     meta: __nuxt_page_meta$2f || {},
-    component: () => import('./create-nrPMP9KH.mjs')
+    component: () => import('./create-Cfmlb19Z.mjs')
   },
   {
     name: "expenses-approve",
@@ -1033,7 +1033,7 @@ const _routes = [
     name: "accounts-statement",
     path: "/accounts/statement",
     meta: __nuxt_page_meta$1U || {},
-    component: () => import('./statement-D0YOWMwk.mjs')
+    component: () => import('./statement-DzDH-B3C.mjs')
   },
   {
     name: "admin-users-create",
@@ -1255,7 +1255,7 @@ const _routes = [
     name: "expenses-id-voucher",
     path: "/expenses/:id()/voucher",
     meta: __nuxt_page_meta$1j || {},
-    component: () => import('./voucher-YFmEX54M.mjs')
+    component: () => import('./voucher-D-_6IbJ9.mjs')
   },
   {
     name: "fleet-fuel-efficiency",
@@ -1411,7 +1411,7 @@ const _routes = [
     name: "accounts-voucher-create",
     path: "/accounts/voucher/create",
     meta: __nuxt_page_meta$V || {},
-    component: () => import('./create-vJq7kzbt.mjs')
+    component: () => import('./create-BDL8jDa_.mjs')
   },
   {
     name: "bank-transaction-create",
@@ -1471,7 +1471,7 @@ const _routes = [
     name: "purchase-grn-id-print",
     path: "/purchase/grn/:id()/print",
     meta: __nuxt_page_meta$L || {},
-    component: () => import('./print-DNUTsGqC.mjs')
+    component: () => import('./print-D48_MrDw.mjs')
   },
   {
     name: "purchase-payments",
@@ -1495,7 +1495,7 @@ const _routes = [
     name: "customers-id-statement",
     path: "/customers/:id()/statement",
     meta: __nuxt_page_meta$H || {},
-    component: () => import('./statement-Cqt_9n6L.mjs')
+    component: () => import('./statement-BCrmkHqb.mjs')
   },
   {
     name: "fleet-drivers-id",
@@ -1561,7 +1561,7 @@ const _routes = [
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$w || {},
-    component: () => import('./invoice-gN_7rhPg.mjs')
+    component: () => import('./invoice-CwB9zT-z.mjs')
   },
   {
     name: "credit-sales-id-payment",
@@ -1638,7 +1638,7 @@ const _routes = [
     name: "purchase-orders-id-print",
     path: "/purchase/orders/:id()/print",
     meta: __nuxt_page_meta$k || {},
-    component: () => import('./print-Dn4cSyfY.mjs')
+    component: () => import('./print-WHi-KrGG.mjs')
   },
   {
     name: "purchase-suppliers-summary",
@@ -1650,7 +1650,7 @@ const _routes = [
     name: "trading-sales-id-invoice",
     path: "/trading/sales/:id()/invoice",
     meta: __nuxt_page_meta$i || {},
-    component: () => import('./invoice-Y9S8d5Q3.mjs')
+    component: () => import('./invoice-ur2IPpcC.mjs')
   },
   {
     name: "purchase-adjustments-create",
@@ -1692,7 +1692,7 @@ const _routes = [
     name: "purchase-payments-id-print",
     path: "/purchase/payments/:id()/print",
     meta: __nuxt_page_meta$b || {},
-    component: () => import('./print-DutUW20N.mjs')
+    component: () => import('./print-BMH0naV2.mjs')
   },
   {
     name: "trading-sales-id-gate-pass",
@@ -1739,7 +1739,7 @@ const _routes = [
     name: "credit-sales-id-dispatch-slip",
     path: "/credit-sales/:id()/dispatch-slip",
     meta: __nuxt_page_meta$4 || {},
-    component: () => import('./dispatch-slip-D1IbztIH.mjs')
+    component: () => import('./dispatch-slip-BebSu_0D.mjs')
   },
   {
     name: "credit-sales-id-over-delivery",

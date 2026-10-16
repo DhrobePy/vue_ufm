@@ -1,4 +1,4 @@
-import { u as defineEventHandler, aF as readBody, a5 as getUserSession, r as createError, V as getRequestHeader, bb as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aC as query, I as getDb, af as nextDocNumber, H as getCustomerOutstanding, av as postJournalEntry, ar as postCustomerLedger, C as getAdvanceCredit, b6 as suggestAllotment, g as applyAllotment, k as auditLog, b1 as sendTelegram } from '../../nitro/nitro.mjs';
+import { w as defineEventHandler, aI as readBody, a8 as getUserSession, t as createError, Y as getRequestHeader, bf as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aF as query, G as getAppSettings, L as getDb, ai as nextDocNumber, K as getCustomerOutstanding, ay as postJournalEntry, au as postCustomerLedger, F as getAdvanceCredit, ba as suggestAllotment, h as applyAllotment, l as auditLog, b5 as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -106,6 +106,18 @@ const index_post = defineEventHandler(async (event) => {
       }
     }
   }
+  const appCfg = await getAppSettings();
+  if (appCfg.order_policy.block_overdue && !isAdmin) {
+    const terms = Math.max(0, Number(appCfg.finance_settings.defaultPaymentTerms) || 0);
+    const [od] = await query(
+      `SELECT COUNT(*) c, MIN(order_number) n FROM credit_orders
+       WHERE customer_id = ? AND status IN ('goods_on_board','shipped','dispatched','delivered') AND balance_due > 0.005
+         AND DATEDIFF(CURDATE(), order_date) > ?`,
+      [Number(customer_id), terms]
+    );
+    if (Number(od == null ? void 0 : od.c) > 0)
+      throw createError({ statusCode: 409, statusMessage: `This customer has ${od.c} invoice(s) unpaid for more than ${terms} days (e.g. ${od.n}) \u2014 new orders are blocked until they pay (Settings \u2192 Orders)` });
+  }
   const db = getDb();
   const conn = await db.getConnection();
   try {
@@ -164,10 +176,10 @@ const index_post = defineEventHandler(async (event) => {
       orderStatus = "escalated";
       wfAction = "escalated";
       wfComment = `Order created \u2014 ESCALATED \xB7 \u09F3${totalAmount.toLocaleString()} \xB7 credit limit \u09F3${creditLimit.toLocaleString()} exceeded by \u09F3${excessAmount.toLocaleString()}`;
-    } else if (isAdmin) {
+    } else if (isAdmin || appCfg.order_policy.auto_approve) {
       orderStatus = "approved";
       wfAction = "approved";
-      wfComment = `Order created and auto-approved \u2014 \u09F3${totalAmount.toLocaleString()} (${role})`;
+      wfComment = `Order created and auto-approved \u2014 \u09F3${totalAmount.toLocaleString()} (${isAdmin ? role : "policy: auto-approve within credit limit"})`;
     } else {
       orderStatus = "pending_approval";
       wfAction = "submit";

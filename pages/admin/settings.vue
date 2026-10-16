@@ -28,6 +28,7 @@
         <div v-if="activeTab === 'company'" class="space-y-5">
           <div class="glass-card p-6 space-y-5">
             <h3 class="section-title">Company Information</h3>
+            <p class="text-xs text-gray-500 -mt-3">Printed on credit invoices, dispatch slips, expense &amp; accounts vouchers, customer statements, purchase orders, GRNs and receipts.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Company Name</label>
@@ -38,12 +39,16 @@
                 <input v-model="company.tradeName" type="text" class="input-glass" />
               </div>
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Registration No.</label>
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Trade Licence / Reg. No.</label>
                 <input v-model="company.regNo" type="text" class="input-glass font-mono" />
               </div>
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">TIN / BIN</label>
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">TIN</label>
                 <input v-model="company.tin" type="text" class="input-glass font-mono" />
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">BIN</label>
+                <input v-model="company.bin" type="text" class="input-glass font-mono" />
               </div>
               <div class="space-y-1.5 sm:col-span-2">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Registered Address</label>
@@ -59,7 +64,7 @@
               </div>
             </div>
             <div class="flex justify-end">
-              <button @click="save('Company info')" class="btn-gold text-xs">Save Changes</button>
+              <button @click="saveGroup('company_profile', company, 'Company information')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save Changes' }}</button>
             </div>
           </div>
         </div>
@@ -110,37 +115,32 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Fiscal Year Start</label>
-                <select v-model="finance.fyStart" class="input-glass">
-                  <option value="01">January</option>
-                  <option value="04">April</option>
-                  <option value="07">July (Bangladesh FY)</option>
+                <select v-model.number="finance.fyStart" class="input-glass">
+                  <option :value="1">January</option>
+                  <option :value="4">April</option>
+                  <option :value="7">July (Bangladesh FY)</option>
+                  <option :value="10">October</option>
                 </select>
-              </div>
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Base Currency</label>
-                <select v-model="finance.currency" class="input-glass">
-                  <option value="BDT">BDT — Bangladeshi Taka (৳)</option>
-                </select>
+                <p class="text-[11px] text-gray-600">Used by the Tax Statement as the financial-year start.</p>
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Default Credit Limit (৳)</label>
-                <input v-model.number="finance.defaultCreditLimit" type="number" class="input-glass font-mono" />
+                <input v-model.number="finance.defaultCreditLimit" type="number" min="0" class="input-glass font-mono" />
+                <p class="text-[11px] text-gray-600">Pre-filled when you add a new customer (0 = no limit).</p>
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Default Payment Terms (days)</label>
-                <input v-model.number="finance.defaultPaymentTerms" type="number" class="input-glass font-mono" />
+                <input v-model.number="finance.defaultPaymentTerms" type="number" min="0" class="input-glass font-mono" />
+                <p class="text-[11px] text-gray-600">Printed on invoices; an invoice older than this with a balance counts as overdue.</p>
               </div>
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">VAT Rate (%)</label>
-                <input v-model.number="finance.vatRate" type="number" step="0.5" class="input-glass font-mono" />
-              </div>
-              <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Late Payment Penalty (%)</label>
-                <input v-model.number="finance.lateRate" type="number" step="0.5" class="input-glass font-mono" />
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Late Payment Charge (% per month)</label>
+                <input v-model.number="finance.lateRate" type="number" min="0" step="0.5" class="input-glass font-mono" />
+                <p class="text-[11px] text-gray-600">Printed on invoices as the late-payment charge (0 = not printed).</p>
               </div>
             </div>
             <div class="flex justify-end">
-              <button @click="save('Finance settings')" class="btn-gold text-xs">Save Changes</button>
+              <button @click="saveGroup('finance_settings', finance, 'Finance settings')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save Changes' }}</button>
             </div>
           </div>
         </div>
@@ -206,19 +206,19 @@
             <h3 class="section-title">Order Settings</h3>
             <div class="space-y-4">
               <div v-for="opt in orderOptions" :key="opt.key"
-                class="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
+                class="flex items-center justify-between gap-4 py-3 border-b border-white/[0.04] last:border-0">
                 <div>
                   <p class="text-sm font-medium text-gray-200">{{ opt.label }}</p>
                   <p class="text-xs text-gray-500 mt-0.5">{{ opt.description }}</p>
                 </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input v-model="opt.value" type="checkbox" class="sr-only peer" />
+                <label class="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input v-model="orderPolicy[opt.key]" type="checkbox" class="sr-only peer" />
                   <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
                 </label>
               </div>
             </div>
             <div class="flex justify-end">
-              <button @click="save('Order settings')" class="btn-gold text-xs">Save Changes</button>
+              <button @click="saveGroup('order_policy', orderPolicy, 'Order settings')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save Changes' }}</button>
             </div>
           </div>
         </div>
@@ -403,16 +403,21 @@
           <div class="glass-card p-6 space-y-4">
             <h3 class="section-title">Notification Channels</h3>
             <div class="space-y-4">
-              <div v-for="ch in notifChannels" :key="ch.key"
-                class="flex items-start justify-between py-3 border-b border-white/[0.04] last:border-0">
+              <div class="flex items-start justify-between py-3 border-b border-white/[0.04]">
                 <div class="flex-1 mr-4">
-                  <p class="text-sm font-medium text-gray-200">{{ ch.label }}</p>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ ch.description }}</p>
+                  <p class="text-sm font-medium text-gray-200">Telegram Notifications</p>
+                  <p class="text-xs text-gray-500 mt-0.5">Send order, payment, dispatch and purchase alerts to the Telegram groups below. Turn OFF to silence every alert.</p>
                 </div>
                 <label class="relative inline-flex items-center cursor-pointer mt-0.5">
-                  <input v-model="ch.enabled" type="checkbox" class="sr-only peer" />
+                  <input v-model="notifyPolicy.telegram" type="checkbox" class="sr-only peer" />
                   <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
                 </label>
+              </div>
+            </div>
+            <div class="flex items-start justify-between py-3 border-b border-white/[0.04] opacity-60">
+              <div class="flex-1 mr-4">
+                <p class="text-sm font-medium text-gray-200">Email Notifications <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">not available yet</span></p>
+                <p class="text-xs text-gray-500 mt-0.5">No email service is connected to this system, so daily e-mail summaries cannot be sent.</p>
               </div>
             </div>
             <div class="space-y-1.5">
@@ -459,29 +464,23 @@
             <h3 class="section-title">Security & Access</h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div class="space-y-1.5">
-                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Session Timeout (minutes)</label>
-                <input v-model.number="security.sessionTimeout" type="number" min="5" class="input-glass font-mono" />
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Session Timeout (minutes, 0 = none)</label>
+                <input v-model.number="security.sessionTimeout" type="number" min="0" class="input-glass font-mono" />
               </div>
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Max Login Attempts</label>
                 <input v-model.number="security.maxLoginAttempts" type="number" min="3" class="input-glass font-mono" />
               </div>
             </div>
-            <div class="space-y-4">
-              <div v-for="opt in securityOptions" :key="opt.key"
-                class="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
-                <div>
-                  <p class="text-sm font-medium text-gray-200">{{ opt.label }}</p>
-                  <p class="text-xs text-gray-500 mt-0.5">{{ opt.description }}</p>
-                </div>
-                <label class="relative inline-flex items-center cursor-pointer">
-                  <input v-model="opt.value" type="checkbox" class="sr-only peer" />
-                  <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
-                </label>
+            <p class="text-[11px] text-gray-600 -mt-2">Session timeout: signed-in users are asked to log in again this many minutes after they signed in (0 = no limit). Max attempts: a wrong password this many times locks that email for 15 minutes.</p>
+            <div class="space-y-3 opacity-60">
+              <div v-for="opt in securityOptions" :key="opt.key" class="py-2 border-b border-white/[0.04] last:border-0">
+                <p class="text-sm font-medium text-gray-200">{{ opt.label }} <span class="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-gray-400">not available yet</span></p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ opt.description }}</p>
               </div>
             </div>
             <div class="flex justify-end">
-              <button @click="save('Security settings')" class="btn-gold text-xs">Save Changes</button>
+              <button @click="saveGroup('security_policy', security, 'Security settings')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save Changes' }}</button>
             </div>
           </div>
 
@@ -491,16 +490,9 @@
             <div class="flex items-center justify-between py-3">
               <div>
                 <p class="text-sm font-medium text-gray-200">Clear All Cache</p>
-                <p class="text-xs text-gray-500">Flush system cache and session data</p>
+                <p class="text-xs text-gray-500">Reload settings and permissions on the server right now (nobody is signed out)</p>
               </div>
-              <button class="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">Clear Cache</button>
-            </div>
-            <div class="flex items-center justify-between py-3 border-t border-white/[0.04]">
-              <div>
-                <p class="text-sm font-medium text-gray-200">Export All Data</p>
-                <p class="text-xs text-gray-500">Download full database backup as SQL</p>
-              </div>
-              <button class="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-gray-400 hover:bg-white/[0.05] transition-colors">Export</button>
+              <button @click="clearCache" class="text-xs px-3 py-1.5 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors">Clear Cache</button>
             </div>
           </div>
         </div>
@@ -883,15 +875,32 @@ const tabs = [
   { id: 'maintenance',   icon: '🔧', label: 'Maintenance' },
 ]
 
-const company = reactive({
-  name: 'Ujjal Flour Mills Company',
-  tradeName: 'Ujjal FMC',
-  regNo: 'C-XXXXXX/XX',
-  tin: '123456789-0101',
-  address: 'Sirajgonj Sadar, Sirajgonj-6700, Bangladesh',
-  phone: '+880 1711-000000',
-  email: 'info@ujjalfmc.com',
-})
+// ── Company-wide settings (company profile, finance, order policy, security, notifications) ──
+const { data: appData } = await useFetch<any>('/api/settings/app', { key: 'app-settings' })
+const company     = reactive({ ...(appData.value?.company_profile ?? {}) })
+const finance     = reactive({ ...(appData.value?.finance_settings ?? {}) })
+const orderPolicy = reactive<Record<string, boolean>>({ ...(appData.value?.order_policy ?? {}) })
+const security    = reactive({ ...(appData.value?.security_policy ?? {}) })
+const notifyPolicy = reactive({ ...(appData.value?.notify_policy ?? { telegram: true }) })
+const savingGroup = ref(false)
+
+async function saveGroup(group: string, values: any, label: string) {
+  savingGroup.value = true
+  try {
+    await $fetch('/api/settings/app', { method: 'PUT', body: { group, values: { ...values } } })
+    await refreshNuxtData('app-settings')
+    success(`${label} saved`)
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? `Could not save ${label.toLowerCase()}`)
+  } finally {
+    savingGroup.value = false
+  }
+}
+
+async function clearCache() {
+  try { await $fetch('/api/admin/clear-cache', { method: 'POST' }); success('Server caches cleared — settings and permissions reloaded') }
+  catch (e: any) { toastError(e?.data?.statusMessage ?? 'Could not clear caches') }
+}
 
 // Fetch real branches from DB
 const { data: branchData, refresh: refreshBranches } = await useFetch('/api/branches')
@@ -959,26 +968,11 @@ async function saveBranch() {
   }
 }
 
-const finance = reactive({
-  fyStart: '07',
-  currency: 'BDT',
-  defaultCreditLimit: 500000,
-  defaultPaymentTerms: 30,
-  vatRate: 0,
-  lateRate: 1.5,
-})
-
-const orderOptions = reactive([
-  { key: 'auto_approve',    label: 'Auto-approve orders under credit limit', description: 'Orders within limit bypass manual approval', value: false },
-  { key: 'require_pod',     label: 'Require Proof of Delivery',              description: 'Driver must upload photo or signature', value: true },
-  { key: 'allow_partial',   label: 'Allow partial deliveries',               description: 'Orders can be delivered in multiple trips', value: true },
-  { key: 'block_overdue',   label: 'Block orders for overdue customers',     description: 'Prevent new orders if customer has overdue amount', value: true },
-])
-
-const notifChannels = reactive([
-  { key: 'telegram', label: 'Telegram Notifications', description: 'Send order & payment alerts to Telegram', enabled: true },
-  { key: 'email',    label: 'Email Notifications',    description: 'Send daily summaries by email', enabled: false },
-])
+const orderOptions = [
+  { key: 'auto_approve',  label: 'Auto-approve orders within credit limit', description: 'An order placed by a sales user that stays within the customer\'s credit limit skips the approval queue and goes straight to Approved. Over-limit orders still go to approval.' },
+  { key: 'allow_partial', label: 'Allow partial deliveries',                description: 'OFF = a delivery must carry everything still owed on the order in one go.' },
+  { key: 'block_overdue', label: 'Block new orders for overdue customers',  description: 'No new order for a customer who has a delivered invoice unpaid for longer than the payment terms (Finance tab). Admin can still place one.' },
+]
 
 const notifSettings  = reactive({ telegramToken: '', adminChatId: '', tokenMasked: '' })
 const telegramCategories = ref<Array<{ key: string; chat_id: string }>>([])
@@ -1008,6 +1002,7 @@ async function saveTelegram(sendTest: boolean) {
         send_test: sendTest,
       },
     })
+    await $fetch('/api/settings/app', { method: 'PUT', body: { group: 'notify_policy', values: { telegram: notifyPolicy.telegram } } })
     notifSettings.telegramToken = ''
     success(sendTest ? 'Saved — test message sent to Telegram' : 'Telegram settings saved')
   } catch (e: any) {
@@ -1017,17 +1012,12 @@ async function saveTelegram(sendTest: boolean) {
   }
 }
 
-const security = reactive({ sessionTimeout: 120, maxLoginAttempts: 5 })
+const securityOptions = [
+  { key: 'force_2fa',    label: 'Require 2FA for Admin roles',  description: 'Superadmin and admin must use two-factor auth' },
+  { key: 'ip_whitelist', label: 'IP Whitelist (office only)',   description: 'Restrict login to known office IPs' },
+  { key: 'audit_all',    label: 'Log all page views',           description: 'Include read actions in audit trail' },
+]
 
-const securityOptions = reactive([
-  { key: 'force_2fa',     label: 'Require 2FA for Admin roles',   description: 'Superadmin and admin must use two-factor auth', value: false },
-  { key: 'ip_whitelist',  label: 'IP Whitelist (office only)',     description: 'Restrict login to known office IPs', value: false },
-  { key: 'audit_all',     label: 'Log all page views',            description: 'Include read actions in audit trail', value: false },
-])
-
-function save(section: string) {
-  success(`${section} saved successfully`)
-}
 </script>
 
 <style scoped>

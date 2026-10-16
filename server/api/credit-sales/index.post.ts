@@ -2,6 +2,7 @@ import { getDb, query } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
 import { getCustomerOutstanding, ACCOUNTS_ROLES, SALES_ROLES, nextDocNumber, postCustomerLedger, postJournalEntry } from '~/server/utils/creditOrders'
+import { getAppSettings } from '~/server/utils/appSettings'
 import { userCanAction } from '~/server/utils/permissions'
 import { getAdvanceCredit, suggestAllotment, applyAllotment } from '~/server/utils/advanceCredit'
 
@@ -89,6 +90,18 @@ export default defineEventHandler(async (event) => {
     }
   }
 
+  // Settings → Orders → "Block new orders for overdue customers": an unpaid invoice older than the payment terms stops a new order (admin may still place one).
+  const appCfg = await getAppSettings()
+  if (appCfg.order_policy.block_overdue && !isAdmin) {
+    const terms = Math.max(0, Number(appCfg.finance_settings.defaultPaymentTerms) || 0)
+    const [od] = await query<any>(
+      `SELECT COUNT(*) c, MIN(order_number) n FROM credit_orders
+       WHERE customer_id = ? AND status IN ('goods_on_board','shipped','dispatched','delivered') AND balance_due > 0.005
+         AND DATEDIFF(CURDATE(), order_date) > ?`, [Number(customer_id), terms])
+    if (Number(od?.c) > 0)
+      throw createError({ statusCode: 409, statusMessage: `This customer has ${od.c} invoice(s) unpaid for more than ${terms} days (e.g. ${od.n}) — new orders are blocked until they pay (Settings → Orders)` })
+  }
+
   const db   = getDb()
   const conn = await db.getConnection()
 
@@ -165,10 +178,10 @@ export default defineEventHandler(async (event) => {
       orderStatus = 'escalated'
       wfAction    = 'escalated'
       wfComment   = `Order created — ESCALATED · ৳${totalAmount.toLocaleString()} · credit limit ৳${creditLimit.toLocaleString()} exceeded by ৳${excessAmount.toLocaleString()}`
-    } else if (isAdmin) {
+    } else if (isAdmin || appCfg.order_policy.auto_approve) {
       orderStatus = 'approved'
       wfAction    = 'approved'
-      wfComment   = `Order created and auto-approved — ৳${totalAmount.toLocaleString()} (${role})`
+      wfComment   = `Order created and auto-approved — ৳${totalAmount.toLocaleString()} (${isAdmin ? role : 'policy: auto-approve within credit limit'})`
     } else {
       orderStatus = 'pending_approval'
       wfAction    = 'submit'

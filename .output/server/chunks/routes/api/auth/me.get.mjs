@@ -1,4 +1,4 @@
-import { u as defineEventHandler, a5 as getUserSession } from '../../../nitro/nitro.mjs';
+import { w as defineEventHandler, a8 as getUserSession } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

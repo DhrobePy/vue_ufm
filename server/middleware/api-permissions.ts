@@ -10,6 +10,7 @@
  * be relied on for security.
  */
 import { resolvePermissions } from '~/server/utils/permissions'
+import { getAppSettings } from '~/server/utils/appSettings'
 
 // Paths reachable WITHOUT a login. Everything else under /api/ needs a session.
 // (cron endpoints check their own secret; kiosk/device are the face-clock and biometric
@@ -66,6 +67,14 @@ export default defineEventHandler(async (event) => {
   const session = await getUserSession(event)
   if (!session?.user?.id) {
     throw createError({ statusCode: 401, statusMessage: 'Not authenticated' })
+  }
+
+  // Settings → Security → Session timeout: sign-in older than N minutes must log in again (0 = off; older sessions without a stamp are left alone).
+  const timeoutMin = Number((await getAppSettings()).security_policy.sessionTimeout) || 0
+  const signedInAt = Number((session as any).loggedInAt ?? 0)
+  if (timeoutMin > 0 && signedInAt && Date.now() - signedInAt > timeoutMin * 60_000) {
+    await clearUserSession(event)
+    throw createError({ statusCode: 401, statusMessage: 'Session expired — please sign in again' })
   }
 
   const role = (session.user.role ?? '').toLowerCase()

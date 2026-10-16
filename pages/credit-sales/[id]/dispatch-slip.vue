@@ -30,11 +30,11 @@
           <div style="display:flex;align-items:flex-start;gap:16px;">
             <div style="width:52px;height:52px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px;color:#000;flex-shrink:0;">U</div>
             <div>
-              <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.3px;">Ujjal Flour Mills Co.</div>
+              <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.3px;">{{ company.name }}</div>
               <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:3px;letter-spacing:0.05em;">{{ delivery ? `PARTIAL DELIVERY — ${delivery.delivery_number}` : 'DISPATCH SLIP / GATE PASS' }}</div>
               <div style="font-size:10.5px;color:#9ca3af;margin-top:6px;line-height:1.7;">
-                Sirajgonj Sadar, Sirajgonj-6700 · Demra, Dhaka-1361<br>
-                📞 +880 1711-000000
+                {{ company.address }}<br>
+                📞 {{ company.phone }}
               </div>
             </div>
           </div>
@@ -145,6 +145,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: false })
 const route = useRoute()
 const deliveryId = computed(() => route.query.delivery_id ? Number(route.query.delivery_id) : null)

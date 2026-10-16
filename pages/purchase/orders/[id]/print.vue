@@ -65,11 +65,11 @@
           <div style="display:flex;align-items:flex-start;gap:16px;">
             <div style="width:48px;height:48px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px;color:#000;flex-shrink:0;box-shadow:0 4px 16px rgba(245,158,11,0.4);">U</div>
             <div>
-              <div style="font-size:19px;font-weight:800;color:#fff;letter-spacing:-0.3px;">Ujjal Flour Mills Co.</div>
+              <div style="font-size:19px;font-weight:800;color:#fff;letter-spacing:-0.3px;">{{ company.name }}</div>
               <div style="font-size:11px;color:#f59e0b;font-weight:600;margin-top:3px;letter-spacing:0.05em;">PREMIUM WHEAT PRODUCTS</div>
               <div style="font-size:10.5px;color:#9ca3af;margin-top:5px;line-height:1.7;">
-                Sirajgonj Sadar, Sirajgonj-6700 · Demra, Dhaka-1361<br>
-                📞 +880 1711-000000 · ✉ purchase@ujjalfmc.com<br>
+                {{ company.address }}<br>
+                📞 {{ company.phone }} · ✉ {{ company.email }}<br>
                 Trade Lic: TL-SRG-2018-4821 · BIN: 002148694
               </div>
             </div>
@@ -105,9 +105,9 @@
           <!-- Buyer -->
           <div style="padding:22px 40px;border-right:1px solid #f0ede8;">
             <div style="font-size:9px;font-weight:800;color:#9ca3af;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;">Buyer</div>
-            <div style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px;">Ujjal Flour Mills Co.</div>
+            <div style="font-size:15px;font-weight:800;color:#111;margin-bottom:4px;">{{ company.name }}</div>
             <div style="font-size:11px;color:#6b7280;line-height:1.8;">
-              <div>Sirajgonj Sadar, Sirajgonj-6700, Bangladesh</div>
+              <div>{{ company.address }}</div>
               <div>BIN: 002148694 · Trade Lic: TL-SRG-2018-4821</div>
               <div style="margin-top:6px;">Delivery to: <span style="font-weight:700;color:#374151;">{{ po.deliveryTo }}</span></div>
             </div>
@@ -143,7 +143,7 @@
                 <td style="padding:12px 10px;font-size:11px;color:#9ca3af;font-weight:600;">{{ i + 1 }}</td>
                 <td style="padding:12px 10px;">
                   <div style="font-size:13px;font-weight:700;color:#111;">{{ item.product }}</div>
-                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">{{ commodityName }} · Ujjal FMC procurement</div>
+                  <div style="font-size:10px;color:#9ca3af;margin-top:2px;">{{ commodityName }} · {{ company.tradeName }} procurement</div>
                 </td>
                 <td style="padding:12px 10px;text-align:center;font-size:12px;color:#374151;font-weight:600;">{{ po.origin }}</td>
                 <td style="padding:12px 10px;text-align:right;font-size:13px;font-weight:700;color:#374151;font-family:monospace;">{{ item.qty.toLocaleString() }}</td>
@@ -356,6 +356,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: false })
 const route = useRoute()
 

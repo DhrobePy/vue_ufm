@@ -21,7 +21,7 @@
         <div class="text-center border-b-4 border-emerald-600 pb-6 mb-6">
           <h1 class="text-3xl font-bold">উজ্জল ফ্লাওয়ার মিলস</h1>
           <p class="text-gray-600 mt-1">সিরাজগঞ্জ, ডেমরা, রামপুরা</p>
-          <p class="text-gray-600">info@ujjalfm.com</p>
+          <p class="text-gray-600">{{ company.email }}</p>
         </div>
 
         <!-- Title & Voucher # -->
@@ -117,6 +117,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: 'print' })
 const route = useRoute()
 

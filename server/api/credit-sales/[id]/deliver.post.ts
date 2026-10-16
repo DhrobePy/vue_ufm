@@ -1,4 +1,5 @@
 import { getDb } from '~/server/utils/db'
+import { getAppSettings } from '~/server/utils/appSettings'
 import { auditLog } from '~/server/utils/audit'
 import { getUserActionLimit, nextDocNumber, isAdminRole, generateDeliverySlipNumber, transitionOrder, postCustomerLedger, postJournalEntry, getGLAccountId } from '~/server/utils/creditOrders'
 
@@ -180,6 +181,15 @@ export default defineEventHandler(async (event) => {
     }
 
     // NOTE: NO ledger / JE here. The invoice (full order value) posts to
+    // Settings → Orders → "Allow partial deliveries" OFF: this delivery must carry everything still owed on every line.
+    if ((await getAppSettings()).order_policy.allow_partial === false) {
+      const [allLines] = await conn.query<any>(
+        `SELECT oi.id, oi.quantity, COALESCE((SELECT SUM(di.qty_delivered) FROM credit_order_delivery_items di WHERE di.order_item_id = oi.id), 0) done
+         FROM credit_order_items oi WHERE oi.order_id = ?`, [id])
+      const give = new Map<number, number>(lines.map((l: any) => [Number(l.order_item_id), Number(l.qty_delivered)]))
+      if (allLines.some((r: any) => Number(r.quantity) - Number(r.done) - (give.get(Number(r.id)) ?? 0) > 0.005))
+        throw createError({ statusCode: 400, statusMessage: 'Partial deliveries are switched off (Settings → Orders) — this delivery must cover everything still owed on the order' })
+    }
     // customer_ledger + GL at DISPATCH (workflow ship transition) — the
     // accounting pivot. Deliveries only record physical movement.
 

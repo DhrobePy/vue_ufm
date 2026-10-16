@@ -16,7 +16,8 @@
     <div v-else-if="d" id="statement" style="max-width:820px;margin:16px auto;background:#fff;padding:clamp(14px,4vw,40px);box-shadow:0 8px 30px rgba(0,0,0,0.15);">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:14px;">
         <div>
-          <h1 style="font-size:20px;font-weight:800;margin:0;">Ujjal Flour Mills</h1>
+          <h1 style="font-size:20px;font-weight:800;margin:0;">{{ company.name }}</h1>
+          <p style="font-size:11px;color:#555;margin:3px 0 0;">{{ company.address }} · {{ company.phone }}</p>
         </div>
         <div style="text-align:right;">
           <h2 style="font-size:16px;font-weight:800;margin:0;letter-spacing:0.04em;">ACCOUNT STATEMENT</h2>
@@ -92,6 +93,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: false })
 const route = useRoute()
 const today = new Date().toISOString().slice(0, 10)

@@ -25,7 +25,7 @@ const users = { super: [1, 'Superadmin'], acct: [2, 'Accounts'], sales: [3, 'sal
 const sealer = http.createServer(toNodeListener(createApp().use(eventHandler(async (e) => {
   const [id, role] = new URL(e.node.req.url, 'http://x').searchParams.get('u').split(',')
   const s = await useSession(e, { password: PW, name: 'nuxt-session', cookie: { httpOnly: true, path: '/' } })
-  await s.update({ user: { id: Number(id), name: role, role }, loggedInAt: Date.now() })
+  await s.update({ user: { id: Number(id), name: role, role }, loggedInAt: Date.now() - Number(new URL(e.node.req.url, 'http://x').searchParams.get('age') ?? 0) * 60000 })
   return 'ok'
 })))).listen(0)
 const sealPort = sealer.address().port
@@ -430,6 +430,59 @@ await expectStatus('admin reverts the price amendment', call('admin', 'POST', `/
 const o3afterRev = await orderRow(o3.id)
 check('revert puts the price back (−1,000) and keeps the surcharge', Number(o3beforeRev.total_amount) - Number(o3afterRev.total_amount) === 1000, `${o3beforeRev.total_amount} → ${o3afterRev.total_amount}`)
 await expectStatus('an amendment can be reverted only once', call('admin', 'POST', `/api/credit-sales/amendments/${pa.id}/revert`, { reason: 'again' }), 409)
+
+// ── 16. Settings really take effect ─────────────────────────────────────────
+const setApp = (as, group, values) => call(as, 'PUT', '/api/settings/app', { group, values })
+await expectStatus('settings: non-admin cannot change company settings → 403', setApp('acct', 'company_profile', { name: 'Hacked' }), 403)
+await expectStatus('settings: unknown group → 400', setApp('admin', 'nope', {}), 400)
+await expectStatus('settings: empty company name → 400', setApp('admin', 'company_profile', { name: '' }), 400)
+await expectStatus('settings: company profile saved', setApp('admin', 'company_profile', { name: 'Test Mills Ltd', phone: '01999', address: 'Dhaka', tin: '999-TIN' }), 200)
+const appNow = (await call('sales', 'GET', '/api/settings/app')).json
+check('settings: any signed-in user reads the new company name (prints use it)', appNow?.company_profile?.name === 'Test Mills Ltd' && appNow.company_profile.phone === '01999', JSON.stringify(appNow?.company_profile))
+const [[taxTin]] = await db.query(`select setting_value v from system_settings where setting_key='tax_tin'`)
+check('settings: company TIN also reaches the Tax Statement settings', taxTin?.v === '999-TIN', taxTin?.v)
+await expectStatus('settings: finance — payment terms 0 days', setApp('admin', 'finance_settings', { defaultPaymentTerms: 0, defaultCreditLimit: 12345 }), 200)
+
+// order policy: block overdue
+await expectStatus('settings: switch ON "block overdue customers"', setApp('admin', 'order_policy', { block_overdue: true }), 200)
+await db.query(`update credit_orders set order_date = date_sub(curdate(), interval 60 day) where id=?`, [mord.id])
+const od1 = await call('sales', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] })
+check('settings: a customer with an old unpaid invoice cannot be given a new order', od1.status === 409, `${od1.status} ${od1.msg}`)
+await expectStatus('settings: …but admin still can', call('admin', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), [200, 201])
+await setApp('admin', 'order_policy', { block_overdue: false })
+await expectStatus('settings: with it OFF the same order goes through', call('sales', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), [200, 201])
+await db.query(`update credit_orders set order_date = curdate() where id=?`, [mord.id])
+
+// order policy: auto-approve
+const plain = (await call('sales', 'POST', '/api/credit-sales', { customer_id: 1, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] })).json
+check('settings: auto-approve OFF → a sales user\'s order waits for approval', (await orderRow(plain.id)).status === 'pending_approval')
+await setApp('admin', 'order_policy', { auto_approve: true })
+const auto = (await call('sales', 'POST', '/api/credit-sales', { customer_id: 1, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] })).json
+check('settings: auto-approve ON → within the limit it is approved at once', (await orderRow(auto.id)).status === 'approved')
+await setApp('admin', 'order_policy', { auto_approve: false })
+
+// partial deliveries off
+await setApp('admin', 'order_policy', { allow_partial: false })
+const [[pdItem]] = await db.query('select id from credit_order_items where order_id=?', [mord.id])
+await expectStatus('settings: partial deliveries OFF → a partial delivery is refused', call('disp', 'POST', `/api/credit-sales/${mord.id}/deliver`, { delivery_date: today, truck_number: 'T9', driver_name: 'D', is_final: false, items: [{ order_item_id: pdItem.id, product_id: 1, variant_id: 1, qty_delivered: 1, unit_price: 1000 }] }), 400)
+await setApp('admin', 'order_policy', { allow_partial: true })
+
+// login lock-out + session timeout
+await expectStatus('settings: max login attempts must be at least 3', setApp('admin', 'security_policy', { maxLoginAttempts: 1 }), 400)
+await expectStatus('settings: max login attempts = 3', setApp('admin', 'security_policy', { maxLoginAttempts: 3 }), 200)
+await db.query(`delete from login_attempts where email='lockme@t'`)
+for (let i = 0; i < 3; i++) await call(null, 'POST', '/api/auth/login', { email: 'lockme@t', password: 'wrong' })
+await expectStatus('settings: after 3 wrong passwords the email is locked → 429', call(null, 'POST', '/api/auth/login', { email: 'lockme@t', password: 'wrong' }), 429)
+await db.query(`delete from login_attempts where email='lockme@t'`)
+await setApp('admin', 'security_policy', { maxLoginAttempts: 5, sessionTimeout: 60 })
+const oldCookie = (await fetch(`http://127.0.0.1:${sealPort}/?u=7,admin&age=180`)).headers.get('set-cookie').split(';')[0]
+const oldSess = await fetch(BASE + '/api/settings/app', { headers: { cookie: oldCookie } })
+check('settings: session timeout 60 min → a 3-hour-old sign-in is refused (401)', oldSess.status === 401, `${oldSess.status}`)
+await expectStatus('settings: …a fresh sign-in still works', call('admin', 'GET', '/api/settings/app'), 200)
+await setApp('admin', 'security_policy', { sessionTimeout: 0 })
+check('settings: timeout 0 = off → the old sign-in works again', (await fetch(BASE + '/api/settings/app', { headers: { cookie: oldCookie } })).status === 200)
+await expectStatus('settings: Clear Cache works for admin only', call('acct', 'POST', '/api/admin/clear-cache'), 403)
+await expectStatus('settings: Clear Cache', call('admin', 'POST', '/api/admin/clear-cache'), 200)
 
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','produced','ready_to_ship','goods_on_board')`, [o1.id])

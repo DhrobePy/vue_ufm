@@ -21,9 +21,9 @@
 
         <!-- Company Header -->
         <div class="text-center border-b-2 border-gray-800 pb-6 mb-6">
-          <h1 class="text-3xl font-bold text-gray-900">UJJAL FLOUR MILLS</h1>
-          <p class="text-gray-600 mt-2">Sirajganj, Demra, Rampura</p>
-          <p class="text-gray-600">Phone: +880-XXX-XXXXXX | Email: info@ujjalfm.com</p>
+          <h1 class="text-3xl font-bold text-gray-900">{{ company.name.toUpperCase() }}</h1>
+          <p class="text-gray-600 mt-2">{{ company.address }}</p>
+          <p class="text-gray-600">Phone: {{ company.phone }} | Email: {{ company.email }}</p>
         </div>
 
         <!-- Receipt Title -->
@@ -178,6 +178,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: 'print' })
 const route = useRoute()
 

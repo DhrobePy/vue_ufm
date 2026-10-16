@@ -36,3 +36,7 @@ export function setCachedPerms(userId: number | string, permissions: Record<stri
 export function invalidatePermCache(userId: number | string): void {
   cache.delete(userId)
 }
+
+export function clearAllPerms(): void {
+  cache.clear()
+}

@@ -8,7 +8,7 @@
     <div v-if="sale" style="border:1px solid #e5e7eb;border-radius:10px;margin:12px;padding:28px;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111827;padding-bottom:14px;">
         <div>
-          <div style="font-size:18px;font-weight:800;">Ujjal Flour Mills</div>
+          <div style="font-size:18px;font-weight:800;">{{ company.name }}</div>
           <div style="font-size:12px;color:#6b7280;">উজ্জল ফ্লাওয়ার মিলস</div>
           <div style="font-size:11px;color:#6b7280;margin-top:4px;">{{ sale.branch_address || '১৭, নুরাইবাগ, ডেমরা, ঢাকা' }}</div>
         </div>
@@ -82,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+const { company } = useAppSettings()
 definePageMeta({ layout: false })
 const route  = useRoute()
 const saleId = computed(() => Number(route.params.id))

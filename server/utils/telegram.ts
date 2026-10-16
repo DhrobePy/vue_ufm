@@ -15,6 +15,7 @@
  * Failure NEVER propagates: notifications must not break business writes.
  * Always call AFTER the transaction commits.
  */
+import { getAppSettings } from '~/server/utils/appSettings'
 import { query } from '~/server/utils/db'
 
 export const TELEGRAM_CATEGORIES = [
@@ -25,9 +26,11 @@ export type TelegramCategory = typeof TELEGRAM_CATEGORIES[number]
 
 interface Creds { token: string; generalChatId: string; byCategory: Record<string, string> }
 let cached: Creds | null | undefined
+let cachedAt = 0   // several Node workers each hold their own copy — a short TTL makes a settings change reach all of them
 
 async function loadCreds(): Promise<Creds | null> {
-  if (cached !== undefined) return cached
+  if (cached !== undefined && Date.now() - cachedAt < 30_000) return cached
+  cachedAt = Date.now()
   try {
     const keys = [
       'telegram_bot_token', 'telegram_chat_id',
@@ -65,6 +68,7 @@ export function resetTelegramCache() { cached = undefined }
  */
 export async function sendTelegram(html: string, category?: TelegramCategory): Promise<void> {
   try {
+    if ((await getAppSettings()).notify_policy.telegram === false) return   // Settings → Notifications master switch
     const creds = await loadCreds()
     if (!creds) return
     const chatId = (category && creds.byCategory[category]) || creds.generalChatId

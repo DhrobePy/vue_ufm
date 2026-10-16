@@ -1,0 +1,23 @@
+import { w as defineEventHandler, a8 as getUserSession, t as createError, G as getAppSettings } from '../../../nitro/nitro.mjs';
+import 'node:child_process';
+import 'node:zlib';
+import 'node:stream';
+import 'node:crypto';
+import 'node:http';
+import 'node:https';
+import 'node:events';
+import 'node:buffer';
+import 'node:fs';
+import 'node:path';
+import 'mysql2/promise';
+import 'node:url';
+
+const app_get = defineEventHandler(async (event) => {
+  var _a;
+  const session = await getUserSession(event);
+  if (!((_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id)) throw createError({ statusCode: 401, statusMessage: "Not authenticated" });
+  return await getAppSettings(true);
+});
+
+export { app_get as default };
+//# sourceMappingURL=app.get.mjs.map
