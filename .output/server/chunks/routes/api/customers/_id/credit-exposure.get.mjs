@@ -1,4 +1,4 @@
-import { u as defineEventHandler, Z as getRouterParam, q as createError, aB as queryOne } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, q as createError, aA as queryOne, F as getDb, E as getCustomerOutstanding } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -16,7 +16,7 @@ const creditExposure_get = defineEventHandler(async (event) => {
   var _a;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid customer ID" });
-  const row = await queryOne(
+  await queryOne(
     `SELECT
        COALESCE((
          SELECT SUM(o.balance_due)
@@ -27,7 +27,14 @@ const creditExposure_get = defineEventHandler(async (event) => {
      FROM dual`,
     [id]
   );
-  return { pending: Number((_a = row == null ? void 0 : row.pending) != null ? _a : 0) };
+  const conn = await getDb().getConnection();
+  try {
+    const exp = await getCustomerOutstanding(conn, id);
+    const [[c]] = await conn.query("SELECT credit_limit FROM customers WHERE id = ?", [id]);
+    return { pending: exp.pendingExposure, ledger: exp.ledgerOutstanding, limit: Number((_a = c == null ? void 0 : c.credit_limit) != null ? _a : 0) };
+  } finally {
+    conn.release();
+  }
 });
 
 export { creditExposure_get as default };

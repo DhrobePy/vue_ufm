@@ -50,9 +50,9 @@
                   <p class="text-gray-200 font-medium">{{ item.product_name }}</p>
                   <p class="text-gray-600">{{ item.weight_variant }}</p>
                 </td>
-                <td class="py-3 px-3 text-right text-gray-400">{{ item.quantity }} bags</td>
+                <td class="py-3 px-3 text-right text-gray-400">{{ item.quantity }} bags<span v-if="Number(item.delivered_qty) > 0" class="block text-[10px] text-gray-600">{{ item.delivered_qty }} already delivered · {{ item.remaining }} left</span></td>
                 <td class="py-3 px-3 text-right">
-                  <input v-model.number="item.qty_deliver" type="number" min="0" :max="item.quantity"
+                  <input v-model.number="item.qty_deliver" type="number" min="0" :max="item.remaining"
                          class="w-20 bg-white/[0.05] border border-white/10 rounded-lg px-2 py-1 text-right text-xs text-gray-200 focus:outline-none focus:ring-1 focus:ring-gold-500/50 focus:border-gold-500/50" />
                 </td>
               </tr>
@@ -174,7 +174,8 @@ const orderItems   = computed(() => (orderData.value as any)?.items    ?? [])
 const deliveryItems = computed(() =>
   orderItems.value.map((item: any) => ({
     ...item,
-    qty_deliver: item.quantity,  // default: full qty
+    remaining: Math.max(0, Number(item.quantity) - Number(item.delivered_qty ?? 0)),   // ordered − already delivered
+    qty_deliver: Math.max(0, Number(item.quantity) - Number(item.delivered_qty ?? 0)),  // default: everything still owed
   }))
 )
 
@@ -204,7 +205,7 @@ async function submit() {
       order_item_id: item.id,
       product_id:    item.product_id ?? null,
       variant_id:    item.variant_id ?? null,
-      qty_delivered: form.is_final ? item.quantity : item.qty_deliver,
+      qty_delivered: form.is_final ? item.remaining : item.qty_deliver,
       unit_price:    item.unit_price ?? item.line_total / item.quantity,
     }))
 

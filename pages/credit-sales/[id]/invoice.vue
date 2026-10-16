@@ -199,6 +199,10 @@
               <span style="color:#6b7280;">Line Discounts</span>
               <span style="font-family:monospace;color:#dc2626;">-৳{{ totalDiscount.toLocaleString() }}</span>
             </div>
+            <div v-if="Number(data?.order?.mini_truck_surcharge) > 0" style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;">
+              <span style="color:#6b7280;">Mini-truck delivery surcharge</span>
+              <span style="font-family:monospace;color:#374151;">+৳{{ Number(data.order.mini_truck_surcharge).toLocaleString() }}</span>
+            </div>
             <div style="display:flex;justify-content:space-between;padding:5px 0;font-size:12px;">
               <span style="color:#6b7280;">Overall Discount<template v-if="data?.shipping?.extra_discount_reason"> ({{ data.shipping.extra_discount_reason }})</template></span>
               <span style="font-family:monospace;color:#dc2626;">{{ order?.discount > 0 ? `-৳${order.discount.toLocaleString()}` : '৳0' }}</span>

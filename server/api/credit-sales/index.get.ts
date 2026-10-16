@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     const baseSelect = `
       o.id, o.order_number,
       DATE_FORMAT(o.order_date, '%d %b %Y') AS order_date,
-      o.required_date, o.priority, o.total_amount, o.balance_due, o.amount_paid,
+      o.required_date, o.assigned_branch_id, o.priority, o.total_amount, o.balance_due, o.amount_paid,
       o.total_weight_kg,
       -- Auto-heal: delivered + fully paid → completed (even if DB not updated yet)
       CASE WHEN o.status = 'delivered' AND o.balance_due = 0 THEN 'completed'

@@ -79,6 +79,8 @@ await expectStatus('accounts approves within credit', wf('acct', o1.id, 'approve
 
 // ── 3. Production + the payment hold at READY TO SHIP ───────────────────────
 await expectStatus('production starts', wf('prod', o1.id, 'in_production'), 200)
+await expectStatus('production marks it produced', wf('prod', o1.id, 'produced'), 200)
+await expectStatus('Ready to Ship cannot be skipped: in_production → ready_to_ship is refused', wf('prod', (await newOrder('super')).id, 'ready_to_ship'), 409)
 const hold = await wf('prod', o1.id, 'ready_to_ship')
 check('Ready to Ship is BLOCKED while dispatch hold is uncleared (423)', hold.status === 423, `got ${hold.status} ${hold.msg}`)
 await expectStatus('sales cannot clear dispatch hold', call('sales', 'POST', `/api/credit-sales/${o1.id}/gates`, { action: 'clear_dispatch' }), 403)
@@ -103,7 +105,7 @@ check('bags boarded / bag size / discount reason stored', ship?.bags_boarded ===
 
 // second order → slip 002, and clean reversal
 const o2 = await newOrder('super')
-await wf('prod', o2.id, 'in_production'); await call('admin', 'POST', `/api/credit-sales/${o2.id}/gates`, { action: 'clear_dispatch', note: 'ok' }); await wf('prod', o2.id, 'ready_to_ship')
+await wf('prod', o2.id, 'in_production'); await wf('prod', o2.id, 'produced'); await call('admin', 'POST', `/api/credit-sales/${o2.id}/gates`, { action: 'clear_dispatch', note: 'ok' }); await wf('prod', o2.id, 'ready_to_ship')
 await wf('disp', o2.id, 'goods_on_board', { dispatch: truck })
 const [[ship2]] = await db.query('select delivery_slip_number s from credit_order_shipping where order_id=?', [o2.id])
 check('next truck in the month gets slip …-002', ship2?.s === `SRG-${yr}-${mo}-002`, ship2?.s)
@@ -179,13 +181,14 @@ await expectStatus('schedule reorder by accounts', call('acct', 'POST', '/api/cr
 const ledgerSum = async (cid) => { const [[r]] = await db.query('select coalesce(sum(debit_amount),0)-coalesce(sum(credit_amount),0) b from customer_ledger where customer_id=?', [cid]); return Number(r.b) }
 const custBal = async (cid) => Number((await db.query('select current_balance b from customers where id=?', [cid]))[0][0].b)
 const jeBalanced = async (where, args) => { const [[r]] = await db.query(`select coalesce(sum(tl.debit_amount),0) d, coalesce(sum(tl.credit_amount),0) c from transaction_lines tl join journal_entries je on je.id=tl.journal_entry_id where ${where}`, args); return Number(r.d) === Number(r.c) && Number(r.d) > 0 }
-await db.query(`insert into customers (id,name,phone_number,credit_limit,status) values (2,'Money Customer','01700000099',500000,'active')`)
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status,customer_type) values (2,'Money Customer','01700000099',500000,'active','Credit')`)
 const mord = (await call('super', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck',
   items: [{ product_id: 1, variant_id: 1, quantity: 10, unit_price: 1000, discount_amount: 0 }] })).json
-await wf('prod', mord.id, 'in_production'); await call('admin', 'POST', `/api/credit-sales/${mord.id}/gates`, { action: 'clear_dispatch', note: 'ok' }); await wf('prod', mord.id, 'ready_to_ship')
+await wf('prod', mord.id, 'in_production'); await wf('prod', mord.id, 'produced'); await call('admin', 'POST', `/api/credit-sales/${mord.id}/gates`, { action: 'clear_dispatch', note: 'ok' }); await wf('prod', mord.id, 'ready_to_ship')
 await wf('disp', mord.id, 'goods_on_board', { dispatch: truck })
 check('after dispatch: customer balance = ledger = 10,000', (await custBal(2)) === 10000 && (await ledgerSum(2)) === 10000, `${await custBal(2)}/${await ledgerSum(2)}`)
-await expectStatus('admin records a ৳4,000 payment', call('admin', 'POST', `/api/credit-sales/${mord.id}/payment`, { amount: 4000, payment_method: 'bank', bank_account_id: null }), [200, 201])
+await expectStatus('a bank payment without a bank account → 400', call('admin', 'POST', `/api/credit-sales/${mord.id}/payment`, { amount: 4000, payment_method: 'bank', bank_account_id: null }), 400)
+await expectStatus('admin records a ৳4,000 cash payment', call('admin', 'POST', `/api/credit-sales/${mord.id}/payment`, { amount: 4000, payment_method: 'cash' }), [200, 201])
 check('after payment: balance = ledger = 6,000', (await custBal(2)) === 6000 && (await ledgerSum(2)) === 6000, `${await custBal(2)}/${await ledgerSum(2)}`)
 const moRow = await orderRow(mord.id)
 const [[moItem]] = await db.query('select id from credit_order_items where order_id=?', [mord.id])
@@ -198,6 +201,7 @@ check('order total reduced to 9,700 and discount recorded', Number((await orderR
 check('discount journal is balanced', await jeBalanced(`je.related_document_type='CreditOrderDiscount'`, []))
 const [[dl]] = await db.query('select delivery_slip_number s, bags_boarded b from credit_order_deliveries where order_id=?', [mord.id])
 check('first truck reuses the Goods-on-Board slip number; bags saved', /^SRG-/.test(dl?.s ?? '') && dl?.b === 4, JSON.stringify(dl))
+const nlOrderForReturn = (await newOrder('super')).id
 const retItems = [{ order_item_id: moItem.id, product_id: 1, variant_id: 1, original_qty: 10, returned_qty: 1, unit_price: 1000 }]
 await expectStatus('admin records a return of 1 bag', call('admin', 'POST', `/api/credit-sales/${mord.id}/return`, { return_reason: 'damaged', items: retItems }), [200, 201])
 const [[retRow]] = await db.query('select status from credit_order_returns where order_id=? order by id desc limit 1', [mord.id])
@@ -211,6 +215,11 @@ if (retRow?.status === 'pending') {
   await expectStatus('a granted second person approves the return', call('granted', 'PATCH', `/api/credit-sales/returns/${pr.id}/status`, { action: 'approve' }), 200)
   check('approved return: balance = ledger = 4,700', (await custBal(2)) === 4700 && (await ledgerSum(2)) === 4700, `${await custBal(2)}/${await ledgerSum(2)}`)
 }
+await expectStatus('delivery above what is still owed → 400', call('disp', 'POST', `/api/credit-sales/${mord.id}/deliver`, deliverBody({ items: [{ order_item_id: moItem.id, product_id: 1, variant_id: 1, qty_delivered: 7, unit_price: 1000 }] })), 400)
+await expectStatus('return above the returnable quantity → 400', call('admin', 'POST', `/api/credit-sales/${mord.id}/return`, { return_reason: 'x', items: [{ order_item_id: moItem.id, returned_qty: 100, unit_price: 1000 }] }), 400)
+await expectStatus('return on an order that has not shipped → 409', call('admin', 'POST', `/api/credit-sales/${nlOrderForReturn}/return`, { return_reason: 'x', items: [{ order_item_id: 1, returned_qty: 1 }] }), 409)
+const tamper = await call('admin', 'POST', `/api/credit-sales/${mord.id}/return`, { return_reason: 'price tamper', items: [{ order_item_id: moItem.id, returned_qty: 1, unit_price: 1 }] })
+check('return value uses the ORDER price, not the browser’s (৳1,000, not ৳1)', tamper.status < 300 && Number((await db.query('select total_returned_amount a from credit_order_returns order by id desc limit 1'))[0][0].a) === 1000, `${tamper.status} ${tamper.msg}`)
 check('every payment/credit-note journal in this run is balanced', await jeBalanced(`je.related_document_type in ('CustomerPayment','CreditOrderDiscount')`, []))
 
 // ── 12. Branch scope ─────────────────────────────────────────────────────────
@@ -246,7 +255,7 @@ await expectStatus('new order works after reactivation', call('super', 'POST', '
 
 
 // ── 14. Every screen shows the same running balance, even with back-dated / stale rows ──
-await db.query(`insert into customers (id,name,phone_number,credit_limit,status) values (3,'Statement Mismatch','01700000777',100000,'active')`)
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status,customer_type) values (3,'Statement Mismatch','01700000777',100000,'active','Credit')`)
 // rows inserted in posting order with a deliberately WRONG stored balance_after (what the legacy import left behind)
 const L = (date, type, ref, d, c, stored) => db.query(`insert into customer_ledger (customer_id, transaction_date, transaction_type, reference_type, reference_id, invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id) values (3,?,?, 'x', 0, ?, ?, ?, ?, ?, 1)`, [date, type, ref, ref, d, c, stored])
 await L('2026-07-24', 'advance_payment', 'ADV-1', 0, 570000, -570000)
@@ -292,9 +301,39 @@ const au = (await call('granted', 'GET', '/api/ledger/audit')).json
 check('cross-checks list returns grouped exceptions with titles', Array.isArray(au?.groups) && au.groups.every(g => g.title && g.n > 0) && Array.isArray(au.exceptions), JSON.stringify(au?.groups?.slice(0, 2)))
 check('the Recycle Bin holds it for restore', Number((await db.query(`select count(*) n from recycle_bin_items where batch_id=? and table_name='customer_ledger'`, [dres.json.recycleBatch]))[0][0].n) === 1)
 
+
+// ── 16. Legacy create / approve rules ───────────────────────────────────────
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status,customer_type) values (4,'No Limit Customer','01700000444',0,'active','Credit'),(5,'Walk-in POS','01700000555',0,'active','POS')`)
+const mk = (cust, over = {}) => call('sales', 'POST', '/api/credit-sales', { customer_id: cust, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck',
+  items: [{ product_id: 1, variant_id: 1, quantity: 5, unit_price: 1000, discount_amount: 0 }], ...over })
+await expectStatus('a POS (walk-in) customer cannot be given a credit order', mk(5), 400)
+await expectStatus('sales cannot back-date an order', mk(4, { order_date: '2026-01-05' }), 403)
+await expectStatus('nobody can post an order dated in the future', call('admin', 'POST', '/api/credit-sales', { customer_id: 4, branch_id: 1, order_date: '2099-01-01', required_date: today, items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), 400)
+const bd = (await call('admin', 'POST', '/api/credit-sales', { customer_id: 4, branch_id: 1, order_date: '2026-01-05', required_date: today, items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] })).json
+check('admin back-dated order carries its own date in the number (CR-20260105-…)', /^CR-20260105-\d{4}$/.test(bd?.order_number ?? ''), bd?.order_number)
+await expectStatus('a product that has variants needs one chosen', mk(4, { items: [{ product_id: 1, quantity: 5, unit_price: 1000 }] }), 400)
+await expectStatus('Other Sales without a source branch is refused', call('admin', 'POST', '/api/credit-sales', { customer_id: 4, is_other_sales: true, order_date: today, required_date: today, items: [{ commodity_id: 999, quantity: 1, unit_price: 10 }] }), 400)
+
+// customer with NO credit limit: Accounts must be able to approve (legacy: limit 0 = no limit, never escalates)
+const nl = (await mk(4)).json
+check('order for a no-limit customer is created pending approval', nl?.status === 'pending_approval', JSON.stringify(nl))
+await expectStatus('approval needs a production branch', call('acct', 'POST', `/api/credit-sales/${nl.id}/workflow`, { to_status: 'approved', branch_id: 999, required_date: today }), 400)
+await expectStatus('approval needs a valid delivery date', call('acct', 'POST', `/api/credit-sales/${nl.id}/workflow`, { to_status: 'approved', branch_id: 1, required_date: 'soon' }), 400)
+await expectStatus('Accounts cannot approve with a delivery date in the past', call('acct', 'POST', `/api/credit-sales/${nl.id}/workflow`, { to_status: 'approved', branch_id: 1, required_date: '2020-01-01' }), 400)
+const ap = await call('acct', 'POST', `/api/credit-sales/${nl.id}/workflow`, { to_status: 'approved', branch_id: 2, required_date: today })
+check('Accounts approves a no-limit customer’s order (no forced escalation)', ap.status === 200 && ap.json.newStatus === 'approved', `${ap.status} ${ap.msg}`)
+check('approver’s branch and date are stored on the order', Number((await orderRow(nl.id)).assigned_branch_id) === 2)
+// 80% rule: a customer with ৳10,000 limit and no history — an ৳8,000 order uses 80% of the remaining credit → Accounts' approval auto-escalates it
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status,customer_type) values (6,'Eighty Percent','01700000666',10000,'active','Credit')`)
+const eighty = (await call('sales', 'POST', '/api/credit-sales', { customer_id: 6, branch_id: 1, order_date: today, required_date: today, items: [{ product_id: 1, variant_id: 1, quantity: 8, unit_price: 1000, discount_amount: 0 }] })).json
+check('8,000 order on a 10,000 limit is created normally', eighty?.status === 'pending_approval', JSON.stringify(eighty))
+const esc = await call('acct', 'POST', `/api/credit-sales/${eighty.id}/workflow`, { to_status: 'approved', branch_id: 1, required_date: today })
+check('Accounts approving an order that uses 80%+ of remaining credit → auto-escalated (not an error)', esc.status === 200 && esc.json.newStatus === 'escalated', `${esc.status} ${esc.msg} ${esc.json?.newStatus}`)
+await expectStatus('admin then approves the escalated order', call('admin', 'POST', `/api/credit-sales/${eighty.id}/workflow`, { to_status: 'approved', branch_id: 1, required_date: today }), 200)
+
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
-const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','ready_to_ship','goods_on_board')`, [o1.id])
-check('workflow log has every transition of order 1', Number(wfc.n) >= 4, wfc.n)
+const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','produced','ready_to_ship','goods_on_board')`, [o1.id])
+check('workflow log has every transition of order 1', Number(wfc.n) >= 5, wfc.n)
 
 console.log(failed ? `\n${failed} FAILED` : '\nAll rules hold')
 sealer.close(); await db.end()

@@ -57,6 +57,7 @@ export default defineEventHandler(async (event) => {
     ),
     query(
       `SELECT oi.*, oi.quantity AS qty_bags,
+              (SELECT COALESCE(SUM(di.qty_delivered), 0) FROM credit_order_delivery_items di WHERE di.order_item_id = oi.id) AS delivered_qty,
               p.base_name AS product_name, pv.weight_variant, pv.grade, pv.sku
        FROM credit_order_items oi
        LEFT JOIN products p  ON p.id = oi.product_id

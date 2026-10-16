@@ -1,4 +1,4 @@
-import { u as defineEventHandler, aD as readBody, a3 as getUserSession, q as createError, Q as getRequestHeader, b6 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, aA as query, G as getDb, ad as nextDocNumber, F as getCustomerOutstanding, at as postJournalEntry, ap as postCustomerLedger, j as auditLog, a_ as sendTelegram } from '../../nitro/nitro.mjs';
+import { t as defineEventHandler, aC as readBody, a2 as getUserSession, q as createError, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, az as query, F as getDb, ac as nextDocNumber, E as getCustomerOutstanding, as as postJournalEntry, ao as postCustomerLedger, j as auditLog, aZ as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const index_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B;
   const body = await readBody(event);
   const session = await getUserSession(event);
   if (!(session == null ? void 0 : session.user))
@@ -36,7 +36,7 @@ const index_post = defineEventHandler(async (event) => {
     customer_id,
     branch_id,
     // maps to assigned_branch_id in DB
-    order_date,
+    order_date: bodyOrderDate,
     required_date,
     priority,
     delivery_address,
@@ -73,20 +73,48 @@ const index_post = defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "customer_id and items are required" });
   }
   {
-    const [cust] = await query("SELECT name, status FROM customers WHERE id = ?", [Number(customer_id)]);
+    const [cust] = await query("SELECT name, status, customer_type FROM customers WHERE id = ?", [Number(customer_id)]);
     if (!cust) throw createError({ statusCode: 404, statusMessage: "Customer not found" });
     if (cust.status !== "active")
       throw createError({ statusCode: 403, statusMessage: `${cust.name} is ${cust.status} \u2014 new orders are blocked (reactivate the customer on their profile first)` });
+    if (cust.customer_type !== "Credit")
+      throw createError({ statusCode: 400, statusMessage: `${cust.name} is a ${cust.customer_type} customer \u2014 credit orders are only for Credit customers` });
+  }
+  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  let order_date = today;
+  if (bodyOrderDate && /^\d{4}-\d{2}-\d{2}$/.test(String(bodyOrderDate).slice(0, 10)) && String(bodyOrderDate).slice(0, 10) !== today) {
+    if (!isAdmin) throw createError({ statusCode: 403, statusMessage: "Only admin / superadmin can back-date an order" });
+    if (String(bodyOrderDate).slice(0, 10) > today) throw createError({ statusCode: 400, statusMessage: "Order date cannot be in the future" });
+    order_date = String(bodyOrderDate).slice(0, 10);
+  }
+  if (is_other_sales) {
+    if (!branch_id) throw createError({ statusCode: 400, statusMessage: "Please select the source Branch / Warehouse for this Other Sales order" });
+    for (const it of items) {
+      if (!it.commodity_id) throw createError({ statusCode: 400, statusMessage: "An Other Sales item is missing its commodity" });
+      const [com] = await query("SELECT name, inventory_account_id FROM purchase_commodities WHERE id = ? AND is_sellable = 1", [Number(it.commodity_id)]);
+      if (!com) throw createError({ statusCode: 400, statusMessage: "Commodity not found or not marked sellable" });
+      if (!com.inventory_account_id)
+        throw createError({ statusCode: 400, statusMessage: `"${com.name}" has no Inventory account configured \u2014 set one in Purchase \u2192 Commodities before selling it` });
+    }
+  } else {
+    for (const it of items) {
+      if (it.variant_id) continue;
+      const [hv] = await query("SELECT COUNT(*) c FROM product_variants WHERE product_id = ?", [Number((_d = it.product_id) != null ? _d : 0)]);
+      if (Number(hv == null ? void 0 : hv.c) > 0) {
+        const [pn] = await query("SELECT base_name FROM products WHERE id = ?", [Number(it.product_id)]);
+        throw createError({ statusCode: 400, statusMessage: `"${(_e = pn == null ? void 0 : pn.base_name) != null ? _e : "This product"}" needs a variant (grade / weight) \u2014 please pick one for that line` });
+      }
+    }
   }
   const db = getDb();
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const orderNo = await nextDocNumber(conn, "CR", "credit_orders", "order_number");
+    const orderNo = await nextDocNumber(conn, "CR", "credit_orders", "order_number", order_date);
     let subtotal = 0;
     for (const it of items) {
-      const qty = Number((_e = (_d = it.qty_bags) != null ? _d : it.quantity) != null ? _e : 0);
-      const line = qty * Number(it.unit_price) - Number((_f = it.discount_amount) != null ? _f : 0);
+      const qty = Number((_g = (_f = it.qty_bags) != null ? _f : it.quantity) != null ? _g : 0);
+      const line = qty * Number(it.unit_price) - Number((_h = it.discount_amount) != null ? _h : 0);
       subtotal += line;
     }
     const deliveryType = delivery_type === "mini_truck" ? "mini_truck" : "big_truck";
@@ -102,17 +130,17 @@ const index_post = defineEventHandler(async (event) => {
       const perWc = {};
       for (const c of mtComponents) perWc[c.weight_class] = Number(c.amt);
       for (const it of items) {
-        const qty = Number((_h = (_g = it.qty_bags) != null ? _g : it.quantity) != null ? _h : 0);
+        const qty = Number((_j = (_i = it.qty_bags) != null ? _i : it.quantity) != null ? _j : 0);
         let wc = "all";
         if (it.variant_id) {
           const [[pv]] = await conn.query(
             `SELECT weight_variant FROM product_variants WHERE id = ?`,
             [it.variant_id]
           );
-          const wv = String((_i = pv == null ? void 0 : pv.weight_variant) != null ? _i : "");
+          const wv = String((_k = pv == null ? void 0 : pv.weight_variant) != null ? _k : "");
           wc = wv.includes("50") ? "50" : wv.includes("74") ? "74" : "all";
         }
-        const perBag = ((_j = perWc[wc]) != null ? _j : 0) + (wc !== "all" ? (_k = perWc["all"]) != null ? _k : 0 : 0);
+        const perBag = ((_l = perWc[wc]) != null ? _l : 0) + (wc !== "all" ? (_m = perWc["all"]) != null ? _m : 0 : 0);
         miniTruckSurcharge += qty * perBag;
       }
       miniTruckSurcharge = Math.round(miniTruckSurcharge * 100) / 100;
@@ -124,7 +152,7 @@ const index_post = defineEventHandler(async (event) => {
       `SELECT credit_limit, name AS customer_name FROM customers WHERE id = ?`,
       [customer_id]
     );
-    const creditLimit = Number((_l = customer == null ? void 0 : customer.credit_limit) != null ? _l : 0);
+    const creditLimit = Number((_n = customer == null ? void 0 : customer.credit_limit) != null ? _n : 0);
     const exposure = await getCustomerOutstanding(conn, Number(customer_id));
     const totalExposure = exposure.totalExposure + balanceDue;
     const overLimit = creditLimit > 0 && totalExposure > creditLimit;
@@ -151,7 +179,7 @@ const index_post = defineEventHandler(async (event) => {
           `SELECT product_id FROM product_variants WHERE id = ? LIMIT 1`,
           [it.variant_id]
         );
-        it.product_id = (_m = pv == null ? void 0 : pv.product_id) != null ? _m : null;
+        it.product_id = (_o = pv == null ? void 0 : pv.product_id) != null ? _o : null;
       }
     }
     const dispatchPin = Math.floor(1e5 + Math.random() * 9e5).toString();
@@ -194,8 +222,8 @@ const index_post = defineEventHandler(async (event) => {
     );
     const orderId = result.insertId;
     for (const it of items) {
-      const qty = Number((_o = (_n = it.qty_bags) != null ? _n : it.quantity) != null ? _o : 0);
-      const lineTotal = qty * Number(it.unit_price) - Number((_p = it.discount_amount) != null ? _p : 0);
+      const qty = Number((_q = (_p = it.qty_bags) != null ? _p : it.quantity) != null ? _q : 0);
+      const lineTotal = qty * Number(it.unit_price) - Number((_r = it.discount_amount) != null ? _r : 0);
       await conn.query(
         `INSERT INTO credit_order_items
            (order_id, product_id, variant_id, commodity_id, commodity_origin,
@@ -203,14 +231,14 @@ const index_post = defineEventHandler(async (event) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
-          (_q = it.product_id) != null ? _q : null,
+          (_s = it.product_id) != null ? _s : null,
           // nullable since Other Sales (migration #59)
-          (_r = it.variant_id) != null ? _r : null,
+          (_t = it.variant_id) != null ? _t : null,
           it.commodity_id ? Number(it.commodity_id) : null,
-          (_s = it.commodity_origin) != null ? _s : null,
+          (_u = it.commodity_origin) != null ? _u : null,
           qty,
           Number(it.unit_price),
-          Number((_t = it.discount_amount) != null ? _t : 0),
+          Number((_v = it.discount_amount) != null ? _v : 0),
           lineTotal
         ]
       );
@@ -268,13 +296,13 @@ const index_post = defineEventHandler(async (event) => {
             `SELECT chart_of_account_id FROM branch_petty_cash_accounts WHERE id = ?`,
             [Number(advance_cash_account_id)]
           );
-          drAccountId = (_u = ca == null ? void 0 : ca.chart_of_account_id) != null ? _u : null;
+          drAccountId = (_w = ca == null ? void 0 : ca.chart_of_account_id) != null ? _w : null;
         } else if (["Bank Transfer", "Cheque", "Card"].includes(payMethod) && advance_bank_account_id) {
           const [[ba]] = await conn.query(
             `SELECT chart_of_account_id FROM bank_accounts WHERE id = ?`,
             [Number(advance_bank_account_id)]
           );
-          drAccountId = (_v = ba == null ? void 0 : ba.chart_of_account_id) != null ? _v : null;
+          drAccountId = (_x = ba == null ? void 0 : ba.chart_of_account_id) != null ? _x : null;
         }
         let crAccountId = null;
         const [[ar]] = await conn.query(
@@ -282,7 +310,7 @@ const index_post = defineEventHandler(async (event) => {
            WHERE account_type = 'Accounts Receivable'
            ORDER BY id ASC LIMIT 1`
         );
-        crAccountId = (_w = ar == null ? void 0 : ar.id) != null ? _w : null;
+        crAccountId = (_y = ar == null ? void 0 : ar.id) != null ? _y : null;
         if (drAccountId && crAccountId) {
           const jeDesc = `Advance received \u2014 ${advNo} (Order ${orderNo}, ${customer_id})`;
           advJeId = await postJournalEntry(conn, {
@@ -305,7 +333,7 @@ const index_post = defineEventHandler(async (event) => {
               `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`,
               [Number(advance_cash_account_id)]
             );
-            const pcBal = Number((_x = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _x : 0);
+            const pcBal = Number((_z = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _z : 0);
             await conn.query(
               `INSERT INTO branch_petty_cash_transactions
                  (account_id, branch_id, transaction_type, amount, balance_after,
@@ -313,7 +341,7 @@ const index_post = defineEventHandler(async (event) => {
                VALUES (?, ?, 'cash_in', ?, ?, 'customer_payment', ?, ?, ?, ?)`,
               [
                 Number(advance_cash_account_id),
-                (_y = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _y : null,
+                (_A = pcAcc == null ? void 0 : pcAcc.branch_id) != null ? _A : null,
                 advancePaid,
                 pcBal + advancePaid,
                 advPaymentId,
@@ -361,7 +389,7 @@ const index_post = defineEventHandler(async (event) => {
     await conn.commit();
     sendTelegram(
       `${overLimit ? "\u26A0\uFE0F" : "\u{1F9FE}"} <b>New Credit Order${overLimit ? " \u2014 ESCALATED" : ""}</b>
-${orderNo} \u2014 ${(_z = customer == null ? void 0 : customer.customer_name) != null ? _z : `Customer ${customer_id}`}
+${orderNo} \u2014 ${(_B = customer == null ? void 0 : customer.customer_name) != null ? _B : `Customer ${customer_id}`}
 \u09F3${totalAmount.toLocaleString()} \xB7 ${items.length} item(s)` + (deliveryType === "mini_truck" ? ` \xB7 Mini truck (+\u09F3${miniTruckSurcharge.toLocaleString()})` : "") + (advancePaid > 0 ? `
 Advance \u09F3${advancePaid.toLocaleString()} received` : "") + (overLimit ? `
 Credit limit exceeded by \u09F3${excessAmount.toLocaleString()} \u2014 needs senior approval` : ""),

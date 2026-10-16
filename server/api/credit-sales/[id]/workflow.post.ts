@@ -4,7 +4,7 @@ import { sendTelegram } from '~/server/utils/telegram'
 import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
-  getCustomerOutstanding, creditUsagePct, getUserApprovalLimit,
+  getCustomerOutstanding, getUserApprovalLimit, getUserBranchIds,
   getOrderGateState, assertDispatchClear, transitionOrder, postGoodsOnBoardInvoice, generateDeliverySlipNumber, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
@@ -24,7 +24,6 @@ import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
 // Canonical pipeline + accepted aliases from older UI code
 const STATUS_ALIAS: Record<string, string> = {
   dispatched: 'goods_on_board',
-  produced:   'ready_to_ship',
 }
 
 interface TransitionRule {
@@ -40,11 +39,12 @@ const TRANSITIONS: Record<string, TransitionRule> = {
   rejected:        { from: ['pending_approval', 'escalated'], roles: [...ACCOUNTS_ROLES], enforce: 'approve' },
   escalated:       { from: ['pending_approval'], roles: [...ACCOUNTS_ROLES] },  // flag up to admin
   in_production:   { from: ['approved'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'production' },
-  ready_to_ship:   { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'ready_to_ship' },
+  produced:        { from: ['in_production'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },   // production finished — not yet cleared to leave
+  ready_to_ship:   { from: ['produced'], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: 'ready_to_ship' },
   goods_on_board:  { from: ['ready_to_ship'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: 'goods_on_board' },
   shipped:         { from: ['goods_on_board'], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] }, // truck departed — no money logic
   completed:       { from: ['delivered'], roles: [] },  // admin only (payments auto-complete otherwise)
-  cancelled:       { from: ['pending_approval', 'escalated', 'approved', 'in_production', 'ready_to_ship'], roles: [] }, // admin only — pre-ledger, nothing to reverse
+  cancelled:       { from: ['pending_approval', 'escalated', 'approved', 'in_production', 'produced', 'ready_to_ship'], roles: [] }, // admin only — pre-ledger, nothing to reverse
 }
 
 export default defineEventHandler(async (event) => {
@@ -84,6 +84,7 @@ export default defineEventHandler(async (event) => {
     rejected:       { page: 'approve',    action: 'reject' },
     escalated:      { page: 'approve',    action: 'escalate' },
     in_production:  { page: 'production', action: 'start_production' },
+    produced:       { page: 'production', action: 'mark_produced' },
     ready_to_ship:  { page: 'production', action: 'mark_ready' },
     goods_on_board: { page: 'dispatch',   action: 'mark_dispatched' },
     shipped:        { page: 'dispatch',   action: 'mark_shipped' },
@@ -143,45 +144,79 @@ export default defineEventHandler(async (event) => {
     const totalAmount = Number(order.total_amount ?? 0)
     let wfComment = comments ? String(comments) : ''
 
-    // ── Enforcement: APPROVE / REJECT ────────────────────────────────────────
+    // The status the order actually ends up in (an approval can auto-escalate, and Other Sales skip production).
+    let finalStatus = to_status
+
+    // ── Enforcement: APPROVE / REJECT (legacy credit_order_approval.php) ─────
     if (rule.enforce === 'approve' && to_status === 'approved') {
-      const { limit, source } = await getUserApprovalLimit(conn, userId, role)
+      // The approver assigns the production branch and the required delivery date (both mandatory in legacy).
+      // Omitted → the order's existing values are used, so older callers keep working.
+      const branchId = Number(body?.branch_id ?? order.assigned_branch_id ?? 0)
+      const ymd = (v: any) => v instanceof Date
+        ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`
+        : String(v ?? '').slice(0, 10)
+      const requiredDate = ymd(body?.required_date ?? order.required_date)
+      if (!branchId) throw createError({ statusCode: 400, statusMessage: 'Please select a branch for production' })
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(requiredDate)) throw createError({ statusCode: 400, statusMessage: 'Please select a valid required delivery date' })
+      if (!isAdminRole(role) && requiredDate < new Date().toISOString().slice(0, 10))
+        throw createError({ statusCode: 400, statusMessage: 'Required delivery date cannot be in the past' })
+      const [[br]] = await conn.query<any>(`SELECT id FROM branches WHERE id = ? AND status = 'active'`, [branchId])
+      if (!br) throw createError({ statusCode: 400, statusMessage: 'The chosen branch is not active' })
+      if (!isAdminRole(role)) {
+        const scope = await getUserBranchIds(conn, userId, role)
+        if (scope) {
+          if (order.assigned_branch_id != null && !scope.includes(Number(order.assigned_branch_id)))
+            throw createError({ statusCode: 403, statusMessage: 'This order is outside your assigned branch scope' })
+          if (!scope.includes(branchId))
+            throw createError({ statusCode: 403, statusMessage: 'You may only assign production to a branch within your own scope' })
+        }
+      }
+
+      const { limit: myLimit, source } = await getUserApprovalLimit(conn, userId, role)
       const exposure = await getCustomerOutstanding(conn, order.customer_id, { excludeOrderId: id })
-      const usageAfter = creditUsagePct(
-        exposure.totalExposure + Number(order.balance_due ?? 0),
-        Number(order.credit_limit ?? 0),
-      )
+      const creditLimit = Number(order.credit_limit ?? 0)
+      const available = creditLimit - exposure.totalExposure          // credit left after dues AND other open orders
+      // Legacy: how much of the REMAINING credit this order would eat. No limit set (0) → never escalates.
+      const usagePct = creditLimit <= 0 ? 0 : available <= 0 ? 999 : (totalAmount / available) * 100
+      const overLimit = creditLimit > 0 && Number(order.balance_due ?? 0) > available
+      const usageText = usagePct >= 999 ? 'OVER LIMIT' : `${Math.round(usagePct)}%`
+      let mustEscalate = false
 
       if (source === 'admin') {
         wfComment = `Approved by admin authority · ${wfComment}`.trim()
       } else if (source === 'personal') {
-        // Personal limit decides EVERYTHING — even escalated/over-limit customers
-        if (totalAmount > limit)
-          throw createError({
-            statusCode: 403,
-            statusMessage: `Order ৳${totalAmount.toLocaleString()} exceeds your approval limit of ৳${limit.toLocaleString()} — escalate to admin`,
-          })
-        wfComment = `Approved under delegated limit ৳${limit.toLocaleString()} · customer usage ${usageAfter}% · outstanding ৳${exposure.ledgerOutstanding.toLocaleString()} · ${wfComment}`.trim()
+        // A credit-limit breach needs a personal limit that covers the WHOLE order; otherwise only admin/superadmin may approve it
+        if (overLimit && totalAmount > myLimit)
+          throw createError({ statusCode: 403, statusMessage: `This order exceeds the customer's credit limit by ৳${Math.max(0, Number(order.balance_due) - available).toLocaleString()} — only admin / superadmin, or an approver with a limit covering the full order amount, can approve it. It stays escalated.` })
+        mustEscalate = totalAmount > myLimit
+        wfComment = mustEscalate
+          ? `Auto-escalated: order ৳${totalAmount.toLocaleString()} exceeds approver's delegated limit of ৳${myLimit.toLocaleString()} · ${wfComment}`.trim()
+          : `Approved under delegated limit ৳${myLimit.toLocaleString()} · customer usage ${usageText} · outstanding ৳${exposure.ledgerOutstanding.toLocaleString()} · ${wfComment}`.trim()
       } else {
-        // Accounts family without a personal limit → standard 80% rule
+        // Accounts family without a personal limit
         if (order.status === 'escalated')
           throw createError({ statusCode: 403, statusMessage: 'Escalated orders need admin or a delegated approval limit' })
-        if (usageAfter > 80)
-          throw createError({
-            statusCode: 403,
-            statusMessage: `Customer credit usage would be ${usageAfter > 900 ? 'over limit' : usageAfter + '%'} — exceeds the 80% rule, escalate to admin`,
-          })
-        wfComment = `Approved under 80% rule · usage ${usageAfter}% · ${wfComment}`.trim()
+        if (overLimit)
+          throw createError({ statusCode: 403, statusMessage: `This order exceeds the customer's credit limit by ৳${Math.max(0, Number(order.balance_due) - available).toLocaleString()} — only admin / superadmin, or an approver with a delegated ৳ limit covering the full order, can approve it. It stays escalated.` })
+        mustEscalate = usagePct >= 80
+        wfComment = mustEscalate
+          ? `Auto-escalated: order uses ${usageText} of the customer's remaining credit (80% rule) · ${wfComment}`.trim()
+          : `Approved · order uses ${usageText} of remaining credit · ${wfComment}`.trim()
       }
 
-      // Credit-limit auto-release (opt-in policy): approving an over-limit
-      // order — without the approver setting their own manual conditions —
-      // force-sets a self-clearing dispatch hold, so it can't leave until the
-      // customer's ledger balance is back within their credit limit. Only
-      // admin/personal-limit approvals can even reach here over 100% usage
-      // (the 80% rule above never lets an over-limit order through).
+      if (mustEscalate) {
+        finalStatus = 'escalated'
+        telegramMsg = `⚠️ <b>Order Escalated</b>\n${order.order_number} — ${order.customer_name}\n৳${totalAmount.toLocaleString()} · by ${userName}\n${usageText} of remaining credit`
+      } else {
+        // Other Sales (commodity resale) skip production: approval goes straight to Ready to Ship
+        finalStatus = order.is_other_sales ? 'ready_to_ship' : 'approved'
+        await conn.query(`UPDATE credit_orders SET assigned_branch_id = ?, required_date = ?, updated_at = NOW() WHERE id = ?`, [branchId, requiredDate, id])
+      }
+
+      // Credit-limit auto-release (opt-in policy): approving an over-limit order — without the approver
+      // setting their own manual conditions — force-sets a self-clearing dispatch hold.
       let autoHoldApplied = false
-      if (!conditions && usageAfter > 100) {
+      if (!conditions && overLimit && finalStatus === 'approved') {
         const { creditLimitAutoRelease } = await getCreditWorkflowSettings(conn)
         if (creditLimitAutoRelease) {
           await conn.query(
@@ -198,7 +233,7 @@ export default defineEventHandler(async (event) => {
             [
               id,
               Number(order.credit_limit ?? 0),
-              `Auto dispatch hold: approved at ${usageAfter}% credit usage — releases once balance is back within the ৳${Number(order.credit_limit ?? 0).toLocaleString()} limit`,
+              `Auto dispatch hold: approved over the credit limit — releases once balance is back within the ৳${Number(order.credit_limit ?? 0).toLocaleString()} limit`,
               userId,
             ],
           )
@@ -208,7 +243,7 @@ export default defineEventHandler(async (event) => {
       }
 
       // Optional special instructions (gates) — accounts/admin only
-      if (conditions && isAccountsRole(role)) {
+      if (conditions && isAccountsRole(role) && finalStatus === 'approved') {
         const ct = ['manual', 'outstanding_below', 'outstanding_after_ship', 'amount_received']
           .includes(conditions.condition_type) ? conditions.condition_type : null
         await conn.query(
@@ -244,7 +279,7 @@ export default defineEventHandler(async (event) => {
         }
       }
 
-      telegramMsg =
+      if (finalStatus !== 'escalated') telegramMsg =
         `✅ <b>Order Approved</b>\n` +
         `${order.order_number} — ${order.customer_name}\n` +
         `৳${totalAmount.toLocaleString()} · by ${userName}` +
@@ -370,16 +405,16 @@ export default defineEventHandler(async (event) => {
     }
 
     // ── Apply the transition ─────────────────────────────────────────────────
-    await transitionOrder(conn, { orderId: id, from: order.status, to: to_status, userId, comment: wfComment })
+    await transitionOrder(conn, { orderId: id, from: order.status, to: finalStatus, action: to_status === 'approved' && finalStatus !== 'approved' ? (finalStatus === 'escalated' ? 'escalated' : 'approved') : undefined, userId, comment: wfComment })
 
     await auditLog(conn, {
       userId,
-      action:          to_status === 'approved' ? 'approved' : to_status === 'rejected' ? 'rejected' : 'status_changed',
+      action:          finalStatus === 'approved' ? 'approved' : to_status === 'rejected' ? 'rejected' : 'status_changed',
       module:          'credit_sales',
       recordType:      'credit_order',
       recordId:        id,
       referenceNumber: order.order_number,
-      description:     `Order ${order.order_number}: ${order.status} → ${to_status}${wfComment ? ` · ${wfComment}` : ''}`,
+      description:     `Order ${order.order_number}: ${order.status} → ${finalStatus}${wfComment ? ` · ${wfComment}` : ''}`,
       severity:        'info',
       ipAddress,
     })
@@ -389,14 +424,14 @@ export default defineEventHandler(async (event) => {
     if (telegramMsg) {
       // Route to the matching category group: approval decisions → orders,
       // production stages → production, movement stages → dispatch.
-      const cat = ['approved', 'rejected', 'escalated'].includes(to_status) ? 'orders'
+      const cat = ['approved', 'rejected', 'escalated'].includes(finalStatus) || to_status === 'approved' ? 'orders'
         : ['in_production', 'ready_to_ship'].includes(to_status) ? 'production'
         : ['goods_on_board', 'shipped'].includes(to_status) ? 'dispatch'
         : undefined
       sendTelegram(telegramMsg, cat as any)  // fire-and-forget, after commit
     }
 
-    return { ok: true, newStatus: to_status }
+    return { ok: true, newStatus: finalStatus }
   } catch (e: any) {
     await conn.rollback()
     // Re-throw createError()s as-is; wrap raw SQL/JS errors so the client

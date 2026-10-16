@@ -28,10 +28,16 @@
             @click="advanceStatus('in_production', 'Sent to production queue')">
             🏭 Send to Production
           </button>
-          <button v-else-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_ready')"
+          <button v-else-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_produced')"
             class="btn-gold text-xs" :disabled="acting"
-            @click="advanceStatus('ready_to_ship', 'Marked ready to ship')">
-            📤 Ready to Dispatch
+            @click="advanceStatus('produced', 'Production complete')">
+            ✓ Mark Produced
+          </button>
+          <button v-else-if="order.status === 'produced' && perms.canDo('credit_sales', 'production', 'mark_ready')"
+            class="btn-gold text-xs" :disabled="acting"
+            :title="dispatchBlocked ? 'Dispatch is held — see banner above' : ''"
+            @click="advanceStatus('ready_to_ship', 'Cleared to ship')">
+            📤 Ready to Ship
           </button>
           <button v-else-if="order.status === 'ready_to_ship' && perms.canDo('credit_sales', 'dispatch', 'mark_dispatched')"
             class="btn-gold text-xs" :disabled="acting"
@@ -562,6 +568,22 @@
                 <p class="text-orange-400 font-semibold">⚠ Credit Utilisation: {{ creditPct }}%</p>
                 <p class="text-gray-500 mt-0.5">Customer is near or over credit limit. Ensure CFO sign-off before approving.</p>
               </div>
+
+            <!-- Production branch + delivery date: chosen by the approver (legacy rule) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Production branch *</label>
+                <select v-model="approveFields.branch_id" class="input-glass w-full text-sm" required>
+                  <option :value="0" disabled>Select branch…</option>
+                  <option v-for="b in branchOptions" :key="b.id" :value="b.id">{{ b.name }}</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Required delivery date *</label>
+                <input v-model="approveFields.required_date" type="date" :min="isAdminUser ? undefined : todayStr" class="input-glass w-full text-sm" required />
+              </div>
+            </div>
+
               <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Comment (optional)</label>
                 <textarea v-model="approvalComment" rows="2" class="field-input w-full resize-none text-sm"
@@ -1162,6 +1184,12 @@ function fmtDateTime(dt: string | null): string {
 // ── Modal & loading state ────────────────────────────────
 const approvalModal   = ref(false)
 const approvalComment = ref('')
+const { data: branchData } = await useFetch<any>('/api/branches')
+const branchOptions = computed(() => ((branchData.value?.branches ?? []) as any[]).filter(b => b.status === 'active' && b.branch_type !== 'office'))
+const todayStr = new Date().toISOString().slice(0, 10)
+const isAdminUser = computed(() => isAdmin.value)
+const approveFields = reactive({ branch_id: 0, required_date: '' })
+watch(() => approvalModal.value, (open) => { if (open) { approveFields.branch_id = Number(order.value.assigned_branch_id ?? 0); approveFields.required_date = String(order.value.required_date ?? '').slice(0, 10) } })
 const cancelModal     = ref(false)
 const cancelReason    = ref('')
 const deleteModal     = ref(false)
@@ -1256,12 +1284,12 @@ async function confirmDeleteReturn() {
 }
 
 // ── API-backed actions ───────────────────────────────────
-async function callWorkflow(toStatus: string, comments: string) {
+async function callWorkflow(toStatus: string, comments: string, extra: Record<string, any> = {}) {
   acting.value = true
   try {
     await $fetch(`/api/credit-sales/${id.value}/workflow`, {
       method: 'POST',
-      body:   { to_status: toStatus, comments },
+      body:   { to_status: toStatus, comments, ...extra },
     })
     await refresh()
   } catch (e: any) {
@@ -1281,7 +1309,7 @@ async function advanceStatus(newStatus: string, msg: string) {
 
 async function confirmApprove() {
   try {
-    await callWorkflow('approved', approvalComment.value || 'Approved')
+    await callWorkflow('approved', approvalComment.value || 'Approved', { branch_id: approveFields.branch_id || undefined, required_date: approveFields.required_date || undefined })
     approvalModal.value  = false
     approvalComment.value = ''
     success(`${order.value.order_number} approved ✓`)

@@ -1,4 +1,4 @@
-import { u as defineEventHandler, O as getQuery, a3 as getUserSession, G as getDb, a1 as getUserBranchIds, aA as query, M as getOrderGateState, ah as paginate } from '../../nitro/nitro.mjs';
+import { t as defineEventHandler, N as getQuery, a2 as getUserSession, F as getDb, a0 as getUserBranchIds, az as query, L as getOrderGateState, ag as paginate } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -49,7 +49,7 @@ const index_get = defineEventHandler(async (event) => {
     const baseSelect = `
       o.id, o.order_number,
       DATE_FORMAT(o.order_date, '%d %b %Y') AS order_date,
-      o.required_date, o.priority, o.total_amount, o.balance_due, o.amount_paid,
+      o.required_date, o.assigned_branch_id, o.priority, o.total_amount, o.balance_due, o.amount_paid,
       o.total_weight_kg,
       -- Auto-heal: delivered + fully paid \u2192 completed (even if DB not updated yet)
       CASE WHEN o.status = 'delivered' AND o.balance_due = 0 THEN 'completed'

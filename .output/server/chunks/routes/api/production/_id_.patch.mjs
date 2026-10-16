@@ -1,4 +1,4 @@
-import { u as defineEventHandler, a3 as getUserSession, f as PRODUCTION_ROLES, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, q as createError, aD as readBody, G as getDb, i as assertDispatchClear, b3 as transitionOrder, j as auditLog, a_ as sendTelegram } from '../../../nitro/nitro.mjs';
+import { t as defineEventHandler, a2 as getUserSession, f as PRODUCTION_ROLES, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, q as createError, aC as readBody, F as getDb, b2 as transitionOrder, j as auditLog, aZ as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -76,46 +76,31 @@ const _id__patch = defineEventHandler(async (event) => {
           [ps.order_id]
         );
         if (order && order.status === "in_production") {
-          let blocked = null;
-          try {
-            await assertDispatchClear(conn, order.id, userId);
-          } catch (e) {
-            if ((e == null ? void 0 : e.statusCode) === 423) blocked = e.statusMessage;
-            else throw e;
-          }
-          if (blocked) {
-            await conn.query(
-              `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-               VALUES (?, 'in_production', 'in_production', 'ready_blocked', ?, ?, NOW())`,
-              [order.id, userId, `Production batch #${numericId} complete \u2014 NOT moved to Ready to Ship: ${blocked}`]
-            );
-          } else {
-            await transitionOrder(conn, {
-              orderId: order.id,
-              from: "in_production",
-              to: "ready_to_ship",
-              userId,
-              comment: `Production batch #${numericId} marked complete by ${userName}`
-            });
-            await auditLog(conn, {
-              userId,
-              action: "status_changed",
-              module: "credit_sales",
-              recordType: "credit_order",
-              recordId: order.id,
-              referenceNumber: order.order_number,
-              description: `Order ${order.order_number}: in_production \u2192 ready_to_ship (production batch #${numericId} completed)`,
-              severity: "info"
-            });
-            orderAdvanced = true;
-          }
+          await transitionOrder(conn, {
+            orderId: order.id,
+            from: "in_production",
+            to: "produced",
+            userId,
+            comment: `Production batch #${numericId} marked complete by ${userName}`
+          });
+          await auditLog(conn, {
+            userId,
+            action: "status_changed",
+            module: "credit_sales",
+            recordType: "credit_order",
+            recordId: order.id,
+            referenceNumber: order.order_number,
+            description: `Order ${order.order_number}: in_production \u2192 produced (production batch #${numericId} completed)`,
+            severity: "info"
+          });
+          orderAdvanced = true;
         }
       }
     }
     await conn.commit();
     if (orderAdvanced) {
       sendTelegram(`\u2705 <b>Production Complete</b>
-Batch #${numericId} \u2014 ready to ship
+Batch #${numericId} \u2014 produced, awaiting Ready to Ship
 by ${userName}`, "production");
     }
     return { ok: true, orderAdvanced };

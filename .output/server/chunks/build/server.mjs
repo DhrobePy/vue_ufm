@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { q as createError$1, aj as parseURL, y as encodePath, t as decodePath, a4 as hasProtocol, a9 as isScriptProtocol, aa as joinURL, b9 as withQuery, w as defu, aY as sanitizeStatusCode, C as getContext, $ as $fetch$1, k as baseURL, r as createHooks, z as executeAsync } from '../nitro/nitro.mjs';
+import { q as createError$1, ai as parseURL, x as encodePath, s as decodePath, a3 as hasProtocol, a8 as isScriptProtocol, a9 as joinURL, b8 as withQuery, v as defu, aX as sanitizeStatusCode, B as getContext, $ as $fetch$1, k as baseURL, r as createHooks, y as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -871,7 +871,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2j || {},
-    component: () => import('./create-lYFwCWeS.mjs')
+    component: () => import('./create-BUo5yVA9.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -967,7 +967,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$23 || {},
-    component: () => import('./vouchers-dwKkh1nR.mjs')
+    component: () => import('./vouchers-Cf9PlGPs.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1039,19 +1039,19 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1T || {},
-    component: () => import('./create-xITLk3Tj.mjs')
+    component: () => import('./create-DhRE30GG.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1S || {},
-    component: () => import('./index-CeqtTmX8.mjs')
+    component: () => import('./index-CwyEzG3d.mjs')
   },
   {
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$1R || {},
-    component: () => import('./edit-YmFjG86Z.mjs')
+    component: () => import('./edit-DsvG08h9.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1111,7 +1111,7 @@ const _routes = [
     name: "credit-sales-create",
     path: "/credit-sales/create",
     meta: __nuxt_page_meta$1H || {},
-    component: () => import('./create-CMm12ked.mjs')
+    component: () => import('./create-CwSz9dME.mjs')
   },
   {
     name: "credit-sales-ledger",
@@ -1189,7 +1189,7 @@ const _routes = [
     name: "credit-sales-approve",
     path: "/credit-sales/approve",
     meta: __nuxt_page_meta$1u || {},
-    component: () => import('./approve-DaOcqzeT.mjs')
+    component: () => import('./approve-qffmQ-ZP.mjs')
   },
   {
     name: "credit-sales-collect",
@@ -1237,7 +1237,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1m || {},
-    component: () => import('./edit-CyCzZT6b.mjs')
+    component: () => import('./edit-bqBnh80D.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1429,13 +1429,13 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$S || {},
-    component: () => import('./index-lEm9okON.mjs')
+    component: () => import('./index-Civ1FRlf.mjs')
   },
   {
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$R || {},
-    component: () => import('./production-CN2cG1Xs.mjs')
+    component: () => import('./production-DT_R90gV.mjs')
   },
   {
     name: "fleet-drivers-id-edit",
@@ -1555,13 +1555,13 @@ const _routes = [
     name: "credit-sales-id-deliver",
     path: "/credit-sales/:id()/deliver",
     meta: __nuxt_page_meta$x || {},
-    component: () => import('./deliver-BWTmaa_W.mjs')
+    component: () => import('./deliver-69oCRGoF.mjs')
   },
   {
     name: "credit-sales-id-invoice",
     path: "/credit-sales/:id()/invoice",
     meta: __nuxt_page_meta$w || {},
-    component: () => import('./invoice-C8HxqkdV.mjs')
+    component: () => import('./invoice-DqEOhkVe.mjs')
   },
   {
     name: "credit-sales-id-payment",
@@ -1668,7 +1668,7 @@ const _routes = [
     name: "admin-users-id-permissions",
     path: "/admin/users/:id()/permissions",
     meta: __nuxt_page_meta$f || {},
-    component: () => import('./permissions-Dd4tOOvD.mjs')
+    component: () => import('./permissions-B5hppoDT.mjs')
   },
   {
     name: "credit-sales-backdated-entry",

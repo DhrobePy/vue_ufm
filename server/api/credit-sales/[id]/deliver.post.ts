@@ -53,6 +53,26 @@ export default defineEventHandler(async (event) => {
     // Generate delivery number
     const delNo = await nextDocNumber(conn, 'DEL', 'credit_order_deliveries', 'delivery_number')
 
+    // Price comes from the ORDER and each line is capped at ordered − already delivered (legacy partial_delivery.php).
+    // Delivering MORE than was ordered is the separate Over-Delivery flow, not a delivery.
+    const lines: any[] = []
+    for (const sub of items) {
+      const qty = Number(sub.qty_delivered)
+      if (!(qty > 0)) continue
+      const [[li]] = await conn.query<any>(
+        `SELECT coi.id, coi.product_id, coi.variant_id, coi.quantity, coi.unit_price, COALESCE(p.base_name, 'item') AS product_name
+         FROM credit_order_items coi LEFT JOIN products p ON p.id = coi.product_id WHERE coi.id = ? AND coi.order_id = ?`,
+        [Number(sub.order_item_id), id])
+      if (!li) throw createError({ statusCode: 400, statusMessage: 'A delivered line does not belong to this order' })
+      const [[done]] = await conn.query<any>(`SELECT COALESCE(SUM(qty_delivered), 0) q FROM credit_order_delivery_items WHERE order_item_id = ?`, [li.id])
+      const remaining = Number(li.quantity) - Number(done.q)
+      if (qty > remaining + 0.001)
+        throw createError({ statusCode: 400, statusMessage: `Delivery qty (${qty}) for '${li.product_name}' exceeds the remaining qty (${remaining}) — use Over-Delivery for extra bags` })
+      lines.push({ order_item_id: li.id, product_id: li.product_id, variant_id: li.variant_id, qty_delivered: qty, unit_price: Number(li.unit_price) })
+    }
+    if (!lines.length) throw createError({ statusCode: 400, statusMessage: 'No delivery quantities entered' })
+    items.splice(0, items.length, ...lines)   // everything below now works on the verified lines
+
     const totalQty    = items.reduce((s: number, i: any) => s + Number(i.qty_delivered), 0)
     const totalAmount = items.reduce((s: number, i: any) => s + Number(i.qty_delivered) * Number(i.unit_price), 0)
     const delivDate   = delivery_date ?? new Date().toISOString().slice(0, 10)

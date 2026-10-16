@@ -1,4 +1,5 @@
-import { queryOne } from '~/server/utils/db'
+import { queryOne, getDb } from '~/server/utils/db'
+import { getCustomerOutstanding } from '~/server/utils/creditOrders'
 
 // GET /api/customers/:id/credit-exposure
 // Returns the customer's pending order exposure (balance_due on orders not yet
@@ -22,5 +23,12 @@ export default defineEventHandler(async (event) => {
     [id],
   )
 
-  return { pending: Number(row?.pending ?? 0) }
+  // Same numbers the server uses to decide escalation: ledger balance + other open orders, against the customer's limit.
+  const conn = await getDb().getConnection()
+  try {
+    const exp = await getCustomerOutstanding(conn, id)
+    const [[c]] = await conn.query<any>('SELECT credit_limit FROM customers WHERE id = ?', [id])
+    return { pending: exp.pendingExposure, ledger: exp.ledgerOutstanding, limit: Number(c?.credit_limit ?? 0) }
+  } finally { conn.release() }
+
 })

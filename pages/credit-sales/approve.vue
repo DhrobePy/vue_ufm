@@ -95,6 +95,22 @@
                 <span class="font-mono text-gold-300 float-right">৳{{ exposureAfter.toLocaleString() }}</span></p>
             </div>
 
+
+            <!-- Production branch + delivery date: chosen by the approver (legacy rule) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Production branch *</label>
+                <select v-model="approveFields.branch_id" class="input-glass w-full text-sm" required>
+                  <option :value="0" disabled>Select branch…</option>
+                  <option v-for="b in branchOptions" :key="b.id" :value="b.id">{{ b.name }}</option>
+                </select>
+              </div>
+              <div class="space-y-1">
+                <label class="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">Required delivery date *</label>
+                <input v-model="approveFields.required_date" type="date" :min="isAdminUser ? undefined : todayStr" class="input-glass w-full text-sm" required />
+              </div>
+            </div>
+
             <!-- Special instructions (collapsible) -->
             <div class="rounded-xl border border-amber-500/15 overflow-hidden">
               <button @click="showConditions = !showConditions"
@@ -204,6 +220,12 @@ const acting = ref<number | null>(null)
 const approveModal   = ref(false)
 const approveTarget  = ref<any>(null)
 const showConditions = ref(false)
+const { data: branchData } = await useFetch<any>('/api/branches')
+const branchOptions = computed(() => ((branchData.value?.branches ?? []) as any[]).filter(b => b.status === 'active' && b.branch_type !== 'office'))
+const { user: me } = useUserSession()
+const isAdminUser = computed(() => ['admin', 'superadmin'].includes(String(me.value?.role ?? '').toLowerCase()))
+const todayStr = new Date().toISOString().slice(0, 10)
+const approveFields = reactive({ branch_id: 0, required_date: '' })
 const cond = reactive({
   production_hold: false, production_hold_note: '',
   dispatch_hold: false, condition_type: 'manual',
@@ -217,6 +239,8 @@ const exposureAfter = computed(() =>
 function openApprove(order: any) {
   approveTarget.value  = order
   approveModal.value   = true
+  approveFields.branch_id = Number(order.assigned_branch_id ?? 0)
+  approveFields.required_date = String(order.required_date ?? '').slice(0, 10)
   showConditions.value = false
   Object.assign(cond, {
     production_hold: false, production_hold_note: '',
@@ -236,6 +260,8 @@ async function confirmApprove() {
       body: {
         to_status: 'approved',
         comments: 'Approved from approve queue',
+        branch_id: approveFields.branch_id || undefined,
+        required_date: approveFields.required_date || undefined,
         ...(hasConditions ? { conditions: { ...cond } } : {}),
       },
     })

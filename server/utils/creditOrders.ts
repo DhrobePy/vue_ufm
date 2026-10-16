@@ -399,7 +399,7 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
     const postDate = opts.postDate ?? new Date().toISOString().slice(0, 10)
     let jeId: number | null = null
     const arId  = await getGLAccountId(conn, 'Accounts Receivable')
-    const revId = await getGLAccountId(conn, 'Revenue')
+    const revId = await getCreditRevenueAccountId(conn, opts.orderId)
     if (arId && revId) {
       jeId = await postJournalEntry(conn, {
         date: postDate,
@@ -540,8 +540,9 @@ export async function postCustomerLedger(conn: any, opts: {
  * use (or was, and collides with an archived one). MAX-based extraction is
  * immune to that since it only ever counts up.
  */
-export async function nextDocNumber(conn: any, prefix: string, table: string, column: string): Promise<string> {
-  const [[row]] = await conn.query(`SELECT DATE_FORMAT(CURDATE(), '%Y%m%d') AS d`)
+export async function nextDocNumber(conn: any, prefix: string, table: string, column: string, onDate?: string): Promise<string> {
+  // The number carries the document's own date (a back-dated order is CR-<its date>-…), today's by default.
+  const [[row]] = await conn.query(`SELECT DATE_FORMAT(COALESCE(?, CURDATE()), '%Y%m%d') AS d`, [onDate ?? null])
   const datePart = row.d
   const [[last]] = await conn.query(
     `SELECT MAX(CAST(SUBSTRING_INDEX(\`${column}\`, '-', -1) AS UNSIGNED)) AS maxSeq
@@ -649,4 +650,30 @@ export async function branchScopeFor(event: any, col: string): Promise<{ sql: st
     const ids = await getUserBranchIds(conn, Number(session.user.id), String(session.user.role ?? '').toLowerCase())
     return ids ? { sql: ` AND ${col} IN (?)`, params: [ids] } : { sql: '', params: [] }
   } finally { conn.release() }
+}
+
+/**
+ * Which Revenue account a credit-sale invoice credits (legacy postCreditOrderDispatchAccounting): the order's own
+ * branch "Credit Sales" revenue account when the branch has one, else the company-wide credit-sales revenue account,
+ * else any non-POS company-wide Revenue account. (Vue used to credit the first Revenue account regardless of branch.)
+ */
+export async function getCreditRevenueAccountId(conn: any, orderId: number): Promise<number | null> {
+  const [[def]] = await conn.query(
+    `SELECT id FROM chart_of_accounts WHERE account_type = 'Revenue' AND branch_id IS NULL
+       AND (LOWER(name) LIKE '%credit%' OR LOWER(description) LIKE '%credit%') ORDER BY id ASC LIMIT 1`)
+  let id: number | null = def?.id ?? null
+  if (!id) {
+    const [[fb]] = await conn.query(
+      `SELECT id FROM chart_of_accounts WHERE account_type = 'Revenue' AND branch_id IS NULL AND LOWER(name) NOT LIKE '%pos%' ORDER BY id ASC LIMIT 1`)
+    id = fb?.id ?? null
+  }
+  const [[o]] = await conn.query(`SELECT assigned_branch_id FROM credit_orders WHERE id = ?`, [orderId])
+  if (o?.assigned_branch_id) {
+    const [[br]] = await conn.query(
+      `SELECT id FROM chart_of_accounts WHERE account_type = 'Revenue' AND branch_id = ?
+         AND (LOWER(name) LIKE '%credit%' OR LOWER(description) LIKE '%credit%') AND LOWER(name) NOT LIKE '%pos%' ORDER BY id ASC LIMIT 1`,
+      [o.assigned_branch_id])
+    if (br?.id) id = br.id
+  }
+  return id ?? await getGLAccountId(conn, 'Revenue')
 }

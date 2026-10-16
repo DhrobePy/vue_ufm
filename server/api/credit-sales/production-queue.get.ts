@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
        LEFT JOIN product_variants pv ON pv.id = oi.variant_id
        LEFT JOIN products p ON p.id = pv.product_id
        LEFT JOIN order_approval_conditions oac ON oac.order_id = o.id
-       WHERE o.status IN ('approved','in_production')${scopeSql}
+       WHERE o.status IN ('approved','in_production','produced')${scopeSql}
        ORDER BY
          -- Manual sequence first (0 = unset → pushed to back)
          CASE WHEN o.production_seq = 0 THEN 999999 ELSE o.production_seq END ASC,

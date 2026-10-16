@@ -309,7 +309,8 @@ const moduleRegistry = [
       { key: 'production', label: 'Production Queue', route: 'credit-sales/production',
         actions: [
           { key: 'start_production', label: 'Start Production' },
-          { key: 'mark_ready',      label: 'Mark Ready to Ship' },
+          { key: 'mark_produced',   label: 'Mark Produced' },
+          { key: 'mark_ready',      label: 'Mark Ready to Ship (blocked while a payment hold is open)' },
           { key: 'set_priority',    label: 'Reorder Queue / Set Priority' },
         ] },
       { key: 'dispatch',  label: 'Dispatch Queue',    route: 'credit-sales/dispatch',

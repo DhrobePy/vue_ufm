@@ -1,4 +1,4 @@
-import { u as defineEventHandler, Z as getRouterParam, q as createError, aD as readBody, a3 as getUserSession, Q as getRequestHeader, G as getDb, ad as nextDocNumber, _ as getUserActionLimit, B as generateDeliverySlipNumber, J as getGLAccountId, at as postJournalEntry, ap as postCustomerLedger, a8 as isAdminRole, b3 as transitionOrder, j as auditLog } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, q as createError, aC as readBody, a2 as getUserSession, O as getRequestHeader, F as getDb, ac as nextDocNumber, Z as getUserActionLimit, z as generateDeliverySlipNumber, I as getGLAccountId, as as postJournalEntry, ao as postCustomerLedger, a7 as isAdminRole, b2 as transitionOrder, j as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -65,6 +65,24 @@ const deliver_post = defineEventHandler(async (event) => {
         statusMessage: `Order is "${order.status}" \u2014 mark goods on board first (deliveries only after that)`
       });
     const delNo = await nextDocNumber(conn, "DEL", "credit_order_deliveries", "delivery_number");
+    const lines = [];
+    for (const sub of items) {
+      const qty = Number(sub.qty_delivered);
+      if (!(qty > 0)) continue;
+      const [[li]] = await conn.query(
+        `SELECT coi.id, coi.product_id, coi.variant_id, coi.quantity, coi.unit_price, COALESCE(p.base_name, 'item') AS product_name
+         FROM credit_order_items coi LEFT JOIN products p ON p.id = coi.product_id WHERE coi.id = ? AND coi.order_id = ?`,
+        [Number(sub.order_item_id), id]
+      );
+      if (!li) throw createError({ statusCode: 400, statusMessage: "A delivered line does not belong to this order" });
+      const [[done]] = await conn.query(`SELECT COALESCE(SUM(qty_delivered), 0) q FROM credit_order_delivery_items WHERE order_item_id = ?`, [li.id]);
+      const remaining = Number(li.quantity) - Number(done.q);
+      if (qty > remaining + 1e-3)
+        throw createError({ statusCode: 400, statusMessage: `Delivery qty (${qty}) for '${li.product_name}' exceeds the remaining qty (${remaining}) \u2014 use Over-Delivery for extra bags` });
+      lines.push({ order_item_id: li.id, product_id: li.product_id, variant_id: li.variant_id, qty_delivered: qty, unit_price: Number(li.unit_price) });
+    }
+    if (!lines.length) throw createError({ statusCode: 400, statusMessage: "No delivery quantities entered" });
+    items.splice(0, items.length, ...lines);
     const totalQty = items.reduce((s, i) => s + Number(i.qty_delivered), 0);
     const totalAmount = items.reduce((s, i) => s + Number(i.qty_delivered) * Number(i.unit_price), 0);
     const delivDate = delivery_date != null ? delivery_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);

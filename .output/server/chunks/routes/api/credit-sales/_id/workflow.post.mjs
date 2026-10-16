@@ -1,4 +1,4 @@
-import { u as defineEventHandler, Z as getRouterParam, aD as readBody, a3 as getUserSession, q as createError, Q as getRequestHeader, a8 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, f as PRODUCTION_ROLES, b6 as userCanAction, G as getDb, a0 as getUserApprovalLimit, F as getCustomerOutstanding, s as creditUsagePct, E as getCreditWorkflowSettings, a7 as isAccountsRole, M as getOrderGateState, i as assertDispatchClear, B as generateDeliverySlipNumber, as as postGoodsOnBoardInvoice, au as postOtherSalesCOGS, b3 as transitionOrder, j as auditLog, a_ as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, aC as readBody, a2 as getUserSession, q as createError, O as getRequestHeader, a7 as isAdminRole, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, f as PRODUCTION_ROLES, b5 as userCanAction, F as getDb, a0 as getUserBranchIds, _ as getUserApprovalLimit, E as getCustomerOutstanding, C as getCreditWorkflowSettings, a6 as isAccountsRole, L as getOrderGateState, i as assertDispatchClear, z as generateDeliverySlipNumber, ar as postGoodsOnBoardInvoice, at as postOtherSalesCOGS, b2 as transitionOrder, j as auditLog, aZ as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,8 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const STATUS_ALIAS = {
-  dispatched: "goods_on_board",
-  produced: "ready_to_ship"
+  dispatched: "goods_on_board"
 };
 const TRANSITIONS = {
   approved: { from: ["pending_approval", "escalated"], roles: [...ACCOUNTS_ROLES], enforce: "approve" },
@@ -22,17 +21,19 @@ const TRANSITIONS = {
   escalated: { from: ["pending_approval"], roles: [...ACCOUNTS_ROLES] },
   // flag up to admin
   in_production: { from: ["approved"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "production" },
-  ready_to_ship: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "ready_to_ship" },
+  produced: { from: ["in_production"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES] },
+  // production finished — not yet cleared to leave
+  ready_to_ship: { from: ["produced"], roles: [...PRODUCTION_ROLES, ...ACCOUNTS_ROLES], enforce: "ready_to_ship" },
   goods_on_board: { from: ["ready_to_ship"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES], enforce: "goods_on_board" },
   shipped: { from: ["goods_on_board"], roles: [...DISPATCH_ROLES, ...ACCOUNTS_ROLES] },
   // truck departed — no money logic
   completed: { from: ["delivered"], roles: [] },
   // admin only (payments auto-complete otherwise)
-  cancelled: { from: ["pending_approval", "escalated", "approved", "in_production", "ready_to_ship"], roles: [] }
+  cancelled: { from: ["pending_approval", "escalated", "approved", "in_production", "produced", "ready_to_ship"], roles: [] }
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -60,6 +61,7 @@ const workflow_post = defineEventHandler(async (event) => {
     rejected: { page: "approve", action: "reject" },
     escalated: { page: "approve", action: "escalate" },
     in_production: { page: "production", action: "start_production" },
+    produced: { page: "production", action: "mark_produced" },
     ready_to_ship: { page: "production", action: "mark_ready" },
     goods_on_board: { page: "dispatch", action: "mark_dispatched" },
     shipped: { page: "dispatch", action: "mark_shipped" }
@@ -113,34 +115,61 @@ const workflow_post = defineEventHandler(async (event) => {
       });
     const totalAmount = Number((_i = order.total_amount) != null ? _i : 0);
     let wfComment = comments ? String(comments) : "";
+    let finalStatus = to_status;
     if (rule.enforce === "approve" && to_status === "approved") {
-      const { limit, source } = await getUserApprovalLimit(conn, userId, role);
+      const branchId = Number((_k = (_j = body == null ? void 0 : body.branch_id) != null ? _j : order.assigned_branch_id) != null ? _k : 0);
+      const ymd = (v) => v instanceof Date ? `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, "0")}-${String(v.getDate()).padStart(2, "0")}` : String(v != null ? v : "").slice(0, 10);
+      const requiredDate = ymd((_l = body == null ? void 0 : body.required_date) != null ? _l : order.required_date);
+      if (!branchId) throw createError({ statusCode: 400, statusMessage: "Please select a branch for production" });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(requiredDate)) throw createError({ statusCode: 400, statusMessage: "Please select a valid required delivery date" });
+      if (!isAdminRole(role) && requiredDate < (/* @__PURE__ */ new Date()).toISOString().slice(0, 10))
+        throw createError({ statusCode: 400, statusMessage: "Required delivery date cannot be in the past" });
+      const [[br]] = await conn.query(`SELECT id FROM branches WHERE id = ? AND status = 'active'`, [branchId]);
+      if (!br) throw createError({ statusCode: 400, statusMessage: "The chosen branch is not active" });
+      if (!isAdminRole(role)) {
+        const scope = await getUserBranchIds(conn, userId, role);
+        if (scope) {
+          if (order.assigned_branch_id != null && !scope.includes(Number(order.assigned_branch_id)))
+            throw createError({ statusCode: 403, statusMessage: "This order is outside your assigned branch scope" });
+          if (!scope.includes(branchId))
+            throw createError({ statusCode: 403, statusMessage: "You may only assign production to a branch within your own scope" });
+        }
+      }
+      const { limit: myLimit, source } = await getUserApprovalLimit(conn, userId, role);
       const exposure = await getCustomerOutstanding(conn, order.customer_id, { excludeOrderId: id });
-      const usageAfter = creditUsagePct(
-        exposure.totalExposure + Number((_j = order.balance_due) != null ? _j : 0),
-        Number((_k = order.credit_limit) != null ? _k : 0)
-      );
+      const creditLimit = Number((_m = order.credit_limit) != null ? _m : 0);
+      const available = creditLimit - exposure.totalExposure;
+      const usagePct = creditLimit <= 0 ? 0 : available <= 0 ? 999 : totalAmount / available * 100;
+      const overLimit = creditLimit > 0 && Number((_n = order.balance_due) != null ? _n : 0) > available;
+      const usageText = usagePct >= 999 ? "OVER LIMIT" : `${Math.round(usagePct)}%`;
+      let mustEscalate = false;
       if (source === "admin") {
         wfComment = `Approved by admin authority \xB7 ${wfComment}`.trim();
       } else if (source === "personal") {
-        if (totalAmount > limit)
-          throw createError({
-            statusCode: 403,
-            statusMessage: `Order \u09F3${totalAmount.toLocaleString()} exceeds your approval limit of \u09F3${limit.toLocaleString()} \u2014 escalate to admin`
-          });
-        wfComment = `Approved under delegated limit \u09F3${limit.toLocaleString()} \xB7 customer usage ${usageAfter}% \xB7 outstanding \u09F3${exposure.ledgerOutstanding.toLocaleString()} \xB7 ${wfComment}`.trim();
+        if (overLimit && totalAmount > myLimit)
+          throw createError({ statusCode: 403, statusMessage: `This order exceeds the customer's credit limit by \u09F3${Math.max(0, Number(order.balance_due) - available).toLocaleString()} \u2014 only admin / superadmin, or an approver with a limit covering the full order amount, can approve it. It stays escalated.` });
+        mustEscalate = totalAmount > myLimit;
+        wfComment = mustEscalate ? `Auto-escalated: order \u09F3${totalAmount.toLocaleString()} exceeds approver's delegated limit of \u09F3${myLimit.toLocaleString()} \xB7 ${wfComment}`.trim() : `Approved under delegated limit \u09F3${myLimit.toLocaleString()} \xB7 customer usage ${usageText} \xB7 outstanding \u09F3${exposure.ledgerOutstanding.toLocaleString()} \xB7 ${wfComment}`.trim();
       } else {
         if (order.status === "escalated")
           throw createError({ statusCode: 403, statusMessage: "Escalated orders need admin or a delegated approval limit" });
-        if (usageAfter > 80)
-          throw createError({
-            statusCode: 403,
-            statusMessage: `Customer credit usage would be ${usageAfter > 900 ? "over limit" : usageAfter + "%"} \u2014 exceeds the 80% rule, escalate to admin`
-          });
-        wfComment = `Approved under 80% rule \xB7 usage ${usageAfter}% \xB7 ${wfComment}`.trim();
+        if (overLimit)
+          throw createError({ statusCode: 403, statusMessage: `This order exceeds the customer's credit limit by \u09F3${Math.max(0, Number(order.balance_due) - available).toLocaleString()} \u2014 only admin / superadmin, or an approver with a delegated \u09F3 limit covering the full order, can approve it. It stays escalated.` });
+        mustEscalate = usagePct >= 80;
+        wfComment = mustEscalate ? `Auto-escalated: order uses ${usageText} of the customer's remaining credit (80% rule) \xB7 ${wfComment}`.trim() : `Approved \xB7 order uses ${usageText} of remaining credit \xB7 ${wfComment}`.trim();
+      }
+      if (mustEscalate) {
+        finalStatus = "escalated";
+        telegramMsg = `\u26A0\uFE0F <b>Order Escalated</b>
+${order.order_number} \u2014 ${order.customer_name}
+\u09F3${totalAmount.toLocaleString()} \xB7 by ${userName}
+${usageText} of remaining credit`;
+      } else {
+        finalStatus = order.is_other_sales ? "ready_to_ship" : "approved";
+        await conn.query(`UPDATE credit_orders SET assigned_branch_id = ?, required_date = ?, updated_at = NOW() WHERE id = ?`, [branchId, requiredDate, id]);
       }
       let autoHoldApplied = false;
-      if (!conditions && usageAfter > 100) {
+      if (!conditions && overLimit && finalStatus === "approved") {
         const { creditLimitAutoRelease } = await getCreditWorkflowSettings(conn);
         if (creditLimitAutoRelease) {
           await conn.query(
@@ -156,8 +185,8 @@ const workflow_post = defineEventHandler(async (event) => {
                dispatch_cleared_at = NULL, dispatch_cleared_note = NULL`,
             [
               id,
-              Number((_l = order.credit_limit) != null ? _l : 0),
-              `Auto dispatch hold: approved at ${usageAfter}% credit usage \u2014 releases once balance is back within the \u09F3${Number((_m = order.credit_limit) != null ? _m : 0).toLocaleString()} limit`,
+              Number((_o = order.credit_limit) != null ? _o : 0),
+              `Auto dispatch hold: approved over the credit limit \u2014 releases once balance is back within the \u09F3${Number((_p = order.credit_limit) != null ? _p : 0).toLocaleString()} limit`,
               userId
             ]
           );
@@ -165,7 +194,7 @@ const workflow_post = defineEventHandler(async (event) => {
           wfComment += " \xB7 AUTO dispatch hold set (over credit limit, self-releases)";
         }
       }
-      if (conditions && isAccountsRole(role)) {
+      if (conditions && isAccountsRole(role) && finalStatus === "approved") {
         const ct = ["manual", "outstanding_below", "outstanding_after_ship", "amount_received"].includes(conditions.condition_type) ? conditions.condition_type : null;
         await conn.query(
           `INSERT INTO order_approval_conditions
@@ -186,12 +215,12 @@ const workflow_post = defineEventHandler(async (event) => {
           [
             id,
             conditions.production_hold ? 1 : 0,
-            (_n = conditions.production_hold_note) != null ? _n : null,
+            (_q = conditions.production_hold_note) != null ? _q : null,
             conditions.dispatch_hold ? 1 : 0,
             ct,
             conditions.condition_amount != null ? Number(conditions.condition_amount) : null,
             conditions.auto_release ? 1 : 0,
-            (_o = conditions.accounts_note) != null ? _o : null,
+            (_r = conditions.accounts_note) != null ? _r : null,
             userId
           ]
         );
@@ -199,12 +228,12 @@ const workflow_post = defineEventHandler(async (event) => {
           wfComment += " \xB7 SPECIAL INSTRUCTIONS SET";
         }
       }
-      telegramMsg = `\u2705 <b>Order Approved</b>
+      if (finalStatus !== "escalated") telegramMsg = `\u2705 <b>Order Approved</b>
 ${order.order_number} \u2014 ${order.customer_name}
 \u09F3${totalAmount.toLocaleString()} \xB7 by ${userName}` + ((conditions == null ? void 0 : conditions.production_hold) ? `
-\u26D4 Production HOLD: ${(_p = conditions.production_hold_note) != null ? _p : "see order"}` : "") + ((conditions == null ? void 0 : conditions.dispatch_hold) ? `
-\u{1F6AB} Dispatch hold: ${(_q = conditions.condition_type) != null ? _q : "manual"}${conditions.condition_amount ? ` \u09F3${Number(conditions.condition_amount).toLocaleString()}` : ""}` : "") + (autoHoldApplied ? `
-\u{1F512} AUTO dispatch hold \u2014 over credit limit, self-releases when balance is back within \u09F3${Number((_r = order.credit_limit) != null ? _r : 0).toLocaleString()}` : "");
+\u26D4 Production HOLD: ${(_s = conditions.production_hold_note) != null ? _s : "see order"}` : "") + ((conditions == null ? void 0 : conditions.dispatch_hold) ? `
+\u{1F6AB} Dispatch hold: ${(_t = conditions.condition_type) != null ? _t : "manual"}${conditions.condition_amount ? ` \u09F3${Number(conditions.condition_amount).toLocaleString()}` : ""}` : "") + (autoHoldApplied ? `
+\u{1F512} AUTO dispatch hold \u2014 over credit limit, self-releases when balance is back within \u09F3${Number((_u = order.credit_limit) != null ? _u : 0).toLocaleString()}` : "");
     }
     if (rule.enforce === "approve" && to_status === "rejected") {
       telegramMsg = `\u274C <b>Order Rejected</b>
@@ -217,7 +246,7 @@ Reason: ${comments}` : ""}`;
       if (gate.productionHold && !gate.productionReleased)
         throw createError({
           statusCode: 423,
-          statusMessage: `Production HOLD on this order${((_s = gate.raw) == null ? void 0 : _s.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
+          statusMessage: `Production HOLD on this order${((_v = gate.raw) == null ? void 0 : _v.production_hold_note) ? `: ${gate.raw.production_hold_note}` : ""} \u2014 an admin must release it first`
         });
     }
     if (rule.enforce === "ready_to_ship") {
@@ -225,19 +254,19 @@ Reason: ${comments}` : ""}`;
       if (autoReleased) wfComment = `Dispatch clearance auto-released (condition met) \xB7 ${wfComment}`.trim();
     }
     if (rule.enforce === "goods_on_board") {
-      const d = (_t = body == null ? void 0 : body.dispatch) != null ? _t : {};
-      const truck = String((_u = d.truck_number) != null ? _u : "").trim();
-      const driver = String((_v = d.driver_name) != null ? _v : "").trim();
+      const d = (_w = body == null ? void 0 : body.dispatch) != null ? _w : {};
+      const truck = String((_x = d.truck_number) != null ? _x : "").trim();
+      const driver = String((_y = d.driver_name) != null ? _y : "").trim();
       if (!truck || !driver)
         throw createError({ statusCode: 400, statusMessage: "Truck number and driver name are required to put goods on board" });
-      const extra = Math.round(Number((_w = d.extra_discount_amount) != null ? _w : 0) * 100) / 100;
-      const extraReason = String((_x = d.extra_discount_reason) != null ? _x : "").trim();
+      const extra = Math.round(Number((_z = d.extra_discount_amount) != null ? _z : 0) * 100) / 100;
+      const extraReason = String((_A = d.extra_discount_reason) != null ? _A : "").trim();
       if (!(extra >= 0)) throw createError({ statusCode: 400, statusMessage: "Discount amount cannot be negative" });
       if (extra > 0 && !extraReason) throw createError({ statusCode: 400, statusMessage: "Please enter a reason for the additional discount" });
-      if (extra > Number((_y = order.subtotal) != null ? _y : 0))
+      if (extra > Number((_B = order.subtotal) != null ? _B : 0))
         throw createError({ statusCode: 400, statusMessage: `Discount (\u09F3${extra.toLocaleString()}) cannot exceed the order subtotal (\u09F3${Number(order.subtotal).toLocaleString()})` });
-      const bags = Math.max(0, Math.floor(Number((_z = d.bags_boarded) != null ? _z : 0))) || null;
-      const bagKg = Math.max(0, Number((_A = d.bag_size_kg) != null ? _A : 0)) || null;
+      const bags = Math.max(0, Math.floor(Number((_C = d.bags_boarded) != null ? _C : 0))) || null;
+      const bagKg = Math.max(0, Number((_D = d.bag_size_kg) != null ? _D : 0)) || null;
       await assertDispatchClear(conn, id, userId);
       if (extra > 0) {
         await conn.query(
@@ -253,7 +282,7 @@ Reason: ${comments}` : ""}`;
         wfComment = `Dispatcher discount \u09F3${extra.toLocaleString()} (${extraReason}) \xB7 ${wfComment}`.trim();
       }
       const [[ship]] = await conn.query(`SELECT id, delivery_slip_number FROM credit_order_shipping WHERE order_id = ? LIMIT 1`, [id]);
-      const slip = (ship == null ? void 0 : ship.delivery_slip_number) || await generateDeliverySlipNumber(conn, (_B = order.assigned_branch_id) != null ? _B : null);
+      const slip = (ship == null ? void 0 : ship.delivery_slip_number) || await generateDeliverySlipNumber(conn, (_E = order.assigned_branch_id) != null ? _E : null);
       if (ship) {
         await conn.query(
           `UPDATE credit_order_shipping SET truck_number=?, driver_name=?, driver_contact=?, shipped_date=NOW(), shipped_by_user_id=?,
@@ -293,13 +322,13 @@ Reason: ${comments}` : ""}`;
         orderNumber: order.order_number,
         customerId: order.customer_id,
         customerName: order.customer_name,
-        totalAmount: Number((_C = order.total_amount) != null ? _C : 0),
-        balanceDue: Number((_D = order.balance_due) != null ? _D : 0),
+        totalAmount: Number((_F = order.total_amount) != null ? _F : 0),
+        balanceDue: Number((_G = order.balance_due) != null ? _G : 0),
         userId,
         userName
       });
       if (!result.alreadyPosted)
-        wfComment = `Goods on board \u2014 invoice \u09F3${Number((_E = order.total_amount) != null ? _E : 0).toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
+        wfComment = `Goods on board \u2014 invoice \u09F3${Number((_H = order.total_amount) != null ? _H : 0).toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
       if (result.autoReleased)
         wfComment += " \xB7 dispatch clearance auto-released (condition met)";
       telegramMsg = result.telegramMsg;
@@ -307,7 +336,7 @@ Reason: ${comments}` : ""}`;
         const cogs = await postOtherSalesCOGS(conn, {
           orderId: id,
           orderNumber: order.order_number,
-          branchId: (_F = order.assigned_branch_id) != null ? _F : null,
+          branchId: (_I = order.assigned_branch_id) != null ? _I : null,
           userId
         });
         if (cogs > 0) wfComment += ` \xB7 trading COGS \u09F3${cogs.toLocaleString()} posted`;
@@ -319,31 +348,31 @@ Reason: ${comments}` : ""}`;
 ${order.order_number} \u2014 ${order.customer_name}
 Truck has departed \xB7 by ${userName}`;
     }
-    await transitionOrder(conn, { orderId: id, from: order.status, to: to_status, userId, comment: wfComment });
+    await transitionOrder(conn, { orderId: id, from: order.status, to: finalStatus, action: to_status === "approved" && finalStatus !== "approved" ? finalStatus === "escalated" ? "escalated" : "approved" : void 0, userId, comment: wfComment });
     await auditLog(conn, {
       userId,
-      action: to_status === "approved" ? "approved" : to_status === "rejected" ? "rejected" : "status_changed",
+      action: finalStatus === "approved" ? "approved" : to_status === "rejected" ? "rejected" : "status_changed",
       module: "credit_sales",
       recordType: "credit_order",
       recordId: id,
       referenceNumber: order.order_number,
-      description: `Order ${order.order_number}: ${order.status} \u2192 ${to_status}${wfComment ? ` \xB7 ${wfComment}` : ""}`,
+      description: `Order ${order.order_number}: ${order.status} \u2192 ${finalStatus}${wfComment ? ` \xB7 ${wfComment}` : ""}`,
       severity: "info",
       ipAddress
     });
     await conn.commit();
     if (telegramMsg) {
-      const cat = ["approved", "rejected", "escalated"].includes(to_status) ? "orders" : ["in_production", "ready_to_ship"].includes(to_status) ? "production" : ["goods_on_board", "shipped"].includes(to_status) ? "dispatch" : void 0;
+      const cat = ["approved", "rejected", "escalated"].includes(finalStatus) || to_status === "approved" ? "orders" : ["in_production", "ready_to_ship"].includes(to_status) ? "production" : ["goods_on_board", "shipped"].includes(to_status) ? "dispatch" : void 0;
       sendTelegram(telegramMsg, cat);
     }
-    return { ok: true, newStatus: to_status };
+    return { ok: true, newStatus: finalStatus };
   } catch (e) {
     await conn.rollback();
     if (e == null ? void 0 : e.statusCode) throw e;
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_H = (_G = e == null ? void 0 : e.sqlMessage) != null ? _G : e == null ? void 0 : e.message) != null ? _H : "Workflow transition failed"
+      statusMessage: (_K = (_J = e == null ? void 0 : e.sqlMessage) != null ? _J : e == null ? void 0 : e.message) != null ? _K : "Workflow transition failed"
     });
   } finally {
     conn.release();

@@ -46,12 +46,37 @@ export default defineEventHandler(async (event) => {
     )
     if (!order) throw createError({ statusCode: 404, statusMessage: 'Order not found' })
 
+    // Legacy rule: only goods that have left can come back
+    if (!['goods_on_board', 'shipped', 'delivered', 'completed'].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: `Order is "${order.status}" — returns can only be recorded once the goods are on board or delivered` })
+
+    // Price / quantity come from the ORDER, never from the browser (legacy returns.php): the client only says
+    // which line and how many; each line is capped at ordered − already returned (pending or approved).
+    const lines: any[] = []
+    for (const sub of items) {
+      const qty = Number(sub.returned_qty)
+      if (!(qty > 0)) continue
+      const [[li]] = await conn.query<any>(
+        `SELECT coi.id, coi.product_id, coi.variant_id, coi.quantity, coi.unit_price, COALESCE(p.base_name, 'item') AS product_name
+         FROM credit_order_items coi LEFT JOIN products p ON p.id = coi.product_id WHERE coi.id = ? AND coi.order_id = ?`,
+        [Number(sub.order_item_id), id])
+      if (!li) throw createError({ statusCode: 400, statusMessage: 'A returned line does not belong to this order' })
+      const [[done]] = await conn.query<any>(
+        `SELECT COALESCE(SUM(ri.returned_qty), 0) q FROM credit_order_return_items ri
+         JOIN credit_order_returns r ON r.id = ri.return_id WHERE ri.order_item_id = ? AND r.status <> 'rejected'`, [li.id])
+      const returnable = Number(li.quantity) - Number(done.q)
+      if (qty > returnable + 0.001)
+        throw createError({ statusCode: 400, statusMessage: `Return qty (${qty}) for '${li.product_name}' exceeds the returnable qty (${returnable})` })
+      lines.push({ order_item_id: li.id, product_id: li.product_id, variant_id: li.variant_id, original_qty: Number(li.quantity), returned_qty: qty, unit_price: Number(li.unit_price) })
+    }
+    if (!lines.length) throw createError({ statusCode: 400, statusMessage: 'No return quantities entered' })
+
     // Generate return number
     const retNo = await nextDocNumber(conn, 'RET', 'credit_order_returns', 'return_number')
     const retDate = return_date ?? new Date().toISOString().slice(0, 10)
 
-    const totalRetQty    = items.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)
-    const totalRetAmount = items.reduce(
+    const totalRetQty    = lines.reduce((s: number, i: any) => s + Number(i.returned_qty), 0)
+    const totalRetAmount = lines.reduce(
       (s: number, i: any) => s + Number(i.returned_qty) * Number(i.unit_price), 0,
     )
 
@@ -81,7 +106,7 @@ export default defineEventHandler(async (event) => {
     const returnId = result.insertId
 
     // Insert return items
-    for (const item of items) {
+    for (const item of lines) {
       await conn.query(
         `INSERT INTO credit_order_return_items
            (return_id, order_item_id, product_id, variant_id,

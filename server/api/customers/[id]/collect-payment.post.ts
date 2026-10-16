@@ -44,6 +44,8 @@ export default defineEventHandler(async (event) => {
 
   const validMethods = ['Cash', 'Bank Transfer', 'Cheque', 'Mobile Banking', 'Card']
   const method  = validMethods.includes(body?.payment_method) ? body.payment_method : 'Cash'
+  if (['Bank Transfer', 'Cheque'].includes(method) && !body?.bank_account_id)
+    throw createError({ statusCode: 400, statusMessage: 'Bank account is required for this payment method' })
   const pmtDate = body?.payment_date ?? new Date().toISOString().slice(0, 10)
 
   const db   = getDb()

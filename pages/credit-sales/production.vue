@@ -146,13 +146,21 @@
               {{ acting === order.id ? '…' : '▶ Start' }}
             </button>
 
-            <!-- Mark Ready (in_production → ready_to_ship) -->
+            <!-- Mark Produced (in_production → produced) -->
             <button
-              v-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_ready')"
-              @click.stop="markReady(order)"
+              v-if="order.status === 'in_production' && perms.canDo('credit_sales', 'production', 'mark_produced')"
+              @click.stop="advance(order, 'produced', 'Production complete')"
               :disabled="acting === order.id"
               class="btn-gold text-xs py-1.5 px-3 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
-              {{ acting === order.id ? '…' : '✓ Ready' }}
+              {{ acting === order.id ? '…' : '✓ Produced' }}
+            </button>
+            <!-- Ready to Ship (produced → ready_to_ship) — blocked while a payment/dispatch hold is open -->
+            <button
+              v-if="order.status === 'produced' && perms.canDo('credit_sales', 'production', 'mark_ready')"
+              @click.stop="advance(order, 'ready_to_ship', 'Cleared to ship')"
+              :disabled="acting === order.id"
+              class="btn-gold text-xs py-1.5 px-3 shrink-0 disabled:opacity-40 disabled:cursor-not-allowed">
+              {{ acting === order.id ? '…' : '📤 Ready to Ship' }}
             </button>
 
           </div>
@@ -329,14 +337,11 @@ async function startProduction(order: any) {
   }
 }
 
-async function markReady(order: any) {
+async function advance(order: any, to: string, comments: string) {
   acting.value = order.id
   try {
-    await $fetch(`/api/credit-sales/${order.id}/workflow`, {
-      method: 'POST',
-      body:   { to_status: 'ready_to_ship', comments: 'Production complete — ready to ship' },
-    })
-    success(`${order.orderNo} marked as ready to ship ✓`)
+    await $fetch(`/api/credit-sales/${order.id}/workflow`, { method: 'POST', body: { to_status: to, comments } })
+    success(`${order.orderNo} — ${to === 'produced' ? 'marked produced' : 'ready to ship'} ✓`)
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? 'Failed to update status')

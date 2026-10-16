@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   const {
     customer_id,
     branch_id,        // maps to assigned_branch_id in DB
-    order_date,
+    order_date: bodyOrderDate,
     required_date,
     priority,
     delivery_address, // maps to shipping_address in DB
@@ -50,10 +50,42 @@ export default defineEventHandler(async (event) => {
   }
 
   {
-    const [cust] = await query<any>('SELECT name, status FROM customers WHERE id = ?', [Number(customer_id)])
+    const [cust] = await query<any>('SELECT name, status, customer_type FROM customers WHERE id = ?', [Number(customer_id)])
     if (!cust) throw createError({ statusCode: 404, statusMessage: 'Customer not found' })
     if (cust.status !== 'active')
       throw createError({ statusCode: 403, statusMessage: `${cust.name} is ${cust.status} — new orders are blocked (reactivate the customer on their profile first)` })
+    if (cust.customer_type !== 'Credit')
+      throw createError({ statusCode: 400, statusMessage: `${cust.name} is a ${cust.customer_type} customer — credit orders are only for Credit customers` })
+  }
+
+  // Order date: today. Only admin/superadmin may back-date (never a future date) — legacy rule.
+  const today = new Date().toISOString().slice(0, 10)
+  let order_date = today
+  if (bodyOrderDate && /^\d{4}-\d{2}-\d{2}$/.test(String(bodyOrderDate).slice(0, 10)) && String(bodyOrderDate).slice(0, 10) !== today) {
+    if (!isAdmin) throw createError({ statusCode: 403, statusMessage: 'Only admin / superadmin can back-date an order' })
+    if (String(bodyOrderDate).slice(0, 10) > today) throw createError({ statusCode: 400, statusMessage: 'Order date cannot be in the future' })
+    order_date = String(bodyOrderDate).slice(0, 10)
+  }
+
+  // Line rules (legacy create_order.php)
+  if (is_other_sales) {
+    if (!branch_id) throw createError({ statusCode: 400, statusMessage: 'Please select the source Branch / Warehouse for this Other Sales order' })
+    for (const it of items) {
+      if (!it.commodity_id) throw createError({ statusCode: 400, statusMessage: 'An Other Sales item is missing its commodity' })
+      const [com] = await query<any>('SELECT name, inventory_account_id FROM purchase_commodities WHERE id = ? AND is_sellable = 1', [Number(it.commodity_id)])
+      if (!com) throw createError({ statusCode: 400, statusMessage: 'Commodity not found or not marked sellable' })
+      if (!com.inventory_account_id)
+        throw createError({ statusCode: 400, statusMessage: `"${com.name}" has no Inventory account configured — set one in Purchase → Commodities before selling it` })
+    }
+  } else {
+    for (const it of items) {
+      if (it.variant_id) continue
+      const [hv] = await query<any>('SELECT COUNT(*) c FROM product_variants WHERE product_id = ?', [Number(it.product_id ?? 0)])
+      if (Number(hv?.c) > 0) {
+        const [pn] = await query<any>('SELECT base_name FROM products WHERE id = ?', [Number(it.product_id)])
+        throw createError({ statusCode: 400, statusMessage: `"${pn?.base_name ?? 'This product'}" needs a variant (grade / weight) — please pick one for that line` })
+      }
+    }
   }
 
   const db   = getDb()
@@ -63,7 +95,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     // Generate order number: CR-YYYYMMDD-NNNN
-    const orderNo = await nextDocNumber(conn, 'CR', 'credit_orders', 'order_number')
+    const orderNo = await nextDocNumber(conn, 'CR', 'credit_orders', 'order_number', order_date)
 
     // Compute totals from items — frontend sends qty_bags, DB col is quantity
     let subtotal = 0

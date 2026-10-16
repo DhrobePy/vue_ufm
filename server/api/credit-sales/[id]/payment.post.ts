@@ -48,6 +48,8 @@ export default defineEventHandler(async (event) => {
     bank:  'Bank Transfer',
   }
   const mappedMethod = methodMap[payment_method ?? ''] ?? payment_method ?? 'Cash'
+  if (['Bank Transfer', 'Cheque'].includes(mappedMethod) && !bank_account_id)
+    throw createError({ statusCode: 400, statusMessage: 'Bank account is required for this payment method' })
 
   const db   = getDb()
   const conn = await db.getConnection()

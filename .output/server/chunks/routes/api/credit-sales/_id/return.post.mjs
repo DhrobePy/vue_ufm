@@ -1,4 +1,4 @@
-import { u as defineEventHandler, Z as getRouterParam, q as createError, aD as readBody, a3 as getUserSession, Q as getRequestHeader, b6 as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, G as getDb, ad as nextDocNumber, ap as postCustomerLedger, j as auditLog } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, q as createError, aC as readBody, a2 as getUserSession, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, F as getDb, ac as nextDocNumber, ao as postCustomerLedger, j as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -54,10 +54,33 @@ const return_post = defineEventHandler(async (event) => {
       [id]
     );
     if (!order) throw createError({ statusCode: 404, statusMessage: "Order not found" });
+    if (!["goods_on_board", "shipped", "delivered", "completed"].includes(order.status))
+      throw createError({ statusCode: 409, statusMessage: `Order is "${order.status}" \u2014 returns can only be recorded once the goods are on board or delivered` });
+    const lines = [];
+    for (const sub of items) {
+      const qty = Number(sub.returned_qty);
+      if (!(qty > 0)) continue;
+      const [[li]] = await conn.query(
+        `SELECT coi.id, coi.product_id, coi.variant_id, coi.quantity, coi.unit_price, COALESCE(p.base_name, 'item') AS product_name
+         FROM credit_order_items coi LEFT JOIN products p ON p.id = coi.product_id WHERE coi.id = ? AND coi.order_id = ?`,
+        [Number(sub.order_item_id), id]
+      );
+      if (!li) throw createError({ statusCode: 400, statusMessage: "A returned line does not belong to this order" });
+      const [[done]] = await conn.query(
+        `SELECT COALESCE(SUM(ri.returned_qty), 0) q FROM credit_order_return_items ri
+         JOIN credit_order_returns r ON r.id = ri.return_id WHERE ri.order_item_id = ? AND r.status <> 'rejected'`,
+        [li.id]
+      );
+      const returnable = Number(li.quantity) - Number(done.q);
+      if (qty > returnable + 1e-3)
+        throw createError({ statusCode: 400, statusMessage: `Return qty (${qty}) for '${li.product_name}' exceeds the returnable qty (${returnable})` });
+      lines.push({ order_item_id: li.id, product_id: li.product_id, variant_id: li.variant_id, original_qty: Number(li.quantity), returned_qty: qty, unit_price: Number(li.unit_price) });
+    }
+    if (!lines.length) throw createError({ statusCode: 400, statusMessage: "No return quantities entered" });
     const retNo = await nextDocNumber(conn, "RET", "credit_order_returns", "return_number");
     const retDate = return_date != null ? return_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
-    const totalRetQty = items.reduce((s, i) => s + Number(i.returned_qty), 0);
-    const totalRetAmount = items.reduce(
+    const totalRetQty = lines.reduce((s, i) => s + Number(i.returned_qty), 0);
+    const totalRetAmount = lines.reduce(
       (s, i) => s + Number(i.returned_qty) * Number(i.unit_price),
       0
     );
@@ -86,7 +109,7 @@ const return_post = defineEventHandler(async (event) => {
       ]
     );
     const returnId = result.insertId;
-    for (const item of items) {
+    for (const item of lines) {
       await conn.query(
         `INSERT INTO credit_order_return_items
            (return_id, order_item_id, product_id, variant_id,

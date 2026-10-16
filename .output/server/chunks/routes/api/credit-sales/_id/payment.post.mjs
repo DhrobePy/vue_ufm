@@ -1,4 +1,4 @@
-import { u as defineEventHandler, Z as getRouterParam, q as createError, aD as readBody, a3 as getUserSession, Q as getRequestHeader, b6 as userCanAction, A as ACCOUNTS_ROLES, G as getDb, o as checkTransactionLimit, aC as queuePendingRequest, a_ as sendTelegram, ad as nextDocNumber, ap as postCustomerLedger, at as postJournalEntry, M as getOrderGateState, j as auditLog, m as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, q as createError, aC as readBody, a2 as getUserSession, O as getRequestHeader, b5 as userCanAction, A as ACCOUNTS_ROLES, F as getDb, o as checkTransactionLimit, aB as queuePendingRequest, aZ as sendTelegram, ac as nextDocNumber, ao as postCustomerLedger, as as postJournalEntry, L as getOrderGateState, j as auditLog, m as bridgeCustomerPayment } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -56,6 +56,8 @@ const payment_post = defineEventHandler(async (event) => {
     bank: "Bank Transfer"
   };
   const mappedMethod = (_f = (_e = methodMap[payment_method != null ? payment_method : ""]) != null ? _e : payment_method) != null ? _f : "Cash";
+  if (["Bank Transfer", "Cheque"].includes(mappedMethod) && !bank_account_id)
+    throw createError({ statusCode: 400, statusMessage: "Bank account is required for this payment method" });
   const db = getDb();
   const conn = await db.getConnection();
   const pmtDate = payment_date != null ? payment_date : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);

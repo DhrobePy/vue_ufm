@@ -1,4 +1,4 @@
-import { assertDispatchClear, transitionOrder } from '~/server/utils/creditOrders'
+import { transitionOrder } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { sendTelegram } from '~/server/utils/telegram'
@@ -86,28 +86,16 @@ export default defineEventHandler(async (event) => {
           `SELECT id, order_number, status FROM credit_orders WHERE id = ? FOR UPDATE`, [ps.order_id],
         )
         if (order && order.status === 'in_production') {
-          // A payment-held order must NOT slip to Ready to Ship through the production
-          // screen — leave it in production; someone marks it ready once cleared.
-          let blocked: string | null = null
-          try { await assertDispatchClear(conn, order.id, userId) }
-          catch (e: any) { if (e?.statusCode === 423) blocked = e.statusMessage; else throw e }
-          if (blocked) {
-            await conn.query(
-              `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
-               VALUES (?, 'in_production', 'in_production', 'ready_blocked', ?, ?, NOW())`,
-              [order.id, userId, `Production batch #${numericId} complete — NOT moved to Ready to Ship: ${blocked}`])
-          } else {
-          await transitionOrder(conn, { orderId: order.id, from: 'in_production', to: 'ready_to_ship', userId,
+          await transitionOrder(conn, { orderId: order.id, from: 'in_production', to: 'produced', userId,
             comment: `Production batch #${numericId} marked complete by ${userName}` })
           await auditLog(conn, {
             userId, action: 'status_changed', module: 'credit_sales',
             recordType: 'credit_order', recordId: order.id,
             referenceNumber: order.order_number,
-            description: `Order ${order.order_number}: in_production → ready_to_ship (production batch #${numericId} completed)`,
+            description: `Order ${order.order_number}: in_production → produced (production batch #${numericId} completed)`,
             severity: 'info',
           })
           orderAdvanced = true
-          }
         }
       }
     }
@@ -115,7 +103,7 @@ export default defineEventHandler(async (event) => {
     await conn.commit()
 
     if (orderAdvanced) {
-      sendTelegram(`✅ <b>Production Complete</b>\nBatch #${numericId} — ready to ship\nby ${userName}`, 'production')
+      sendTelegram(`✅ <b>Production Complete</b>\nBatch #${numericId} — produced, awaiting Ready to Ship\nby ${userName}`, 'production')
     }
 
     return { ok: true, orderAdvanced }
