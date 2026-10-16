@@ -1,4 +1,4 @@
-import { t as defineEventHandler, X as getRouterParam, a1 as getUserSession, p as createError, aB as readBody, F as getDb, aI as recycleBegin, aH as recycleArchiveDelete, aM as recycleSnapshotBefore, b0 as transitionOrder, aJ as recycleFinalize, i as auditLog, aX as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, a2 as getUserSession, p as createError, aC as readBody, F as getDb, aJ as recycleBegin, aI as recycleArchiveDelete, aN as recycleSnapshotBefore, b1 as transitionOrder, aK as recycleFinalize, i as auditLog, aY as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -73,7 +73,7 @@ const reverseDispatch_post = defineEventHandler(async (event) => {
       `SELECT COALESCE(SUM(debit_amount),0) d, COALESCE(SUM(credit_amount),0) c FROM customer_ledger WHERE customer_id = ?`,
       [order.customer_id]
     );
-    const newBalance = Math.max(0, Number(agg.d) - Number(agg.c));
+    const newBalance = Number(agg.d) - Number(agg.c);
     await conn.query(`UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`, [newBalance, order.customer_id]);
     await transitionOrder(conn, {
       orderId: id,

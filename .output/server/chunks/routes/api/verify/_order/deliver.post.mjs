@@ -1,4 +1,4 @@
-import { t as defineEventHandler, aB as readBody, a1 as getUserSession, p as createError, ay as query, O as getRequestHeader, b4 as verifyDeliveryQrSignature, F as getDb, b0 as transitionOrder, ab as nextDocNumber, i as auditLog, aX as sendTelegram, aG as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, aC as readBody, a2 as getUserSession, p as createError, az as query, O as getRequestHeader, b5 as verifyDeliveryQrSignature, F as getDb, b1 as transitionOrder, ac as nextDocNumber, i as auditLog, aY as sendTelegram, aH as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

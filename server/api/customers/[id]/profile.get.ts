@@ -1,4 +1,5 @@
 import { query, queryOne, getDb } from '~/server/utils/db'
+import { RUNNING_BALANCE_SQL } from '~/server/utils/ledgerSql'
 import { userCanAction } from '~/server/utils/permissions'
 import { ACCOUNTS_ROLES, SALES_ROLES, getCustomerOutstanding, getUserBranchIds } from '~/server/utils/creditOrders'
 
@@ -57,13 +58,15 @@ export default defineEventHandler(async (event) => {
        FROM credit_orders o LEFT JOIN branches b ON b.id = o.assigned_branch_id
        WHERE o.customer_id = ?${scopeSql} ORDER BY o.order_date DESC, o.id DESC LIMIT 300`, [id, ...scopeP]),
     query<any>(
-      `SELECT l.id, l.transaction_date date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
-              l.debit_amount debit, l.credit_amount credit, l.balance_after balance, l.reference_type,
-              COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
-       FROM customer_ledger l
-       LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
-       LEFT JOIN order_amendments amd ON l.reference_type = 'order_amendment' AND amd.id = l.reference_id
-       WHERE l.customer_id = ? ORDER BY l.transaction_date DESC, l.id DESC LIMIT 300`, [id]),
+      `SELECT * FROM (
+         SELECT l.id, DATE_FORMAT(l.transaction_date, '%Y-%m-%d') date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
+                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type,
+                COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
+         FROM customer_ledger l
+         LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
+         LEFT JOIN order_amendments amd ON l.reference_type = 'order_amendment' AND amd.id = l.reference_id
+         WHERE l.customer_id = ?
+       ) t ORDER BY t.date DESC, t.id DESC LIMIT 300`, [id]),
     query<any>(
       `SELECT p.id, p.payment_number, p.receipt_number, p.payment_date, p.amount, p.payment_method, p.reference_number, p.notes,
               p.allocation_status, p.reversed_at, p.order_id, u.display_name collected_by

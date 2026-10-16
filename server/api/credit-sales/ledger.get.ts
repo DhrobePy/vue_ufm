@@ -1,4 +1,5 @@
 import { query, queryOne } from '~/server/utils/db'
+import { RUNNING_BALANCE_SQL } from '~/server/utils/ledgerSql'
 
 export default defineEventHandler(async (event) => {
   const q           = getQuery(event)
@@ -22,32 +23,38 @@ export default defineEventHandler(async (event) => {
   let totalCredit = 0
 
   try {
+    // Running balance is computed over the customer's WHOLE ledger (so a date filter never changes it),
+    // date filters are applied afterwards.
+    const outer: string[] = []
+    const outerParams: unknown[] = []
+    if (dateFrom) { outer.push('t.date >= ?'); outerParams.push(dateFrom) }
+    if (dateTo)   { outer.push('t.date <= ?'); outerParams.push(dateTo) }
     ledger = await query(
-      `SELECT l.id, l.transaction_date AS date, l.transaction_type AS type,
-              COALESCE(l.invoice_number, l.reference_id) AS ref,
-              l.description,
-              l.debit_amount AS debit, l.credit_amount AS credit,
-              l.balance_after AS balance,
-              c.name AS customer_name,
-              l.reference_type, l.reference_id,
-              -- Resolve the order a return/amendment belongs to, so the
-              -- frontend can build a direct link even though the ledger
-              -- row itself only stores the return/amendment id.
-              COALESCE(
-                CASE WHEN l.reference_type = 'credit_order' THEN l.reference_id END,
-                ret_link.order_id,
-                amd_link.order_id
-              ) AS linked_order_id
-       FROM customer_ledger l
-       JOIN customers c ON c.id = l.customer_id
-       LEFT JOIN credit_order_returns ret_link
-              ON l.reference_type = 'credit_order_return' AND ret_link.id = l.reference_id
-       LEFT JOIN order_amendments amd_link
-              ON l.reference_type = 'order_amendment' AND amd_link.id = l.reference_id
-       ${w}
-       ORDER BY l.transaction_date DESC, l.id DESC
+      `SELECT * FROM (
+         SELECT l.id, DATE_FORMAT(l.transaction_date, '%Y-%m-%d') AS date, l.transaction_type AS type,
+                COALESCE(l.invoice_number, l.reference_id) AS ref,
+                l.description,
+                l.debit_amount AS debit, l.credit_amount AS credit,
+                ${RUNNING_BALANCE_SQL} AS balance,
+                c.name AS customer_name,
+                l.reference_type, l.reference_id,
+                COALESCE(
+                  CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END,
+                  ret_link.order_id,
+                  amd_link.order_id
+                ) AS linked_order_id
+         FROM customer_ledger l
+         JOIN customers c ON c.id = l.customer_id
+         LEFT JOIN credit_order_returns ret_link
+                ON l.reference_type = 'credit_order_return' AND ret_link.id = l.reference_id
+         LEFT JOIN order_amendments amd_link
+                ON l.reference_type = 'order_amendment' AND amd_link.id = l.reference_id
+         ${customerId ? 'WHERE l.customer_id = ?' : ''}
+       ) t
+       ${outer.length ? 'WHERE ' + outer.join(' AND ') : ''}
+       ORDER BY t.date DESC, t.id DESC
        LIMIT 200`,
-      params,
+      [...(customerId ? [customerId] : []), ...outerParams],
     ) as any[]
 
     const agg = await queryOne(

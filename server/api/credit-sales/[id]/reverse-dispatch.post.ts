@@ -68,7 +68,7 @@ export default defineEventHandler(async (event) => {
 
     const [[agg]] = await conn.query<any>(
       `SELECT COALESCE(SUM(debit_amount),0) d, COALESCE(SUM(credit_amount),0) c FROM customer_ledger WHERE customer_id = ?`, [order.customer_id])
-    const newBalance = Math.max(0, Number(agg.d) - Number(agg.c))
+    const newBalance = Number(agg.d) - Number(agg.c)
     await conn.query(`UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`, [newBalance, order.customer_id])
     await transitionOrder(conn, { orderId: id, from: 'goods_on_board', to: 'ready_to_ship', action: 'dispatch_reversed', userId,
       comment: `Dispatch reversed — reason: ${reason}. Invoice archived in Recycle Bin batch #${batch}; customer balance now ৳${newBalance.toLocaleString()}.` })

@@ -526,7 +526,7 @@ export async function postCustomerLedger(conn: any, opts: {
   // Keep the denormalized customers.current_balance in sync with ledger truth
   await conn.query(
     `UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`,
-    [Math.max(0, balanceAfter), opts.customerId],
+    [balanceAfter, opts.customerId],   // signed: negative = customer holds an advance / credit
   )
   return res.insertId
 }

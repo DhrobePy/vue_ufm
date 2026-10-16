@@ -1,4 +1,4 @@
-import { t as defineEventHandler, X as getRouterParam, p as createError, a1 as getUserSession, az as queryOne, F as getDb, E as getCustomerOutstanding, _ as getUserBranchIds, ay as query, b3 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES } from '../../../../nitro/nitro.mjs';
+import { t as defineEventHandler, Y as getRouterParam, p as createError, a2 as getUserSession, aA as queryOne, F as getDb, E as getCustomerOutstanding, a0 as getUserBranchIds, az as query, b4 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, R as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -68,13 +68,15 @@ const profile_get = defineEventHandler(async (event) => {
       [id, ...scopeP]
     ),
     query(
-      `SELECT l.id, l.transaction_date date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
-              l.debit_amount debit, l.credit_amount credit, l.balance_after balance, l.reference_type,
-              COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
-       FROM customer_ledger l
-       LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
-       LEFT JOIN order_amendments amd ON l.reference_type = 'order_amendment' AND amd.id = l.reference_id
-       WHERE l.customer_id = ? ORDER BY l.transaction_date DESC, l.id DESC LIMIT 300`,
+      `SELECT * FROM (
+         SELECT l.id, DATE_FORMAT(l.transaction_date, '%Y-%m-%d') date, l.transaction_type type, COALESCE(l.invoice_number, l.reference_id) ref, l.description,
+                l.debit_amount debit, l.credit_amount credit, ${RUNNING_BALANCE_SQL} balance, l.reference_type,
+                COALESCE(CASE WHEN l.reference_type IN ('credit_order','credit_orders') THEN l.reference_id END, ret.order_id, amd.order_id) linked_order_id
+         FROM customer_ledger l
+         LEFT JOIN credit_order_returns ret ON l.reference_type = 'credit_order_return' AND ret.id = l.reference_id
+         LEFT JOIN order_amendments amd ON l.reference_type = 'order_amendment' AND amd.id = l.reference_id
+         WHERE l.customer_id = ?
+       ) t ORDER BY t.date DESC, t.id DESC LIMIT 300`,
       [id]
     ),
     query(

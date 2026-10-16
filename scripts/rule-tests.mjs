@@ -244,6 +244,27 @@ check('status change is kept permanently in the notes', (await call('acct', 'GET
 await expectStatus('reactivated customer can be ordered for again', call('acct', 'POST', '/api/customers/2/status', { status: 'active', reason: 'paid the dues' }), 200)
 await expectStatus('new order works after reactivation', call('super', 'POST', '/api/credit-sales', { customer_id: 2, branch_id: 1, order_date: today, required_date: today, delivery_type: 'big_truck', items: [{ product_id: 1, variant_id: 1, quantity: 1, unit_price: 1000, discount_amount: 0 }] }), [200, 201])
 
+
+// ── 14. Every screen shows the same running balance, even with back-dated / stale rows ──
+await db.query(`insert into customers (id,name,phone_number,credit_limit,status) values (3,'Statement Mismatch','01700000777',100000,'active')`)
+// rows inserted in posting order with a deliberately WRONG stored balance_after (what the legacy import left behind)
+const L = (date, type, ref, d, c, stored) => db.query(`insert into customer_ledger (customer_id, transaction_date, transaction_type, reference_type, reference_id, invoice_number, description, debit_amount, credit_amount, balance_after, created_by_user_id) values (3,?,?, 'x', 0, ?, ?, ?, ?, ?, 1)`, [date, type, ref, ref, d, c, stored])
+await L('2026-07-24', 'advance_payment', 'ADV-1', 0, 570000, -570000)
+await L('2026-07-24', 'adjustment', 'ADJ-1', 570000, 0, 0)
+await L('2026-09-05', 'invoice', 'INV-1', 601250, 0, 601250)
+await L('2026-09-07', 'payment', 'PAY-1', 0, 601250, 0)
+await L('2026-09-08', 'advance_payment', 'ADV-2', 0, 18500, -18500)
+await L('2026-09-05', 'adjustment', 'ADJ-2', 0, 14000, -32500)   // back-dated, posted last
+const lg = (await call('acct', 'GET', '/api/credit-sales/ledger?customer_id=3')).json
+const pf = (await call('acct', 'GET', '/api/customers/3/profile')).json
+const sm = (await call('acct', 'GET', '/api/customers/3/statement?from=2020-01-01&to=2099-12-31')).json
+const csv = await (await fetch(BASE + '/api/credit-sales/export/ledger.csv?customer_id=3', { headers: { cookie: cookie.acct } })).text()
+const byRef = (rows, k = 'ref') => JSON.stringify(rows.map(r => [r[k], Number(r.balance)]).sort())
+const a = byRef(lg.ledger), b = byRef(pf.ledger), c2 = byRef(sm.lines)
+check('ledger page, profile tab and statement show identical running balances', a === b && a === c2, JSON.stringify({ a, b, c2 }))
+check('latest balance on every screen equals the true closing balance (-32,500)', Number(lg.ledger[0].balance) === -32500 && Number(pf.credit.outstanding) === -32500 && Number(sm.closingBalance) === -32500, `${lg.ledger[0].balance}/${pf.credit.outstanding}/${sm.closingBalance}`)
+check('CSV export carries the same balances and plain dates', /2026-09-05,Statement Mismatch,adjustment,ADJ-2,ADJ-2,0(\.00)?,14000(\.00)?,587250(\.00)?/.test(csv) && !csv.includes('T00:00'), csv.split('\n').slice(0, 4).join(' | '))
+
 // ── 10. Every transition leaves a workflow row ──────────────────────────────
 const [[wfc]] = await db.query(`select count(*) n from credit_order_workflow where order_id=? and to_status in ('approved','in_production','ready_to_ship','goods_on_board')`, [o1.id])
 check('workflow log has every transition of order 1', Number(wfc.n) >= 4, wfc.n)
