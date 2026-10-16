@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Bank Reconciliation"
                   subtitle="Bank-module ledger vs. GL books for the same real-world account"
                   :breadcrumb="['Bank', 'Reconciliation']" />

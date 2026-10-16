@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="New Debit Voucher" subtitle="Authorise a cash / bank payment"
                   :breadcrumb="['Accounts', 'Voucher', 'New']">
       <template #actions>

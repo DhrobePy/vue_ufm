@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Inter-Bank Transfer" subtitle="Transfer funds between company bank accounts"
                   :breadcrumb="['Bank', 'Transfer']">
       <template #actions>

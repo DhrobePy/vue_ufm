@@ -48,17 +48,19 @@
 </template>
 
 <script setup lang="ts">
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   label: string
   route: string
   iconType: string
   collapsed: boolean
   sub?: boolean
-}>()
+  /** hub entries: highlight for these URL prefixes instead of the plain `route` prefix */
+  active?: boolean
+}>(), { active: undefined })
 
 const currentRoute = useRoute()
 const isActive = computed(() =>
-  props.route === '/dashboard'
+  props.active !== undefined ? props.active : props.route === '/dashboard'
     ? currentRoute.path === props.route
     : currentRoute.path.startsWith(props.route)
 )

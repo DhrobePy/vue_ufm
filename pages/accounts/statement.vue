@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="statements" />
     <UiPageHeader title="Financial Statements" subtitle="Profit & Loss, Balance Sheet and Trial Balance"
                   :breadcrumb="['Accounts', 'Statement']">
       <template #actions>

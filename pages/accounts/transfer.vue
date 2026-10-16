@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="Account Transfer" subtitle="Transfer between ledger accounts"
                   :breadcrumb="['Accounts', 'Transfer']">
       <template #actions>

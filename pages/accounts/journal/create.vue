@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="New Journal Entry" subtitle="Post a double-entry transaction to the general ledger"
                   :breadcrumb="['Accounts', 'Journal', 'New Entry']">
       <template #actions>

@@ -126,13 +126,13 @@
       <button class="btn-ghost text-xs" @click="collapseAll">Collapse All</button>
       <span class="flex-1" />
       <span class="text-xs text-gray-600">
-        {{ enabledCount }} / {{ moduleRegistry.length }} modules enabled
+        {{ enabledCount }} / {{ visibleModules.length }} modules enabled
       </span>
     </div>
 
     <!-- Module permissions -->
     <div class="space-y-2">
-      <div v-for="mod in moduleRegistry" :key="mod.key"
+      <div v-for="mod in visibleModules" :key="mod.key"
            class="glass-card overflow-hidden transition-opacity"
            :class="perms[mod.key]?.enabled ? '' : 'opacity-60'">
 
@@ -511,7 +511,7 @@ const moduleRegistry = [
     ],
   },
   {
-    key: 'bank', label: 'Bank', icon: '🏦',
+    key: 'bank', label: 'Accounts & Bank — Bank', icon: '🏦',
     pages: [
       { key: 'dashboard',   label: 'Bank Dashboard',    route: 'bank',
         actions: [] },
@@ -541,7 +541,7 @@ const moduleRegistry = [
     ],
   },
   {
-    key: 'accounts', label: 'Accounts (GL)', icon: '📊',
+    key: 'accounts', label: 'Accounts & Bank — Accounts (GL)', icon: '📊',
     pages: [
       { key: 'coa',           label: 'Chart of Accounts',   route: 'accounts/coa',
         actions: [
@@ -775,6 +775,8 @@ const moduleRegistry = [
   },
 ] as const
 
+// Switched-off modules stay in the saved data (so nothing is lost when they return) but are not editable now.
+const visibleModules = moduleRegistry.filter(m => !moduleDisabled(m.key))
 type ModuleKey = typeof moduleRegistry[number]['key']
 
 // ── Scope options ─────────────────────────────────────────────────────────────
@@ -916,7 +918,7 @@ onMounted(() => {
 })
 
 const enabledCount = computed(() =>
-  moduleRegistry.filter(m => perms.value[m.key]?.enabled).length
+  visibleModules.filter(m => perms.value[m.key]?.enabled).length
 )
 
 function isPageAllowed(mod: string, pg: string) {

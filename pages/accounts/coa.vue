@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="Chart of Accounts" subtitle="Full list of ledger accounts organised by type"
                   :breadcrumb="['Accounts', 'Chart of Accounts']">
       <template #actions>

@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="close" />
     <UiPageHeader title="Daily Accounts Log" subtitle="All transactions posted today across all accounts"
                   :breadcrumb="['Accounts', 'Daily Log']">
       <template #actions>

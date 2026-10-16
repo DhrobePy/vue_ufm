@@ -118,6 +118,7 @@ export const usePermissions = () => {
    * Uses the session role as a fast-path so admins never flash empty sidebar.
    */
   function canAccessModule(key: string): boolean {
+    if (moduleDisabled(key)) return false   // switched off project-wide (utils/features.ts)
     if (sessionIsAdmin.value) return true
     if (!state.value.loaded) return false
     if (state.value.isAdmin) return true

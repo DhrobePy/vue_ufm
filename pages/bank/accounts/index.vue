@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Bank Accounts" subtitle="All registered company bank accounts — one list, GL-linked from creation"
                   :breadcrumb="['Bank', 'Accounts']">
       <template #actions>

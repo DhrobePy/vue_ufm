@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Bank Account Statement"
                   subtitle="Complete passbook — every GL-posted transaction with running balance"
                   :breadcrumb="['Bank', 'Statement']">

@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="close" />
     <UiPageHeader title="Day-End Reconciliation" subtitle="Bank + Petty Cash + AR + AP, side by side — read-only diagnostic"
                   :breadcrumb="['Accounts', 'Day-End Reconciliation']" />
 

@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="Debit Vouchers" subtitle="Payment vouchers authorised for disbursement"
                   :breadcrumb="['Accounts', 'Voucher']">
       <template #actions>

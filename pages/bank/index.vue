@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Bank" subtitle="Maker-checker bank transactions · transfers · statements" :breadcrumb="['Bank']">
       <template #actions>
         <NuxtLink to="/bank/accounts" class="btn-ghost text-xs">Accounts</NuxtLink>

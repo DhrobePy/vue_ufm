@@ -12,6 +12,9 @@ import 'node:path';
 import 'mysql2/promise';
 import 'node:url';
 
+const DISABLED_MODULES = ["fleet", "hr"];
+const moduleDisabled = (key) => DISABLED_MODULES.includes(key);
+
 const search_get = defineEventHandler(async (event) => {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i;
   const session = await getUserSession(event);
@@ -151,7 +154,7 @@ const search_get = defineEventHandler(async (event) => {
     sublabel: `\u09F3${Number(e.total_amount).toLocaleString()} \xB7 ${e.status}`,
     route: `/expenses/${e.id}`
   });
-  for (const e of employees) results.push({
+  for (const e of moduleDisabled("hr") ? [] : employees) results.push({
     type: "employee",
     icon: "\u{1F9D1}\u200D\u{1F4BC}",
     label: `${e.first_name} ${(_f = e.last_name) != null ? _f : ""}`.trim(),

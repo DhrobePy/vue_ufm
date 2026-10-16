@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="bank" />
     <UiPageHeader title="Transaction Types" subtitle="Manage income / expense / transfer categories for bank transactions"
                   :breadcrumb="['Bank', 'Accounts', 'Transaction Types']">
       <template #actions>

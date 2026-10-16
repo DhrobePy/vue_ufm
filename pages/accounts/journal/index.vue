@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="General Journal" subtitle="All posted journal entries"
                   :breadcrumb="['Accounts', 'Journal']">
       <template #actions>

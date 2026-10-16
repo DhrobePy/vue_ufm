@@ -1,3 +1,4 @@
+import { moduleDisabled } from '~/utils/features'
 import { query } from '~/server/utils/db'
 
 /**
@@ -101,7 +102,7 @@ export default defineEventHandler(async (event) => {
     type: 'expense', icon: '💸', label: e.voucher_number,
     sublabel: `৳${Number(e.total_amount).toLocaleString()} · ${e.status}`, route: `/expenses/${e.id}`,
   })
-  for (const e of employees) results.push({
+  for (const e of moduleDisabled('hr') ? [] : employees) results.push({
     type: 'employee', icon: '🧑‍💼', label: `${e.first_name} ${e.last_name ?? ''}`.trim(),
     sublabel: e.designation ?? '', route: `/hr/employees/${e.id}`,
   })

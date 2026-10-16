@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6 max-w-2xl">
+    <HubTabs hub="bank" />
     <UiPageHeader :title="editMode ? 'Edit Transaction' : 'New Bank Transaction'"
                   :subtitle="editMode ? `Editing: ${editTx?.transaction_number}` : 'Transaction will be submitted for maker-checker approval'"
                   :breadcrumb="['Bank', editMode ? 'Edit Transaction' : 'New Transaction']">

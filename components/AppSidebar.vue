@@ -151,25 +151,12 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/expenses/categories')" label="Categories"     route="/expenses/categories" :collapsed="collapsed" icon-type="tag"       sub />
       </SidebarGroup>
 
-      <!-- Bank -->
-      <SidebarGroup v-if="perms.canAccessModule('bank')" label="Bank" route="/bank" :collapsed="collapsed" icon-type="bank" color="indigo">
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank')" label="Dashboard"       route="/bank"                       :collapsed="collapsed" icon-type="dashboard" sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank/transaction/create')" label="New Transaction" route="/bank/transaction/create"    :collapsed="collapsed" icon-type="plus"      sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank/transfer')" label="Transfer"        route="/bank/transfer"              :collapsed="collapsed" icon-type="arrows"    sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank/statement')" label="Statement"       route="/bank/statement"             :collapsed="collapsed" icon-type="file"      sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank/reconciliation')" label="Reconciliation"  route="/bank/reconciliation"        :collapsed="collapsed" icon-type="check"     sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/bank/accounts')" label="Accounts"        route="/bank/accounts"              :collapsed="collapsed" icon-type="bank"      sub />
-      </SidebarGroup>
-
-      <!-- Accounts -->
-      <SidebarGroup v-if="perms.canAccessModule('accounts')" label="Accounts" route="/accounts" :collapsed="collapsed" icon-type="book" color="teal">
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/coa')" label="Chart of Accounts" route="/accounts/coa"            :collapsed="collapsed" icon-type="chart"    sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/journal/create')" label="New Transaction"   route="/accounts/journal/create" :collapsed="collapsed" icon-type="plus"     sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/statement')" label="Statement"         route="/accounts/statement"      :collapsed="collapsed" icon-type="file"     sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/tax-statement')" label="Tax Statement"     route="/accounts/tax-statement"  :collapsed="collapsed" icon-type="file"     sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/voucher')" label="Debit Voucher"     route="/accounts/voucher"        :collapsed="collapsed" icon-type="receipt"  sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/daily-log')" label="Daily Log"         route="/accounts/daily-log"      :collapsed="collapsed" icon-type="clock"    sub />
-        <SidebarNavItem v-if="perms.canAccessRoute('/accounts/day-end-reconciliation')" label="Day-End Reconciliation" route="/accounts/day-end-reconciliation" :collapsed="collapsed" icon-type="check" sub />
+      <!-- Accounts & Bank — one module, four entries (tabs inside each) -->
+      <SidebarGroup v-if="perms.canAccessModule('bank') || perms.canAccessModule('accounts')" label="Accounts &amp; Bank" route="/accounts" :routes="['/bank']" :collapsed="collapsed" icon-type="bank" color="indigo">
+        <SidebarNavItem v-if="hubTarget('bank')" label="Bank" :route="hubTarget('bank')!" :active="hubOwnsPath('bank', $route.path)" :collapsed="collapsed" icon-type="bank" sub />
+        <SidebarNavItem v-if="hubTarget('accounts')" label="Accounts" :route="hubTarget('accounts')!" :active="hubOwnsPath('accounts', $route.path)" :collapsed="collapsed" icon-type="book" sub />
+        <SidebarNavItem v-if="hubTarget('statements')" label="Statements" :route="hubTarget('statements')!" :active="hubOwnsPath('statements', $route.path)" :collapsed="collapsed" icon-type="file" sub />
+        <SidebarNavItem v-if="hubTarget('close')" label="Daily Close" :route="hubTarget('close')!" :active="hubOwnsPath('close', $route.path)" :collapsed="collapsed" icon-type="clock" sub />
       </SidebarGroup>
 
       <!-- Standalone Modules section ─────────────────── -->
@@ -307,6 +294,10 @@ const perms = usePermissions()
 // middleware may not have populated the cache yet — without this the sidebar
 // renders empty for non-admin users until their next client-side navigation.
 onMounted(() => { perms.load() })
+
+/** First tab of a hub this user may open → where the sidebar entry points (null = hide the entry). */
+const hubTarget = (hub: string): string | null =>
+  (HUBS[hub] ?? []).find(t => perms.canAccessRoute(t.to))?.to ?? null
 
 // Section-level visibility (hide section header when all children are hidden)
 const showOperations = computed(() =>

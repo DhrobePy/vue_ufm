@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="statements" />
     <UiPageHeader title="NBR Tax Statement" subtitle="Corporate income tax return DRAFT — P&amp;L, Balance Sheet, worksheet"
                   :breadcrumb="['Accounts', 'Tax Statement']">
       <template #actions>

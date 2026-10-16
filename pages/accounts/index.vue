@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-6">
+    <HubTabs hub="accounts" />
     <UiPageHeader title="Accounts" subtitle="Chart of accounts · journal · vouchers · statements" :breadcrumb="['Accounts']">
       <template #actions><NuxtLink to="/accounts/journal/create" class="btn-gold text-xs">+ New Entry</NuxtLink></template>
     </UiPageHeader>

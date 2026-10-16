@@ -61,13 +61,15 @@
 const props = defineProps<{
   label: string
   route: string
+  /** extra URL prefixes that also make this group active (e.g. a group spanning /accounts and /bank) */
+  routes?: string[]
   iconType: string
   collapsed: boolean
   color?: string
 }>()
 
 const currentRoute = useRoute()
-const isModuleActive = computed(() => currentRoute.path.startsWith(props.route))
+const isModuleActive = computed(() => [props.route, ...(props.routes ?? [])].some(r => currentRoute.path.startsWith(r)))
 const open = ref(isModuleActive.value)
 
 // Auto-open when navigating into this module
