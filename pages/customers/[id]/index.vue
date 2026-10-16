@@ -9,8 +9,8 @@
         <NuxtLink to="/customers" class="hover:text-gray-300">Customers</NuxtLink> <span class="mx-1">/</span> <span class="text-gray-400">{{ c.name }}</span>
       </p>
 
-      <!-- ── Header: identity + actions ───────────────────────────────────── -->
-      <div class="glass-card p-5">
+      <!-- ── Header: identity + actions (z-20: its dropdown must paint above the KPI cards below) ── -->
+      <div class="glass-card p-5 relative z-20">
         <div class="flex flex-wrap items-start gap-4">
           <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-bold shrink-0"
                style="background:linear-gradient(135deg,var(--accent-from),var(--accent-to));color:var(--accent-text)">{{ (c.name || '?')[0] }}</div>

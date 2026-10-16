@@ -1201,7 +1201,7 @@ const _routes = [
     name: "customers-id",
     path: "/customers/:id()",
     meta: __nuxt_page_meta$1s || {},
-    component: () => import('./index-DNJVv9kh.mjs')
+    component: () => import('./index-fX-xqZfn.mjs')
   },
   {
     name: "fleet-drivers-create",
