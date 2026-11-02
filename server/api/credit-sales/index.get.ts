@@ -32,8 +32,15 @@ export default defineEventHandler(async (event) => {
       params.push(like, like, like)
     }
     if (status) {
-      whereClauses.push('o.status = ?')
-      params.push(status)
+      // one status, or a comma list (dashboard cards group e.g. goods_on_board,shipped,dispatched)
+      const list = status.split(',').map(x => x.trim()).filter(Boolean)
+      whereClauses.push(list.length > 1 ? 'o.status IN (?)' : 'o.status = ?')
+      params.push(list.length > 1 ? list : list[0])
+    }
+    const from = (q.from as string) || ''
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+      whereClauses.push('o.order_date >= ?')
+      params.push(from)
     }
 
     const where = whereClauses.length ? 'WHERE ' + whereClauses.join(' AND ') : ''

@@ -67,8 +67,8 @@
           </div>
           <!-- Big KPIs -->
           <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div v-for="kpi in kpiCards" :key="kpi.label"
-                 class="rounded-2xl p-6 flex flex-col gap-3"
+            <component :is="kpi.to ? NuxtLink : 'div'" v-for="kpi in kpiCards" :key="kpi.label" :to="kpi.to || undefined" @click="kpi.to && (warRoom = false)"
+                 class="rounded-2xl p-6 flex flex-col gap-3" :class="kpi.to ? 'cursor-pointer hover:!border-white/20 transition-colors' : ''"
                  style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08)">
               <p class="text-sm text-gray-500 uppercase tracking-widest font-semibold">{{ kpi.label }}</p>
               <p class="text-4xl font-bold tracking-tight" :class="kpi.valueColor">{{ kpi.value }}</p>
@@ -76,17 +76,17 @@
                 <span class="text-sm text-gray-400">{{ kpi.sub }}</span>
                 <UiSparkline :values="kpi.spark" :color="kpi.up ? '#10b981' : '#f87171'" type="line" :width="100" :height="36" />
               </div>
-            </div>
+            </component>
           </div>
           <!-- Status pipeline counters (live) -->
           <div class="grid grid-cols-3 lg:grid-cols-6 gap-3">
-            <div v-for="col in warRoomPipeline" :key="(col as any).label"
-                 class="rounded-xl p-4 text-center"
+            <component :is="col.to ? NuxtLink : 'div'" v-for="col in warRoomPipeline" :key="(col as any).label" :to="col.to || undefined" @click="col.to && (warRoom = false)"
+                 class="rounded-xl p-4 text-center" :class="col.to ? 'cursor-pointer hover:!border-white/20 transition-colors' : ''"
                  style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07)">
               <div class="w-3 h-3 rounded-full mx-auto mb-2" :style="`background:${col.color}`" />
               <p class="text-3xl font-bold text-white mb-1">{{ col.count }}</p>
               <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">{{ col.label }}</p>
-            </div>
+            </component>
           </div>
           <!-- Finance overview (live) -->
           <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -136,8 +136,8 @@
 
     <!-- ── KPI cards with sparklines ────────────────── -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div v-for="kpi in kpiCards" :key="kpi.label"
-           class="glass-card p-4 flex flex-col gap-2 hover:border-white/[0.1] transition-all duration-200 cursor-default group">
+      <component :is="kpi.to ? NuxtLink : 'div'" v-for="kpi in kpiCards" :key="kpi.label" :to="kpi.to || undefined"
+           class="glass-card p-4 flex flex-col gap-2 hover:border-white/[0.16] transition-all duration-200 group" :class="kpi.to ? 'cursor-pointer' : 'cursor-default'">
         <div class="flex items-center justify-between">
           <p class="text-xs text-gray-500">{{ kpi.label }}</p>
           <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
@@ -151,15 +151,15 @@
           <UiSparkline :values="kpi.spark" :color="kpi.up ? '#10b981' : '#f87171'"
                        type="line" :width="72" :height="24" class="shrink-0 opacity-70 group-hover:opacity-100 transition-opacity" />
         </div>
-      </div>
+      </component>
     </div>
 
     <!-- ── Secondary KPIs ────────────────────────────── -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <MiniStatCard label="Credit Orders"    :value="s.total ?? 0"            :delta="`${s.delivered ?? 0} delivered`" icon="sales" />
-      <MiniStatCard label="Purchase Orders"  :value="po.total_pos ?? 0"       :delta="`${fmtLakh(po.total_value)} value`" icon="cart" />
-      <MiniStatCard label="Expense Vouchers" :value="ex.total ?? 0"           :delta="`${ex.pending_count ?? 0} pending`" :positive="false" icon="receipt" />
-      <MiniStatCard label="Outstanding"      :value="fmtLakh(rv.total_outstanding)" delta="this month" icon="money" />
+      <MiniStatCard label="Credit Orders"    :value="s.total ?? 0"            :delta="`${s.delivered ?? 0} delivered`" icon="sales" :to="credit('/credit-sales/all', { from: monthStart })" />
+      <MiniStatCard label="Purchase Orders"  :value="po.total_pos ?? 0"       :delta="`${fmtLakh(po.total_value)} value`" icon="cart" :to="mod('purchase', '/purchase/orders')" />
+      <MiniStatCard label="Expense Vouchers" :value="ex.total ?? 0"           :delta="`${ex.pending_count ?? 0} pending`" :positive="false" icon="receipt" :to="mod('expenses', '/expenses')" />
+      <MiniStatCard label="Outstanding"      :value="fmtLakh(rv.total_outstanding)" delta="all open balances" icon="money" :to="credit('/credit-sales/ageing')" />
     </div>
 
     <!-- ── Exception Radar — owner visibility (spec §2.13) ─────────────── -->
@@ -284,13 +284,14 @@
           </NuxtLink>
         </div>
         <div class="space-y-2">
-          <PendingRow
-            v-for="row in pendingOrdersList" :key="row.id"
-            :order-no="row.order_number"
-            :customer="row.customer_name"
-            :amount="Number(row.total_amount)"
-            :status="row.status"
-          />
+          <NuxtLink v-for="row in pendingOrdersList" :key="row.id" :to="credit(`/credit-sales/${row.id}`) || undefined" class="block">
+            <PendingRow
+              :order-no="row.order_number"
+              :customer="row.customer_name"
+              :amount="Number(row.total_amount)"
+              :status="row.status"
+            />
+          </NuxtLink>
           <p v-if="!pendingOrdersList.length" class="text-xs text-gray-600 text-center py-4">No pending approvals ✓</p>
         </div>
       </div>
@@ -302,27 +303,27 @@
           <span class="text-xs text-gray-500">This Month</span>
         </div>
         <div class="space-y-3">
-          <div class="flex justify-between items-center py-2.5 border-b border-white/[0.05]">
+          <component :is="credit('/credit-sales/all', { from: monthStart, status: 'goods_on_board,shipped,dispatched,delivered,completed' }) ? NuxtLink : 'div'" :to="credit('/credit-sales/all', { from: monthStart, status: 'goods_on_board,shipped,dispatched,delivered,completed' })" class="flex justify-between items-center py-2.5 border-b border-white/[0.05] hover:bg-white/[0.03] rounded-lg px-1 -mx-1 transition-colors">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-gold-400" />
               <span class="text-xs text-gray-400">Total Billed</span>
             </div>
             <span class="text-sm font-bold text-gold-400">{{ fmtLakh(rv.total_revenue) }}</span>
-          </div>
-          <div class="flex justify-between items-center py-2.5 border-b border-white/[0.05]">
+          </component>
+          <component :is="credit('/credit-sales/payments') ? NuxtLink : 'div'" :to="credit('/credit-sales/payments')" class="flex justify-between items-center py-2.5 border-b border-white/[0.05] hover:bg-white/[0.03] rounded-lg px-1 -mx-1 transition-colors">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-emerald-400" />
               <span class="text-xs text-gray-400">Collected</span>
             </div>
             <span class="text-sm font-bold text-emerald-400">{{ fmtLakh(rv.total_collected) }}</span>
-          </div>
-          <div class="flex justify-between items-center py-2.5 border-b border-white/[0.05]">
+          </component>
+          <component :is="credit('/credit-sales/ageing') ? NuxtLink : 'div'" :to="credit('/credit-sales/ageing')" class="flex justify-between items-center py-2.5 border-b border-white/[0.05] hover:bg-white/[0.03] rounded-lg px-1 -mx-1 transition-colors">
             <div class="flex items-center gap-2">
               <div class="w-2 h-2 rounded-full bg-amber-400" />
               <span class="text-xs text-gray-400">Outstanding</span>
             </div>
             <span class="text-sm font-bold text-amber-400">{{ fmtLakh(rv.total_outstanding) }}</span>
-          </div>
+          </component>
           <div class="pt-1">
             <div class="flex justify-between text-[11px] text-gray-600 mb-2">
               <span>Collection Rate</span>
@@ -444,6 +445,16 @@ function fmtLakh(val: any): string {
   return '৳' + n.toLocaleString()
 }
 
+const NuxtLink = resolveComponent('NuxtLink')
+// Cards open the list behind the number — only when the signed-in user may see that module.
+const monthStart = new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 7) + '-01'   // Bangladesh time, like the stats API
+const mod = (module: string, path: string, q: Record<string, string> = {}) => {
+  if (!perms.canAccessModule(module)) return undefined
+  const qs = new URLSearchParams(q).toString()
+  return qs ? `${path}?${qs}` : path
+}
+const credit = (path: string, q: Record<string, string> = {}) => mod('credit_sales', path, q)
+
 const s  = computed(() => (statsData.value?.orderStats    ?? {}) as any)
 const rv = computed(() => (statsData.value?.revenueStats  ?? {}) as any)
 const ex = computed(() => (statsData.value?.expenseStats  ?? {}) as any)
@@ -473,6 +484,7 @@ const kpiCards = computed(() => [
     sub:   `Collected: ${fmtLakh(rv.value.total_collected)}`,
     trend: `${fmtLakh(rv.value.total_outstanding)} outstanding`,
     up: true,
+    to: credit('/credit-sales/all', { from: monthStart, status: 'goods_on_board,shipped,dispatched,delivered,completed' }),
     valueColor: 'text-gold-400',
     spark: revenueSpark.value.length ? revenueSpark.value : [0],
   },
@@ -482,6 +494,7 @@ const kpiCards = computed(() => [
     sub:   `${s.value.escalated ?? 0} escalated`,
     trend: (statsData.value?.pendingApprovals ?? 0) > 0 ? 'needs action' : 'all clear',
     up: (statsData.value?.pendingApprovals ?? 0) === 0,
+    to: credit('/credit-sales/approve'),
     valueColor: 'text-amber-400',
     spark: [0, 0, 0, 0, 0, 0, statsData.value?.pendingApprovals ?? 0],
   },
@@ -491,6 +504,7 @@ const kpiCards = computed(() => [
     sub:   `${s.value.delivered ?? 0} delivered · ${s.value.in_production ?? 0} in production`,
     trend: `${s.value.cancelled ?? 0} cancelled`,
     up: true,
+    to: credit('/credit-sales/all', { from: monthStart }),
     valueColor: 'text-orange-400',
     spark: orderCountSpark.value.length ? orderCountSpark.value : [0],
   },
@@ -500,6 +514,7 @@ const kpiCards = computed(() => [
     sub:   `${ex.value.pending_count ?? 0} pending approval`,
     trend: `${ex.value.total ?? 0} vouchers`,
     up: false,
+    to: mod('expenses', '/expenses'),
     valueColor: 'text-teal-400',
     spark: [0, 0, 0, 0, 0, 0, Number(ex.value.total_amount ?? 0) / 100_000],
   },
@@ -550,13 +565,13 @@ function toggleWarRoom() {
 }
 
 const warRoomPipeline = computed(() => [
-  { label: 'Pending',    count: s.value.pending_approval ?? 0, color: '#eab308' },
-  { label: 'Escalated',  count: s.value.escalated        ?? 0, color: '#f97316' },
-  { label: 'Approved',   count: s.value.approved         ?? 0, color: '#10b981' },
-  { label: 'Production', count: s.value.in_production    ?? 0, color: '#3b82f6' },
-  { label: 'Ready',      count: s.value.ready_to_ship    ?? 0, color: '#06b6d4' },
-  { label: 'Dispatched', count: s.value.dispatched       ?? 0, color: '#f97316' },
-  { label: 'Delivered',  count: s.value.delivered        ?? 0, color: '#14b8a6' },
+  { label: 'Pending',    count: s.value.pending_approval ?? 0, color: '#eab308', to: credit('/credit-sales/all', { from: monthStart, status: 'pending_approval' }) },
+  { label: 'Escalated',  count: s.value.escalated        ?? 0, color: '#f97316', to: credit('/credit-sales/all', { from: monthStart, status: 'escalated' }) },
+  { label: 'Approved',   count: s.value.approved         ?? 0, color: '#10b981', to: credit('/credit-sales/all', { from: monthStart, status: 'approved' }) },
+  { label: 'Production', count: s.value.in_production    ?? 0, color: '#3b82f6', to: credit('/credit-sales/all', { from: monthStart, status: 'in_production' }) },
+  { label: 'Ready',      count: s.value.ready_to_ship    ?? 0, color: '#06b6d4', to: credit('/credit-sales/all', { from: monthStart, status: 'ready_to_ship' }) },
+  { label: 'Dispatched', count: s.value.dispatched       ?? 0, color: '#f97316', to: credit('/credit-sales/all', { from: monthStart, status: 'goods_on_board,shipped,dispatched' }) },
+  { label: 'Delivered',  count: s.value.delivered        ?? 0, color: '#14b8a6', to: credit('/credit-sales/all', { from: monthStart, status: 'delivered' }) },
 ])
 
 // F key shortcut for war room

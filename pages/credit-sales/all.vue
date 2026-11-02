@@ -6,6 +6,13 @@
       </template>
     </UiPageHeader>
 
+    <div v-if="fromDate || activeFilter.includes(',')" class="flex items-center gap-2 text-xs">
+      <span class="px-2.5 py-1 rounded-lg bg-gold-500/10 text-gold-300 border border-gold-500/25">
+        Showing<template v-if="activeFilter"> {{ activeFilter.split(',').map((x: string) => x.replace(/_/g, ' ')).join(' / ') }}</template> orders<template v-if="fromDate"> placed since {{ fromDate }}</template>
+      </span>
+      <button class="text-gray-500 hover:text-gray-200 underline" @click="fromDate = ''; activeFilter = ''; page = 1; refresh()">clear</button>
+    </div>
+
     <!-- Status filter chips -->
     <div class="flex items-center gap-2 flex-wrap">
       <button v-for="f in statusFilters" :key="f.value"
@@ -33,7 +40,7 @@
         <input v-model="heldOnly" type="checkbox" class="accent-amber-500" />
         ⚠ Held only <span v-if="heldCount" class="text-amber-400 font-semibold">({{ heldCount }})</span>
       </label>
-      <button @click="search='';priorityFilter='';activeFilter='';heldOnly=false;page=1;refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
+      <button @click="search='';priorityFilter='';activeFilter='';fromDate='';heldOnly=false;page=1;refresh()" class="btn-ghost text-xs py-1.5">Reset</button>
       <a :href="detailExportUrl" class="btn-ghost text-xs py-1.5" title="One row per line item, with truck/delivery info and approval/dispatch/delivery timestamps">⬇ Detailed CSV</a>
       <div class="ml-auto flex items-center gap-3 text-xs text-gray-500">
         <span class="font-medium text-gray-300">{{ data?.total ?? 0 }}</span> orders
@@ -124,7 +131,9 @@ const perms = usePermissions()
 definePageMeta({ layout: 'default' })
 
 const search        = ref(String(useRoute().query.search ?? ''))
-const activeFilter  = ref('')
+const routeQ         = useRoute().query
+const activeFilter  = ref(String(routeQ.status ?? ''))
+const fromDate      = ref(/^\d{4}-\d{2}-\d{2}$/.test(String(routeQ.from ?? '')) ? String(routeQ.from) : '')   // set by dashboard cards: "this month"
 const priorityFilter = ref('')
 const page          = ref(1)
 const perPage       = 20
@@ -133,6 +142,7 @@ const { data, pending, error, refresh } = await useFetch('/api/credit-sales', {
   query: computed(() => ({
     search: search.value,
     status: activeFilter.value,
+    from:   fromDate.value || undefined,
     page:   page.value,
     per:    perPage,
   })),

@@ -865,7 +865,7 @@ const _routes = [
     name: "dashboard",
     path: "/dashboard",
     meta: __nuxt_page_meta$2k || {},
-    component: () => import('./index-BLbLcUqz.mjs')
+    component: () => import('./index-Boxxr70c.mjs')
   },
   {
     name: "expenses-create",
@@ -889,7 +889,7 @@ const _routes = [
     name: "credit-sales-all",
     path: "/credit-sales/all",
     meta: __nuxt_page_meta$2g || {},
-    component: () => import('./all-CbPUhYMm.mjs')
+    component: () => import('./all-CdOQAH-0.mjs')
   },
   {
     name: "customers-create",

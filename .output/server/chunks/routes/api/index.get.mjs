@@ -42,8 +42,14 @@ const index_get = defineEventHandler(async (event) => {
       params.push(like, like, like);
     }
     if (status) {
-      whereClauses.push("o.status = ?");
-      params.push(status);
+      const list = status.split(",").map((x) => x.trim()).filter(Boolean);
+      whereClauses.push(list.length > 1 ? "o.status IN (?)" : "o.status = ?");
+      params.push(list.length > 1 ? list : list[0]);
+    }
+    const from = q.from || "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(from)) {
+      whereClauses.push("o.order_date >= ?");
+      params.push(from);
     }
     const where = whereClauses.length ? "WHERE " + whereClauses.join(" AND ") : "";
     const baseSelect = `
