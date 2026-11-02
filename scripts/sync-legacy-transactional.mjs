@@ -312,6 +312,40 @@ async function main() {
   if (APPLY) await vue.beginTransaction()
 
   try {
+    // ---- order-number collisions -----------------------------------------
+    // Both apps number orders per day (CR-YYYYMMDD-NNNN), so an order created in this app (id >= 1,000,000) can carry the
+    // same number as a DIFFERENT legacy order. Legacy numbers are the ones on paper and in the old system, so the app-native
+    // order is renumbered with a -V<n> suffix (nothing else about it changes; the rename is written to its timeline).
+    const [legNums] = await legacy.query('SELECT id, order_number FROM credit_orders')
+    const [vueNative] = await vue.query('SELECT id, order_number FROM credit_orders WHERE id >= 1000000')
+    const legByNum = new Map(legNums.map(r => [r.order_number, r.id]))
+    for (const n of vueNative) {
+      const lid = legByNum.get(n.order_number)
+      if (lid == null) continue
+      const renamed = `${n.order_number}-V${Number(n.id) - 999999}`
+      report.warnings.push(`order number ${n.order_number} is used by app-native order #${n.id} AND legacy order #${lid} — app-native one ${APPLY ? 'renumbered to' : 'will be renumbered to'} ${renamed}`)
+      if (APPLY) {
+        await vue.query('UPDATE credit_orders SET order_number = ?, updated_at = NOW() WHERE id = ?', [renamed, n.id])
+        await vue.query(
+          `INSERT INTO credit_order_workflow (order_id, from_status, to_status, action, performed_by_user_id, comments, performed_at)
+           SELECT id, status, status, 'renumbered', ?, ?, NOW() FROM credit_orders WHERE id = ?`,
+          [FALLBACK_USER_ID, `Order number ${n.order_number} → ${renamed}: legacy order #${lid} already holds ${n.order_number} (legacy sync)`, n.id])
+      }
+    }
+
+    // Same collision rule for the other numbered documents an app-native row can share a number with.
+    for (const [table, col, legCol] of [['customer_payments', 'payment_number', 'payment_number'], ['credit_order_returns', 'return_number', 'return_number'], ['order_amendments', 'amendment_number', 'amd_number']]) {
+      const [nat] = await vue.query(`SELECT id, ${col} num FROM ${table} WHERE id >= 1000000 AND ${col} IS NOT NULL`)
+      if (!nat.length) continue
+      const [hit] = await legacy.query(`SELECT id, ${legCol} num FROM ${table} WHERE ${legCol} IN (${nat.map(() => '?').join(',')})`, nat.map(r => r.num))
+      for (const h of hit) {
+        const n = nat.find(r => r.num === h.num)
+        const renamed = `${n.num}-V${Number(n.id) - 999999}`
+        report.warnings.push(`${table}.${col} ${n.num} is used by app-native #${n.id} AND legacy #${h.id} — app-native one ${APPLY ? 'renumbered to' : 'will be renumbered to'} ${renamed}`)
+        if (APPLY) await vue.query(`UPDATE ${table} SET ${col} = ? WHERE id = ?`, [renamed, n.id])
+      }
+    }
+
     // ---- credit_orders --------------------------------------------------
     const insertedOrderIds = await syncTable(legacy, vue, {
       table: 'credit_orders',
@@ -768,6 +802,131 @@ async function main() {
         }
       },
     })
+
+    // ---- goods_received_adnan (GRNs: wheat received against a PO) -------------
+    // Not covered by the first purchase sync, so Vue stopped at GRN #1914 (26 Jul). weight_variance is a generated column.
+    await syncTable(legacy, vue, {
+      table: 'goods_received_adnan',
+      columns: [
+        'id', 'uuid', 'grn_number', 'purchase_order_id', 'po_number', 'grn_date', 'truck_number', 'supplier_id', 'supplier_name',
+        'quantity_received_kg', 'unit_price_per_kg', 'total_value', 'expected_quantity', 'variance_percentage', 'variance_remarks',
+        'unload_point_branch_id', 'unload_point_name', 'grn_status', 'remarks', 'receiver_user_id', 'verified_by_user_id',
+        'verified_at', 'journal_entry_id', 'created_at', 'updated_at',
+      ],
+      note: 'weight_variance is generated in vue — not inserted',
+      transform: (row) => {
+        if (!safePoIds.has(String(row.purchase_order_id))) {
+          report.warnings.push(`goods_received_adnan #${row.id}: purchase_order_id ${row.purchase_order_id} missing/unverified in vue — skipped`)
+          return null
+        }
+        if (row.supplier_id != null && !safeSupplierIds.has(String(row.supplier_id))) {
+          report.warnings.push(`goods_received_adnan #${row.id}: supplier_id ${row.supplier_id} missing/unverified in vue — skipped`)
+          return null
+        }
+        const notes = []
+        const receiver = mapUser(userMap, row.receiver_user_id, notes)
+        const verifier = mapUser(userMap, row.verified_by_user_id, notes)
+        let branch = row.unload_point_branch_id
+        if (branch != null && !vueBranchIds.has(String(branch))) branch = null
+        let je = row.journal_entry_id
+        if (je != null && !safeJournalEntryIds.has(String(je))) je = null
+        return {
+          ...row,
+          purchase_order_id: safePoIds.resolve(row.purchase_order_id),
+          supplier_id: row.supplier_id != null ? safeSupplierIds.resolve(row.supplier_id) : null,
+          receiver_user_id: receiver.value, verified_by_user_id: verifier.value,
+          unload_point_branch_id: branch, journal_entry_id: je,
+          remarks: [row.remarks, ...notes].filter(Boolean).join(' | ') || null,
+        }
+      },
+    })
+
+    // ---- supplier_balance_adjustments (credit/debit notes applied to a supplier's balance) ----
+    const vueNoteIds = await refSet(vue, 'purchase_adjustment_notes')
+    const vuePayIds = await refSet(vue, 'purchase_payments_adnan')
+    await syncTable(legacy, vue, {
+      table: 'supplier_balance_adjustments',
+      columns: ['id', 'supplier_id', 'purchase_order_id', 'adjustment_note_id', 'payment_id', 'type', 'amount', 'description', 'created_by_user_id', 'created_at'],
+      transform: (row) => {
+        if (!safeSupplierIds.has(String(row.supplier_id))) {
+          report.warnings.push(`supplier_balance_adjustments #${row.id}: supplier_id ${row.supplier_id} missing/unverified in vue — skipped`)
+          return null
+        }
+        if (row.purchase_order_id != null && !safePoIds.has(String(row.purchase_order_id))) {
+          report.warnings.push(`supplier_balance_adjustments #${row.id}: purchase_order_id ${row.purchase_order_id} missing/unverified in vue — skipped`)
+          return null
+        }
+        const notes = []
+        const createdBy = mapUser(userMap, row.created_by_user_id, notes)
+        return {
+          ...row,
+          supplier_id: safeSupplierIds.resolve(row.supplier_id),
+          purchase_order_id: row.purchase_order_id != null ? safePoIds.resolve(row.purchase_order_id) : null,
+          adjustment_note_id: row.adjustment_note_id != null && vueNoteIds.has(String(row.adjustment_note_id)) ? row.adjustment_note_id : null,
+          payment_id: row.payment_id != null && vuePayIds.has(String(row.payment_id)) ? row.payment_id : null,
+          created_by_user_id: createdBy.value,
+          description: [row.description, ...notes].filter(Boolean).join(' | ') || row.description,
+        }
+      },
+    })
+
+    // ---- PURCHASE CATCH-UP (opt-in: --catchup) ---------------------------------
+    // Purchase orders synced earlier froze at their old received/paid/status figures while legacy kept receiving
+    // wheat and paying suppliers. No purchase activity happens natively in this app (verified: no GRN/payment/PO row
+    // exists only here), so legacy's current figures are copied onto the matching rows.
+    if (CATCHUP) {
+      const [lPo] = await legacy.query('SELECT * FROM purchase_orders_adnan')
+      const [vPo] = await vue.query('SELECT * FROM purchase_orders_adnan')
+      const vPoById = new Map(vPo.map(r => [r.id, r]))
+      const PO_COLS = ['total_received_qty', 'total_received_value', 'total_paid', 'balance_payable', 'po_status', 'delivery_status', 'payment_status',
+        'is_delivery_locked', 'delivery_lock_reason', 'delivery_locked_at', 'total_adjustment_amount', 'final_delivery_marked', 'quantity_kg', 'unit_price_per_kg', 'total_order_value']
+      const same = (a, b) => (typeof a === 'number' || typeof b === 'number') ? Math.abs(Number(a ?? 0) - Number(b ?? 0)) < 0.005 : String(a ?? '') === String(b ?? '')
+      let poFixed = 0
+      for (const l of lPo) {
+        const v = vPoById.get(l.id)
+        if (!v || v.po_number !== l.po_number) continue
+        const sets = {}
+        for (const c of PO_COLS) if (c in l && c in v && !same(l[c], v[c])) sets[c] = l[c]
+        if (!Object.keys(sets).length) continue
+        poFixed++
+        if (APPLY) await vue.query(`UPDATE purchase_orders_adnan SET ${Object.keys(sets).map(k => `\`${k}\` = ?`).join(', ')}, updated_at = NOW() WHERE id = ?`, [...Object.values(sets), v.id])
+      }
+      // payments that were synced before their journal entry existed here
+      const [lPay] = await legacy.query('SELECT id, journal_entry_id, is_posted FROM purchase_payments_adnan WHERE journal_entry_id IS NOT NULL')
+      const [vPay] = await vue.query('SELECT id, journal_entry_id FROM purchase_payments_adnan')
+      const vPayById = new Map(vPay.map(r => [r.id, r]))
+      let linked = 0
+      for (const l of lPay) {
+        const v = vPayById.get(l.id)
+        if (!v || v.journal_entry_id != null || !safeJournalEntryIds.has(String(l.journal_entry_id))) continue
+        linked++
+        if (APPLY) await vue.query('UPDATE purchase_payments_adnan SET journal_entry_id = ?, is_posted = ? WHERE id = ?', [l.journal_entry_id, l.is_posted, v.id])
+      }
+      // wheat stock by (commodity, branch, origin): legacy's figure is the truth (nothing here moves stock natively — vue rows were last touched on the previous sync day)
+      const [lInv] = await legacy.query('SELECT id, commodity_id, branch_id, origin, quantity_on_hand, weighted_avg_cost, updated_at FROM commodity_inventory')
+      const [vInv] = await vue.query('SELECT id, commodity_id, branch_id, origin, qty_on_hand, weighted_avg_cost FROM commodity_inventory')
+      const vInvByKey = new Map(vInv.map(r => [`${r.commodity_id}|${r.branch_id}|${r.origin ?? ''}`, r]))
+      const vInvIds = new Set(vInv.map(r => r.id))
+      let invNew = 0, invFixed = 0
+      for (const l of lInv) {
+        const v = vInvByKey.get(`${l.commodity_id}|${l.branch_id}|${l.origin ?? ''}`)
+        if (!v) {
+          invNew++
+          if (APPLY) await vue.query(`INSERT INTO commodity_inventory (${vInvIds.has(l.id) ? '' : 'id, '}commodity_id, branch_id, origin, qty_on_hand, weighted_avg_cost, updated_at) VALUES (${vInvIds.has(l.id) ? '' : '?, '}?, ?, ?, ?, ?, ?)`,
+            [...(vInvIds.has(l.id) ? [] : [l.id]), l.commodity_id, l.branch_id, l.origin ?? '', l.quantity_on_hand, l.weighted_avg_cost, l.updated_at])
+        } else if (!same(Number(l.quantity_on_hand), Number(v.qty_on_hand)) || !same(Number(l.weighted_avg_cost), Number(v.weighted_avg_cost))) {
+          invFixed++
+          if (APPLY) await vue.query('UPDATE commodity_inventory SET qty_on_hand = ?, weighted_avg_cost = ?, updated_at = ? WHERE id = ?', [l.quantity_on_hand, l.weighted_avg_cost, l.updated_at, v.id])
+        }
+      }
+      // notes that exist here but not in legacy any more (deleted there after an earlier sync) — report only, never delete
+      const [lNotes] = await legacy.query('SELECT id FROM purchase_adjustment_notes')
+      const lNoteIds = new Set(lNotes.map(r => r.id))
+      const [vNotes] = await vue.query('SELECT id, note_number, amount, status FROM purchase_adjustment_notes')
+      for (const n of vNotes) if (!lNoteIds.has(n.id)) report.warnings.push(`purchase catch-up: adjustment note ${n.note_number} (৳${n.amount}, ${n.status}) exists here but legacy no longer has it — left untouched (cross-check)`)
+      report.tables.push({ table: 'purchase catch-up', missing: poFixed + linked + invNew + invFixed, inserted: poFixed + linked + invNew + invFixed, skipped: 0,
+        note: `${poFixed} purchase orders brought up to legacy's received/paid/status · ${linked} payments linked to their journal · wheat stock: ${invNew} rows added, ${invFixed} corrected` })
+    }
 
     // ---- expense_vouchers ----------------------------------------------------
     const vueCategoryIds = await refSet(vue, 'expense_categories')

@@ -14,7 +14,7 @@ import 'node:url';
 
 const stats_get = defineEventHandler(async () => {
   var _a;
-  const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const today = new Date(Date.now() + 6 * 36e5).toISOString().slice(0, 10);
   const monthStart = today.slice(0, 7) + "-01";
   const [
     orderStats,
@@ -41,15 +41,17 @@ const stats_get = defineEventHandler(async () => {
        WHERE order_date >= ?`,
       [monthStart]
     ),
-    // Revenue this month: based on DELIVERY date (not order_date)
-    // so orders placed in a prior month but delivered today appear correctly.
+    // Revenue this month = net sales INVOICED this month: the invoices posted to customer ledgers (goods on board) plus debit
+    // notes, minus credit notes (returns / discounts). It used to add up the delivery records, but most orders are delivered
+    // without one, so the figure read ৳0 while crores had been sold.
     // Collected:    payments received this month (payment_date)
     // Outstanding:  ALL active balance_due regardless of when ordered
     queryOne(
       `SELECT
-         COALESCE((SELECT SUM(d.total_amount_delivered)
-                   FROM credit_order_deliveries d
-                   WHERE d.delivery_date >= ?), 0)            AS total_revenue,
+         COALESCE((SELECT SUM(CASE WHEN l.transaction_type IN ('invoice','debit_note') THEN l.debit_amount
+                                   WHEN l.transaction_type = 'credit_note'             THEN -l.credit_amount ELSE 0 END)
+                   FROM customer_ledger l
+                   WHERE l.transaction_date >= ? AND l.reference_type <> 'initial_due'), 0) AS total_revenue,
          COALESCE((SELECT SUM(p.amount)
                    FROM customer_payments p
                    WHERE p.payment_date >= ?), 0)             AS total_collected,
