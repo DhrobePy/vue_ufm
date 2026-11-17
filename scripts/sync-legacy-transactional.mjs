@@ -59,6 +59,7 @@ import { dirname, join } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const APPLY = process.argv.includes('--apply')
+const FORCE = process.argv.includes('--force')   // with --catchup: copy legacy's money figures even where Vue shows more received (use after the Vue-only records were removed)
 const CATCHUP = process.argv.includes('--catchup')   // also bring ALREADY-SYNCED orders up to legacy's current state (status, money, item prices)
 
 // ---- tiny .env loader (no extra dependency) --------------------------------
@@ -185,6 +186,14 @@ async function buildSafeParentIds(legacy, vue, table, missingIds, naturalKeyCols
 async function presentColumns(conn, table) {
   const [r] = await conn.query(`SELECT COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`, [table])
   return new Set(r.map(x => x.c))
+}
+
+/** Columns present in BOTH databases (and not generated in vue) — for tables whose schemas match. */
+async function sharedColumns(legacy, vue, table, exclude = []) {
+  const [lc, vc] = [await presentColumns(legacy, table), await presentColumns(vue, table)]
+  const [gen] = await vue.query(`SELECT COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND GENERATION_EXPRESSION <> ''`, [table])
+  const generated = new Set(gen.map(x => x.c))
+  return [...lc].filter(c => vc.has(c) && !generated.has(c) && !exclude.includes(c))
 }
 
 async function syncTable(legacy, vue, { table, columns, optional = [], transform, note }) {
@@ -346,6 +355,35 @@ async function main() {
       }
     }
 
+    // ---- branches (master data) ------------------------------------------------
+    // Legacy added branches 6-8 and renamed #5 (was "Coxsbazar Branch", now "Chittagong"). Missing ones are added with their
+    // own ids; with --catchup existing ones take legacy's name/code/address/phone/status. branch_type / source branch stay as set here.
+    {
+      const bcols = await sharedColumns(legacy, vue, 'branches', ['branch_type', 'source_branch_id'])
+      const [lBr] = await legacy.query(`SELECT ${bcols.join(',')} FROM branches ORDER BY id`)
+      const [vBr] = await vue.query(`SELECT ${bcols.join(',')} FROM branches`)
+      const vById = new Map(vBr.map(r => [Number(r.id), r]))
+      let added = 0, renamed = 0
+      for (const l of lBr) {
+        const v = vById.get(Number(l.id))
+        if (!v) {
+          added++
+          report.warnings.push(`branches: #${l.id} "${l.name}" ${APPLY ? 'added' : 'will be added'}`)
+          if (APPLY) await vue.query(`INSERT INTO branches (${bcols.map(c => `\`${c}\``).join(',')}) VALUES (${bcols.map(() => '?').join(',')})`, bcols.map(c => l[c] ?? null))
+          vueBranchIds.add(String(l.id))
+        } else if (CATCHUP) {
+          const sets = {}
+          for (const c of ['name', 'code', 'address', 'phone_number', 'status']) if (bcols.includes(c) && l[c] != null && String(l[c]) !== String(v[c] ?? '')) sets[c] = l[c]   // never blank out something that is filled in here
+          if (Object.keys(sets).length) {
+            renamed++
+            report.warnings.push(`branches: #${l.id} "${v.name}" → ${JSON.stringify(sets)} (legacy's current details)`)
+            if (APPLY) await vue.query(`UPDATE branches SET ${Object.keys(sets).map(k => `\`${k}\` = ?`).join(', ')} WHERE id = ?`, [...Object.values(sets), l.id])
+          }
+        }
+      }
+      report.tables.push({ table: 'branches', missing: added + renamed, inserted: added + renamed, skipped: 0, note: `${added} added · ${renamed} renamed/updated` })
+    }
+
     // ---- credit_orders --------------------------------------------------
     const insertedOrderIds = await syncTable(legacy, vue, {
       table: 'credit_orders',
@@ -391,7 +429,7 @@ async function main() {
     const safeOrderIds = await buildSafeParentIds(legacy, vue, 'credit_orders', insertedOrderIds, ['order_number'])
 
     // ---- credit_order_items ----------------------------------------------
-    await syncTable(legacy, vue, {
+    const insertedItemIds = await syncTable(legacy, vue, {
       table: 'credit_order_items',
       columns: [
         'id', 'order_id', 'product_id', 'variant_id', 'quantity', 'unit_price',
@@ -805,7 +843,7 @@ async function main() {
 
     // ---- goods_received_adnan (GRNs: wheat received against a PO) -------------
     // Not covered by the first purchase sync, so Vue stopped at GRN #1914 (26 Jul). weight_variance is a generated column.
-    await syncTable(legacy, vue, {
+    const insertedGrnIds = await syncTable(legacy, vue, {
       table: 'goods_received_adnan',
       columns: [
         'id', 'uuid', 'grn_number', 'purchase_order_id', 'po_number', 'grn_date', 'truck_number', 'supplier_id', 'supplier_name',
@@ -926,6 +964,98 @@ async function main() {
       for (const n of vNotes) if (!lNoteIds.has(n.id)) report.warnings.push(`purchase catch-up: adjustment note ${n.note_number} (৳${n.amount}, ${n.status}) exists here but legacy no longer has it — left untouched (cross-check)`)
       report.tables.push({ table: 'purchase catch-up', missing: poFixed + linked + invNew + invFixed, inserted: poFixed + linked + invNew + invFixed, skipped: 0,
         note: `${poFixed} purchase orders brought up to legacy's received/paid/status · ${linked} payments linked to their journal · wheat stock: ${invNew} rows added, ${invFixed} corrected` })
+    }
+
+    // ---- expense categories (needed by expense_vouchers) --------------------
+    for (const table of ['expense_categories', 'expense_subcategories']) {
+      const cols = await sharedColumns(legacy, vue, table)
+      await syncTable(legacy, vue, { table, columns: cols, transform: (row) => {
+        for (const c of ['created_by_user_id', 'updated_by_user_id']) if (c in row) row[c] = mapUser(userMap, row[c], []).value
+        return row
+      } })
+    }
+    // ---- weight variances recorded against GRNs --------------------------------
+    {
+      const vueGrnIds = await refSet(vue, 'goods_received_adnan')
+      const cols = await sharedColumns(legacy, vue, 'weight_variances_adnan')
+      await syncTable(legacy, vue, { table: 'weight_variances_adnan', columns: cols, transform: (row) => {
+        if (!vueGrnIds.has(String(row.grn_id)) && !insertedGrnIds.has(String(row.grn_id))) { report.warnings.push(`weight_variances_adnan #${row.id}: grn_id ${row.grn_id} missing in vue — skipped`); return null }
+        return row
+      } })
+    }
+    // ---- price history of each credit order line (who changed which price, and why) -------------
+    {
+      const vueItemIds = await refSet(vue, 'credit_order_items')
+      const cols = await sharedColumns(legacy, vue, 'credit_order_price_revisions')
+      await syncTable(legacy, vue, { table: 'credit_order_price_revisions', columns: cols, transform: (row) => {
+        if (!safeOrderIds.has(String(row.order_id))) { report.warnings.push(`credit_order_price_revisions #${row.id}: order ${row.order_id} missing in vue — skipped`); return null }
+        row.changed_by_user_id = mapUser(userMap, row.changed_by_user_id, []).value
+        if (row.order_item_id != null && !vueItemIds.has(String(row.order_item_id)) && !insertedItemIds.has(String(row.order_item_id))) row.order_item_id = null
+        return row
+      } })
+    }
+    // ---- catalogue prices: append-only history; the CURRENT price is each variant+branch's newest row -----
+    // (this app was serving prices frozen at 14 Oct while legacy updated them daily)
+    {
+      const vueVariantNow = await refSet(vue, 'product_variants')
+      for (const table of ['product_prices', 'price_change_log']) {
+        const cols = await sharedColumns(legacy, vue, table)
+        let dropped = 0
+        await syncTable(legacy, vue, { table, columns: cols, transform: (row) => {
+          if (!vueVariantNow.has(String(row.variant_id)) || (row.branch_id != null && !vueBranchIds.has(String(row.branch_id)))) { dropped++; return null }
+          return row
+        } })
+        if (dropped) report.warnings.push(`${table}: ${dropped} row(s) for a variant/branch that does not exist in vue — skipped`)
+      }
+    }
+    // ---- dispatch / production holds on orders ---------------------------------------------------------
+    // legacy column names differ: production_note, cleared_by/at, clearance_note  →  production_hold_note, dispatch_cleared_by/at/note
+    {
+      const cols = (await sharedColumns(legacy, vue, 'order_approval_conditions')).filter(c => c !== 'created_by_user_id' && c !== 'created_at')
+      const mapped = [['production_note', 'production_hold_note'], ['cleared_by', 'dispatch_cleared_by'], ['cleared_at', 'dispatch_cleared_at'], ['clearance_note', 'dispatch_cleared_note']]
+      const [lc] = await legacy.query('SELECT COLUMN_NAME c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?', ['order_approval_conditions'])
+      const legacyCols = new Set(lc.map(x => x.c))
+      const extra = mapped.filter(([l]) => legacyCols.has(l))
+      // Only orders still in flight get their holds copied: on delivered/cancelled orders an old hold flag is just history and
+      // would show up as noise in the "held" filters.
+      const [lSt] = await legacy.query('SELECT id, status FROM credit_orders')
+      const finalOrder = new Set(lSt.filter(o => ['delivered', 'cancelled', 'rejected'].includes(o.status)).map(o => String(o.id)))
+      await syncTable(legacy, vue, {
+        table: 'order_approval_conditions', columns: [...cols, ...extra.map(([l]) => l)],
+        note: 'holds of orders still in flight only; legacy production_note/cleared_by/cleared_at/clearance_note mapped to vue names',
+        transform: (row) => {
+          if (!safeOrderIds.has(String(row.order_id)) || finalOrder.has(String(row.order_id))) return null
+          for (const [l, v] of extra) { row[v] = row[l]; delete row[l] }
+          for (const c of ['production_released_by', 'dispatch_cleared_by']) if (c in row) row[c] = mapUser(userMap, row[c], []).value
+          return row
+        },
+      })
+    }
+    // An app-native bank row (auto-bridged from a customer payment, source_payment_id set) can sit on an id or number that legacy
+    // also uses for a different transaction. Move the app-native row out of the way (id >= 1,000,000, number gets a -V suffix).
+    {
+      const [lB] = await legacy.query('SELECT id, transaction_number n FROM bank_transactions')
+      const lIds = new Set(lB.map(r => Number(r.id))), lNums = new Set(lB.map(r => r.n))
+      const [vN] = await vue.query('SELECT id, transaction_number n FROM bank_transactions WHERE source_payment_id IS NOT NULL')
+      for (const n of vN) {
+        if (!lIds.has(Number(n.id)) && !lNums.has(n.n)) continue
+        const [[mx]] = await vue.query('SELECT GREATEST(COALESCE(MAX(id), 0), 999999) m FROM bank_transactions')
+        const newId = Number(mx.m) + 1, newNo = `${n.n}-V${newId - 999999}`
+        report.warnings.push(`bank_transactions: app-native #${n.id} ${n.n} clashes with legacy — ${APPLY ? 'moved to' : 'will move to'} #${newId} ${newNo}`)
+        if (APPLY) await vue.query('UPDATE bank_transactions SET id = ?, transaction_number = ? WHERE id = ?', [newId, newNo, n.id])
+      }
+    }
+    // ---- bank statement module (bank_tx_*) -----------------------------------------------------------------
+    // Same schemas; this app's extra columns (source_payment_id, reconciled_*, journal_entry_id, transfer_pair_id) stay at their defaults.
+    for (const table of ['bank_tx_accounts', 'bank_tx_transaction_types', 'bank_transactions', 'bank_tx_transfers', 'bank_account_reconciliations']) {
+      const cols = await sharedColumns(legacy, vue, table)
+      const vueBankTxIds = table === 'bank_transactions' ? await refSet(vue, 'bank_tx_accounts') : null
+      const userCols = cols.filter(c => /(_user_id|^created_by|^approved_by)$/.test(c) || c === 'created_by' || c === 'reconciled_by_user_id')
+      await syncTable(legacy, vue, { table, columns: cols, transform: (row) => {
+        for (const c of userCols) if (row[c] != null) row[c] = mapUser(userMap, row[c], []).value
+        if (table === 'bank_transactions' && row.branch_id != null && !vueBranchIds.has(String(row.branch_id))) row.branch_id = null
+        return row
+      } })
     }
 
     // ---- expense_vouchers ----------------------------------------------------
@@ -1118,7 +1248,7 @@ async function main() {
         if (!l) continue
         const sets = {}
         const legacyPaid = n(l.amount_paid) + n(l.advance_paid), vuePaid = n(v.amount_paid) + n(v.advance_paid)
-        if (vuePaid > legacyPaid + 0.01) { skippedVueAhead++; report.warnings.push(`catch-up: ${v.order_number} — Vue shows ৳${vuePaid} received but legacy only ৳${legacyPaid}; left untouched (cross-check)`); continue }
+        if (!FORCE && vuePaid > legacyPaid + 0.01) { skippedVueAhead++; report.warnings.push(`catch-up: ${v.order_number} — Vue shows ৳${vuePaid} received but legacy only ৳${legacyPaid}; left untouched (cross-check)`); continue }
         const lr = RANK[l.status], vr = RANK[v.status]
         const terminalFromEarly = ['cancelled', 'rejected'].includes(l.status) && (vr ?? 99) <= 2
         if (l.status !== v.status && (terminalFromEarly || (lr !== undefined && vr !== undefined && lr > vr))) { sets.status = l.status; statusFwd++ }
