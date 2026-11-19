@@ -1,0 +1,214 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   APPLE interface style  (html[data-ui="apple"])  — the default. "Classic" = the same file with this layer switched off.
+   Built from Apple's Human Interface Guidelines:
+     • system font (SF Pro on Apple devices), one blue accent that means "you can act on this", grouped surfaces on a flat
+       background, hairline separators, 9–12 px continuous-feeling radii, no glow / gradient decoration
+     • translucent material ONLY on the floating bars (sidebar, top bar) — never inside content cards
+     • light & dark follow the system; focus rings; 44 pt hit targets on touch; reduced motion / transparency respected
+   Light/dark specifics use html[data-theme="light"], which the theme engine already sets for light bases.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+html[data-ui="apple"] {
+  --a-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Helvetica Neue", Inter, system-ui, sans-serif;
+  /* dark appearance */
+  --a-surface:   #1c1c1e;
+  --a-surface-2: #2c2c2e;
+  --a-sep:       rgba(84, 84, 88, 0.55);
+  --a-sep-soft:  rgba(84, 84, 88, 0.32);
+  --a-fill:      rgba(120, 120, 128, 0.24);
+  --a-fill-hover: rgba(120, 120, 128, 0.34);
+  --a-field:     rgba(118, 118, 128, 0.24);
+  --a-label:     #ffffff;
+  --a-label-2:   rgba(235, 235, 245, 0.62);
+  --a-card-shadow: none;
+  --a-bar:       rgba(28, 28, 30, 0.72);
+}
+html[data-ui="apple"][data-theme="light"] {
+  --a-surface:   #ffffff;
+  --a-surface-2: #f2f2f7;
+  --a-sep:       rgba(60, 60, 67, 0.29);
+  --a-sep-soft:  rgba(60, 60, 67, 0.16);
+  --a-fill:      rgba(120, 120, 128, 0.12);
+  --a-fill-hover: rgba(120, 120, 128, 0.2);
+  --a-field:     rgba(118, 118, 128, 0.12);
+  --a-label:     #000000;
+  --a-label-2:   rgba(60, 60, 67, 0.74);
+  --a-card-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --a-bar:       rgba(246, 246, 248, 0.78);
+}
+
+/* ── Page, type ───────────────────────────────────────────────────────────────────────────── */
+html[data-ui="apple"] body {
+  font-family: var(--a-font);
+  background: var(--bg-from);            /* flat grouped background — no radial atmosphere */
+  background-attachment: scroll;
+  color: var(--a-label);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: normal;
+}
+html[data-ui="apple"] .font-display,
+html[data-ui="apple"] h1, html[data-ui="apple"] h2, html[data-ui="apple"] h3 {
+  font-family: var(--a-font);
+  letter-spacing: -0.014em;
+}
+html[data-ui="apple"] h1.font-display { font-weight: 700; letter-spacing: -0.02em; }
+html[data-ui="apple"] .section-title { font-weight: 600; letter-spacing: -0.01em; color: var(--a-label); }
+/* small all-caps labels → sentence case (HIG: avoid all-caps for labels); badges keep what they are */
+html[data-ui="apple"] .uppercase:not(.badge):not([class*="rounded-full"]) { text-transform: none; }
+html[data-ui="apple"] :is(.tracking-wider, .tracking-widest, .tracking-wide) { letter-spacing: 0; }
+html[data-ui="apple"] .text-gradient-gold { background: none; -webkit-text-fill-color: currentColor; color: var(--a-label); }
+
+/* ── One accent = "tap me". Brand gold used as decoration becomes neutral; interactive gold becomes the blue ─── */
+html[data-ui="apple"] :is(a, button, summary)[class*="text-gold-"] { color: var(--accent-ink) !important; }
+html[data-ui="apple"] :not(a):not(button):not(summary)[class*="text-gold-"] { color: var(--a-label) !important; font-weight: 600; }
+html[data-ui="apple"] [class*="bg-gold-"]:not([class*="/"]) { background-color: rgb(var(--accent)) !important; color: #fff !important; }
+html[data-ui="apple"] [class*="bg-gold-"][class*="/"] { background-color: rgb(var(--accent) / 0.14) !important; }
+html[data-ui="apple"] [class*="border-gold-"] { border-color: rgb(var(--accent) / 0.35) !important; }
+html[data-ui="apple"] [class*="shadow-gold"], html[data-ui="apple"] .glow-accent { box-shadow: none !important; }
+html[data-ui="apple"] :is(.bg-gold-radial, .bg-sidebar-glow, .animate-glow-pulse) { background-image: none !important; animation: none !important; }
+
+/* Hard-coded brand gold in inline styles (chips, tinted fills) follows the accent too — inside the app shell and its dialogs only,
+   never on printed documents (invoices, slips, vouchers keep the company brand). */
+html[data-ui="apple"] :is(.app-shell, body > .fixed) :is([style*="background:rgba(245,158,11"], [style*="background: rgba(245,158,11"], [style*="background:rgba(245, 158, 11"]) { background: rgb(var(--accent) / 0.14) !important; }
+html[data-ui="apple"] :is(.app-shell, body > .fixed) :is([style*="border:1px solid rgba(245,158,11"], [style*="border: 1px solid rgba(245,158,11"], [style*="border-color:rgba(245,158,11"]) { border-color: rgb(var(--accent) / 0.35) !important; }
+html[data-ui="apple"] :is(.app-shell, body > .fixed) :is([style*="color:#f59e0b"], [style*="color: #f59e0b"], [style*="color:#fbbf24"], [style*="color: #fbbf24"], [style*="color:#fcd34d"]) { color: var(--accent-ink) !important; }
+
+/* ── Surfaces: grouped cards, no blur / glow / inner highlight ──────────────────────────────────────── */
+html[data-ui="apple"] :is(.glass-card, .glass-card-hover, .card, .stat-card, .modal-box) {
+  background: var(--a-surface);
+  border: 0;
+  border-radius: 12px;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: var(--a-card-shadow);
+}
+html[data-ui="apple"] .glass-card-hover:hover { background: var(--a-surface-2); box-shadow: var(--a-card-shadow); border: 0; }
+html[data-ui="apple"] .rounded-2xl { border-radius: 14px; }
+html[data-ui="apple"] .rounded-xl  { border-radius: 10px; }
+html[data-ui="apple"] .divider, html[data-ui="apple"] hr { border-color: var(--a-sep-soft); }
+html[data-ui="apple"] [class*="border-white/"] { border-color: var(--a-sep-soft) !important; }
+html[data-ui="apple"][data-theme="light"] [class*="border-white/"] { border-color: var(--a-sep-soft) !important; }
+
+/* ── Buttons ───────────────────────────────────────────────────────────────────────────────────── */
+html[data-ui="apple"] :is(.btn-gold, .btn-primary) {
+  background: rgb(var(--accent));
+  background-image: none;
+  color: #fff;
+  border-radius: 9px;
+  min-height: 32px;
+  padding: 0.35rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  box-shadow: none;
+  transition: background-color .15s ease, transform .1s ease, opacity .15s ease;
+}
+html[data-ui="apple"] :is(.btn-gold, .btn-primary):hover:not(:disabled) { background: rgb(0 99 204); box-shadow: none; transform: none; }
+html[data-ui="apple"][data-theme="light"] :is(.btn-gold, .btn-primary):hover:not(:disabled) { background: rgb(0 99 204); }
+html[data-ui="apple"] :is(.btn-gold, .btn-primary):active:not(:disabled) { transform: scale(0.97); }
+html[data-ui="apple"] :is(.btn-ghost, .btn-secondary, .btn-xs) {
+  background: var(--a-fill);
+  border: 0;
+  color: var(--a-label);
+  border-radius: 9px;
+  min-height: 32px;
+  font-weight: 500;
+  box-shadow: none;
+}
+html[data-ui="apple"] :is(.btn-ghost, .btn-secondary, .btn-xs):hover:not(:disabled) { background: var(--a-fill-hover); border: 0; color: var(--a-label); }
+html[data-ui="apple"] .btn-xs { min-height: 28px; }
+
+/* ── Fields ────────────────────────────────────────────────────────────────────────────────────── */
+html[data-ui="apple"] :is(.field-input, .input-glass, .form-input, .input-field) {
+  background: var(--a-field);
+  border: 0;
+  border-radius: 9px;
+  color: var(--a-label);
+  min-height: 34px;
+  box-shadow: none;
+}
+html[data-ui="apple"] :is(.field-input, .input-glass, .form-input, .input-field):focus {
+  background: var(--a-surface);
+  box-shadow: 0 0 0 3.5px rgb(var(--accent) / 0.4);
+  outline: none;
+  border: 0;
+}
+html[data-ui="apple"] ::placeholder { color: var(--a-label-2); opacity: 1; }
+html[data-ui="apple"] :is(.field-label, .form-label, .label) {
+  color: var(--a-label-2);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+html[data-ui="apple"] select option { background: var(--a-surface); color: var(--a-label); }
+
+/* ── Tables & lists: hairline rows, quiet headers ─────────────────────────────────────────────── */
+html[data-ui="apple"] th, html[data-ui="apple"] .th {
+  color: var(--a-label-2) !important;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  border-color: var(--a-sep-soft);
+}
+html[data-ui="apple"] td, html[data-ui="apple"] .td { border-color: var(--a-sep-soft); }
+html[data-ui="apple"] .tr, html[data-ui="apple"] tr { border-color: var(--a-sep-soft); }
+html[data-ui="apple"] tbody tr:hover { background: var(--a-fill) !important; }
+html[data-ui="apple"] .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: var(--a-sep-soft); }
+
+/* ── Floating bars: the ONLY place for translucent material ─────────────────────────────────────── */
+html[data-ui="apple"] header {
+  background: var(--a-bar) !important;
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
+  border-bottom: 0.5px solid var(--a-sep) !important;
+  box-shadow: none !important;
+}
+html[data-ui="apple"] aside {
+  background: var(--a-bar) !important;
+  backdrop-filter: saturate(180%) blur(28px);
+  -webkit-backdrop-filter: saturate(180%) blur(28px);
+  border-right: 0.5px solid var(--a-sep) !important;
+}
+html[data-ui="apple"] aside > .absolute[style*="gradient"] { display: none; }   /* accent glow line + ambient glow */
+html[data-ui="apple"] .nav-item { border-radius: 8px; min-height: 32px; font-weight: 500; color: var(--a-label) !important; }
+html[data-ui="apple"] .nav-item:hover { background: var(--a-fill) !important; color: var(--a-label) !important; }
+html[data-ui="apple"] .nav-item-active {
+  background: rgb(var(--accent) / 0.16) !important;
+  color: var(--accent-ink) !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+/* ── Focus, selection, scrollbars ─────────────────────────────────────────────────────────────── */
+html[data-ui="apple"] :focus-visible { outline: 3px solid rgb(var(--accent) / 0.55); outline-offset: 2px; }
+html[data-ui="apple"] :is(input, select, textarea):focus-visible { outline: none; }
+html[data-ui="apple"] ::-webkit-scrollbar { width: 8px; height: 8px; }
+html[data-ui="apple"] ::-webkit-scrollbar-thumb { background: rgb(var(--tint) / 0.22); border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box; }
+html[data-ui="apple"] ::-webkit-scrollbar-thumb:hover { background: rgb(var(--tint) / 0.36); background-clip: padding-box; }
+
+/* ── Touch: 44 pt minimum hit targets ───────────────────────────────────────────────────────── */
+@media (pointer: coarse) {
+  html[data-ui="apple"] :is(.btn-gold, .btn-primary, .btn-ghost, .btn-secondary, .field-input, .input-glass, .form-input, .input-field, .nav-item) { min-height: 44px; }
+  html[data-ui="apple"] :is(.btn-gold, .btn-primary, .btn-ghost, .btn-secondary) { padding-inline: 1.1rem; }
+  html[data-ui="apple"] .btn-xs { min-height: 40px; }
+}
+
+/* ── Accessibility preferences ────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-transparency: reduce) {
+  html[data-ui="apple"] header, html[data-ui="apple"] aside {
+    background: var(--a-surface) !important;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-ui="apple"] *, html[data-ui="apple"] *::before, html[data-ui="apple"] *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+@media (prefers-contrast: more) {
+  html[data-ui="apple"] { --a-sep: rgba(84, 84, 88, 0.9); --a-sep-soft: rgba(84, 84, 88, 0.7); }
+  html[data-ui="apple"][data-theme="light"] { --a-sep: rgba(60, 60, 67, 0.6); --a-sep-soft: rgba(60, 60, 67, 0.45); }
+}

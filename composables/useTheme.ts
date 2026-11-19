@@ -1,3 +1,13 @@
+import { APPLE_VARS } from '~/utils/appleTheme'
+
+// ── Apple (HIG) bases — not offered in the classic picker; chosen automatically from the system appearance ─────
+const APPLE_BASES = [
+  { id: 'apple-dark',  name: 'Apple Dark',  emoji: '', dark: true,  bgFrom: '#000000', bgTo: '#000000', sidebarFrom: '#1c1c1e', sidebarTo: '#1c1c1e', topbarBg: 'rgba(28,28,30,0.72)',  tint: '255 255 255', preview: ['#000000', '#1c1c1e'] },
+  { id: 'apple-light', name: 'Apple Light', emoji: '', dark: false, bgFrom: '#f2f2f7', bgTo: '#f2f2f7', sidebarFrom: '#f2f2f7', sidebarTo: '#f2f2f7', topbarBg: 'rgba(255,255,255,0.72)', tint: '0 0 0',       preview: ['#f2f2f7', '#ffffff'] },
+] as const
+const APPLE_ACCENT = { id: 'apple', name: 'Apple Blue', from: '#0071e3', to: '#0071e3', rgb: '0 113 227', btnText: '#fff', glow: '0,113,227' } as const
+export type UiStyle = 'apple' | 'classic'
+
 // ── Base Atmospheres ─────────────────────────────────────
 export const BASE_THEMES = [
   {
@@ -111,6 +121,7 @@ function inkOnLight(hex: string): string {
 const KEY_BASE   = 'erp_base_theme'
 const KEY_ACCENT = 'erp_accent'
 const KEY_CUSTOM = 'erp_custom_accent'
+const KEY_UI     = 'erp_ui_style'    // 'apple' (default) | 'classic'
 const KEY_VARS   = 'erp_theme_vars'   // last applied CSS vars — replayed by an inline head script before first paint
 
 // ── Transition class debounce (prevents stacking timeouts on rapid @input) ─
@@ -122,8 +133,9 @@ export function useTheme() {
   const accentId     = useState<AccentId>('theme_accent',    () => 'gold')
   const customHex    = useState<string>('theme_custom_hex',  () => '#f59e0b')
   const pickerOpen   = useState<boolean>('theme_picker',     () => false)
+  const uiStyle      = useState<UiStyle>('ui_style',          () => 'apple')
 
-  const currentBase   = computed(() => BASE_THEMES.find(b => b.id === baseId.value) ?? BASE_THEMES[0])
+  const currentBase   = computed(() => [...BASE_THEMES, ...APPLE_BASES].find(b => b.id === baseId.value) ?? BASE_THEMES[0])
   const currentAccent = computed(() => accentId.value === 'custom' ? null : ACCENTS.find(a => a.id === accentId.value) ?? ACCENTS[0])
   const isDark        = computed(() => currentBase.value.dark)
   // For backward compat (AppTopbar uses themeStore.isDark.value)
@@ -132,9 +144,9 @@ export function useTheme() {
   function applyVars(baseOverride?: BaseThemeId, accentOverride?: AccentId, customOverride?: string) {
     if (!import.meta.client) return
 
-    const b   = BASE_THEMES.find(t => t.id === (baseOverride ?? baseId.value)) ?? BASE_THEMES[0]
+    const b   = ([...BASE_THEMES, ...APPLE_BASES] as any[]).find(t => t.id === (baseOverride ?? baseId.value)) ?? BASE_THEMES[0]
     const aId = accentOverride ?? accentId.value
-    const a   = aId === 'custom' ? null : ACCENTS.find(c => c.id === aId) ?? ACCENTS[0]
+    const a   = aId === 'custom' ? null : aId === 'apple' ? APPLE_ACCENT : ACCENTS.find(c => c.id === aId) ?? ACCENTS[0]
     const hex = customOverride ?? customHex.value
 
     const root = document.documentElement
@@ -161,7 +173,7 @@ export function useTheme() {
     const accentRgb  = a ? a.rgb  : hexToRgbSpaced(hex)
     const accentGlow = a ? a.glow : hexToRgbComma(hex)
     const accentText = readableOn(accentFrom, accentTo)
-    const accentInk  = b.dark ? accentFrom : inkOnLight(accentTo)
+    const accentInk  = aId === 'apple' ? (b.dark ? APPLE_VARS.dark.vars['--accent-ink'] : APPLE_VARS.light.vars['--accent-ink']) : b.dark ? accentFrom : inkOnLight(accentTo)
 
     root.style.setProperty('--accent',      accentRgb)   // "245 158 11"  — for rgb(var(--accent)/0.2)
     root.style.setProperty('--accent-from', accentFrom)  // "#f59e0b"     — for gradient from
@@ -172,7 +184,7 @@ export function useTheme() {
 
     // Remember the result so the inline head script can paint the right theme
     // immediately on the next page load (no dark→light flash).
-    try {
+    if (uiStyle.value === 'classic') try {
       localStorage.setItem(KEY_VARS, JSON.stringify({
         light: !b.dark,
         vars: {
@@ -209,15 +221,40 @@ export function useTheme() {
     }
   }
 
+  /** Apple style follows the system appearance (HIG: no app-specific appearance switch); classic restores the user's own theme. */
+  function applyStyle() {
+    if (!import.meta.client) return
+    document.documentElement.setAttribute('data-ui', uiStyle.value)
+    if (uiStyle.value === 'apple') {
+      baseId.value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'apple-dark' : 'apple-light' as any
+      accentId.value = 'apple' as any
+    } else {
+      const savedBase   = localStorage.getItem(KEY_BASE) as BaseThemeId | null
+      const savedAccent = localStorage.getItem(KEY_ACCENT) as AccentId | null
+      baseId.value   = (savedBase && BASE_THEMES.some(b => b.id === savedBase)) ? savedBase : 'midnight'
+      accentId.value = (savedAccent && (savedAccent === 'custom' || ACCENTS.some(a => a.id === savedAccent))) ? savedAccent : 'gold'
+      const savedCustom = localStorage.getItem(KEY_CUSTOM); if (savedCustom) customHex.value = savedCustom
+    }
+    applyVars()
+  }
+
+  function setUiStyle(style: UiStyle) {
+    uiStyle.value = style
+    if (import.meta.client) { try { localStorage.setItem(KEY_UI, style) } catch { /* private mode */ } }
+    applyStyle()
+  }
+
+  let _mq: MediaQueryList | null = null
   function init() {
     if (!import.meta.client) return
-    const savedBase   = localStorage.getItem(KEY_BASE)   as BaseThemeId | null
-    const savedAccent = localStorage.getItem(KEY_ACCENT) as AccentId    | null
-    const savedCustom = localStorage.getItem(KEY_CUSTOM)
-    if (savedBase)   baseId.value   = savedBase
-    if (savedAccent) accentId.value = savedAccent
-    if (savedCustom) customHex.value = savedCustom
-    applyVars()
+    let saved: string | null = null
+    try { saved = localStorage.getItem(KEY_UI) } catch { /* private mode */ }
+    uiStyle.value = saved === 'classic' ? 'classic' : 'apple'
+    applyStyle()
+    if (!_mq) {
+      _mq = window.matchMedia('(prefers-color-scheme: dark)')
+      _mq.addEventListener('change', () => { if (uiStyle.value === 'apple') applyStyle() })
+    }
   }
 
   // Legacy toggle — flips between midnight ↔ ivory
@@ -229,7 +266,7 @@ export function useTheme() {
   function closePicker() { pickerOpen.value = false }
 
   return {
-    baseId, accentId, customHex, pickerOpen,
+    baseId, accentId, customHex, pickerOpen, uiStyle, setUiStyle,
     currentBase, currentAccent,
     isDark, isDarkRef,   // isDarkRef kept as the legacy alias
     BASE_THEMES, ACCENTS,

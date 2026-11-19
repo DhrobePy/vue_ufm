@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-screen overflow-hidden">
+  <div class="flex h-screen overflow-hidden app-shell">
 
     <!-- ── Mobile backdrop ────────────────────────────── -->
     <Transition name="backdrop">

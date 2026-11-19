@@ -1,3 +1,4 @@
+import { APPLE_VARS } from './utils/appleTheme'
 export default defineNuxtConfig({
   compatibilityDate: '2024-11-01',
   devtools: { enabled: true },
@@ -34,7 +35,7 @@ export default defineNuxtConfig({
     '/api/**': { cors: false },
   },
 
-  css: ['~/assets/css/main.css'],
+  css: ['~/assets/css/main.css', '~/assets/css/apple.css'],
 
   app: {
     head: {
@@ -46,7 +47,8 @@ export default defineNuxtConfig({
       // dark flash on every page load. useTheme() stores the computed CSS vars.
       script: [
         {
-          innerHTML: "try{var t=JSON.parse(localStorage.getItem('erp_theme_vars')||'null');if(t){var r=document.documentElement;for(var k in t.vars)r.style.setProperty(k,t.vars[k]);if(t.light){r.setAttribute('data-theme','light');r.classList.add('light')}}}catch(e){}",
+          // Apple style (default) paints from constants + the system appearance; classic replays the user's saved theme vars.
+          innerHTML: "try{var r=document.documentElement,u=localStorage.getItem('erp_ui_style')||'apple';r.setAttribute('data-ui',u);if(u==='apple'){var A="+JSON.stringify(APPLE_VARS)+",d=matchMedia('(prefers-color-scheme: dark)').matches,t=A[d?'dark':'light'];for(var k in t.vars)r.style.setProperty(k,t.vars[k]);if(t.light){r.setAttribute('data-theme','light');r.classList.add('light')}}else{var t=JSON.parse(localStorage.getItem('erp_theme_vars')||'null');if(t){for(var k in t.vars)r.style.setProperty(k,t.vars[k]);if(t.light){r.setAttribute('data-theme','light');r.classList.add('light')}}}}catch(e){}",
           tagPosition: 'head',
         },
       ],

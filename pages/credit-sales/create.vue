@@ -456,7 +456,7 @@ async function submitOrder() {
 .seg { display: flex; border-radius: 0.65rem; overflow: hidden; border: 1px solid rgb(var(--tint) / 0.1); }
 .seg button { flex: 1; padding: 0.45rem 0.5rem; font-size: 0.75rem; font-weight: 600; color: #9ca3af; white-space: nowrap; }
 .seg button + button { border-left: 1px solid rgb(var(--tint) / 0.1); }
-.seg button.on { background: rgba(245,158,11,0.15); color: #fcd34d; }
+.seg button.on { background: rgb(var(--accent) / 0.16); color: var(--accent-ink); }
 .seg button.on.em { background: rgba(16,185,129,0.15); color: #6ee7b7; }
-.seg button.on.warn { background: rgba(245,158,11,0.2); color: #fbbf24; }
+.seg button.on.warn { background: rgb(var(--accent) / 0.2); color: var(--accent-ink); }
 </style>

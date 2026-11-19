@@ -278,7 +278,16 @@
 
         <!-- Appearance -->
         <div v-if="activeTab === 'appearance'" class="space-y-5">
-          <div class="glass-card p-6 space-y-6">
+          <div class="glass-card p-6 space-y-3">
+            <h3 class="section-title">Interface style</h3>
+            <p class="text-xs text-gray-500">
+              <b class="text-gray-300">Apple</b> follows Apple's Human Interface Guidelines: system type, one blue accent, calm grouped surfaces, and it switches between light and dark with your device.
+              <b class="text-gray-300">Classic</b> is the original gold look with the themes below. The choice is remembered on this device.
+            </p>
+            <UiStyleToggle size="lg" />
+          </div>
+
+          <div v-if="themeStore.uiStyle.value === 'classic'" class="glass-card p-6 space-y-6">
             <div>
               <h3 class="section-title">Appearance &amp; Theme</h3>
               <p class="text-xs text-gray-500 mt-1">Personalise the look of your workspace — background, accent colour, and presets.</p>

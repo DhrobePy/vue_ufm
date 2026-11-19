@@ -35,8 +35,12 @@
       <kbd class="text-[10px] font-mono text-gray-600 bg-white/[0.05] px-1.5 py-0.5 rounded border border-white/[0.08]">⌘K</kbd>
     </button>
 
-    <!-- Theme picker button -->
+    <!-- Interface style: Apple (default) ⇄ Classic -->
+    <UiStyleToggle class="shrink-0" />
+
+    <!-- Theme picker button — classic only (the Apple style follows the device's light / dark setting) -->
     <button
+      v-if="themeStore.uiStyle.value === 'classic'"
       @click="themeStore.openPicker()"
       class="w-9 h-9 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/[0.07] transition-all duration-150 shrink-0"
       title="Appearance settings"
@@ -170,6 +174,7 @@
               Settings
             </NuxtLink>
             <button
+              v-if="themeStore.uiStyle.value === 'classic'"
               class="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-100 hover:bg-white/[0.06] transition-all duration-150"
               @click="themeStore.openPicker(); dropdownOpen = false">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
