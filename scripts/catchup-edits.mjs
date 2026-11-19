@@ -32,7 +32,7 @@ const PLAN = {
   customers: ['name', 'business_name', 'phone_number', 'email', 'business_address', 'credit_limit', 'status', 'customer_type', 'payment_terms'],
   expense_vouchers: ['status', 'approved_at', 'approved_by_user_id', 'rejection_reason', 'telegram_notified', 'journal_entry_id'],
   credit_order_returns: ['status', 'approved_by_user_id', 'approved_at', 'notes'],
-  goods_received_adnan: ['grn_status', 'total_value', 'unload_point_name', 'verified_by_user_id', 'verified_at'],
+  goods_received_adnan: ['grn_status', 'quantity_received_kg', 'unit_price_per_kg', 'total_value', 'expected_quantity', 'variance_percentage', 'variance_remarks', 'unload_point_name', 'verified_by_user_id', 'verified_at'],
   bank_transactions: ['transaction_type_id', 'amount', 'status', 'approved_by_user_id', 'approved_at', 'updated_by_user_id', 'rejection_reason', 'description', 'special_note', 'reference_number', 'cheque_number'],
   bank_tx_accounts: ['bank_name', 'branch_name', 'account_name', 'account_number', 'address', 'status', 'notes'],
   expense_categories: ['is_active'],

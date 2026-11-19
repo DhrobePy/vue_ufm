@@ -18,6 +18,7 @@ F="../backups/vue_db_before_cutover_$(date +%Y%m%d_%H%M).sql.gz"
 ssh -i "$KEY" -o BatchMode=yes "$HOST" "read -r P; MYSQL_PWD=\$P mysqldump -u '$VUE_DB_USER' --single-transaction --quick --no-tablespaces '$VUE_DB_NAME' | gzip -c" <<< "$VUE_DB_PASS" 2>/dev/null > "$F"
 gzip -t "$F" && echo "backup ok: $F ($(du -h "$F" | cut -f1))"
 
+say "Remove what legacy deleted since the last sync (to the Recycle Bin, restorable)"; node scripts/align-to-legacy.mjs --apply | sed -n '1,4p;/Applied/p'
 say "Master data (customers, products)";            node scripts/sync-legacy-master.mjs --apply | grep -E "customers|products|Applied" || true
 say "Users and limits";                               node scripts/sync-legacy-users.mjs --apply | sed -n '1,3p'
 say "Transactions — pass 1";                          node scripts/sync-legacy-transactional.mjs --apply --catchup > /tmp/cutover-1.log 2>&1 && echo ok || { tail -5 /tmp/cutover-1.log; exit 1; }
