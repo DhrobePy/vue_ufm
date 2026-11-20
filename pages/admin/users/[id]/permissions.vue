@@ -359,6 +359,10 @@ const moduleRegistry = [
         actions: [
           { key: 'export', label: 'Export CSV' },
         ] },
+      { key: 'reports',   label: 'Sales & Product Sales Reports', route: 'credit-sales/reports',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
+        ] },
       { key: 'ageing',    label: 'Ageing Report',     route: 'credit-sales/ageing',
         actions: [
           { key: 'export', label: 'Export CSV' },
@@ -584,6 +588,10 @@ const moduleRegistry = [
       { key: 'dashboard', label: 'Production Dashboard', route: 'production',
         actions: [
           { key: 'update_status', label: 'Update Status' },
+        ] },
+      { key: 'dispatch_report', label: 'Dispatch Report',   route: 'production/dispatch-report',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
         ] },
       { key: 'create',    label: 'New Batch',             route: 'production/create',
         actions: [

@@ -1,4 +1,4 @@
-import { w as defineEventHandler, L as getDb } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, M as getDb } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

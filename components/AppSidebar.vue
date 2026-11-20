@@ -88,6 +88,8 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/over-deliveries')" label="Over-Deliveries"   route="/credit-sales/over-deliveries" :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/collect')" label="Collect Payment"   route="/credit-sales/collect"      :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ageing')" label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/reports')" label="Sales Report"      route="/credit-sales/reports/sales" :collapsed="collapsed" icon-type="chart"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/reports')" label="Product Sales"     route="/credit-sales/reports/product-sales" :collapsed="collapsed" icon-type="chart" sub />
         <SidebarNavItem v-if="isAdminUser" label="Status Override"  route="/credit-sales/order-status" :collapsed="collapsed" icon-type="cog"       sub />
         <SidebarNavItem v-if="isAdminUser" label="Backdated Entry"  route="/credit-sales/backdated-entry" :collapsed="collapsed" icon-type="clock"     sub />
       </SidebarGroup>
@@ -173,6 +175,7 @@
       <!-- Production -->
       <SidebarGroup v-if="perms.canAccessModule('production')" label="Production" route="/production" :collapsed="collapsed" icon-type="factory" color="teal">
         <SidebarNavItem v-if="perms.canAccessRoute('/production')" label="Dashboard" route="/production"        :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/production/dispatch-report')" label="Dispatch Report" route="/production/dispatch-report" :collapsed="collapsed" icon-type="truck" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/production/create')" label="New Batch" route="/production/create" :collapsed="collapsed" icon-type="plus"      sub />
       </SidebarGroup>
       <!-- Dispatch -->

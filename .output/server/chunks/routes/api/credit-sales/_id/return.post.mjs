@@ -1,4 +1,4 @@
-import { w as defineEventHandler, a3 as getRouterParam, t as createError, aI as readBody, a8 as getUserSession, Y as getRequestHeader, bf as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, L as getDb, ai as nextDocNumber, au as postCustomerLedger, l as auditLog } from '../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, u as createError, aJ as readBody, a9 as getUserSession, Z as getRequestHeader, bg as userCanAction, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, M as getDb, aj as nextDocNumber, av as postCustomerLedger, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
