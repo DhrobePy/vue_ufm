@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, aI as queryOne, l as auditLog, an as notifyAdmins } from '../../nitro/nitro.mjs';
+import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, aI as queryOne, l as auditLog, an as notifyAdmins, b8 as sendTelegram } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -57,7 +57,11 @@ const index_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const voucherNo = await nextDocNumber(conn, "EXP", "expense_vouchers", "voucher_number");
-    const computed_total = total_amount != null ? total_amount : (unit_quantity != null ? unit_quantity : 1) * (per_unit_cost != null ? per_unit_cost : 0);
+    const computed_total = Number(unit_quantity) > 0 && Number(per_unit_cost) > 0 ? Number(unit_quantity) * Number(per_unit_cost) : Number(total_amount != null ? total_amount : 0);
+    if (!(computed_total > 0)) throw createError({ statusCode: 400, statusMessage: "Invalid total amount \u2014 enter an amount greater than zero" });
+    const subRow = await queryOne(`SELECT category_id FROM expense_subcategories WHERE id = ?`, [Number(subcategory_id)]);
+    if (!subRow) throw createError({ statusCode: 400, statusMessage: "Invalid subcategory selected" });
+    if (Number(subRow.category_id) !== Number(category_id)) throw createError({ statusCode: 400, statusMessage: "Selected subcategory does not belong to the selected category" });
     let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null;
     if (!resolvedExpenseAccountId) {
       const sub = await queryOne(
@@ -147,6 +151,10 @@ const index_post = defineEventHandler(async (event) => {
       referenceId: newId
     });
     await conn.commit();
+    sendTelegram(`\u{1F9FE} <b>Expense Submitted</b>
+${voucherNo} \u2014 \u09F3${Number(computed_total).toLocaleString()}
+${remarks}
+By ${actorName} \xB7 awaiting approval`, "expense");
     return { ok: true, id: newId, voucher_number: voucherNo };
   } catch (e) {
     await conn.rollback();

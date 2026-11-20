@@ -125,6 +125,10 @@ export default defineEventHandler(async (event) => {
           })
           pairedJournalEntryId = journalEntryId
         }
+      } else if (txn.source_payment_id) {
+        // Mirrors a customer payment whose own journal entry already booked this money — approving it is a statement
+        // reconciliation only. Posting here would count the same receipt twice in the ledger.
+        journalEntryId = null
       } else {
         journalEntryId = await postBankTransactionJE(conn, {
           txnId: txn.id, transactionNumber: txn.transaction_number, bankTxAccountId: txn.bank_tx_account_id,

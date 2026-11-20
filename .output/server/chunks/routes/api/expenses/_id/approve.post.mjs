@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, aK as readBody, aX as requireAction, A as ACCOUNTS_ROLES, a9 as getUserSession, u as createError, M as getDb, l as auditLog, am as notify, an as notifyAdmins } from '../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, aK as readBody, aX as requireAction, A as ACCOUNTS_ROLES, a9 as getUserSession, u as createError, M as getDb, l as auditLog, am as notify, b8 as sendTelegram, an as notifyAdmins } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -177,6 +177,9 @@ const approve_post = defineEventHandler(async (event) => {
         });
       }
       await conn.commit();
+      sendTelegram(`\u2705 <b>Expense Approved</b>
+${expense.voucher_number} \u2014 \u09F3${Number(expense.total_amount).toLocaleString()}${expense.category_name ? " \xB7 " + expense.category_name : ""}
+Approved by ${actorName}`, "expense");
       return { ok: true, newStatus: "approved", journalEntryId };
     }
     if (action === "reject") {
@@ -212,6 +215,9 @@ const approve_post = defineEventHandler(async (event) => {
         });
       }
       await conn.commit();
+      sendTelegram(`\u274C <b>Expense Rejected</b>
+${expense.voucher_number} \u2014 \u09F3${Number(expense.total_amount).toLocaleString()}
+By ${actorName}${reason ? " \u2014 " + reason : ""}`, "expense");
       return { ok: true, newStatus: "rejected" };
     }
     if (action === "cancel") {

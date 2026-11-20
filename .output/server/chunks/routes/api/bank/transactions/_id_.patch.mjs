@@ -156,6 +156,8 @@ const _id__patch = defineEventHandler(async (event) => {
           });
           pairedJournalEntryId = journalEntryId;
         }
+      } else if (txn.source_payment_id) {
+        journalEntryId = null;
       } else {
         journalEntryId = await postBankTransactionJE(conn, {
           txnId: txn.id,

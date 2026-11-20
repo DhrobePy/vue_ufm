@@ -3,6 +3,7 @@ import { ACCOUNTS_ROLES } from '~/server/utils/creditOrders'
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { notify, notifyAdmins } from '~/server/utils/notify'
+import { sendTelegram } from '~/server/utils/telegram'
 
 /**
  * POST /api/expenses/:id/approve
@@ -201,6 +202,7 @@ export default defineEventHandler(async (event) => {
       }
 
       await conn.commit()
+      sendTelegram(`✅ <b>Expense Approved</b>\n${expense.voucher_number} — ৳${Number(expense.total_amount).toLocaleString()}${expense.category_name ? ' · ' + expense.category_name : ''}\nApproved by ${actorName}`, 'expense')
       return { ok: true, newStatus: 'approved', journalEntryId }
     }
 
@@ -242,6 +244,7 @@ export default defineEventHandler(async (event) => {
       }
 
       await conn.commit()
+      sendTelegram(`❌ <b>Expense Rejected</b>\n${expense.voucher_number} — ৳${Number(expense.total_amount).toLocaleString()}\nBy ${actorName}${reason ? ' — ' + reason : ''}`, 'expense')
       return { ok: true, newStatus: 'rejected' }
     }
 

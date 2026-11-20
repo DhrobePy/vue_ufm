@@ -2,6 +2,7 @@ import { getDb, queryOne } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { notifyAdmins } from '~/server/utils/notify'
 import { nextDocNumber } from '~/server/utils/creditOrders'
+import { sendTelegram } from '~/server/utils/telegram'
 
 export default defineEventHandler(async (event) => {
   const body      = await readBody(event)
@@ -55,7 +56,12 @@ export default defineEventHandler(async (event) => {
     // Generate voucher number: EXP-YYYYMMDD-NNNN
     const voucherNo = await nextDocNumber(conn, 'EXP', 'expense_vouchers', 'voucher_number')
 
-    const computed_total = total_amount ?? ((unit_quantity ?? 1) * (per_unit_cost ?? 0))
+    // Legacy rule: quantity × per-unit cost, when both are given, IS the total; the total must be a positive amount.
+    const computed_total = (Number(unit_quantity) > 0 && Number(per_unit_cost) > 0) ? Number(unit_quantity) * Number(per_unit_cost) : Number(total_amount ?? 0)
+    if (!(computed_total > 0)) throw createError({ statusCode: 400, statusMessage: 'Invalid total amount — enter an amount greater than zero' })
+    const subRow = await queryOne<any>(`SELECT category_id FROM expense_subcategories WHERE id = ?`, [Number(subcategory_id)])
+    if (!subRow) throw createError({ statusCode: 400, statusMessage: 'Invalid subcategory selected' })
+    if (Number(subRow.category_id) !== Number(category_id)) throw createError({ statusCode: 400, statusMessage: 'Selected subcategory does not belong to the selected category' })
 
     // Auto-derive expense_account_id from subcategory (more specific) then category
     let resolvedExpenseAccountId = expense_account_id ? Number(expense_account_id) : null
@@ -153,6 +159,7 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+    sendTelegram(`🧾 <b>Expense Submitted</b>\n${voucherNo} — ৳${Number(computed_total).toLocaleString()}\n${remarks}\nBy ${actorName} · awaiting approval`, 'expense')
     return { ok: true, id: newId, voucher_number: voucherNo }
   } catch (e) {
     await conn.rollback()
