@@ -59,6 +59,7 @@ Customer balances, orders, payments, ledger, purchase orders, GRNs, expenses, ba
 | Check | Result |
 |---|---|
 | General-ledger trial balance by account (54 accounts) | 47 identical, **7 differ**: Accounts Receivable ৳4.97 L, Credit-sales revenue ৳2.97 L, Demra mill expense ৳0.37 L, GRN Pending ৳4.37 L, Inventory-Wheat ৳15.7 L, Petty Cash Demra ৳0.29 L, Petty Cash Sirajgonj ৳18.6 L |
+| **Status 20 Nov 2026** | ✅ **Repaired** with `scripts/repair-gl-parity.mjs` (now part of `cutover-sync.sh`): 6 missing entries inserted, 2 half-posted entries completed, 1 double posting (PV-20260726-0001) removed. Remaining differences are only the 7 entries that exist solely here (4 expense vouchers legacy never posted to the GL = ৳37,180, 3 POS sales) plus whatever legacy posts after the last sync. Bank/cash GL accounts hold identical balances in both (only their ids differ). |
 | Cause (journal level) | 6 legacy entries have no twin here (2 GRNs, 2 credit-sale invoices, 1 supplier payment `PV-20260726-0004`, 1 invoice `CR-20260907-0020`); 2 of those exist here with a missing debit or credit line (unbalanced); 10 entries exist only here (4 July expense entries, 3 POS sales incl. 2 for a test customer, 1 re-created supplier payment) |
 | Unbalanced journal entries | legacy 3 (old test reversals) · here 5 |
 | Bank statement balance (3 of the bank-statement accounts) | differ by ৳13.6 L, ৳15.9 L and ৳2.3 L |
