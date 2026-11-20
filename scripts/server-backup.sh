@@ -7,7 +7,7 @@
 # Failure of any step → Telegram alert through the app (category "backup"). Success is silent except the daily Drive run.
 set -uo pipefail
 umask 077
-DUMP=$(command -v mariadb-dump || command -v mysqldump)
+DUMP=$(command -v mariadb-dump || command -v mysqldump); CLIENT=$(command -v mariadb || command -v mysql)
 
 ROOT="${BACKUP_ROOT:-/home/ujjalfmc/db_backups}"
 VUE_ENV="${VUE_ENV:-/home/ujjalfmc/public_html/cerp.ujjalfm.com/vue_ufm/.env}"
@@ -59,6 +59,11 @@ prune() { # name — tiered retention from the hourly pool
   ls -1t "$w"/*.sql.gz 2>/dev/null | tail -n +9  | while read -r x; do rm -f "$x" "$x.sha256"; done
   ls -1t "$m"/*.sql.gz 2>/dev/null | tail -n +13 | while read -r x; do rm -f "$x" "$x.sha256"; done
 }
+
+# Admin → Settings → Maintenance switch (system_settings.backup_policy). If the database can't be asked, keep backing up.
+paused=$(MYSQL_PWD="$(envv NUXT_DB_PASS)" "$CLIENT" -N -h "$(envv NUXT_DB_HOST)" -u "$(envv NUXT_DB_USER)" "$(envv NUXT_DB_NAME)" \
+  -e "SELECT setting_value FROM system_settings WHERE setting_key='backup_policy'" 2>/dev/null | grep -c '"enabled": *false')
+[ "$paused" -gt 0 ] && { log "paused by admin switch — skipped"; exit 0; }
 
 vue_file=$(dump vue "$(envv NUXT_DB_HOST)" "$(envv NUXT_DB_USER)" "$(envv NUXT_DB_PASS)" "$(envv NUXT_DB_NAME)") && prune vue
 dump legacy "$(phpv DB_HOST)" "$(phpv DB_USER)" "$(phpv DB_PASS)" "$(phpv DB_NAME)" >/dev/null && prune legacy

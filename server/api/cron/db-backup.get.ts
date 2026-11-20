@@ -1,3 +1,4 @@
+import { getAppSettings } from '~/server/utils/appSettings'
 import { runDbBackupNow } from '~/server/utils/dbBackup'
 
 /**
@@ -17,5 +18,6 @@ export default defineEventHandler(async (event) => {
   if (token !== secret)
     throw createError({ statusCode: 403, statusMessage: 'Invalid token' })
 
+  if (!(await getAppSettings(true)).backup_policy.enabled) return { ok: true, skipped: 'backups are switched off in Settings' }
   return await runDbBackupNow()
 })

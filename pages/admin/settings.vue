@@ -595,6 +595,21 @@
         <!-- ── Maintenance ───────────────────────────────────────────────── -->
         <div v-if="activeTab === 'maintenance'" class="space-y-5">
 
+          <!-- Scheduled database backups on/off -->
+          <div class="glass-card p-6">
+            <div class="flex items-start justify-between">
+              <div class="flex-1 mr-4">
+                <h3 class="section-title">Scheduled Database Backup</h3>
+                <p class="text-xs text-gray-500 mt-1">Hourly backup of the database on the server (kept 12 months in tiers) plus a daily copy to Google Drive. Switch OFF to pause all scheduled backups — it takes effect on the next hourly run. Turn it back ON before any big change.</p>
+                <p class="text-xs mt-2" :class="backupPolicy.enabled ? 'text-emerald-400' : 'text-amber-400'">{{ backupPolicy.enabled ? '● Backups are running' : '● Backups are PAUSED — no new backups are being taken' }}</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer mt-0.5">
+                <input v-model="backupPolicy.enabled" type="checkbox" class="sr-only peer" @change="saveGroup('backup_policy', backupPolicy, backupPolicy.enabled ? 'Backups ON' : 'Backups OFF')" />
+                <div class="w-10 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-5 peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-white after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-gold-500" />
+              </label>
+            </div>
+          </div>
+
           <!-- Backfill expense journals -->
           <div class="glass-card p-6 space-y-4">
             <h3 class="section-title">Data Migrations</h3>
@@ -891,6 +906,7 @@ const finance     = reactive({ ...(appData.value?.finance_settings ?? {}) })
 const orderPolicy = reactive<Record<string, boolean>>({ ...(appData.value?.order_policy ?? {}) })
 const security    = reactive({ ...(appData.value?.security_policy ?? {}) })
 const notifyPolicy = reactive({ ...(appData.value?.notify_policy ?? { telegram: true }) })
+const backupPolicy = reactive({ enabled: true, ...(appData.value?.backup_policy ?? {}) })
 const savingGroup = ref(false)
 
 async function saveGroup(group: string, values: any, label: string) {

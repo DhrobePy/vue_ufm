@@ -14,6 +14,7 @@ export const APP_SETTING_GROUPS = {
   order_policy: { auto_approve: false, allow_partial: true, block_overdue: false },
   security_policy: { sessionTimeout: 0, maxLoginAttempts: 5 },
   notify_policy: { telegram: true },
+  backup_policy: { enabled: true },   // scheduled DB backups (scripts/server-backup.sh reads this row); Admin → Settings → Maintenance
 } as const
 
 export type AppSettingGroup = keyof typeof APP_SETTING_GROUPS

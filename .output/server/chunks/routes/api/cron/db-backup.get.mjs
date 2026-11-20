@@ -1,4 +1,4 @@
-import { w as defineEventHandler, t as createError, X as getQuery, b1 as runDbBackupNow, be as useRuntimeConfig } from '../../../nitro/nitro.mjs';
+import { w as defineEventHandler, t as createError, X as getQuery, G as getAppSettings, b1 as runDbBackupNow, be as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -21,6 +21,7 @@ const dbBackup_get = defineEventHandler(async (event) => {
   const token = String((_b = getQuery(event).token) != null ? _b : "");
   if (token !== secret)
     throw createError({ statusCode: 403, statusMessage: "Invalid token" });
+  if (!(await getAppSettings(true)).backup_policy.enabled) return { ok: true, skipped: "backups are switched off in Settings" };
   return await runDbBackupNow();
 });
 
