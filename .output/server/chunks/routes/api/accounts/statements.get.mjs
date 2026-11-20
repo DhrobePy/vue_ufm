@@ -1,4 +1,4 @@
-import { y as defineEventHandler, Z as getQuery, aK as query } from '../../../nitro/nitro.mjs';
+import { B as defineEventHandler, a0 as getQuery, aM as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -19,10 +19,11 @@ const PERIOD_DATES = {
   fy26: ["2025-07-01", "2026-06-30"]
 };
 const statements_get = defineEventHandler(async (event) => {
-  var _a;
+  var _a, _b;
   const q = getQuery(event);
   const period = q.period || "may26";
-  const [from, to] = (_a = PERIOD_DATES[period]) != null ? _a : PERIOD_DATES.may26;
+  const iso = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v != null ? v : "")) ? String(v) : null;
+  const [from, to] = iso(q.from) && iso(q.to) ? [String(q.from), String(q.to)] : (_a = PERIOD_DATES[period]) != null ? _a : PERIOD_DATES.may26;
   const plRows = await query(
     `SELECT
        c.account_number  AS code,
@@ -32,10 +33,8 @@ const statements_get = defineEventHandler(async (event) => {
        COALESCE(SUM(tl.debit_amount),  0) AS total_debit,
        COALESCE(SUM(tl.credit_amount), 0) AS total_credit
      FROM chart_of_accounts c
-     LEFT JOIN transaction_lines tl ON tl.account_id = c.id
-     LEFT JOIN journal_entries   je ON je.id = tl.journal_entry_id
-       AND je.transaction_date BETWEEN ? AND ?
-       AND je.is_reversed = 0
+     LEFT JOIN (SELECT l.account_id, l.debit_amount, l.credit_amount FROM transaction_lines l
+                JOIN journal_entries je ON je.id = l.journal_entry_id WHERE je.transaction_date BETWEEN ? AND ?) tl ON tl.account_id = c.id
      WHERE c.is_active = 1
        AND c.account_type_group IN ('Revenue','Expense')
      GROUP BY c.id
@@ -72,15 +71,14 @@ const statements_get = defineEventHandler(async (event) => {
        COALESCE(SUM(tl.debit_amount),  0) AS total_debit,
        COALESCE(SUM(tl.credit_amount), 0) AS total_credit
      FROM chart_of_accounts c
-     LEFT JOIN transaction_lines tl ON tl.account_id = c.id
-     LEFT JOIN journal_entries   je ON je.id = tl.journal_entry_id
-       AND je.is_reversed = 0
+     LEFT JOIN (SELECT l.account_id, l.debit_amount, l.credit_amount FROM transaction_lines l
+                JOIN journal_entries je ON je.id = l.journal_entry_id WHERE je.transaction_date <= ?) tl ON tl.account_id = c.id
      WHERE c.is_active = 1
        AND c.account_type_group IN ('Asset', 'Liability', 'Equity')
      GROUP BY c.id
      HAVING total_debit > 0 OR total_credit > 0
      ORDER BY c.account_number, c.name`,
-    []
+    [to]
   );
   const CURRENT_ASSET_TYPES = /* @__PURE__ */ new Set([
     "Bank",
@@ -97,6 +95,14 @@ const statements_get = defineEventHandler(async (event) => {
   const currentLiabilities = bsRows.filter((r) => r.grp === "Liability" && CURRENT_LIAB_TYPES.has(r.type)).map((r) => ({ name: r.name, amount: toLiab(r) }));
   const longTermLiabilities = bsRows.filter((r) => r.grp === "Liability" && !CURRENT_LIAB_TYPES.has(r.type)).map((r) => ({ name: r.name, amount: toLiab(r) }));
   const equityAccounts = bsRows.filter((r) => r.grp === "Equity").map((r) => ({ name: r.name, amount: toLiab(r) }));
+  const [pnl] = await query(
+    `SELECT COALESCE(SUM(CASE WHEN c.account_type_group = 'Revenue' THEN l.credit_amount - l.debit_amount ELSE l.debit_amount * -1 + l.credit_amount END), 0) AS profit
+     FROM transaction_lines l JOIN journal_entries je ON je.id = l.journal_entry_id JOIN chart_of_accounts c ON c.id = l.account_id
+     WHERE c.account_type_group IN ('Revenue','Expense') AND je.transaction_date <= ?`,
+    [to]
+  );
+  const profitToDate = Math.round(Number((_b = pnl == null ? void 0 : pnl.profit) != null ? _b : 0) * 100) / 100;
+  if (profitToDate !== 0) equityAccounts.push({ name: "Profit & loss to date (current + prior periods)", amount: profitToDate });
   const totalCurrentAssets = currentAssets.reduce((s, r) => s + r.amount, 0);
   const totalFixedAssets = fixedAssets.reduce((s, r) => s + r.amount, 0);
   const totalAssets = totalCurrentAssets + totalFixedAssets;
@@ -107,10 +113,8 @@ const statements_get = defineEventHandler(async (event) => {
        COALESCE(SUM(tl.debit_amount),  0) AS total_debit,
        COALESCE(SUM(tl.credit_amount), 0) AS total_credit
      FROM chart_of_accounts c
-     LEFT JOIN transaction_lines tl ON tl.account_id = c.id
-     LEFT JOIN journal_entries   je ON je.id = tl.journal_entry_id
-       AND je.transaction_date BETWEEN ? AND ?
-       AND je.is_reversed = 0
+     LEFT JOIN (SELECT l.account_id, l.debit_amount, l.credit_amount FROM transaction_lines l
+                JOIN journal_entries je ON je.id = l.journal_entry_id WHERE je.transaction_date BETWEEN ? AND ?) tl ON tl.account_id = c.id
      WHERE c.is_active = 1
      GROUP BY c.id
      HAVING total_debit > 0 OR total_credit > 0
@@ -142,6 +146,9 @@ const statements_get = defineEventHandler(async (event) => {
       netProfit
     },
     bs: {
+      asOf: to,
+      totalLiabilities: [...currentLiabilities, ...longTermLiabilities].reduce((a, r) => a + r.amount, 0),
+      totalEquity: equityAccounts.reduce((a, r) => a + r.amount, 0),
       currentAssets,
       totalCurrentAssets,
       fixedAssets,

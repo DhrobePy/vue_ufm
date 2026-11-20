@@ -92,7 +92,11 @@ Status as of 20 Nov 2026. ✅ = identical now · 🔧 = was different, fixed in 
 | Email format check; a too-short new password is **refused** (was silently ignored) | 🔧 |
 | Password storage | 🔧 a real bcrypt hash now goes into `password_hash`. ⚠️ Both apps also keep a **plain-text copy** in `plain_password` (so a Superadmin can read it) and the login accepts it. That is how legacy works and is unchanged — recommended to retire before or soon after cutover (anyone who can read the database can read every password). Owner decision. |
 | Settings, audit log, Recycle Bin, backups, Telegram | ✅ (done earlier) |
-| Daily summary, cashflow dashboard, operations center, role matrix, balance-sheet / chairman reports, customer-balance reconciliation, DB viewer, ledger repair | ⏳ screens not built (see PARITY_CHECK.md) |
+| Daily summary, cashflow dashboard, operations center, role matrix, balance sheet, chairman's reports, customer-balance reconciliation, DB viewer, ledger repair | ✅ built 20 Nov 2026 (Admin page links; Balance Sheet under Accounts → Statements) |
+| Financial statements (P&L / Trial Balance / Balance Sheet on the old Statements page) | 🔧 **were wrong**: the date filter was applied to the wrong part of the query, so every period showed all-time totals; the page also said "31 May 2026" whatever you picked. Fixed, plus a custom date range and profit-to-date in equity. Three ledger accounts with no group (Commodity Trading Revenue, Commodity COGS, Loans & Advances Receivable) are now classified so they appear. |
+| DB Viewer | ⚖️ **read-only** on purpose (legacy also inserted / edited / deleted rows — that bypasses the ledger rules and audit trail). Superadmin only; password/token columns and secret settings are hidden. |
+| Operations Center | ⚖️ **read-only**: legacy let it change order status/priority directly; here orders change only through their own screens so approval and hold checks always apply. |
+| Ledger Repair | ⚖️ diagnosis of 5 checks plus one safe fix (rebuild running balances in date order — no amounts change). Legacy also inserted missing ledger/invoice rows and moved revenue between accounts; those are listed here, not auto-posted. |
 
 ## Ledger / data
 - Journal entries, trial balance (54 accounts), customer balances, orders, order lines, payments, purchases, GRNs, expenses, bank transactions: identical after sync (see `verify-parity.mjs`, `repair-gl-parity.mjs`).

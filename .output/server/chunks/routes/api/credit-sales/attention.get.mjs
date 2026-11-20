@@ -1,4 +1,4 @@
-import { y as defineEventHandler, n as branchScopeFor, aK as query } from '../../../nitro/nitro.mjs';
+import { B as defineEventHandler, o as branchScopeFor, aM as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

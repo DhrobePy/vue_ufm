@@ -71,6 +71,7 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/accounts/tax-statement':     { module: 'accounts',     page: 'statement' },
   '/accounts/day-end-reconciliation': { module: 'accounts', page: 'daily_log' },
   '/accounts/statement':         { module: 'accounts',     page: 'statement' },
+  '/accounts/balance-sheet':     { module: 'accounts',     page: 'statement' },
   '/accounts/voucher':           { module: 'accounts',     page: 'voucher' },
   '/accounts/daily-log':         { module: 'accounts',     page: 'daily_log' },
   '/accounts/all-accounts':      { module: 'accounts',     page: 'all_accounts' },

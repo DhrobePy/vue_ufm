@@ -25,7 +25,12 @@
           <option value="apr26">April 2026</option>
           <option value="q1fy26">Q1 FY 2025-26</option>
           <option value="fy26">Full FY 2025-26</option>
+          <option value="custom">Custom dates…</option>
         </select>
+        <template v-if="period === 'custom'">
+          <input v-model="from" type="date" class="input-glass text-xs py-1.5 w-36" />
+          <input v-model="to" type="date" class="input-glass text-xs py-1.5 w-36" />
+        </template>
       </div>
     </div>
 
@@ -33,7 +38,7 @@
     <div v-if="activeType === 'pl'" id="statement-print" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Profit & Loss Statement</h2>
-        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · For the period ending 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · For the period {{ fmtD(range.from) }} to {{ fmtD(range.to) }}</p>
       </div>
 
       <div class="max-w-lg mx-auto space-y-6">
@@ -100,7 +105,7 @@
     <div v-if="activeType === 'bs'" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Balance Sheet</h2>
-        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at {{ fmtD(range.to) }}</p>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <!-- Assets -->
@@ -169,7 +174,7 @@
     <div v-if="activeType === 'trial'" class="glass-card p-6">
       <div class="text-center mb-6">
         <h2 class="text-lg font-bold text-gray-100">Trial Balance</h2>
-        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at 31 May 2026</p>
+        <p class="text-xs text-gray-500 mt-1">{{ company.name }} · As at {{ fmtD(range.to) }}</p>
       </div>
       <table class="w-full text-xs">
         <thead>
@@ -207,6 +212,8 @@ const { printElement } = usePrint()
 
 const activeType = ref('pl')
 const period     = ref('may26')
+const today      = new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 10)
+const from       = ref(today.slice(0, 8) + '01'), to = ref(today)
 
 const statementTypes = [
   { id: 'pl',    label: 'Profit & Loss' },
@@ -216,9 +223,11 @@ const statementTypes = [
 
 // Reactive fetch — re-runs when period changes
 const { data, refresh } = await useFetch(
-  () => `/api/accounts/statements?period=${period.value}`,
+  () => `/api/accounts/statements?period=${period.value}${period.value === 'custom' ? `&from=${from.value}&to=${to.value}` : ''}`,
 )
-watch(period, () => refresh())
+watch([period, from, to], () => refresh())
+const range = computed(() => ((data.value as any)?.period ?? { from: '', to: '' }) as { from: string; to: string })
+const fmtD = (d: string) => d ? new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : ''
 
 const plData = computed(() => {
   const pl = (data.value as any)?.pl

@@ -520,6 +520,40 @@ export default defineNitroPlugin(async () => {
   // ── 32. product_variants — weight_kg ─────────────────────────────────────
   await addCol(db, 'product_variants', 'weight_kg', "DECIMAL(8,2) NULL DEFAULT NULL COMMENT 'Numeric weight for calculations'")
 
+  // ── 32a. chart_of_accounts.account_type_group was left empty on a few accounts (e.g. Commodity Trading Revenue / COGS, Loans & Advances
+  //        Receivable), so the balance sheet and P&L skipped them. Fill ONLY the empty ones, from their account type.
+  try {
+    await db.query(`
+      UPDATE chart_of_accounts SET account_type_group = CASE
+        WHEN account_type IN ('Revenue','Other Income') THEN 'Revenue'
+        WHEN account_type IN ('Cost of Goods Sold','Expense','Operating Expense','Other Expense') THEN 'Expense'
+        WHEN account_type IN ('Bank','Cash','Petty Cash','Accounts Receivable','Other Current Asset','Fixed Asset','Inventory','Other Asset') THEN 'Asset'
+        WHEN account_type IN ('Accounts Payable','Other Current Liability','Long Term Liability','Credit Card') THEN 'Liability'
+        WHEN account_type IN ('Equity','Retained Earnings') THEN 'Equity'
+        ELSE account_type_group END
+      WHERE account_type_group IS NULL OR account_type_group = ''
+    `)
+  } catch (e) { console.warn('[db-migrate] account_type_group backfill failed:', e) }
+
+  // ── 32b. customer_balance_reconciliations — audit trail of every stored-balance correction (reversible) ──
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS customer_balance_reconciliations (
+        id                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        customer_id           BIGINT UNSIGNED NOT NULL,
+        old_balance           DECIMAL(15,2) NOT NULL,
+        new_balance           DECIMAL(15,2) NOT NULL,
+        status                ENUM('active','reverted') NOT NULL DEFAULT 'active',
+        reconciled_by_user_id BIGINT UNSIGNED NULL,
+        reconciled_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        reverted_by_user_id   BIGINT UNSIGNED NULL,
+        reverted_at           TIMESTAMP NULL,
+        KEY idx_cbr_customer (customer_id),
+        KEY idx_cbr_status (status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `)
+  } catch (e) { console.warn('[db-migrate] customer_balance_reconciliations create failed:', e) }
+
   // ── 33. price_change_log table ───────────────────────────────────────────
   //   Audit trail for every price set / update / archive / engine event.
   try {

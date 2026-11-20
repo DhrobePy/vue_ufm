@@ -22,6 +22,7 @@ export const HUBS: Record<string, HubTab[]> = {
   ],
   statements: [
     { label: 'GL Statement',  to: '/accounts/statement' },
+    { label: 'Balance Sheet', to: '/accounts/balance-sheet' },
     { label: 'Tax Statement', to: '/accounts/tax-statement' },
   ],
   close: [

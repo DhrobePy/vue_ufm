@@ -2,6 +2,14 @@
   <div class="space-y-6">
     <UiPageHeader title="Admin" subtitle="Users · employees · audit trail · system settings" :breadcrumb="['Admin']">
       <template #actions>
+        <NuxtLink to="/admin/operations-center" class="btn-ghost text-xs">🎛️ Operations</NuxtLink>
+        <NuxtLink to="/admin/chairman-reports" class="btn-ghost text-xs">📑 Chairman's Reports</NuxtLink>
+        <NuxtLink to="/admin/customer-reconciliation" class="btn-ghost text-xs">⚖️ Balance Reconciliation</NuxtLink>
+        <NuxtLink to="/admin/role-matrix" class="btn-ghost text-xs">🧩 Role Matrix</NuxtLink>
+        <NuxtLink to="/accounts/balance-sheet" class="btn-ghost text-xs">🏦 Balance Sheet</NuxtLink>
+        <NuxtLink v-if="isSuper" to="/admin/ledger-repair" class="btn-ghost text-xs">🩺 Ledger Repair</NuxtLink>
+        <NuxtLink v-if="isSuper" to="/admin/db-viewer" class="btn-ghost text-xs">🗄️ DB Viewer</NuxtLink>
+        <NuxtLink to="/admin/cashflow" class="btn-ghost text-xs">💧 Cashflow</NuxtLink>
         <NuxtLink to="/admin/daily-summary" class="btn-ghost text-xs">📊 Daily Summary</NuxtLink>
         <NuxtLink to="/admin/recycle-bin" class="btn-ghost text-xs">🗑️ Recycle Bin</NuxtLink>
       </template>
@@ -71,6 +79,8 @@
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
 
+const { user: sessionUser } = useUserSession()
+const isSuper = computed(() => String((sessionUser.value as any)?.role ?? '').toLowerCase() === 'superadmin')
 const { data, pending, error } = await useFetch('/api/admin/dashboard')
 
 const stats       = computed(() => (data.value?.stats       ?? {}) as any)
