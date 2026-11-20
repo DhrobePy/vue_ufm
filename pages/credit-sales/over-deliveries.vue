@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-5">
+    <HubTabs hub="returns" />
     <UiPageHeader title="Over-Deliveries" subtitle="Goods delivered beyond what was ordered — review, approve, resolve"
                   :breadcrumb="['Credit Sales', 'Over-Deliveries']">
       <template #actions>

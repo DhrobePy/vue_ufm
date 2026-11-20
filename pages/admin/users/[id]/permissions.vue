@@ -329,6 +329,10 @@ const moduleRegistry = [
         actions: [
           { key: 'decide', label: 'Approve / Reject Queued Payments' },
         ] },
+      { key: 'returns', label: 'Goods Returns board', route: 'credit-sales/returns',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
+        ] },
       { key: 'over-deliveries', label: 'Over-Deliveries', route: 'credit-sales/over-deliveries',
         actions: [
           { key: 'decide',           label: 'Approve / Reject Over-Deliveries' },
@@ -470,6 +474,14 @@ const moduleRegistry = [
         actions: [
           { key: 'create', label: 'Create Note' },
           { key: 'edit',   label: 'Edit' },
+        ] },
+      { key: 'analytics',        label: 'Purchase Analytics',  route: 'purchase/analytics',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
+        ] },
+      { key: 'bank_statement',   label: 'Bank Statement (purchase payments)', route: 'purchase/bank-statement',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
         ] },
       { key: 'suppliers',        label: 'Suppliers',           route: 'purchase/suppliers',
         actions: [

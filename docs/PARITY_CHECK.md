@@ -79,3 +79,7 @@ Customer balances, orders, payments, ledger, purchase orders, GRNs, expenses, ba
 3. **Owner reports:** daily summary, cashflow dashboard, operations center, sales / product-sales / dispatch reports with export, role matrix.
 4. **Automation:** the two Telegram alerts and the `/ask` bot, if still used.
 5. **Rule-by-rule comparison** for Purchase → Accounts/Bank → Expenses → Trading/Loans/POS, as was done for Credit Sales.
+
+
+## Update 20 Nov 2026 — screens built since this matrix was written
+Cashflow dashboard, Operations Center (read-only), Role Matrix, Balance Sheet (dated, with comparison), Chairman's Report Center (14 reports), Customer Balance Reconciliation, DB Viewer (read-only), Ledger Repair (health check + safe running-balance rebuild), Daily Summary, All Accounts, Sales / Product Sales / Dispatch reports, **Purchase Analytics**, **Purchase Bank Statement** (opening + running balance, purchase-payment detail), **Goods Returns board** (with Stock Adjustments and Over-Delivery tabs, as in legacy's Returns Center). Still not built: Telegram delivery-schedule and production-shortfall alerts, the Telegram `/ask` bot, chat, in-app user manual, session announcements; POS cash verification / EOD reopen / edit order (skipped by owner).

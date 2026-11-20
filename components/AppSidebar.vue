@@ -85,6 +85,7 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ledger')" label="Customer Ledger"   route="/credit-sales/ledger"       :collapsed="collapsed" icon-type="book"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/payment-watch')" label="Payment Watch"     route="/credit-sales/payment-watch" :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/approval-requests')" label="Approval Requests" route="/credit-sales/approval-requests" :collapsed="collapsed" icon-type="check"     sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/returns')" label="Returns" route="/credit-sales/returns" :collapsed="collapsed" icon-type="list" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/over-deliveries')" label="Over-Deliveries"   route="/credit-sales/over-deliveries" :collapsed="collapsed" icon-type="list"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/collect')" label="Collect Payment"   route="/credit-sales/collect"      :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/credit-sales/ageing')" label="Ageing Report"     route="/credit-sales/ageing"       :collapsed="collapsed" icon-type="chart"     sub />
@@ -130,6 +131,8 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/orders/create')" label="Create PO"       route="/purchase/orders/create"     :collapsed="collapsed" icon-type="plus"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/grn')" label="Goods Received"  route="/purchase/grn"               :collapsed="collapsed" icon-type="check"     sub />
         <SidebarNavItem v-if="isAdminUser" label="Variance Report" route="/purchase/grn/variance" :collapsed="collapsed" icon-type="chart" sub />
+        <SidebarNavItem v-if="isAdminUser" label="Analytics" route="/purchase/analytics" :collapsed="collapsed" icon-type="chart" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/purchase/bank-statement')" label="Bank Statement" route="/purchase/bank-statement" :collapsed="collapsed" icon-type="book" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/payments')" label="Payments"        route="/purchase/payments"          :collapsed="collapsed" icon-type="money"     sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/adjustments')" label="Adj. Notes"      route="/purchase/adjustments"       :collapsed="collapsed" icon-type="file"      sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/purchase/suppliers')" label="Suppliers"       route="/purchase/suppliers"         :collapsed="collapsed" icon-type="users"     sub />

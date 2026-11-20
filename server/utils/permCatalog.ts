@@ -29,7 +29,7 @@ const PRESETS: Record<string, PermMap> = {
   // Accounts family: approvals, collection, ledger, credit limits, Payment Watch, returns
   'accounts': {
     dashboard: on(['main']),
-    credit_sales: on([...CS_COMMON, 'create', 'approve', 'payment-watch', 'approval-requests', 'over-deliveries',
+    credit_sales: on([...CS_COMMON, 'create', 'approve', 'payment-watch', 'approval-requests', 'over-deliveries', 'returns',
       'collect', 'payments', 'amendments', 'ledger', 'ageing', 'credit-limits', 'delivery-schedule'], { all: { ...NO_ADMIN_EDITS } }),
     customers: on(['list']),
     collector: on(['collections']),
@@ -38,21 +38,21 @@ const PRESETS: Record<string, PermMap> = {
   },
   'sales-group': {
     dashboard: on(['main']),
-    credit_sales: on([...CS_COMMON, 'create', 'ledger', 'amendments'],
+    credit_sales: on([...CS_COMMON, 'create', 'ledger', 'amendments', 'returns'],
       { all: { ...NO_ADMIN_EDITS, collect_payment: false, record_delivery: false } }),
     customers: on(['list'], CUSTOMERS_VIEW_ONLY),
     products: on(['overview']),
   },
   'production-group': {
     dashboard: on(['main']),
-    credit_sales: on([...CS_COMMON, 'production', 'over-deliveries', 'amendments', 'delivery-schedule'],
+    credit_sales: on([...CS_COMMON, 'production', 'over-deliveries', 'returns', 'amendments', 'delivery-schedule'],
       { all: { ...NO_ADMIN_EDITS, collect_payment: false } }),
     production: on(),
     products: on(['overview', 'base', 'variants', 'inventory']),
   },
   'dispatch-group': {
     dashboard: on(['main']),
-    credit_sales: on([...CS_COMMON, 'dispatch', 'over-deliveries'],
+    credit_sales: on([...CS_COMMON, 'dispatch', 'over-deliveries', 'returns'],
       { all: { ...NO_ADMIN_EDITS, collect_payment: false } }),
     dispatch: on(),
     products: on(['inventory']),

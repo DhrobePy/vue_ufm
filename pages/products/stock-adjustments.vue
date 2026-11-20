@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-5">
+    <HubTabs hub="returns" />
     <UiPageHeader title="Stock Adjustments" subtitle="Inventory corrections — maker submits, a different authorised user approves"
                   :breadcrumb="['Products', 'Stock Adjustments']">
       <template #actions>

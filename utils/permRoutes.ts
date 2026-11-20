@@ -23,6 +23,7 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/credit-sales/ledger':        { module: 'credit_sales', page: 'ledger' },
   '/credit-sales/ageing':        { module: 'credit_sales', page: 'ageing' },
   '/credit-sales/reports':       { module: 'credit_sales', page: 'reports' },
+  '/credit-sales/returns':       { module: 'credit_sales', page: 'returns' },
   '/production/dispatch-report': { module: 'production',   page: 'dispatch_report' },
 
   '/fleet':                      { module: 'fleet',        page: 'dashboard' },
@@ -42,6 +43,8 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/purchase/orders/create':     { module: 'purchase',     page: 'orders_create' },
   '/purchase/grn':               { module: 'purchase',     page: 'grn' },
   '/purchase/grn/variance':      { module: 'purchase',     page: 'grn_variance' },
+  '/purchase/analytics':         { module: 'purchase',     page: 'analytics' },
+  '/purchase/bank-statement':    { module: 'purchase',     page: 'bank_statement' },
   '/purchase/payments':          { module: 'purchase',     page: 'payments' },
   '/purchase/adjustments':       { module: 'purchase',     page: 'adjustments' },
   '/purchase/suppliers':         { module: 'purchase',     page: 'suppliers' },
