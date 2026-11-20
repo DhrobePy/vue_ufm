@@ -67,9 +67,36 @@ Status as of 20 Nov 2026. ✅ = identical now · 🔧 = was different, fixed in 
 | Debit voucher Telegram alert | 🔧 added |
 | **Internal transfer** | 🔧 **was backwards**: the page debited the *From* account and credited the *To* account. Now DR destination / CR source, responsible employee required, entry type `InternalTransfer`, and a petty-cash till on either side moves with its cash log (legacy rule). No transfers had been posted the old way (checked). |
 
+## Products / Pricing
+| Rule | Now |
+|---|---|
+| Price data: 458 current prices, 98,986 history rows, 65 variants, 67 products — identical | ✅ |
+| Setting one price: archive the old → insert the new → **write price history (old → new)** → optionally carry into open, not-yet-invoiced orders | 🔧 the single-price screen skipped the history and the order carry-over; both now happen (the engine and archive paths already did) |
+| Deactivating a price is logged as `archive` | 🔧 |
+| SKU = `BASE-WEIGHT[-G]`; **no grade → no grade part** | 🔧 (Vue added `-X` for no grade); a blank SKU is also generated server-side |
+| Who may edit products / variants / prices | ✅ (admin + production managers; prices admin or granted) |
+| Variant delete → Recycle Bin with its prices and stock rows | ✅ |
+| Pricing-rules engine (formula/tiered rules) | ✅ nothing to port: legacy has 2 rules with no conditions or actions and 18 log lines — unused. The live pricing logic is the per-branch component engine, already here. |
+| Stock adjustments | ⚖️ legacy has only an unused table (`cr_stock_adjustments`, no page); Vue's maker-checker adjustment screen is its own feature and stays |
+
+## Production
+| Rule | Now |
+|---|---|
+| Start / mark produced / ready to ship with the order status rules, production hold and dispatch hold, priority, Telegram | ✅ (done with Credit Sales) |
+| Starting / finishing production stamps the order's **production schedule** (started / completed time, status) | 🔧 (legacy did; the Vue order workflow didn't, so the schedule never moved) |
+
+## Admin
+| Rule | Now |
+|---|---|
+| Users: unique email, role, password ≥ 8, can't demote/suspend/delete the last Superadmin, can't delete yourself | ✅ (stricter than legacy) |
+| Email format check; a too-short new password is **refused** (was silently ignored) | 🔧 |
+| Password storage | 🔧 a real bcrypt hash now goes into `password_hash`. ⚠️ Both apps also keep a **plain-text copy** in `plain_password` (so a Superadmin can read it) and the login accepts it. That is how legacy works and is unchanged — recommended to retire before or soon after cutover (anyone who can read the database can read every password). Owner decision. |
+| Settings, audit log, Recycle Bin, backups, Telegram | ✅ (done earlier) |
+| Daily summary, cashflow dashboard, operations center, role matrix, balance-sheet / chairman reports, customer-balance reconciliation, DB viewer, ledger repair | ⏳ screens not built (see PARITY_CHECK.md) |
+
 ## Ledger / data
 - Journal entries, trial balance (54 accounts), customer balances, orders, order lines, payments, purchases, GRNs, expenses, bank transactions: identical after sync (see `verify-parity.mjs`, `repair-gl-parity.mjs`).
 - The only standing ledger differences: 4 expense vouchers legacy never posted (৳37,180) and 3 POS sales (legacy keeps POS in separate tables).
 
 ## ⏳ Not compared line-by-line yet
-Products/Pricing (prices identical; rules not re-read), Production, Admin. **Skipped by owner instruction (20 Nov 2026): POS, HR, Fleet, Logistics.**
+**Skipped by owner instruction (20 Nov 2026): POS, HR, Fleet, Logistics.**

@@ -1,4 +1,5 @@
 import { y as defineEventHandler, a5 as getRouterParam, u as createError, aN as readBody, aa as getUserSession, N as getDb, l as auditLog } from '../../../../nitro/nitro.mjs';
+import bcrypt from 'bcryptjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -81,6 +82,10 @@ const _id__patch = defineEventHandler(async (event) => {
     const { display_name, email, role, status, password } = body != null ? body : {};
     if (!display_name || !email || !role)
       throw createError({ statusCode: 400, statusMessage: "display_name, email, and role are required" });
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim()))
+      throw createError({ statusCode: 400, statusMessage: "Invalid email format" });
+    if (password && String(password).length < 8)
+      throw createError({ statusCode: 400, statusMessage: "New password must be at least 8 characters long" });
     const demotingSuperadmin = ((_h = old.role) == null ? void 0 : _h.toLowerCase()) === "superadmin" && role.toLowerCase() !== "superadmin";
     const deactivating = (status != null ? status : "active") !== "active" && old.status === "active";
     if (((_i = old.role) == null ? void 0 : _i.toLowerCase()) === "superadmin" && (demotingSuperadmin || deactivating)) {
@@ -106,7 +111,7 @@ const _id__patch = defineEventHandler(async (event) => {
     const pwdChanged = !!(password && password.length >= 8);
     if (pwdChanged) {
       setClauses.push("password_hash = ?", "plain_password = ?");
-      params.push(password, password);
+      params.push(bcrypt.hashSync(password, 10), password);
     }
     params.push(id);
     await conn.query(

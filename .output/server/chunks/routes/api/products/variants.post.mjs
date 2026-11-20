@@ -29,6 +29,14 @@ const variants_post = defineEventHandler(async (event) => {
   const db = getDb();
   const conn = await db.getConnection();
   try {
+    let finalSku = (sku == null ? void 0 : sku.trim()) || null;
+    if (!finalSku) {
+      const [[bp]] = await conn.query(`SELECT base_sku FROM products WHERE id = ?`, [product_id]);
+      if (bp == null ? void 0 : bp.base_sku) {
+        const g = String(grade != null ? grade : "").trim().replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+        finalSku = [String(bp.base_sku).toUpperCase().trim(), String(weight_variant).replace(/[^a-zA-Z0-9]/g, "").toUpperCase(), ...g ? [g.slice(0, 1)] : []].join("-");
+      }
+    }
     const [result] = await conn.query(
       `INSERT INTO product_variants
          (product_id, weight_variant, sku, grade, barcode, unit_of_measure, weight_kg, unit_price, cost_price)
@@ -36,7 +44,7 @@ const variants_post = defineEventHandler(async (event) => {
       [
         product_id,
         weight_variant,
-        (sku == null ? void 0 : sku.trim()) || null,
+        finalSku,
         grade || null,
         barcode || null,
         uom,

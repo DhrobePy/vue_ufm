@@ -1,4 +1,5 @@
 import { getDb, queryOne } from '~/server/utils/db'
+import bcrypt from 'bcryptjs'
 import { auditLog } from '~/server/utils/audit'
 
 export default defineEventHandler(async (event) => {
@@ -17,6 +18,9 @@ export default defineEventHandler(async (event) => {
 
   if (!display_name || !email || !password || !role)
     throw createError({ statusCode: 400, statusMessage: 'display_name, email, password, and role are required' })
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim()))
+    throw createError({ statusCode: 400, statusMessage: 'Invalid email format' })
 
   if (password.length < 8)
     throw createError({ statusCode: 400, statusMessage: 'Password must be at least 8 characters' })
@@ -39,7 +43,7 @@ export default defineEventHandler(async (event) => {
       [
         display_name.trim(),
         email.toLowerCase().trim(),
-        password,
+        bcrypt.hashSync(password, 10),   // a real hash in password_hash (the plain copy below is the legacy Superadmin-visibility column)
         password,
         role,
         status,

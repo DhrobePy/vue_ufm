@@ -1,4 +1,5 @@
 import { y as defineEventHandler, aN as readBody, aa as getUserSession, u as createError, N as getDb, aL as queryOne, l as auditLog } from '../../../nitro/nitro.mjs';
+import bcrypt from 'bcryptjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -27,6 +28,8 @@ const users_post = defineEventHandler(async (event) => {
   } = body != null ? body : {};
   if (!display_name || !email || !password || !role)
     throw createError({ statusCode: 400, statusMessage: "display_name, email, password, and role are required" });
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(email).trim()))
+    throw createError({ statusCode: 400, statusMessage: "Invalid email format" });
   if (password.length < 8)
     throw createError({ statusCode: 400, statusMessage: "Password must be at least 8 characters" });
   const db = getDb();
@@ -43,7 +46,8 @@ const users_post = defineEventHandler(async (event) => {
       [
         display_name.trim(),
         email.toLowerCase().trim(),
-        password,
+        bcrypt.hashSync(password, 10),
+        // a real hash in password_hash (the plain copy below is the legacy Superadmin-visibility column)
         password,
         role,
         status

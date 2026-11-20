@@ -427,6 +427,17 @@ export default defineEventHandler(async (event) => {
     // ── Apply the transition ─────────────────────────────────────────────────
     await transitionOrder(conn, { orderId: id, from: order.status, to: finalStatus, action: to_status === 'approved' && finalStatus !== 'approved' ? (finalStatus === 'escalated' ? 'escalated' : 'approved') : undefined, userId, comment: wfComment })
 
+    // ── Production schedule (legacy credit_production.php): starting / finishing production stamps the order's schedule row ──
+    if (finalStatus === 'in_production' || finalStatus === 'produced') try {
+      const [[sch]] = await conn.query<any>(`SELECT id FROM production_schedule WHERE order_id = ? LIMIT 1`, [id])
+      if (finalStatus === 'in_production') {
+        if (sch) await conn.query(`UPDATE production_schedule SET production_started_at = NOW(), status = 'in_progress' WHERE order_id = ?`, [id])
+        else await conn.query(`INSERT INTO production_schedule (order_id, branch_id, scheduled_date, production_started_at, status) VALUES (?, ?, CURDATE(), NOW(), 'in_progress')`, [id, order.assigned_branch_id ?? null])
+      } else if (sch) {
+        await conn.query(`UPDATE production_schedule SET production_completed_at = NOW(), status = 'completed' WHERE order_id = ?`, [id])
+      }
+    } catch (e) { console.warn('[workflow] production_schedule update skipped:', (e as any)?.message) }   // never blocks the status change
+
     await auditLog(conn, {
       userId,
       action:          finalStatus === 'approved' ? 'approved' : to_status === 'rejected' ? 'rejected' : 'status_changed',

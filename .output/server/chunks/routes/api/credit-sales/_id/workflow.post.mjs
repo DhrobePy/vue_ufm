@@ -33,7 +33,7 @@ const TRANSITIONS = {
   // admin only — pre-ledger, nothing to reverse
 };
 const workflow_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L;
   const id = Number(getRouterParam(event, "id"));
   const body = await readBody(event);
   const session = await getUserSession(event);
@@ -363,6 +363,17 @@ Reason: ${comments}${released > 0 ? `
 \u09F3${released.toLocaleString()} advance released to customer credit` : ""}`;
     }
     await transitionOrder(conn, { orderId: id, from: order.status, to: finalStatus, action: to_status === "approved" && finalStatus !== "approved" ? finalStatus === "escalated" ? "escalated" : "approved" : void 0, userId, comment: wfComment });
+    if (finalStatus === "in_production" || finalStatus === "produced") try {
+      const [[sch]] = await conn.query(`SELECT id FROM production_schedule WHERE order_id = ? LIMIT 1`, [id]);
+      if (finalStatus === "in_production") {
+        if (sch) await conn.query(`UPDATE production_schedule SET production_started_at = NOW(), status = 'in_progress' WHERE order_id = ?`, [id]);
+        else await conn.query(`INSERT INTO production_schedule (order_id, branch_id, scheduled_date, production_started_at, status) VALUES (?, ?, CURDATE(), NOW(), 'in_progress')`, [id, (_J = order.assigned_branch_id) != null ? _J : null]);
+      } else if (sch) {
+        await conn.query(`UPDATE production_schedule SET production_completed_at = NOW(), status = 'completed' WHERE order_id = ?`, [id]);
+      }
+    } catch (e) {
+      console.warn("[workflow] production_schedule update skipped:", e == null ? void 0 : e.message);
+    }
     await auditLog(conn, {
       userId,
       action: finalStatus === "approved" ? "approved" : to_status === "rejected" ? "rejected" : "status_changed",
@@ -386,7 +397,7 @@ Reason: ${comments}${released > 0 ? `
     console.error("[workflow] transition failed:", e == null ? void 0 : e.message, "| errno:", e == null ? void 0 : e.errno);
     throw createError({
       statusCode: 500,
-      statusMessage: (_K = (_J = e == null ? void 0 : e.sqlMessage) != null ? _J : e == null ? void 0 : e.message) != null ? _K : "Workflow transition failed"
+      statusMessage: (_L = (_K = e == null ? void 0 : e.sqlMessage) != null ? _K : e == null ? void 0 : e.message) != null ? _L : "Workflow transition failed"
     });
   } finally {
     conn.release();
