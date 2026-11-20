@@ -38,20 +38,23 @@ const PLAN = {
   expense_categories: ['is_active'],
   expense_subcategories: ['is_active'],
   loans: ['status', 'amount_repaid', 'balance_due'],
+  // shipping rows were re-numbered here, so they are matched by order, not by id (one shipping row per order in legacy)
+  credit_order_shipping: { key: 'order_id', cols: ['shipped_date', 'delivered_date', 'truck_number', 'driver_name', 'driver_contact', 'delivery_notes'] },
 }
 const userCol = (c) => /(_user_id)$/.test(c)
 const summary = [], samples = []
 if (APPLY) await vue.beginTransaction()
 try {
-  for (const [table, wanted] of Object.entries(PLAN)) {
+  for (const [table, spec] of Object.entries(PLAN)) {
+    const wanted = Array.isArray(spec) ? spec : spec.cols, K = Array.isArray(spec) ? 'id' : spec.key
     const [lc, vc] = [await present(legacy, table), await present(vue, table)]
     const cols = wanted.filter(c => lc.has(c) && vc.has(c))
     if (!cols.length) continue
-    const lMap = new Map((await q(legacy, `SELECT id, ${cols.map(c => `\`${c}\``).join(',')} FROM \`${table}\``)).map(r => [String(r.id), r]))
-    const vRows = await q(vue, `SELECT id, ${cols.map(c => `\`${c}\``).join(',')} FROM \`${table}\``)
+    const lMap = new Map((await q(legacy, `SELECT \`${K}\`, ${cols.map(c => `\`${c}\``).join(',')} FROM \`${table}\``)).map(r => [String(r[K]), r]))
+    const vRows = await q(vue, `SELECT id, \`${K}\`, ${cols.map(c => `\`${c}\``).join(',')} FROM \`${table}\``)
     let rows = 0; const byCol = {}
     for (const v of vRows) {
-      const l = lMap.get(String(v.id)); if (!l) continue
+      const l = lMap.get(String(v[K])); if (!l) continue
       const sets = {}
       for (const c of cols) {
         let nv = l[c]

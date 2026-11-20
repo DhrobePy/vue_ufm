@@ -33,6 +33,7 @@ if (onlyVue.length) console.log(`  (customers only in Vue: ${onlyVue.map(r => `#
 
 for (const [label, sql] of [
   ['credit orders', 'SELECT COUNT(*) n, ROUND(SUM(total_amount)) t FROM credit_orders'],
+  ['order lines (qty / value)', 'SELECT COUNT(*) n, ROUND(SUM(quantity) * 1000 + SUM(line_total)) t FROM credit_order_items WHERE order_id IN (SELECT id FROM credit_orders WHERE id < 1000000)'],
   ['customer payments', 'SELECT COUNT(*) n, ROUND(SUM(amount)) t FROM customer_payments'],
   ['customer ledger rows', `SELECT COUNT(*) n, ROUND(SUM(debit_amount) - SUM(credit_amount)) t FROM customer_ledger WHERE id < 1000000 AND customer_id NOT IN (${onlyVue.map(r => r.id).join(",") || 0})`],   // opening lines added here (id >= 1,000,000) and customers that exist only here are excluded
   ['purchase orders', 'SELECT COUNT(*) n, ROUND(SUM(total_paid)) t FROM purchase_orders_adnan'],

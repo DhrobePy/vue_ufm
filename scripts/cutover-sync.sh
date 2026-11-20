@@ -23,6 +23,7 @@ say "Master data (customers, products)";            node scripts/sync-legacy-mas
 say "Users and limits";                               node scripts/sync-legacy-users.mjs --apply | sed -n '1,3p'
 say "Transactions — pass 1";                          node scripts/sync-legacy-transactional.mjs --apply --catchup > /tmp/cutover-1.log 2>&1 && echo ok || { tail -5 /tmp/cutover-1.log; exit 1; }
 say "Transactions — pass 2 (picks up anything skipped in pass 1)"; node scripts/sync-legacy-transactional.mjs --apply --catchup --force > /tmp/cutover-2.log 2>&1 && echo ok || { tail -5 /tmp/cutover-2.log; exit 1; }
+say "Old order lines replaced by edits in legacy (to the Recycle Bin)"; node scripts/align-order-items.mjs --apply | sed -n '1p;/Applied/p'
 say "General ledger (missing / half-posted / double-posted entries)"; node scripts/repair-gl-parity.mjs --apply | grep -E "^(Insert|Re-line|Double|Applied|FAILED)"
 say "Edits made in legacy since the rows were first copied (credit limits, approvals, bank rows…)"; node scripts/catchup-edits.mjs --apply | sed -n '1,12p'
 say "Timestamps (repairs any 6-hour shift)";       node scripts/fix-synced-timestamps.mjs --apply | head -1
