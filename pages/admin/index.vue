@@ -2,6 +2,7 @@
   <div class="space-y-6">
     <UiPageHeader title="Admin" subtitle="Users · employees · audit trail · system settings" :breadcrumb="['Admin']">
       <template #actions>
+        <NuxtLink to="/admin/daily-summary" class="btn-ghost text-xs">📊 Daily Summary</NuxtLink>
         <NuxtLink to="/admin/recycle-bin" class="btn-ghost text-xs">🗑️ Recycle Bin</NuxtLink>
       </template>
     </UiPageHeader>

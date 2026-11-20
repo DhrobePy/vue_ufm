@@ -73,6 +73,7 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/accounts/statement':         { module: 'accounts',     page: 'statement' },
   '/accounts/voucher':           { module: 'accounts',     page: 'voucher' },
   '/accounts/daily-log':         { module: 'accounts',     page: 'daily_log' },
+  '/accounts/all-accounts':      { module: 'accounts',     page: 'all_accounts' },
 
   '/sales':                      { module: 'sales',        page: 'report' },
 
@@ -93,6 +94,7 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/pos':                        { module: 'pos',          page: 'terminal' },
 
   '/admin':                      { module: 'admin',        page: 'dashboard' },
+  '/admin/daily-summary':        { module: 'admin',        page: 'daily_summary' },
   '/admin/users':                { module: 'admin',        page: 'users' },
   '/admin/audit':                { module: 'admin',        page: 'audit' },
   '/admin/settings':             { module: 'admin',        page: 'settings' },

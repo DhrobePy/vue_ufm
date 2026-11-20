@@ -567,6 +567,10 @@ const moduleRegistry = [
           { key: 'create', label: 'Create Voucher' },
           { key: 'print',  label: 'Print' },
         ] },
+      { key: 'all_accounts',  label: 'Account Balances (non-bank)', route: 'accounts/all-accounts',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
+        ] },
       { key: 'daily_log',     label: 'Daily Log',           route: 'accounts/daily-log',
         actions: [
           { key: 'export', label: 'Export' },
@@ -697,6 +701,10 @@ const moduleRegistry = [
           { key: 'deactivate',  label: 'Deactivate User' },
           { key: 'delete',      label: 'Delete User' },
           { key: 'permissions', label: 'Set Permissions' },
+        ] },
+      { key: 'daily_summary', label: 'Daily Financial Summary', route: 'admin/daily-summary',
+        actions: [
+          { key: 'export', label: 'Export Excel / CSV / PDF' },
         ] },
       { key: 'audit',      label: 'Audit Trail',       route: 'admin/audit',
         actions: [

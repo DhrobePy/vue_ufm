@@ -440,14 +440,16 @@ function getRouteRules(arg) {
     return {};
   }
 }
+const __nuxt_page_meta$2$ = { layout: "default" };
+const __nuxt_page_meta$2_ = { layout: "default" };
 const __nuxt_page_meta$2Z = { layout: "default" };
 const __nuxt_page_meta$2Y = { layout: "default" };
-const __nuxt_page_meta$2X = { layout: "default" };
+const __nuxt_page_meta$2X = { layout: false };
 const __nuxt_page_meta$2W = { layout: "default" };
-const __nuxt_page_meta$2V = { layout: false };
-const __nuxt_page_meta$2U = { layout: "default" };
+const __nuxt_page_meta$2V = { layout: "default" };
+const __nuxt_page_meta$2U = { layout: false };
 const __nuxt_page_meta$2T = { layout: "default" };
-const __nuxt_page_meta$2S = { layout: false };
+const __nuxt_page_meta$2S = { layout: "default" };
 const __nuxt_page_meta$2R = { layout: "default" };
 const __nuxt_page_meta$2Q = { layout: "default" };
 const __nuxt_page_meta$2P = { layout: "default" };
@@ -455,9 +457,9 @@ const __nuxt_page_meta$2O = { layout: "default" };
 const __nuxt_page_meta$2N = { layout: "default" };
 const __nuxt_page_meta$2M = { layout: "default" };
 const __nuxt_page_meta$2L = { layout: "default" };
-const __nuxt_page_meta$2K = { layout: "default" };
+const __nuxt_page_meta$2K = { layout: "kiosk" };
 const __nuxt_page_meta$2J = { layout: "default" };
-const __nuxt_page_meta$2I = { layout: "kiosk" };
+const __nuxt_page_meta$2I = { layout: "default" };
 const __nuxt_page_meta$2H = { layout: "default" };
 const __nuxt_page_meta$2G = { layout: "default" };
 const __nuxt_page_meta$2F = { layout: "default" };
@@ -530,8 +532,8 @@ const __nuxt_page_meta$1D = { layout: "default" };
 const __nuxt_page_meta$1C = { layout: "default" };
 const __nuxt_page_meta$1B = { layout: "default" };
 const __nuxt_page_meta$1A = { layout: "default" };
-const __nuxt_page_meta$1z = { layout: "default" };
-const __nuxt_page_meta$1y = { layout: false };
+const __nuxt_page_meta$1z = { layout: false };
+const __nuxt_page_meta$1y = { layout: "default" };
 const __nuxt_page_meta$1x = { layout: "default" };
 const __nuxt_page_meta$1w = { layout: "default" };
 const __nuxt_page_meta$1v = { layout: "default" };
@@ -634,601 +636,613 @@ const _routes = [
   {
     name: "index",
     path: "/",
-    component: () => import('./index-b1ozilef.mjs')
+    component: () => import('./index-DEsx-G8K.mjs')
   },
   {
     name: "pos-eod",
     path: "/pos/eod",
-    meta: __nuxt_page_meta$2Z || {},
+    meta: __nuxt_page_meta$2$ || {},
     component: () => import('./eod-C7ylJ-G2.mjs')
   },
   {
     name: "hr",
     path: "/hr",
-    meta: __nuxt_page_meta$2Y || {},
+    meta: __nuxt_page_meta$2_ || {},
     component: () => import('./index-CpjFvohg.mjs')
   },
   {
     name: "hr-loans",
     path: "/hr/loans",
-    meta: __nuxt_page_meta$2X || {},
+    meta: __nuxt_page_meta$2Z || {},
     component: () => import('./loans-CB4RgQdv.mjs')
   },
   {
     name: "pos-id",
     path: "/pos/:id()",
-    meta: __nuxt_page_meta$2W || {},
+    meta: __nuxt_page_meta$2Y || {},
     component: () => import('./_id_-YvkNg0VT.mjs')
   },
   {
     name: "d-order",
     path: "/d/:order()",
-    meta: __nuxt_page_meta$2V || {},
+    meta: __nuxt_page_meta$2X || {},
     component: () => import('./_order_-B-l7oBAq.mjs')
   },
   {
     name: "pos",
     path: "/pos",
-    meta: __nuxt_page_meta$2U || {},
+    meta: __nuxt_page_meta$2W || {},
     component: () => import('./index-CfltcitT.mjs')
   },
   {
     name: "pos-today",
     path: "/pos/today",
-    meta: __nuxt_page_meta$2T || {},
+    meta: __nuxt_page_meta$2V || {},
     component: () => import('./today-CJCxxrlL.mjs')
   },
   {
     name: "auth-login",
     path: "/auth/login",
-    meta: __nuxt_page_meta$2S || {},
+    meta: __nuxt_page_meta$2U || {},
     component: () => import('./login-COFS-zd0.mjs')
   },
   {
     name: "bank",
     path: "/bank",
-    meta: __nuxt_page_meta$2R || {},
-    component: () => import('./index-CZJusEz0.mjs')
+    meta: __nuxt_page_meta$2T || {},
+    component: () => import('./index-cqxjcbet.mjs')
   },
   {
     name: "hr-bonuses",
     path: "/hr/bonuses",
-    meta: __nuxt_page_meta$2Q || {},
+    meta: __nuxt_page_meta$2S || {},
     component: () => import('./bonuses-DojMB3P1.mjs')
   },
   {
     name: "loans-id",
     path: "/loans/:id()",
-    meta: __nuxt_page_meta$2P || {},
+    meta: __nuxt_page_meta$2R || {},
     component: () => import('./_id_-BOq15ZQ2.mjs')
   },
   {
     name: "admin-audit",
     path: "/admin/audit",
-    meta: __nuxt_page_meta$2O || {},
+    meta: __nuxt_page_meta$2Q || {},
     component: () => import('./audit-DukDftXW.mjs')
   },
   {
     name: "admin",
     path: "/admin",
-    meta: __nuxt_page_meta$2N || {},
-    component: () => import('./index-BBNV8k5y.mjs')
+    meta: __nuxt_page_meta$2P || {},
+    component: () => import('./index-CmWE4wJz.mjs')
   },
   {
     name: "fleet",
     path: "/fleet",
-    meta: __nuxt_page_meta$2M || {},
+    meta: __nuxt_page_meta$2O || {},
     component: () => import('./index-BMkJ55Lf.mjs')
   },
   {
     name: "hr-advances",
     path: "/hr/advances",
-    meta: __nuxt_page_meta$2L || {},
+    meta: __nuxt_page_meta$2N || {},
     component: () => import('./advances-CsnKcElH.mjs')
   },
   {
     name: "hr-holidays",
     path: "/hr/holidays",
-    meta: __nuxt_page_meta$2K || {},
+    meta: __nuxt_page_meta$2M || {},
     component: () => import('./holidays-BeI4asxj.mjs')
   },
   {
     name: "hr-overtime",
     path: "/hr/overtime",
-    meta: __nuxt_page_meta$2J || {},
+    meta: __nuxt_page_meta$2L || {},
     component: () => import('./overtime-DxmufSYd.mjs')
   },
   {
     name: "kiosk",
     path: "/kiosk",
-    meta: __nuxt_page_meta$2I || {},
+    meta: __nuxt_page_meta$2K || {},
     component: () => import('./index-DlfbPYPi.mjs')
   },
   {
     name: "loans",
     path: "/loans",
-    meta: __nuxt_page_meta$2H || {},
+    meta: __nuxt_page_meta$2J || {},
     component: () => import('./index-CFq469u-.mjs')
   },
   {
     name: "pos-reports",
     path: "/pos/reports",
-    meta: __nuxt_page_meta$2G || {},
+    meta: __nuxt_page_meta$2I || {},
     component: () => import('./reports-BUWrc44Q.mjs')
   },
   {
     name: "sales",
     path: "/sales",
-    meta: __nuxt_page_meta$2F || {},
+    meta: __nuxt_page_meta$2H || {},
     component: () => import('./index-BBe79YBz.mjs')
   },
   {
     name: "accounts-coa",
     path: "/accounts/coa",
-    meta: __nuxt_page_meta$2E || {},
-    component: () => import('./coa-B_66Ni3x.mjs')
+    meta: __nuxt_page_meta$2G || {},
+    component: () => import('./coa-B1NsKnuL.mjs')
   },
   {
     name: "hr-biometric",
     path: "/hr/biometric",
-    meta: __nuxt_page_meta$2D || {},
+    meta: __nuxt_page_meta$2F || {},
     component: () => import('./biometric-CXooEA-N.mjs')
   },
   {
     name: "bank-transfer",
     path: "/bank/transfer",
-    meta: __nuxt_page_meta$2C || {},
-    component: () => import('./transfer-C_ouSSI7.mjs')
+    meta: __nuxt_page_meta$2E || {},
+    component: () => import('./transfer-CPuxS2Tp.mjs')
   },
   {
     name: "hr-attendance",
     path: "/hr/attendance",
-    meta: __nuxt_page_meta$2B || {},
+    meta: __nuxt_page_meta$2D || {},
     component: () => import('./attendance-CRH33YDK.mjs')
   },
   {
     name: "pos-dashboard",
     path: "/pos/dashboard",
-    meta: __nuxt_page_meta$2A || {},
+    meta: __nuxt_page_meta$2C || {},
     component: () => import('./dashboard-DZ-UJobT.mjs')
   },
   {
     name: "products-base",
     path: "/products/base",
-    meta: __nuxt_page_meta$2z || {},
+    meta: __nuxt_page_meta$2B || {},
     component: () => import('./base-HwGshEbv.mjs')
   },
   {
     name: "trading",
     path: "/trading",
-    meta: __nuxt_page_meta$2y || {},
+    meta: __nuxt_page_meta$2A || {},
     component: () => import('./index-DGrJg88a.mjs')
   },
   {
     name: "accounts",
     path: "/accounts",
-    meta: __nuxt_page_meta$2x || {},
-    component: () => import('./index-C5uBZi02.mjs')
+    meta: __nuxt_page_meta$2z || {},
+    component: () => import('./index-DXaGZ2cz.mjs')
   },
   {
     name: "admin-settings",
     path: "/admin/settings",
-    meta: __nuxt_page_meta$2w || {},
+    meta: __nuxt_page_meta$2y || {},
     component: () => import('./settings-v8EB-TBa.mjs')
   },
   {
     name: "bank-statement",
     path: "/bank/statement",
-    meta: __nuxt_page_meta$2v || {},
-    component: () => import('./statement-MnE6-8i9.mjs')
+    meta: __nuxt_page_meta$2x || {},
+    component: () => import('./statement-CAV37aRo.mjs')
   },
   {
     name: "dispatch",
     path: "/dispatch",
-    meta: __nuxt_page_meta$2u || {},
+    meta: __nuxt_page_meta$2w || {},
     component: () => import('./index-w6_8zzNu.mjs')
   },
   {
     name: "expenses",
     path: "/expenses",
-    meta: __nuxt_page_meta$2t || {},
+    meta: __nuxt_page_meta$2v || {},
     component: () => import('./index-Cs-uFFda.mjs')
   },
   {
     name: "logistics-fuel",
     path: "/logistics/fuel",
-    meta: __nuxt_page_meta$2s || {},
+    meta: __nuxt_page_meta$2u || {},
     component: () => import('./fuel-BGbvyZjZ.mjs')
   },
   {
     name: "products",
     path: "/products",
-    meta: __nuxt_page_meta$2r || {},
+    meta: __nuxt_page_meta$2t || {},
     component: () => import('./index-BV0rY5jX.mjs')
   },
   {
     name: "purchase",
     path: "/purchase",
-    meta: __nuxt_page_meta$2q || {},
+    meta: __nuxt_page_meta$2s || {},
     component: () => import('./index-COKm5EiO.mjs')
   },
   {
     name: "collector",
     path: "/collector",
-    meta: __nuxt_page_meta$2p || {},
+    meta: __nuxt_page_meta$2r || {},
     component: () => import('./index-CTwfUxHN.mjs')
   },
   {
     name: "customers",
     path: "/customers",
-    meta: __nuxt_page_meta$2o || {},
-    component: () => import('./index-BHms4hP-.mjs')
+    meta: __nuxt_page_meta$2q || {},
+    component: () => import('./index-DGsGJnM2.mjs')
   },
   {
     name: "dashboard",
     path: "/dashboard",
-    meta: __nuxt_page_meta$2n || {},
-    component: () => import('./index-CGq1_HBd.mjs')
+    meta: __nuxt_page_meta$2p || {},
+    component: () => import('./index-s5nx5juO.mjs')
   },
   {
     name: "expenses-create",
     path: "/expenses/create",
-    meta: __nuxt_page_meta$2m || {},
-    component: () => import('./create-t91-BWZA.mjs')
+    meta: __nuxt_page_meta$2o || {},
+    component: () => import('./create-CNJ3alEC.mjs')
   },
   {
     name: "hr-payslip-id",
     path: "/hr/payslip/:id()",
-    meta: __nuxt_page_meta$2l || {},
+    meta: __nuxt_page_meta$2n || {},
     component: () => import('./_id_-BTtuhM5h.mjs')
   },
   {
     name: "logistics",
     path: "/logistics",
-    meta: __nuxt_page_meta$2k || {},
+    meta: __nuxt_page_meta$2m || {},
     component: () => import('./index-D7mZJJRg.mjs')
   },
   {
     name: "credit-sales-all",
     path: "/credit-sales/all",
-    meta: __nuxt_page_meta$2j || {},
-    component: () => import('./all-CKcw9jAr.mjs')
+    meta: __nuxt_page_meta$2l || {},
+    component: () => import('./all-spE1uy9z.mjs')
   },
   {
     name: "customers-create",
     path: "/customers/create",
-    meta: __nuxt_page_meta$2i || {},
-    component: () => import('./create-Bd2y9-jl.mjs')
+    meta: __nuxt_page_meta$2k || {},
+    component: () => import('./create-njk4hyF-.mjs')
   },
   {
     name: "expenses-approve",
     path: "/expenses/approve",
-    meta: __nuxt_page_meta$2h || {},
+    meta: __nuxt_page_meta$2j || {},
     component: () => import('./approve-D8JMRMGd.mjs')
   },
   {
     name: "expenses-history",
     path: "/expenses/history",
-    meta: __nuxt_page_meta$2g || {},
+    meta: __nuxt_page_meta$2i || {},
     component: () => import('./history-VEfkcsqf.mjs')
   },
   {
     name: "fleet-fuel",
     path: "/fleet/fuel",
-    meta: __nuxt_page_meta$2f || {},
+    meta: __nuxt_page_meta$2h || {},
     component: () => import('./index-B8LR2Yzc.mjs')
   },
   {
     name: "hr-payroll",
     path: "/hr/payroll",
-    meta: __nuxt_page_meta$2e || {},
+    meta: __nuxt_page_meta$2g || {},
     component: () => import('./index-boBQLcCs.mjs')
   },
   {
     name: "pos-exit-order",
     path: "/pos/exit/:order()",
-    meta: __nuxt_page_meta$2d || {},
+    meta: __nuxt_page_meta$2f || {},
     component: () => import('./_order_-BdJwNF2J.mjs')
   },
   {
     name: "production",
     path: "/production",
-    meta: __nuxt_page_meta$2c || {},
+    meta: __nuxt_page_meta$2e || {},
     component: () => import('./index-DpW7RhpI.mjs')
   },
   {
     name: "products-pricing",
     path: "/products/pricing",
-    meta: __nuxt_page_meta$2b || {},
+    meta: __nuxt_page_meta$2d || {},
     component: () => import('./pricing-mom07KrW.mjs')
   },
   {
     name: "trading-partners",
     path: "/trading/partners",
-    meta: __nuxt_page_meta$2a || {},
+    meta: __nuxt_page_meta$2c || {},
     component: () => import('./partners-Dk8f-kUI.mjs')
   },
   {
     name: "accounts-transfer",
     path: "/accounts/transfer",
-    meta: __nuxt_page_meta$29 || {},
-    component: () => import('./transfer-DwQQObET.mjs')
+    meta: __nuxt_page_meta$2b || {},
+    component: () => import('./transfer-BTCnpI-e.mjs')
   },
   {
     name: "admin-recycle-bin",
     path: "/admin/recycle-bin",
-    meta: __nuxt_page_meta$28 || {},
+    meta: __nuxt_page_meta$2a || {},
     component: () => import('./recycle-bin-pwhD4YRf.mjs')
   },
   {
     name: "admin-users",
     path: "/admin/users",
-    meta: __nuxt_page_meta$27 || {},
+    meta: __nuxt_page_meta$29 || {},
     component: () => import('./index-CvzxxlcN.mjs')
   },
   {
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
-    meta: __nuxt_page_meta$26 || {},
-    component: () => import('./vouchers-Tpqla2mu.mjs')
+    meta: __nuxt_page_meta$28 || {},
+    component: () => import('./vouchers-BLiLVgus.mjs')
   },
   {
     name: "fleet-fuel-create",
     path: "/fleet/fuel/create",
-    meta: __nuxt_page_meta$25 || {},
+    meta: __nuxt_page_meta$27 || {},
     component: () => import('./create-BEyi8fG5.mjs')
   },
   {
     name: "fleet-items",
     path: "/fleet/items",
-    meta: __nuxt_page_meta$24 || {},
+    meta: __nuxt_page_meta$26 || {},
     component: () => import('./index-Ju4UFsWz.mjs')
   },
   {
     name: "fleet-reports-pnl",
     path: "/fleet/reports/pnl",
-    meta: __nuxt_page_meta$23 || {},
+    meta: __nuxt_page_meta$25 || {},
     component: () => import('./pnl-BoR1vYv4.mjs')
   },
   {
     name: "fleet-trips",
     path: "/fleet/trips",
-    meta: __nuxt_page_meta$22 || {},
+    meta: __nuxt_page_meta$24 || {},
     component: () => import('./index-iSRQbLJt.mjs')
   },
   {
     name: "hr-employees-id",
     path: "/hr/employees/:id()",
-    meta: __nuxt_page_meta$21 || {},
+    meta: __nuxt_page_meta$23 || {},
     component: () => import('./_id_-GRW4tZ-Y.mjs')
   },
   {
     name: "hr-leave-requests",
     path: "/hr/leave-requests",
-    meta: __nuxt_page_meta$20 || {},
+    meta: __nuxt_page_meta$22 || {},
     component: () => import('./leave-requests-CXiaJVsW.mjs')
   },
   {
     name: "production-create",
     path: "/production/create",
-    meta: __nuxt_page_meta$1$ || {},
+    meta: __nuxt_page_meta$21 || {},
     component: () => import('./create-BJSP5SQf.mjs')
   },
   {
     name: "production-totals",
     path: "/production/totals",
-    meta: __nuxt_page_meta$1_ || {},
+    meta: __nuxt_page_meta$20 || {},
     component: () => import('./totals-BRIv_KYD.mjs')
   },
   {
     name: "products-variants",
     path: "/products/variants",
-    meta: __nuxt_page_meta$1Z || {},
+    meta: __nuxt_page_meta$1$ || {},
     component: () => import('./variants-GLOs2QS2.mjs')
   },
   {
     name: "accounts-daily-log",
     path: "/accounts/daily-log",
-    meta: __nuxt_page_meta$1Y || {},
-    component: () => import('./daily-log-CCHeo_hD.mjs')
+    meta: __nuxt_page_meta$1_ || {},
+    component: () => import('./daily-log-BrXMJ70p.mjs')
   },
   {
     name: "accounts-statement",
     path: "/accounts/statement",
-    meta: __nuxt_page_meta$1X || {},
-    component: () => import('./statement-lv5ayujR.mjs')
+    meta: __nuxt_page_meta$1Z || {},
+    component: () => import('./statement-BkAb46WA.mjs')
   },
   {
     name: "admin-users-create",
     path: "/admin/users/create",
-    meta: __nuxt_page_meta$1W || {},
-    component: () => import('./create-DmP9a0iw.mjs')
+    meta: __nuxt_page_meta$1Y || {},
+    component: () => import('./create-C0XAx9GH.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
-    meta: __nuxt_page_meta$1V || {},
-    component: () => import('./index-CMbvh43e.mjs')
+    meta: __nuxt_page_meta$1X || {},
+    component: () => import('./index-DtVVKgT5.mjs')
   },
   {
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
-    meta: __nuxt_page_meta$1U || {},
-    component: () => import('./edit-DbgyqsMm.mjs')
+    meta: __nuxt_page_meta$1W || {},
+    component: () => import('./edit-MgypdSR1.mjs')
   },
   {
     name: "fleet-trips-create",
     path: "/fleet/trips/create",
-    meta: __nuxt_page_meta$1T || {},
+    meta: __nuxt_page_meta$1V || {},
     component: () => import('./create-1QvXqEca.mjs')
   },
   {
     name: "hr-employees",
     path: "/hr/employees",
-    meta: __nuxt_page_meta$1S || {},
+    meta: __nuxt_page_meta$1U || {},
     component: () => import('./index-CZxSNNRN.mjs')
   },
   {
     name: "hr-payroll-history",
     path: "/hr/payroll/history",
-    meta: __nuxt_page_meta$1R || {},
+    meta: __nuxt_page_meta$1T || {},
     component: () => import('./history-2aK3k6G0.mjs')
   },
   {
     name: "products-inventory",
     path: "/products/inventory",
-    meta: __nuxt_page_meta$1Q || {},
+    meta: __nuxt_page_meta$1S || {},
     component: () => import('./inventory-BQU2cCgm.mjs')
   },
   {
     name: "purchase-grn",
     path: "/purchase/grn",
-    meta: __nuxt_page_meta$1P || {},
+    meta: __nuxt_page_meta$1R || {},
     component: () => import('./index-DSq0b8A7.mjs')
+  },
+  {
+    name: "admin-daily-summary",
+    path: "/admin/daily-summary",
+    meta: __nuxt_page_meta$1Q || {},
+    component: () => import('./daily-summary-Do--Wzfr.mjs')
   },
   {
     name: "bank-accounts",
     path: "/bank/accounts",
-    meta: __nuxt_page_meta$1O || {},
-    component: () => import('./index-2GNtcDem.mjs')
+    meta: __nuxt_page_meta$1P || {},
+    component: () => import('./index-7hKfD8rZ.mjs')
   },
   {
     name: "bank-accounts-types",
     path: "/bank/accounts/types",
-    meta: __nuxt_page_meta$1N || {},
-    component: () => import('./types-CIX8TS9Y.mjs')
+    meta: __nuxt_page_meta$1O || {},
+    component: () => import('./types-DfDFMFiV.mjs')
   },
   {
     name: "bank-reconciliation",
     path: "/bank/reconciliation",
-    meta: __nuxt_page_meta$1M || {},
-    component: () => import('./reconciliation-CfQZNEeJ.mjs')
+    meta: __nuxt_page_meta$1N || {},
+    component: () => import('./reconciliation-B9OxV20N.mjs')
   },
   {
     name: "credit-sales-ageing",
     path: "/credit-sales/ageing",
-    meta: __nuxt_page_meta$1L || {},
-    component: () => import('./ageing-Dbl3T066.mjs')
+    meta: __nuxt_page_meta$1M || {},
+    component: () => import('./ageing-CF8K_XRF.mjs')
   },
   {
     name: "credit-sales-create",
     path: "/credit-sales/create",
-    meta: __nuxt_page_meta$1K || {},
+    meta: __nuxt_page_meta$1L || {},
     component: () => import('./create-B4Qxf522.mjs')
   },
   {
     name: "credit-sales-ledger",
     path: "/credit-sales/ledger",
-    meta: __nuxt_page_meta$1J || {},
-    component: () => import('./ledger-iWX7JEuY.mjs')
+    meta: __nuxt_page_meta$1K || {},
+    component: () => import('./ledger-BoVtxPeh.mjs')
   },
   {
     name: "customers-id-edit",
     path: "/customers/:id()/edit",
-    meta: __nuxt_page_meta$1I || {},
+    meta: __nuxt_page_meta$1J || {},
     component: () => import('./edit-psE6yzaJ.mjs')
   },
   {
     name: "expenses-id",
     path: "/expenses/:id()",
-    meta: __nuxt_page_meta$1H || {},
+    meta: __nuxt_page_meta$1I || {},
     component: () => import('./index-uJNbujd-.mjs')
   },
   {
     name: "expenses-categories",
     path: "/expenses/categories",
-    meta: __nuxt_page_meta$1G || {},
+    meta: __nuxt_page_meta$1H || {},
     component: () => import('./categories-De8IsaN_.mjs')
   },
   {
     name: "fleet-drivers",
     path: "/fleet/drivers",
-    meta: __nuxt_page_meta$1F || {},
+    meta: __nuxt_page_meta$1G || {},
     component: () => import('./index-DrTQ_--e.mjs')
   },
   {
     name: "fleet-rentals",
     path: "/fleet/rentals",
-    meta: __nuxt_page_meta$1E || {},
+    meta: __nuxt_page_meta$1F || {},
     component: () => import('./index-Crn2T0Hd.mjs')
   },
   {
     name: "fleet-reports",
     path: "/fleet/reports",
-    meta: __nuxt_page_meta$1D || {},
+    meta: __nuxt_page_meta$1E || {},
     component: () => import('./index-UV8HQLgq.mjs')
   },
   {
     name: "fleet-reports-trips",
     path: "/fleet/reports/trips",
-    meta: __nuxt_page_meta$1C || {},
+    meta: __nuxt_page_meta$1D || {},
     component: () => import('./trips-4hZGcToL.mjs')
   },
   {
     name: "hr-salary-structure",
     path: "/hr/salary-structure",
-    meta: __nuxt_page_meta$1B || {},
+    meta: __nuxt_page_meta$1C || {},
     component: () => import('./salary-structure-NAQbvqA_.mjs')
   },
   {
     name: "purchase-grn-create",
     path: "/purchase/grn/create",
-    meta: __nuxt_page_meta$1A || {},
+    meta: __nuxt_page_meta$1B || {},
     component: () => import('./create-C2777vqG.mjs')
   },
   {
     name: "trading-sales",
     path: "/trading/sales",
-    meta: __nuxt_page_meta$1z || {},
+    meta: __nuxt_page_meta$1A || {},
     component: () => import('./index-UH5SQvGD.mjs')
   },
   {
     name: "trading-verify-id",
     path: "/trading/verify/:id()",
-    meta: __nuxt_page_meta$1y || {},
+    meta: __nuxt_page_meta$1z || {},
     component: () => import('./_id_-4vGHai_r.mjs')
   },
   {
     name: "credit-sales-approve",
     path: "/credit-sales/approve",
-    meta: __nuxt_page_meta$1x || {},
-    component: () => import('./approve-L_bPamh_.mjs')
+    meta: __nuxt_page_meta$1y || {},
+    component: () => import('./approve-DVbUTIoE.mjs')
   },
   {
     name: "credit-sales-collect",
     path: "/credit-sales/collect",
-    meta: __nuxt_page_meta$1w || {},
+    meta: __nuxt_page_meta$1x || {},
     component: () => import('./collect-CxmxH2Pi.mjs')
   },
   {
     name: "customers-id",
     path: "/customers/:id()",
-    meta: __nuxt_page_meta$1v || {},
-    component: () => import('./index-C7HWEj6K.mjs')
+    meta: __nuxt_page_meta$1w || {},
+    component: () => import('./index-DrX0vARX.mjs')
   },
   {
     name: "fleet-drivers-create",
     path: "/fleet/drivers/create",
-    meta: __nuxt_page_meta$1u || {},
+    meta: __nuxt_page_meta$1v || {},
     component: () => import('./create-Cz6rhLDP.mjs')
   },
   {
     name: "fleet-purchases-id",
     path: "/fleet/purchases/:id()",
-    meta: __nuxt_page_meta$1t || {},
+    meta: __nuxt_page_meta$1u || {},
     component: () => import('./_id_-MpJnBzrM.mjs')
   },
   {
     name: "fleet-vehicles",
     path: "/fleet/vehicles",
-    meta: __nuxt_page_meta$1s || {},
+    meta: __nuxt_page_meta$1t || {},
     component: () => import('./index-M85oGd8x.mjs')
   },
   {
     name: "purchase-commodities",
     path: "/purchase/commodities",
-    meta: __nuxt_page_meta$1r || {},
+    meta: __nuxt_page_meta$1s || {},
     component: () => import('./commodities-B3MrTS-T.mjs')
+  },
+  {
+    name: "accounts-all-accounts",
+    path: "/accounts/all-accounts",
+    meta: __nuxt_page_meta$1r || {},
+    component: () => import('./all-accounts-G9qBjMOw.mjs')
   },
   {
     name: "admin-employees",
@@ -1240,13 +1254,13 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./edit-C-0UncBa.mjs')
+    component: () => import('./edit-DVXPIEfJ.mjs')
   },
   {
     name: "credit-sales-dispatch",
     path: "/credit-sales/dispatch",
     meta: __nuxt_page_meta$1o || {},
-    component: () => import('./dispatch-CQlGjmdG.mjs')
+    component: () => import('./dispatch-DdLtfqvL.mjs')
   },
   {
     name: "credit-sales-payments",
@@ -1330,19 +1344,19 @@ const _routes = [
     name: "accounts-journal",
     path: "/accounts/journal",
     meta: __nuxt_page_meta$1a || {},
-    component: () => import('./index-DFC8owIn.mjs')
+    component: () => import('./index-BrI9WESb.mjs')
   },
   {
     name: "accounts-tax-statement",
     path: "/accounts/tax-statement",
     meta: __nuxt_page_meta$19 || {},
-    component: () => import('./tax-statement-TYTczzid.mjs')
+    component: () => import('./tax-statement-DJNoUSAM.mjs')
   },
   {
     name: "accounts-voucher",
     path: "/accounts/voucher",
     meta: __nuxt_page_meta$18 || {},
-    component: () => import('./index-BZJ8DJXK.mjs')
+    component: () => import('./index-Q1r7hHSt.mjs')
   },
   {
     name: "admin-employees-create",
@@ -1408,19 +1422,19 @@ const _routes = [
     name: "accounts-journal-create",
     path: "/accounts/journal/create",
     meta: __nuxt_page_meta$Z || {},
-    component: () => import('./create-fXI7E7--.mjs')
+    component: () => import('./create-DfPGQG5L.mjs')
   },
   {
     name: "accounts-voucher-create",
     path: "/accounts/voucher/create",
     meta: __nuxt_page_meta$Y || {},
-    component: () => import('./create-CWyd04WE.mjs')
+    component: () => import('./create-BL3KOZc6.mjs')
   },
   {
     name: "bank-transaction-create",
     path: "/bank/transaction/create",
     meta: __nuxt_page_meta$X || {},
-    component: () => import('./create-BI6yxjLQ.mjs')
+    component: () => import('./create-4vX1Pnb0.mjs')
   },
   {
     name: "credit-sales-id-amend",
@@ -1432,13 +1446,13 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$V || {},
-    component: () => import('./index-D18D4nhJ.mjs')
+    component: () => import('./index-CETHNIKJ.mjs')
   },
   {
     name: "credit-sales-production",
     path: "/credit-sales/production",
     meta: __nuxt_page_meta$U || {},
-    component: () => import('./production-Dcm5FkdR.mjs')
+    component: () => import('./production-DOZc2ki0.mjs')
   },
   {
     name: "fleet-drivers-id-edit",
@@ -1623,13 +1637,13 @@ const _routes = [
     name: "credit-sales-reports-sales",
     path: "/credit-sales/reports/sales",
     meta: __nuxt_page_meta$q || {},
-    component: () => import('./sales-D9o9Rte3.mjs')
+    component: () => import('./sales-ZlMsf_1B.mjs')
   },
   {
     name: "production-dispatch-report",
     path: "/production/dispatch-report",
     meta: __nuxt_page_meta$p || {},
-    component: () => import('./dispatch-report-EawJHmg4.mjs')
+    component: () => import('./dispatch-report-BGlWXcGk.mjs')
   },
   {
     name: "products-stock-adjustments",
@@ -1683,7 +1697,7 @@ const _routes = [
     name: "admin-users-id-permissions",
     path: "/admin/users/:id()/permissions",
     meta: __nuxt_page_meta$g || {},
-    component: () => import('./permissions-i-QUQA_Q.mjs')
+    component: () => import('./permissions-Aqy3Enc6.mjs')
   },
   {
     name: "credit-sales-backdated-entry",
@@ -1736,7 +1750,7 @@ const _routes = [
   {
     name: "credit-sales-delivery-schedule",
     path: "/credit-sales/delivery-schedule",
-    component: () => import('./delivery-schedule-C99lZLzT.mjs')
+    component: () => import('./delivery-schedule-CKnCu4mH.mjs')
   },
   {
     name: "purchase-suppliers-id-ledger",
@@ -1748,7 +1762,7 @@ const _routes = [
     name: "accounts-day-end-reconciliation",
     path: "/accounts/day-end-reconciliation",
     meta: __nuxt_page_meta$6 || {},
-    component: () => import('./day-end-reconciliation-D1Qy9M-h.mjs')
+    component: () => import('./day-end-reconciliation-CvGgk0_Q.mjs')
   },
   {
     name: "credit-sales-id-dispatch-slip",
@@ -1778,7 +1792,7 @@ const _routes = [
     name: "credit-sales-reports-product-sales",
     path: "/credit-sales/reports/product-sales",
     meta: __nuxt_page_meta$1 || {},
-    component: () => import('./product-sales-3eyiznsL.mjs')
+    component: () => import('./product-sales-DBPPDD4A.mjs')
   },
   {
     name: "products-productId-variantId-pricing",
@@ -2004,7 +2018,7 @@ const globalMiddleware = [
   manifest_45route_45rule
 ];
 const namedMiddleware = {
-  "permissions-global-client": () => import('./permissions.global.client-DPOzqOk2.mjs')
+  "permissions-global-client": () => import('./permissions.global.client-BPuKBI86.mjs')
 };
 const pageIslandRoutes = {};
 const plugin$1 = /* @__PURE__ */ defineNuxtPlugin({
@@ -2392,7 +2406,7 @@ const plugins = [
 ];
 const layouts = {
   auth: defineAsyncComponent(() => import('./auth-UNuwSoTZ.mjs').then((m) => m.default || m)),
-  default: defineAsyncComponent(() => import('./default-BFdVo26K.mjs').then((m) => m.default || m)),
+  default: defineAsyncComponent(() => import('./default-Ch4ZE92x.mjs').then((m) => m.default || m)),
   kiosk: defineAsyncComponent(() => import('./kiosk-CzgAjXLJ.mjs').then((m) => m.default || m)),
   print: defineAsyncComponent(() => import('./print-CKR5tjTT.mjs').then((m) => m.default || m))
 };

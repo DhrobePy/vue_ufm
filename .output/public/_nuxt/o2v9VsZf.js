@@ -1,1 +1,0 @@
-import{_ as e}from"./C11mMizC.js";import{s as r,k as t,U as p}from"./CV7BkfQN.js";import"./BSu100d6.js";import"./Dht_7Tod.js";const d=r({__name:"product-sales",setup(s){return(c,n)=>{const o=e;return p(),t(o,{mode:"product"})}}});export{d as default};

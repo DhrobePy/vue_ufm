@@ -1,14 +1,8 @@
 <template>
-  <div class="space-y-6">
-    <UiPageHeader title="Ageing Report" subtitle="Outstanding receivables by age bucket" :breadcrumb="['Credit Sales','Ageing Report']">
-      <template #actions><button v-if="perms.canDo('credit_sales', 'ageing', 'export')" class="btn-gold text-xs">Export PDF</button></template>
-    </UiPageHeader>
-
+  <ReportFrame title="Ageing Report" subtitle="Outstanding receivables by age of the order" :period="`as of ${today}`" filename="ageing-report" :sheets="sheets">
     <div v-if="pending" class="glass-card p-8 text-center text-xs text-gray-500">Loading…</div>
     <div v-else-if="error" class="glass-card p-6 text-center text-red-400 text-sm">⚠ {{ error.message }}</div>
-
     <template v-else>
-      <!-- Ageing buckets -->
       <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div v-for="b in summary" :key="b.label" class="glass-card p-4 text-center space-y-1">
           <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-600">{{ b.label }}</p>
@@ -16,37 +10,21 @@
           <p class="text-[11px] text-gray-600">{{ b.count }} customers</p>
         </div>
       </div>
-
-      <UiDataTable :columns="cols" :rows="rows" :per-page="12" exportable search-placeholder="Search customers…">
-        <template #cell-current_amt="{ value }"><span class="font-mono text-xs text-emerald-400">{{ value > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
-        <template #cell-d30_amt="{ value }"><span class="font-mono text-xs text-yellow-400">{{ value > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
-        <template #cell-d60_amt="{ value }"><span class="font-mono text-xs text-orange-400">{{ value > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
-        <template #cell-d90_amt="{ value }"><span class="font-mono text-xs text-red-400">{{ value > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
-        <template #cell-d120_amt="{ value }"><span class="font-mono text-xs text-red-600 font-bold">{{ value > 0 ? '৳'+Number(value).toLocaleString() : '—' }}</span></template>
-        <template #cell-total="{ value }"><span class="font-bold text-gold-400 font-mono text-xs">৳{{ Number(value).toLocaleString() }}</span></template>
-        <template #cell-status="{ value }"><UiStatusBadge :status="value" /></template>
-      </UiDataTable>
+      <input v-model="search" type="search" placeholder="Search customers…" class="no-print field-input text-xs py-1.5 w-64" />
+      <ReportTable :cols="cols" :rows="shown" totals />
     </template>
-  </div>
+  </ReportFrame>
 </template>
 
 <script setup lang="ts">
-const perms = usePermissions()
+import type { ReportCol } from '~/composables/useReportExport'
 definePageMeta({ layout: 'default' })
-
-const { data, pending, error } = await useFetch('/api/credit-sales/ageing')
-
+const { data, pending, error } = await useFetch<any>('/api/credit-sales/ageing')
+const today = new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 10)
+const search = ref('')
 const summary = computed(() => (data.value?.summary ?? []) as any[])
-const rows    = computed(() => (data.value?.rows    ?? []) as any[])
-
-const cols = [
-  { key: 'customer',    label: 'Customer',     sortable: true },
-  { key: 'current_amt', label: '0–30 Days' },
-  { key: 'd30_amt',     label: '31–60 Days' },
-  { key: 'd60_amt',     label: '61–90 Days' },
-  { key: 'd90_amt',     label: '91–120 Days' },
-  { key: 'd120_amt',    label: '120+ Days' },
-  { key: 'total',       label: 'Total Due',    sortable: true },
-  { key: 'status',      label: 'Status' },
-]
+const shown = computed(() => { const s = search.value.trim().toLowerCase(); const r = (data.value?.rows ?? []) as any[]; return s ? r.filter(x => String(x.customer).toLowerCase().includes(s)) : r })
+const m = (key: string, label: string): ReportCol => ({ key, label, fmt: 'money', sum: true })
+const cols: ReportCol[] = [{ key: 'customer', label: 'Customer' }, m('current_amt', '0–30 days ৳'), m('d30_amt', '31–60 days ৳'), m('d60_amt', '61–90 days ৳'), m('d90_amt', '91–120 days ৳'), m('d120_amt', '120+ days ৳'), m('total', 'Total due ৳'), { key: 'status', label: 'Status' }]
+const sheets = computed(() => [{ name: 'Ageing', cols, rows: shown.value, totals: true }])
 </script>

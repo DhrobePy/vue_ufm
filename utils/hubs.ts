@@ -18,6 +18,7 @@ export const HUBS: Record<string, HubTab[]> = {
     { label: 'Chart of Accounts', to: '/accounts/coa' },
     { label: 'Journal',           to: '/accounts/journal' },
     { label: 'Debit Vouchers',    to: '/accounts/voucher' },
+    { label: 'All Accounts',      to: '/accounts/all-accounts' },
   ],
   statements: [
     { label: 'GL Statement',  to: '/accounts/statement' },
