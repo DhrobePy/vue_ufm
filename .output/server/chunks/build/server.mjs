@@ -876,7 +876,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2o || {},
-    component: () => import('./create-CNJ3alEC.mjs')
+    component: () => import('./create-t91-BWZA.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -972,7 +972,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$28 || {},
-    component: () => import('./vouchers-BLiLVgus.mjs')
+    component: () => import('./vouchers-Tpqla2mu.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1044,19 +1044,19 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$1Y || {},
-    component: () => import('./create-C0XAx9GH.mjs')
+    component: () => import('./create-DmP9a0iw.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$1X || {},
-    component: () => import('./index-DtVVKgT5.mjs')
+    component: () => import('./index-CMbvh43e.mjs')
   },
   {
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$1W || {},
-    component: () => import('./edit-MgypdSR1.mjs')
+    component: () => import('./edit-DbgyqsMm.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1254,7 +1254,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1p || {},
-    component: () => import('./edit-DVXPIEfJ.mjs')
+    component: () => import('./edit-C-0UncBa.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1446,7 +1446,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$V || {},
-    component: () => import('./index-CETHNIKJ.mjs')
+    component: () => import('./index-r49_90Yw.mjs')
   },
   {
     name: "credit-sales-production",
@@ -1786,7 +1786,7 @@ const _routes = [
     name: "credit-sales-receipt-paymentId",
     path: "/credit-sales/receipt/:paymentId()",
     meta: __nuxt_page_meta$2 || {},
-    component: () => import('./_paymentId_-D1RO8amq.mjs')
+    component: () => import('./_paymentId_-Chk_JcCz.mjs')
   },
   {
     name: "credit-sales-reports-product-sales",
@@ -2808,5 +2808,5 @@ let entry;
 }
 const entry_default = ((ssrContext) => entry(ssrContext));
 
-export { __nuxt_component_0 as _, __nuxt_component_1 as a, __nuxt_component_2 as b, _export_sfc as c, asyncDataDefaults as d, entry_default as default, createError as e, defineNuxtRouteMiddleware as f, encodeRoutePath as g, fetchDefaults as h, nuxtLinkDefaults as i, useRequestFetch as j, useRoute as k, useRouter as l, moduleDisabled as m, navigateTo as n, useRuntimeConfig as o, useState as p, useUserSession as q, resolveRouteObject as r, useNuxtApp as u };
+export { __nuxt_component_0 as _, __nuxt_component_1 as a, __nuxt_component_2 as b, _export_sfc as c, asyncDataDefaults as d, entry_default as default, createError as e, defineNuxtRouteMiddleware as f, encodeRoutePath as g, fetchDefaults as h, nuxtLinkDefaults as i, useRequestFetch as j, useRoute as k, useRouter as l, moduleDisabled as m, navigateTo as n, useRuntimeConfig as o, useState as p, useUserSession as q, resolveRouteObject as r, tryUseNuxtApp as t, useNuxtApp as u };
 //# sourceMappingURL=server.mjs.map

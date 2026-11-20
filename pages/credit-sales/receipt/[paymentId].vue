@@ -1,9 +1,14 @@
 <template>
-  <div class="receipt-wrap">
+  <div class="receipt-wrap" :class="`size-${size}`">
     <!-- Screen-only toolbar -->
     <div class="no-print flex items-center justify-between mb-4">
       <NuxtLink to="/credit-sales/payments" class="btn-ghost text-xs">← Payments</NuxtLink>
-      <button @click="printNow" class="btn-gold text-xs px-5">🖨 Print Receipt</button>
+      <div class="flex flex-wrap items-center gap-2">
+        <select v-model="size" class="field-input text-xs py-1.5"><option v-for="o in sizes" :key="o.value" :value="o.value">{{ o.label }}</option></select>
+        <a v-if="waUrl" :href="waUrl" target="_blank" rel="noopener" class="btn-ghost text-xs">WhatsApp receipt</a>
+        <button class="btn-ghost text-xs" @click="copyText">{{ copied ? 'Copied ✓' : 'Copy text' }}</button>
+        <button @click="printNow" class="btn-gold text-xs px-5">🖨 Print Receipt</button>
+      </div>
     </div>
 
     <div v-if="pending" class="no-print glass-card p-10 text-center text-xs text-gray-500">Loading receipt…</div>
@@ -12,8 +17,8 @@
     <div v-else-if="p" class="a4-page">
       <div class="rc-header">
         <div>
-          <h1>UJJAL FLOUR MILLS COMPANY</h1>
-          <p>Sarghat, Hossenpur, Sirajgonj · Phone: 01912071977</p>
+          <h1>{{ String(company.name).toUpperCase() }}</h1>
+          <p>{{ company.address }} · Phone: {{ company.phone }}</p>
         </div>
         <div class="rc-doc">
           <h2>MONEY RECEIPT</h2>
@@ -83,6 +88,8 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+const { size, sizes } = usePrintSize()
+const { company } = useAppSettings()
 const route = useRoute()
 const paymentId = Number(route.params.paymentId)
 
@@ -120,6 +127,13 @@ const amountInWords = computed(() => {
 })
 
 function printNow() { window.print() }
+
+// Digital copy — send the customer a message instead of (or as well as) paper
+const shareText = computed(() => p.value
+  ? `${company.value.name}\nMoney receipt ${p.value.payment_number}\nReceived ৳${Number(p.value.amount).toLocaleString('en-BD', { minimumFractionDigits: 2 })} from ${p.value.customer_name} on ${String(p.value.payment_date).slice(0, 10)} (${p.value.payment_method}).\nOutstanding after this payment: ৳${Number(outstanding.value).toLocaleString('en-BD', { minimumFractionDigits: 2 })}\nThank you.` : '')
+const waUrl = computed(() => p.value ? whatsappLink(p.value.customer_phone, shareText.value) : null)
+const copied = ref(false)
+async function copyText() { try { await navigator.clipboard.writeText(shareText.value); copied.value = true; setTimeout(() => (copied.value = false), 1800) } catch { /* clipboard blocked */ } }
 </script>
 
 <style scoped>
@@ -157,6 +171,27 @@ function printNow() { window.print() }
 .rc-sign .line { border-top: 1px solid #000; margin-bottom: 4px; }
 .rc-sign p { font-size: 10px; margin: 0; }
 .rc-foot { font-size: 9px; text-align: center; margin-top: 18px; color: #333; }
+
+/* Half page (A5 landscape): tighter type and spacing so a receipt never needs a full sheet */
+.size-a5 .a4-page { padding: 8px 14px; font-size: 11px; line-height: 1.3; }
+.size-a5 .rc-header { padding-bottom: 6px; }
+.size-a5 .rc-header h1 { font-size: 15px; }
+.size-a5 .rc-grid { margin: 8px 0; gap: 12px; }
+.size-a5 .rc-amount { padding: 6px 12px; margin: 6px 0 2px; }
+.size-a5 .rc-amount strong { font-size: 16px; }
+.size-a5 .rc-words { margin-bottom: 6px; }
+.size-a5 .rc-table { margin: 4px 0 8px; }
+.size-a5 .rc-table th, .size-a5 .rc-table td { padding: 2px 6px; }
+.size-a5 .rc-sign { margin-top: 22px; gap: 18px; }
+.size-a5 .rc-foot { margin-top: 6px; }
+/* Thermal roll: one narrow column, no signature boxes */
+.size-thermal .a4-page { width: 76mm; padding: 2px; font-family: 'Courier New', monospace; font-size: 10.5px; line-height: 1.25; }
+.size-thermal .rc-header { display: block; text-align: center; }
+.size-thermal .rc-doc { text-align: center; margin-top: 4px; }
+.size-thermal .rc-grid { display: block; margin: 6px 0; }
+.size-thermal .rc-amount { padding: 4px 6px; } .size-thermal .rc-amount strong { font-size: 14px; }
+.size-thermal .rc-sign { display: none; }
+.size-thermal .rc-table th:nth-child(2), .size-thermal .rc-table td:nth-child(2) { display: none; }
 
 @media print {
   .no-print { display: none !important; }

@@ -1,0 +1,1 @@
+import{_ as t}from"./D8flZFZr.js";import{s as e,k as r,W as p}from"./hkd0jjM8.js";import"./BPBdHY4p.js";import"./BwBYOKHw.js";import"./DXIAVV62.js";const f=e({__name:"dispatch-report",setup(s){return(a,c)=>{const o=t;return p(),r(o,{mode:"dispatch"})}}});export{f as default};
