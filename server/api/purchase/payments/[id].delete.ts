@@ -15,6 +15,10 @@ export default defineEventHandler(async (event) => {
   if (role !== 'superadmin')
     throw createError({ statusCode: 403, statusMessage: 'Only a Superadmin can delete a purchase payment' })
 
+  // Legacy rule: a deletion must be explained (kept on the payment and in the audit trail)
+  const reason = String((await readBody(event).catch(() => null))?.reason ?? '').trim()
+  if (!reason) throw createError({ statusCode: 400, statusMessage: 'Enter a reason for deleting this payment' })
+
   const db   = getDb()
   const conn = await db.getConnection()
   try {
@@ -22,7 +26,7 @@ export default defineEventHandler(async (event) => {
 
     const [[pmt]] = await conn.query<any>(
       `SELECT id, payment_voucher_number, purchase_order_id, is_posted, journal_entry_id,
-              amount_paid, supplier_name, remarks
+              amount_paid, supplier_name, remarks, cash_account_id
        FROM purchase_payments_adnan WHERE id = ? FOR UPDATE`,
       [id],
     )
@@ -45,7 +49,7 @@ export default defineEventHandler(async (event) => {
       // Soft delete — clear is_posted flag, append deletion note to remarks
       const now     = new Date().toISOString().replace('T', ' ').slice(0, 19)
       const jeNote  = reversalJeId ? ` (JE reversed #${reversalJeId})` : (pmt.journal_entry_id ? ' (JE reversal FAILED — no lines found)' : '')
-      const newNote = `\n[DELETED: ${userName} @ ${now}${jeNote}]`
+      const newNote = `\n[DELETED: ${userName} @ ${now}${jeNote} — ${reason}]`
       await conn.query(
         `UPDATE purchase_payments_adnan
          SET is_posted  = 0,
@@ -63,6 +67,10 @@ export default defineEventHandler(async (event) => {
       await recycleFinalize(conn, batchId)
     }
 
+    // Money back in the till; any supplier credit used on this payment becomes available again
+    if (pmt.is_posted && pmt.cash_account_id) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`, [Number(pmt.amount_paid), pmt.cash_account_id])
+    await conn.query(`DELETE FROM supplier_balance_adjustments WHERE payment_id = ? AND type = 'debit'`, [id])
+
     await recalcPO(conn, pmt.purchase_order_id)
 
     const typeNote = pmt.is_posted ? ' (was posted — soft deleted)' : ' (hard deleted)'
@@ -73,7 +81,7 @@ export default defineEventHandler(async (event) => {
       recordType:      'purchase_payment',
       recordId:        id,
       referenceNumber: pmt.payment_voucher_number,
-      description:     `Payment ${pmt.payment_voucher_number} deleted by ${userName} · ৳${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote}`,
+      description:     `Payment ${pmt.payment_voucher_number} deleted by ${userName} · ৳${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote} · reason: ${reason}`,
       severity:        'warning',
     })
 

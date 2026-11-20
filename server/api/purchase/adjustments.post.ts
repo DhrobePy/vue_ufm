@@ -1,5 +1,6 @@
 import { getDb, queryOne } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { nextNoteNumber } from '~/server/utils/purchaseNotes'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -34,19 +35,7 @@ export default defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction()
 
-    // MAX-existing-suffix, not COUNT(*) — this exact table+prefix pattern
-    // caused a real production duplicate-key collision in the legacy PHP
-    // app (COUNT(*) drops below the highest number ever issued once any
-    // note gets deleted/rolled back, e.g. a cancelled draft).
-    const year    = new Date().getFullYear()
-    const prefix  = note_type === 'debit' ? 'DAN' : 'CAN'
-    const [[last]] = await conn.query<any>(
-      `SELECT MAX(CAST(SUBSTRING_INDEX(note_number, '-', -1) AS UNSIGNED)) AS maxSeq
-       FROM purchase_adjustment_notes WHERE note_number LIKE ?`,
-      [`${prefix}-${year}-%`],
-    )
-    const nextSeq  = (Number(last?.maxSeq) || 0) + 1
-    const noteNum  = `${prefix}-${year}-${String(nextSeq).padStart(4, '0')}`
+    const noteNum = await nextNoteNumber(conn, note_type)
 
     const [result] = await conn.query<any>(
       `INSERT INTO purchase_adjustment_notes

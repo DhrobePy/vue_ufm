@@ -46,10 +46,21 @@
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Quantity ({{ selectedUnit }}) *</label>
           <input v-model.number="form.qty" type="number" min="0" step="0.5" class="input-glass" placeholder="0.000" />
         </div>
-        <div class="space-y-1.5">
+        <div v-if="!form.isService" class="space-y-1.5">
           <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unit Price / {{ selectedUnit }} (৳) *</label>
           <input v-model.number="form.unitPrice" type="number" min="0" class="input-glass" placeholder="0.00" />
         </div>
+        <div v-else class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total Invoice Value (৳) *</label>
+          <input v-model.number="form.serviceTotal" type="number" min="0" class="input-glass" placeholder="0.00" />
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-gray-500 uppercase tracking-wider">PO Number <span class="normal-case text-gray-600">(leave blank to auto-number)</span></label>
+          <input v-model="form.poNumber" class="input-glass font-mono" placeholder="e.g. 612" />
+        </div>
+        <label class="flex items-center gap-2 text-xs text-gray-400 self-end pb-2">
+          <input v-model="form.isService" type="checkbox" /> Service purchase (no product value per unit — e.g. inspection or freight invoice; needs a remark)
+        </label>
         <div class="md:col-span-2 p-4 rounded-xl" style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.15);">
           <div class="flex justify-between text-sm">
             <span class="text-gray-500">Total Order Value</span>
@@ -83,6 +94,7 @@ const form = reactive({
   origin: '', expectedDelivery: '',
   paymentTerms: 'Credit 30',
   qty: 0, unitPrice: 0, remarks: '',
+  poNumber: '', isService: false, serviceTotal: 0,
 })
 
 const submitting = ref(false)
@@ -120,8 +132,8 @@ watch(() => form.commodityId, () => {
   if (form.supplierId && !eligibleSuppliers.value.some(s => s.id === Number(form.supplierId))) form.supplierId = ''
 })
 
-const totalValue = computed(() => Math.round(form.qty * form.unitPrice))
-const isValid = computed(() => form.commodityId && form.supplierId && form.poDate && form.qty > 0 && form.unitPrice > 0)
+const totalValue = computed(() => form.isService ? Math.round(form.serviceTotal) : Math.round(form.qty * form.unitPrice))
+const isValid = computed(() => form.commodityId && form.supplierId && form.poDate && form.qty > 0 && (form.isService ? form.serviceTotal > 0 && !!form.remarks.trim() : form.unitPrice > 0))
 
 async function submit() {
   if (!isValid.value) return
@@ -137,7 +149,10 @@ async function submit() {
         expected_delivery_date: form.expectedDelivery || null,
         payment_terms:          form.paymentTerms,
         quantity:               form.qty,
-        unit_price:             form.unitPrice,
+        unit_price:             form.isService ? undefined : form.unitPrice,
+        po_number:              form.poNumber.trim() || undefined,
+        is_service:             form.isService || undefined,
+        service_total_value:    form.isService ? form.serviceTotal : undefined,
         remarks:                form.remarks || null,
       },
     }) as any

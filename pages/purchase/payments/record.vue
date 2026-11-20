@@ -104,8 +104,26 @@
           <p class="text-[11px] text-gray-500">Enter the sales invoice number that offsets this payment amount.</p>
         </div>
         <div v-else-if="form.method !== 'cash'" class="space-y-1.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reference / Cheque No. *</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Reference / Cheque No. {{ form.method === 'mobile_banking' ? '' : '*' }}</label>
           <input v-model="form.reference" type="text" class="input-glass font-mono" placeholder="BEFTN ref, cheque no., TxID, or bKash TrxID" />
+        </div>
+
+        <!-- Cash payments: which till the money came out of, and who handled it -->
+        <div v-if="form.payType !== 'contra' && form.method === 'cash'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Cash Account *</label>
+            <select v-model="form.cashAccountId" class="input-glass">
+              <option value="">— Select petty-cash account —</option>
+              <option v-for="c in cashAccounts" :key="c.id" :value="c.id">{{ c.account_name }}{{ c.branch_name ? ' — ' + c.branch_name : '' }}</option>
+            </select>
+          </div>
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Cash Handled By *</label>
+            <select v-model="form.handledBy" class="input-glass">
+              <option value="">— Select employee —</option>
+              <option v-for="e in employees" :key="e.id" :value="`${e.first_name} ${e.last_name ?? ''}`.trim()">{{ e.first_name }} {{ e.last_name }}</option>
+            </select>
+          </div>
         </div>
 
         <!-- Company bank account — hide for contra and cash -->
@@ -165,12 +183,16 @@ const { success, error } = useToast()
 const route = useRoute()
 
 // Load suppliers, open POs, bank accounts, and recent payments in parallel
-const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }] = await Promise.all([
+const [{ data: suppData }, { data: poData }, { data: baData }, { data: pmtData }, { data: cashData }, { data: empData }] = await Promise.all([
   useFetch('/api/suppliers', { query: { per: 100 } }),
   useFetch('/api/purchase/orders/open'),
   useFetch('/api/lookup/bank-accounts'),
   useFetch('/api/purchase/payments', { query: { per: 5 } }),
+  useFetch('/api/expenses/petty-cash-accounts'),
+  useFetch('/api/hr/employees'),
 ])
+const cashAccounts = computed(() => (cashData.value as any)?.accounts ?? [])
+const employees    = computed(() => (empData.value as any)?.employees ?? [])
 
 const suppliers     = computed(() => (suppData.value as any)?.suppliers    ?? [])
 const openPOs       = computed(() => (poData.value  as any)?.orders        ?? [])
@@ -179,7 +201,7 @@ const supplierOptions = computed(() => (suppliers.value as any[]).map(s => ({
   value: s.id, label: s.company_name,
 })))
 
-watch(() => form.supplierId, () => { form.poId = ''; loadCredit() })
+watch(() => form.supplierId, () => { form.poId = ''; form.creditApplied = 0; loadCredit() })
 
 const bankAccountOptions = computed(() => (bankAccounts.value as any[]).map(a => ({
   value: a.id,
@@ -209,6 +231,9 @@ const form = reactive({
   amount:        null as number | null,
   reference:     '',
   bankAccountId: '' as number | string,
+  cashAccountId: '' as number | string,
+  handledBy:     '',
+  creditApplied: 0,
   notes:         '',
 })
 
@@ -230,10 +255,11 @@ function applyCredit() {
   if (!credit) return
   if (po) {
     const due = Number(po.balance_payable ?? 0)
-    form.amount = Math.max(0, due - credit) || null
+    form.creditApplied = Math.min(credit, due)
+    form.amount = Math.max(0, due - form.creditApplied) || null
     success(`Credit of ৳${credit.toLocaleString()} applied — new amount: ৳${(form.amount ?? 0).toLocaleString()}`)
   } else {
-    form.amount = null
+    form.amount = null; form.creditApplied = credit
     success(`Credit ৳${credit.toLocaleString()} noted — select a PO to calculate net`)
   }
 }
@@ -262,8 +288,10 @@ const isValid = computed(() => {
   if (!form.amount || form.amount <= 0) return false
   // Contra: need reference (invoice no.), no bank account needed
   if (form.payType === 'contra') return !!form.reference
-  // Cash/mobile: no bank account or ref needed
-  if (form.method === 'cash' || form.method === 'mobile_banking') return true
+  // Cash: needs the till it came out of and who handled it
+  if (form.method === 'cash') return !!form.cashAccountId && !!form.handledBy
+  // Mobile banking: the company's wallet/bank account is needed so the books balance
+  if (form.method === 'mobile_banking') return !!form.bankAccountId
   // Bank/cheque: need reference and bank account
   return !!form.reference && !!form.bankAccountId
 })
@@ -281,6 +309,9 @@ async function submit() {
         payment_method:    form.method,
         payment_type:      form.payType,
         bank_account_id:   form.bankAccountId ? Number(form.bankAccountId) : null,
+        cash_account_id:   form.cashAccountId ? Number(form.cashAccountId) : null,
+        handled_by_employee: form.method === 'cash' ? form.handledBy : null,
+        credit_applied:    form.creditApplied || null,
         reference_number:  form.reference || null,
         remarks:           form.notes || null,
       },

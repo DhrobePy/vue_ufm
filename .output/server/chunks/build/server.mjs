@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { u as createError$1, ap as parseURL, C as encodePath, w as decodePath, aa as hasProtocol, af as isScriptProtocol, ag as joinURL, bj as withQuery, z as defu, b4 as sanitizeStatusCode, I as getContext, $ as $fetch$1, m as baseURL, v as createHooks, E as executeAsync } from '../nitro/nitro.mjs';
+import { u as createError$1, aq as parseURL, C as encodePath, w as decodePath, aa as hasProtocol, af as isScriptProtocol, ag as joinURL, bl as withQuery, z as defu, b6 as sanitizeStatusCode, I as getContext, $ as $fetch$1, m as baseURL, v as createHooks, E as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -1416,7 +1416,7 @@ const _routes = [
     name: "purchase-orders-create",
     path: "/purchase/orders/create",
     meta: __nuxt_page_meta$_ || {},
-    component: () => import('./create-ClG828kW.mjs')
+    component: () => import('./create-BwuQU7f7.mjs')
   },
   {
     name: "accounts-journal-create",
@@ -1554,7 +1554,7 @@ const _routes = [
     name: "purchase-payments-record",
     path: "/purchase/payments/record",
     meta: __nuxt_page_meta$D || {},
-    component: () => import('./record-C81i_IAy.mjs')
+    component: () => import('./record-DNLuooAk.mjs')
   },
   {
     name: "purchase-suppliers",
@@ -1780,7 +1780,7 @@ const _routes = [
     name: "purchase-adjustments-id",
     path: "/purchase/adjustments/:id()",
     meta: __nuxt_page_meta$3 || {},
-    component: () => import('./index-DB4enQgX.mjs')
+    component: () => import('./index-CYOPO-HX.mjs')
   },
   {
     name: "credit-sales-receipt-paymentId",

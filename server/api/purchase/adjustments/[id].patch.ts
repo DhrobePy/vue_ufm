@@ -15,6 +15,8 @@ export default defineEventHandler(async (event) => {
   const action  = body?.action as 'approve' | 'post' | 'cancel'
   const session = await getUserSession(event)
   const userId  = session?.user?.id ?? 1
+  if (!['admin', 'superadmin'].includes(((session?.user as any)?.role ?? '').toLowerCase()))
+    throw createError({ statusCode: 403, statusMessage: 'Only admin / superadmin can approve, post or cancel adjustment notes' })
 
   if (!['approve', 'post', 'cancel'].includes(action))
     throw createError({ statusCode: 400, statusMessage: 'action must be approve, post, or cancel' })
@@ -54,15 +56,22 @@ export default defineEventHandler(async (event) => {
       if (note.status !== 'approved')
         throw createError({ statusCode: 400, statusMessage: 'Only approved notes can be posted' })
 
-      // Update PO balance_payable
+      // Legacy effects: the PO's running adjustment total and payable move by the note; a CAN also becomes supplier credit (usable on a later payment)
       const delta = note.note_type === 'debit' ? Number(note.amount) : -Number(note.amount)
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET balance_payable = GREATEST(0, COALESCE(balance_payable, 0) + ?),
-             updated_at      = NOW()
+         SET total_adjustment_amount = COALESCE(total_adjustment_amount, 0) + ?,
+             balance_payable         = GREATEST(0, COALESCE(balance_payable, 0) + ?),
+             updated_at              = NOW()
          WHERE id = ?`,
-        [delta, note.purchase_order_id],
+        [delta, delta, note.purchase_order_id],
       )
+      if (note.note_type === 'credit') {
+        await conn.query(
+          `INSERT INTO supplier_balance_adjustments (supplier_id, purchase_order_id, adjustment_note_id, type, amount, description, created_by_user_id)
+           VALUES (?, ?, ?, 'credit', ?, ?, ?)`,
+          [note.supplier_id, note.purchase_order_id, note.id, Number(note.amount), `Credit from CAN ${note.note_number}: ${note.description ?? ''}`.slice(0, 500), userId])
+      }
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status = 'posted', posted_at = NOW(), updated_at = NOW()
@@ -87,7 +96,8 @@ export default defineEventHandler(async (event) => {
       if (note.status === 'cancelled')
         throw createError({ statusCode: 400, statusMessage: 'Note is already cancelled' })
 
-      const cancelReason = body?.cancel_reason ?? 'Cancelled'
+      const cancelReason = String(body?.cancel_reason ?? '').trim()
+      if (!cancelReason) throw createError({ statusCode: 400, statusMessage: 'Cancellation reason is required' })
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status      = 'cancelled',

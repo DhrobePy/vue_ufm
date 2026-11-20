@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, u as createError, aJ as readBody, a9 as getUserSession, M as getDb, b1 as reversePurchasePaymentJE, aC as postPurchasePaymentJE, aM as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, u as createError, aK as readBody, a9 as getUserSession, M as getDb, b3 as reversePurchasePaymentJE, a_ as resolvePaymentSource, aD as postPurchasePaymentJE, aN as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f;
+  var _a, _b, _c, _d;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid payment ID" });
   const body = await readBody(event);
@@ -30,6 +30,7 @@ const _id__patch = defineEventHandler(async (event) => {
     bank_account_id,
     reference_number,
     handled_by_employee,
+    cash_account_id,
     remarks
   } = body != null ? body : {};
   if (!payment_date || !amount_paid)
@@ -39,7 +40,7 @@ const _id__patch = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[pmt]] = await conn.query(
-      `SELECT id, payment_voucher_number, purchase_order_id, journal_entry_id,
+      `SELECT id, payment_voucher_number, purchase_order_id, journal_entry_id, cash_account_id AS old_cash_account_id,
               amount_paid AS old_amount, supplier_name, is_posted
        FROM purchase_payments_adnan WHERE id = ? FOR UPDATE`,
       [id]
@@ -56,6 +57,10 @@ const _id__patch = defineEventHandler(async (event) => {
         paymentId: id
       });
     }
+    const method = payment_method != null ? payment_method : "cash";
+    const src = await resolvePaymentSource(conn, { method, bankAccountId: bank_account_id ? Number(bank_account_id) : null, cashAccountId: Number(cash_account_id != null ? cash_account_id : pmt.old_cash_account_id) || null });
+    if (pmt.old_cash_account_id) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`, [Number(pmt.old_amount), pmt.old_cash_account_id]);
+    if (src.cashAccountId) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ? WHERE id = ?`, [Number(amount_paid), src.cashAccountId]);
     await conn.query(
       `UPDATE purchase_payments_adnan
        SET payment_date        = ?,
@@ -65,6 +70,8 @@ const _id__patch = defineEventHandler(async (event) => {
            bank_account_id     = ?,
            reference_number    = ?,
            handled_by_employee = ?,
+           cash_account_id     = ?,
+           bank_name           = COALESCE(?, bank_name),
            remarks             = ?,
            updated_at          = NOW()
        WHERE id = ?`,
@@ -76,21 +83,14 @@ const _id__patch = defineEventHandler(async (event) => {
         bank_account_id != null ? bank_account_id : null,
         reference_number != null ? reference_number : null,
         handled_by_employee != null ? handled_by_employee : null,
+        src.cashAccountId,
+        src.bankName,
         remarks != null ? remarks : null,
         id
       ]
     );
     if (pmt.is_posted) {
-      let bankGlAccountId = null;
-      let bankName = null;
-      if (bank_account_id) {
-        const [[ba]] = await conn.query(
-          `SELECT bank_name, chart_of_account_id FROM bank_accounts WHERE id = ?`,
-          [Number(bank_account_id)]
-        );
-        bankGlAccountId = (_e = ba == null ? void 0 : ba.chart_of_account_id) != null ? _e : null;
-        bankName = (_f = ba == null ? void 0 : ba.bank_name) != null ? _f : null;
-      }
+      const bankGlAccountId = src.glAccountId, bankName = src.bankName;
       try {
         newJeId = await postPurchasePaymentJE(conn, {
           paymentId: id,

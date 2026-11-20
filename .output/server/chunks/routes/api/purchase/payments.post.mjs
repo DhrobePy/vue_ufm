@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aJ as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, av as postCustomerLedger, aC as postPurchasePaymentJE, l as auditLog } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, a_ as resolvePaymentSource, aj as nextDocNumber, aw as postCustomerLedger, aD as postPurchasePaymentJE, l as auditLog, b8 as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const payments_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+  var _a, _b, _c, _d, _e, _f, _g, _h;
   const body = await readBody(event);
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
@@ -24,14 +24,23 @@ const payments_post = defineEventHandler(async (event) => {
     payment_method = "bank",
     bank_account_id,
     reference_number,
-    payment_type = "credit",
+    payment_type: payment_type_in = "credit",
     // advance | credit | against_delivery | contra
+    cash_account_id,
+    // petty-cash account (cash payments)
+    handled_by_employee,
+    // who handled the cash (cash payments)
+    credit_applied,
+    // supplier credit (CAN) used against this payment
     remarks
   } = body != null ? body : {};
+  let payment_type = payment_type_in;
   if (!purchase_order_id || !amount_paid || Number(amount_paid) <= 0) {
     throw createError({ statusCode: 400, statusMessage: "purchase_order_id and amount_paid are required" });
   }
   const isContra = payment_type === "contra";
+  if (payment_method === "cash" && !isContra && !String(handled_by_employee != null ? handled_by_employee : "").trim())
+    throw createError({ statusCode: 400, statusMessage: "Enter who handled the cash" });
   if (isContra && !reference_number) {
     throw createError({ statusCode: 400, statusMessage: "Contra payment requires a sales invoice reference (order_number)" });
   }
@@ -42,20 +51,21 @@ const payments_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[po]] = await conn.query(
-      `SELECT id, po_number, supplier_id, supplier_name, balance_payable
-       FROM purchase_orders_adnan WHERE id = ?`,
+      `SELECT id, po_number, supplier_id, supplier_name, balance_payable, total_paid, total_received_value
+       FROM purchase_orders_adnan WHERE id = ? FOR UPDATE`,
       [purchase_order_id]
     );
     if (!po) throw createError({ statusCode: 404, statusMessage: "Purchase order not found" });
-    let bankName = null;
-    let bankGlAccountId = null;
-    if (bank_account_id) {
-      const [[ba]] = await conn.query(
-        `SELECT bank_name, chart_of_account_id FROM bank_accounts WHERE id = ?`,
-        [bank_account_id]
+    const src = await resolvePaymentSource(conn, { method: isContra ? "contra" : payment_method, bankAccountId: bank_account_id ? Number(bank_account_id) : null, cashAccountId: cash_account_id ? Number(cash_account_id) : null });
+    const bankName = src.bankName, bankGlAccountId = src.glAccountId;
+    if (!isContra && Number(po.total_received_value) > 0 && Number((_c = po.total_paid) != null ? _c : 0) + pmtAmt > Number(po.total_received_value)) payment_type = "advance";
+    const creditUsed = Number(credit_applied) > 0 ? Number(credit_applied) : 0;
+    if (creditUsed) {
+      const [[cr]] = await conn.query(
+        `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) AS avail FROM supplier_balance_adjustments WHERE supplier_id = ? FOR UPDATE`,
+        [po.supplier_id]
       );
-      bankName = (_c = ba == null ? void 0 : ba.bank_name) != null ? _c : null;
-      bankGlAccountId = (_d = ba == null ? void 0 : ba.chart_of_account_id) != null ? _d : null;
+      if (creditUsed > Number(cr.avail) + 5e-3) throw createError({ statusCode: 400, statusMessage: `Only \u09F3${Number(cr.avail).toLocaleString()} of supplier credit is available` });
     }
     const voucherNo = await nextDocNumber(conn, "PV", "purchase_payments_adnan", "payment_voucher_number");
     const [result] = await conn.query(
@@ -63,8 +73,8 @@ const payments_post = defineEventHandler(async (event) => {
          (payment_voucher_number, payment_date, purchase_order_id, po_number,
           supplier_id, supplier_name, amount_paid, payment_method,
           bank_account_id, bank_name, reference_number,
-          payment_type, is_posted, remarks, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          payment_type, is_posted, remarks, handled_by_employee, cash_account_id, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [
         voucherNo,
         pmtDate,
@@ -79,10 +89,20 @@ const payments_post = defineEventHandler(async (event) => {
         reference_number != null ? reference_number : null,
         payment_type,
         remarks != null ? remarks : null,
+        String(handled_by_employee != null ? handled_by_employee : "").trim() || null,
+        src.cashAccountId,
         userId
       ]
     );
     const paymentId = result.insertId;
+    if (creditUsed) {
+      await conn.query(
+        `INSERT INTO supplier_balance_adjustments (supplier_id, purchase_order_id, payment_id, type, amount, description, created_by_user_id)
+         VALUES (?, ?, ?, 'debit', ?, ?, ?)`,
+        [po.supplier_id, purchase_order_id, paymentId, creditUsed, `Supplier credit applied against payment ${voucherNo}`, userId]
+      );
+    }
+    if (src.cashAccountId) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?`, [pmtAmt, src.cashAccountId]);
     await conn.query(
       `UPDATE purchase_orders_adnan
        SET total_paid      = COALESCE(total_paid, 0) + ?,
@@ -104,8 +124,8 @@ const payments_post = defineEventHandler(async (event) => {
         [String(reference_number), Number(reference_number) || 0]
       );
       if (creditOrder) {
-        const newCrPaid = Number((_e = creditOrder.amount_paid) != null ? _e : 0) + pmtAmt;
-        const newCrBalance = Math.max(0, Number((_f = creditOrder.balance_due) != null ? _f : 0) - pmtAmt);
+        const newCrPaid = Number((_d = creditOrder.amount_paid) != null ? _d : 0) + pmtAmt;
+        const newCrBalance = Math.max(0, Number((_e = creditOrder.balance_due) != null ? _e : 0) - pmtAmt);
         const crPayNo = await nextDocNumber(conn, "PAY", "customer_payments", "payment_number");
         const [crRes] = await conn.query(
           `INSERT INTO customer_payments
@@ -172,7 +192,7 @@ const payments_post = defineEventHandler(async (event) => {
     }
     const bankNote = bankName ? ` via ${bankName}` : "";
     const refNote = reference_number ? ` \xB7 ref: ${reference_number}` : "";
-    const typeLabel = (_g = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _g : "";
+    const typeLabel = (_f = { advance: " [Advance]", against_delivery: " [Delivery Exp]", contra: " [Contra]", credit: "" }[payment_type]) != null ? _f : "";
     await auditLog(conn, {
       userId,
       action: "payment_made",
@@ -184,13 +204,19 @@ const payments_post = defineEventHandler(async (event) => {
       severity: "info"
     });
     await conn.commit();
+    sendTelegram(
+      `\u{1F4B8} <b>Supplier Payment</b>
+${voucherNo} \u2014 ${po.supplier_name} (PO ${po.po_number})
+\u09F3${pmtAmt.toLocaleString()} via ${bankName != null ? bankName : payment_method}${payment_type === "advance" ? " \xB7 advance" : ""}${creditUsed ? ` \xB7 credit used \u09F3${creditUsed.toLocaleString()}` : ""}`,
+      "payment"
+    );
     return { ok: true, id: paymentId, voucher_number: voucherNo };
   } catch (e) {
     await conn.rollback();
     console.error("[purchase/payments] Transaction failed:", e == null ? void 0 : e.message);
     throw createError({
       statusCode: 500,
-      statusMessage: (_i = (_h = e == null ? void 0 : e.sqlMessage) != null ? _h : e == null ? void 0 : e.message) != null ? _i : "Payment recording failed"
+      statusMessage: (_h = (_g = e == null ? void 0 : e.sqlMessage) != null ? _g : e == null ? void 0 : e.message) != null ? _h : "Payment recording failed"
     });
   } finally {
     conn.release();

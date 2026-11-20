@@ -362,10 +362,12 @@ async function hardDeletePO() {
 
 async function markFinalDelivery() {
   if (!confirm(`Mark FINAL DELIVERY for PO ${po.value.po_number}?\n\nThis will permanently lock the delivery — no further GRNs can be added. Proceed?`)) return
+  const shortfall = Number(po.value.quantity_kg) - Number(po.value.total_received_qty ?? 0)
+  const draftCan = shortfall > 1 && confirm(`The supplier delivered ${Number(po.value.total_received_qty ?? 0).toLocaleString()} of ${Number(po.value.quantity_kg).toLocaleString()} KG (short by ${shortfall.toLocaleString()} KG).\n\nDraft a Credit Note (CAN) for the shortfall?`)
   actionBusy.value = 'final_delivery'
   try {
-    await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'final_delivery' } })
-    success('PO marked as final delivery — delivery locked')
+    const r: any = await $fetch(`/api/purchase/orders/${route.params.id}/close`, { method: 'POST', body: { action: 'final_delivery', create_can_for_shortfall: draftCan } })
+    success(r?.message ?? 'PO marked as final delivery — delivery locked')
     await refresh()
   } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { actionBusy.value = false }
 }

@@ -1,6 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
+import { nextNoteNumber } from '~/server/utils/purchaseNotes'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -20,7 +21,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[po]] = await conn.query<any>(
-      `SELECT id, po_number, delivery_status, po_status FROM purchase_orders_adnan WHERE id = ?`, [id],
+      `SELECT id, po_number, delivery_status, po_status, supplier_id, supplier_name, quantity_kg, total_received_qty, unit_price_per_kg, is_delivery_locked FROM purchase_orders_adnan WHERE id = ? FOR UPDATE`, [id],
     )
     if (!po) throw createError({ statusCode: 404, statusMessage: 'Purchase order not found' })
 
@@ -29,17 +30,32 @@ export default defineEventHandler(async (event) => {
       if (!isAdmin) throw createError({ statusCode: 403, statusMessage: 'Only admin can mark final delivery' })
       if (po.delivery_status === 'closed') throw createError({ statusCode: 400, statusMessage: 'PO is already closed' })
 
+      // Legacy rule: final delivery LOCKS the PO against further GRNs and flags it; the status itself is untouched.
+      if (Number(po.is_delivery_locked) === 1) throw createError({ statusCode: 400, statusMessage: 'Delivery is already locked.' })
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET delivery_status            = 'closed',
-             is_delivery_locked         = 1,
-             delivery_lock_reason       = 'Final delivery marked by admin',
+         SET is_delivery_locked         = 1,
+             delivery_lock_reason       = 'Final delivery marked by admin — PO closed for further GRNs',
              delivery_locked_by_user_id = ?,
              delivery_locked_at         = NOW(),
+             final_delivery_marked      = 1,
              updated_at                 = NOW()
          WHERE id = ?`,
         [userId, id],
       )
+      // Optionally draft a credit note (CAN) for what the supplier did not deliver (only when the shortfall is more than 1 KG)
+      const shortfall = Number(po.quantity_kg) - Number(po.total_received_qty ?? 0)
+      let canNo: string | null = null
+      if (body?.create_can_for_shortfall && shortfall > 1) {
+        canNo = await nextNoteNumber(conn, 'credit')
+        const amt = shortfall * Number(po.unit_price_per_kg)
+        await conn.query(
+          `INSERT INTO purchase_adjustment_notes
+             (note_number, note_type, reason_type, purchase_order_id, po_number, supplier_id, supplier_name, quantity_kg, unit_price_per_kg, amount, description, status, created_by_user_id, created_at, updated_at)
+           VALUES (?, 'credit', 'under_delivery_closure', ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), NOW())`,
+          [canNo, id, po.po_number, po.supplier_id, po.supplier_name, shortfall, po.unit_price_per_kg, amt,
+            `Auto-generated CAN: PO closed with shortfall of ${shortfall.toLocaleString()} KG (৳${amt.toLocaleString()}) — marked as final delivery.`, userId])
+      }
       await auditLog(conn, {
         userId,
         action:          'po_locked',
@@ -51,7 +67,7 @@ export default defineEventHandler(async (event) => {
         severity:        'info',
       })
       await conn.commit()
-      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked` }
+      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked.${canNo ? ` Draft CAN ${canNo} created for the shortfall.` : ''}` }
     }
 
     // ── REVERSE (admin/superadmin only) ─────────────────────────────────
@@ -105,11 +121,13 @@ export default defineEventHandler(async (event) => {
       if (!isAdmin && po.delivery_status !== 'closed') {
         throw createError({ statusCode: 400, statusMessage: 'PO is not closed — cannot reopen' })
       }
+      // Legacy rule: back to partial if anything was received, else pending; the delivery lock is released too
+      const [[got]] = await conn.query<any>(`SELECT COALESCE(SUM(quantity_received_kg), 0) AS q FROM goods_received_adnan WHERE purchase_order_id = ? AND grn_status != 'cancelled'`, [id])
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET delivery_status = 'partial', po_status = 'active', updated_at = NOW()
+         SET delivery_status = ?, is_delivery_locked = 0, delivery_lock_reason = NULL, updated_at = NOW()
          WHERE id = ?`,
-        [id],
+        [Number(got.q) > 0 ? 'partial' : 'pending', id],
       )
       await auditLog(conn, {
         userId,

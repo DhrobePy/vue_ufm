@@ -1,7 +1,7 @@
 import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
-import { postPurchasePaymentJE, reversePurchasePaymentJE } from '~/server/utils/purchasePaymentGL'
+import { postPurchasePaymentJE, reversePurchasePaymentJE, resolvePaymentSource } from '~/server/utils/purchasePaymentGL'
 
 /**
  * A posted payment's journal entry is never mutated in place — editing
@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     bank_account_id,
     reference_number,
     handled_by_employee,
+    cash_account_id,
     remarks,
   } = body ?? {}
 
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[pmt]] = await conn.query<any>(
-      `SELECT id, payment_voucher_number, purchase_order_id, journal_entry_id,
+      `SELECT id, payment_voucher_number, purchase_order_id, journal_entry_id, cash_account_id AS old_cash_account_id,
               amount_paid AS old_amount, supplier_name, is_posted
        FROM purchase_payments_adnan WHERE id = ? FOR UPDATE`,
       [id],
@@ -61,6 +62,12 @@ export default defineEventHandler(async (event) => {
       })
     }
 
+    const method = payment_method ?? 'cash'
+    const src = await resolvePaymentSource(conn, { method, bankAccountId: bank_account_id ? Number(bank_account_id) : null, cashAccountId: Number(cash_account_id ?? pmt.old_cash_account_id) || null })
+    // put the till balance back for the old cash payment, take the new one out
+    if (pmt.old_cash_account_id) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`, [Number(pmt.old_amount), pmt.old_cash_account_id])
+    if (src.cashAccountId) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ? WHERE id = ?`, [Number(amount_paid), src.cashAccountId])
+
     await conn.query(
       `UPDATE purchase_payments_adnan
        SET payment_date        = ?,
@@ -70,6 +77,8 @@ export default defineEventHandler(async (event) => {
            bank_account_id     = ?,
            reference_number    = ?,
            handled_by_employee = ?,
+           cash_account_id     = ?,
+           bank_name           = COALESCE(?, bank_name),
            remarks             = ?,
            updated_at          = NOW()
        WHERE id = ?`,
@@ -81,6 +90,8 @@ export default defineEventHandler(async (event) => {
         bank_account_id     ?? null,
         reference_number    ?? null,
         handled_by_employee ?? null,
+        src.cashAccountId,
+        src.bankName,
         remarks             ?? null,
         id,
       ],
@@ -88,15 +99,7 @@ export default defineEventHandler(async (event) => {
 
     // Re-post a fresh JE for the corrected values (same rules as creation).
     if (pmt.is_posted) {
-      let bankGlAccountId: number | null = null
-      let bankName: string | null = null
-      if (bank_account_id) {
-        const [[ba]] = await conn.query<any>(
-          `SELECT bank_name, chart_of_account_id FROM bank_accounts WHERE id = ?`, [Number(bank_account_id)],
-        )
-        bankGlAccountId = ba?.chart_of_account_id ?? null
-        bankName = ba?.bank_name ?? null
-      }
+      const bankGlAccountId = src.glAccountId, bankName = src.bankName
       try {
         newJeId = await postPurchasePaymentJE(conn, {
           paymentId: id, pmtDate: payment_date, voucherNo: pmt.payment_voucher_number,

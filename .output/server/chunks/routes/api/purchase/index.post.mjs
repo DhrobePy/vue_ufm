@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aJ as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, aM as recalcPO, at as postCommodityGRNCost, ax as postGRNJournalEntry, l as auditLog } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, aN as recalcPO, au as postCommodityGRNCost, ay as postGRNJournalEntry, l as auditLog, ak as nextNoteNumber, b8 as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -40,11 +40,13 @@ const index_post = defineEventHandler(async (event) => {
     await conn.beginTransaction();
     const [[po]] = await conn.query(
       `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg,
-              commodity_id, wheat_origin
+              commodity_id, wheat_origin, is_delivery_locked, delivery_lock_reason, quantity_kg AS po_qty
        FROM purchase_orders_adnan WHERE id = ?`,
       [Number(po_id)]
     );
     if (!po) throw createError({ statusCode: 404, statusMessage: "Purchase order not found" });
+    if (Number(po.is_delivery_locked) === 1)
+      throw createError({ statusCode: 409, statusMessage: `This purchase order (PO #${po.po_number}) has been locked by admin \u2014 no further GRNs can be recorded.${po.delivery_lock_reason ? " Reason: " + po.delivery_lock_reason : ""} Contact a Superadmin or Admin to re-open it.` });
     const receivedKg = Number(quantity_received_kg);
     const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(po.unit_price_per_kg);
@@ -138,7 +140,7 @@ const index_post = defineEventHandler(async (event) => {
            WHERE table_schema = DATABASE() AND table_name = 'purchase_adjustment_notes'`
         );
         if (adjCheck.n > 0) {
-          const danNo = await nextDocNumber(conn, "DAN", "purchase_adjustment_notes", "note_number");
+          const danNo = await nextNoteNumber(conn, "debit");
           const [danResult] = await conn.query(
             `INSERT INTO purchase_adjustment_notes
                (note_number, note_type, reason_type, purchase_order_id,
@@ -171,7 +173,16 @@ const index_post = defineEventHandler(async (event) => {
         console.error("Auto-DAN creation error:", danErr);
       }
     }
+    const [[tot]] = await conn.query(`SELECT total_received_qty FROM purchase_orders_adnan WHERE id = ?`, [Number(po_id)]);
     await conn.commit();
+    const poQty = Number(po.po_qty) || 0, got = Number(tot == null ? void 0 : tot.total_received_qty) || 0;
+    sendTelegram(
+      `\u{1F4E6} <b>Goods Received</b>
+${grnNo} \u2014 ${po.supplier_name} (PO ${po.po_number})
+${receivedKg.toLocaleString()} KG${truck_number ? " \xB7 truck " + truck_number : ""} @ \u09F3${unitPrice.toLocaleString()} = \u09F3${totalValue.toLocaleString()}
+PO progress: ${got.toLocaleString()} / ${poQty.toLocaleString()} KG${poQty > 0 ? ` (${(got / poQty * 100).toFixed(1)}%)` : ""}`,
+      "goods_received"
+    );
     return { ok: true, id: grnId, grn_number: grnNo };
   } catch (e) {
     await conn.rollback();

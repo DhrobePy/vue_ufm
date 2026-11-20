@@ -153,6 +153,9 @@
             <p class="font-medium text-gray-400">{{ note.status === 'posted' ? 'This note is posted and locked.' : 'This note has been cancelled.' }}</p>
             <p class="mt-1">No further actions available.</p>
           </div>
+          <button class="btn-ghost text-xs w-full justify-center text-red-400 border-red-500/30 hover:border-red-400/60" :disabled="acting" @click="doDelete">
+            🗑 Delete note (admin){{ note.status === 'posted' ? ' — reverses its effect' : '' }}
+          </button>
         </div>
       </div>
     </template>
@@ -215,6 +218,20 @@ async function doAction(action: string) {
     await refresh()
   } catch (e: any) {
     toastError(e?.data?.statusMessage ?? `Failed to ${action}`)
+  } finally {
+    acting.value = false
+  }
+}
+
+async function doDelete() {
+  if (!confirm(`Delete ${note.value.note_number}?${note.value.status === 'posted' ? ' Its effect on the PO and any supplier credit will be reversed.' : ''} It goes to the Recycle Bin.`)) return
+  acting.value = 'delete'
+  try {
+    await $fetch(`/api/purchase/adjustments/${route.params.id}`, { method: 'DELETE' })
+    success('Note deleted')
+    navigateTo('/purchase/adjustments')
+  } catch (e: any) {
+    toastError(e?.data?.statusMessage ?? 'Failed to delete')
   } finally {
     acting.value = false
   }

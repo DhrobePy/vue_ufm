@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a9 as getUserSession, u as createError, s as clearAllPerms, aX as resetAppSettingsCache, aY as resetTelegramCache } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a9 as getUserSession, u as createError, s as clearAllPerms, aY as resetAppSettingsCache, aZ as resetTelegramCache } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

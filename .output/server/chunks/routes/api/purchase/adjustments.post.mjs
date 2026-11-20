@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aJ as readBody, a9 as getUserSession, u as createError, aH as queryOne, M as getDb, l as auditLog } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, aI as queryOne, M as getDb, ak as nextNoteNumber, l as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -39,15 +39,7 @@ const adjustments_post = defineEventHandler(async (event) => {
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
-    const year = (/* @__PURE__ */ new Date()).getFullYear();
-    const prefix = note_type === "debit" ? "DAN" : "CAN";
-    const [[last]] = await conn.query(
-      `SELECT MAX(CAST(SUBSTRING_INDEX(note_number, '-', -1) AS UNSIGNED)) AS maxSeq
-       FROM purchase_adjustment_notes WHERE note_number LIKE ?`,
-      [`${prefix}-${year}-%`]
-    );
-    const nextSeq = (Number(last == null ? void 0 : last.maxSeq) || 0) + 1;
-    const noteNum = `${prefix}-${year}-${String(nextSeq).padStart(4, "0")}`;
+    const noteNum = await nextNoteNumber(conn, note_type);
     const [result] = await conn.query(
       `INSERT INTO purchase_adjustment_notes
          (note_number, note_type, reason_type, purchase_order_id, po_number,

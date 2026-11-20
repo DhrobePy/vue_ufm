@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aJ as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, l as auditLog } from '../../../nitro/nitro.mjs';
+import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, l as auditLog, b8 as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -33,11 +33,21 @@ const index_post = defineEventHandler(async (event) => {
     unit_price_per_mt,
     // unit_price_per_mt = back-compat alias
     remarks,
-    branch_id
+    branch_id,
+    po_number: manual_po_number,
+    // optional hand-typed PO number (legacy: physical PO book)
+    is_service,
+    // service purchase: no product value per unit — a total invoice value + remark instead
+    service_total_value
   } = body != null ? body : {};
   const qty = quantity != null ? quantity : quantity_mt;
-  const price = unit_price != null ? unit_price : unit_price_per_mt;
+  const isService = Boolean(is_service);
   const originVal = origin != null ? origin : wheat_origin;
+  if (isService) {
+    if (!(Number(service_total_value) > 0)) throw createError({ statusCode: 400, statusMessage: "Total Invoice Value is required for a service purchase" });
+    if (!String(remarks != null ? remarks : "").trim()) throw createError({ statusCode: 400, statusMessage: "Remarks are required for a service purchase \u2014 explain what this invoice is for" });
+  }
+  const price = isService ? Number(service_total_value) / (Number(qty) || 1) : unit_price != null ? unit_price : unit_price_per_mt;
   if (!supplier_id || !po_date || !qty || !price) {
     throw createError({ statusCode: 400, statusMessage: "supplier_id, po_date, quantity and unit_price are required" });
   }
@@ -60,7 +70,14 @@ const index_post = defineEventHandler(async (event) => {
       commodityId = (_e = wheat == null ? void 0 : wheat.id) != null ? _e : null;
       commodityUnit = (_f = wheat == null ? void 0 : wheat.unit) != null ? _f : "MT";
     }
-    const poNo = await nextDocNumber(conn, "PO", "purchase_orders_adnan", "po_number");
+    let poNo = String(manual_po_number != null ? manual_po_number : "").trim();
+    if (poNo) {
+      const [[dup]] = await conn.query(`SELECT id FROM purchase_orders_adnan WHERE po_number = ?`, [poNo]);
+      if (dup) throw createError({ statusCode: 409, statusMessage: `PO Number '${poNo}' already exists. Use a different number or leave it blank for auto-numbering.` });
+    } else {
+      const [[mx]] = await conn.query(`SELECT COALESCE(MAX(CAST(po_number AS UNSIGNED)), 441) AS m FROM purchase_orders_adnan FOR UPDATE`);
+      poNo = String(Number(mx.m) + 1);
+    }
     const isMt = commodityUnit === "MT";
     const quantity_kg = isMt ? Number(qty) * 1e3 : Number(qty);
     const unit_price_per_kg = isMt ? Number(price) / 1e3 : Number(price);
@@ -69,13 +86,13 @@ const index_post = defineEventHandler(async (event) => {
       `INSERT INTO purchase_orders_adnan
          (po_number, po_date, supplier_id, supplier_name, wheat_origin, commodity_id,
           expected_delivery_date, po_payment_terms, quantity_kg, unit_price_per_kg,
-          total_order_value, balance_payable,
+          total_order_value, balance_payable, is_service_purchase,
           po_status, delivery_status, payment_status,
           branch_id, created_by_user_id, remarks,
           created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?,
-               ?, ?,
+               ?, ?, ?,
                'approved', 'pending', 'unpaid',
                ?, ?, ?,
                NOW(), NOW())`,
@@ -92,6 +109,7 @@ const index_post = defineEventHandler(async (event) => {
         unit_price_per_kg,
         total_order_value,
         total_order_value,
+        isService ? 1 : 0,
         branch_id ? Number(branch_id) : null,
         userId,
         remarks != null ? remarks : null
@@ -109,6 +127,9 @@ const index_post = defineEventHandler(async (event) => {
       severity: "info"
     });
     await conn.commit();
+    sendTelegram(`\u{1F9FE} <b>Purchase Order Created</b>
+PO ${poNo} \u2014 ${supplierName}${isService ? " (service)" : ""}
+${quantity_kg.toLocaleString()} ${commodityUnit === "MT" ? "KG" : commodityUnit} @ \u09F3${unit_price_per_kg.toLocaleString()} = \u09F3${total_order_value.toLocaleString()}${originVal ? "\nOrigin: " + originVal : ""}`, "purchase");
     return { ok: true, id: poId, po_number: poNo };
   } catch (e) {
     await conn.rollback();

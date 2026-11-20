@@ -17,7 +17,7 @@ export async function recalcPO(conn: PoolConnection, poId: number): Promise<void
        total_paid           = COALESCE(
          (SELECT SUM(amount_paid) FROM purchase_payments_adnan
           WHERE purchase_order_id = po.id AND is_posted = 1), 0),
-       balance_payable      = GREATEST(0, COALESCE(
+       balance_payable      = GREATEST(0, COALESCE(po.total_adjustment_amount, 0) + COALESCE(
          (SELECT SUM(total_value) FROM goods_received_adnan
           WHERE purchase_order_id = po.id AND grn_status != 'cancelled'), 0)
          - COALESCE(

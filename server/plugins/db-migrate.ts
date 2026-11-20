@@ -279,6 +279,7 @@ export default defineNitroPlugin(async () => {
   //   startup and never inside a transaction.
   await addCol(db, 'purchase_payments_adnan', 'is_posted',       'TINYINT(1) NOT NULL DEFAULT 1')
   await addCol(db, 'purchase_payments_adnan', 'journal_entry_id','INT DEFAULT NULL')
+  await addCol(db, 'purchase_payments_adnan', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')   // petty-cash account a cash payment was made from
 
   // ── 12. purchase_orders_adnan — po_payment_terms ─────────────────────────
   //   Previously run inside every POST /api/purchase/orders request.
@@ -1061,6 +1062,8 @@ export default defineNitroPlugin(async () => {
   }
 
   await addCol(db, 'purchase_orders_adnan', 'commodity_id', 'INT UNSIGNED NULL DEFAULT NULL')
+  await addCol(db, 'purchase_orders_adnan', 'is_service_purchase', 'TINYINT(1) NOT NULL DEFAULT 0')   // zero-value-product service invoice (legacy)
+  await addCol(db, 'purchase_orders_adnan', 'unit', "VARCHAR(20) NOT NULL DEFAULT 'KG'")
 
   // Seed "Wheat" as commodity #1 (idempotent) and backfill every PO that
   // predates this migration onto it, then seed its historical origin list

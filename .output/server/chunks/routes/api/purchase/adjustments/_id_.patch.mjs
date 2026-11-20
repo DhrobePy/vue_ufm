@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, u as createError, aJ as readBody, a9 as getUserSession, aH as queryOne, M as getDb, l as auditLog } from '../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, u as createError, aK as readBody, a9 as getUserSession, aI as queryOne, M as getDb, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,13 +13,15 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__patch = defineEventHandler(async (event) => {
-  var _a, _b, _c;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid ID" });
   const body = await readBody(event);
   const action = body == null ? void 0 : body.action;
   const session = await getUserSession(event);
   const userId = (_b = (_a = session == null ? void 0 : session.user) == null ? void 0 : _a.id) != null ? _b : 1;
+  if (!["admin", "superadmin"].includes(((_d = (_c = session == null ? void 0 : session.user) == null ? void 0 : _c.role) != null ? _d : "").toLowerCase()))
+    throw createError({ statusCode: 403, statusMessage: "Only admin / superadmin can approve, post or cancel adjustment notes" });
   if (!["approve", "post", "cancel"].includes(action))
     throw createError({ statusCode: 400, statusMessage: "action must be approve, post, or cancel" });
   const note = await queryOne(
@@ -56,11 +58,19 @@ const _id__patch = defineEventHandler(async (event) => {
       const delta = note.note_type === "debit" ? Number(note.amount) : -Number(note.amount);
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET balance_payable = GREATEST(0, COALESCE(balance_payable, 0) + ?),
-             updated_at      = NOW()
+         SET total_adjustment_amount = COALESCE(total_adjustment_amount, 0) + ?,
+             balance_payable         = GREATEST(0, COALESCE(balance_payable, 0) + ?),
+             updated_at              = NOW()
          WHERE id = ?`,
-        [delta, note.purchase_order_id]
+        [delta, delta, note.purchase_order_id]
       );
+      if (note.note_type === "credit") {
+        await conn.query(
+          `INSERT INTO supplier_balance_adjustments (supplier_id, purchase_order_id, adjustment_note_id, type, amount, description, created_by_user_id)
+           VALUES (?, ?, ?, 'credit', ?, ?, ?)`,
+          [note.supplier_id, note.purchase_order_id, note.id, Number(note.amount), `Credit from CAN ${note.note_number}: ${(_e = note.description) != null ? _e : ""}`.slice(0, 500), userId]
+        );
+      }
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status = 'posted', posted_at = NOW(), updated_at = NOW()
@@ -83,7 +93,8 @@ const _id__patch = defineEventHandler(async (event) => {
         throw createError({ statusCode: 400, statusMessage: "Cannot cancel a posted note" });
       if (note.status === "cancelled")
         throw createError({ statusCode: 400, statusMessage: "Note is already cancelled" });
-      const cancelReason = (_c = body == null ? void 0 : body.cancel_reason) != null ? _c : "Cancelled";
+      const cancelReason = String((_f = body == null ? void 0 : body.cancel_reason) != null ? _f : "").trim();
+      if (!cancelReason) throw createError({ statusCode: 400, statusMessage: "Cancellation reason is required" });
       await conn.query(
         `UPDATE purchase_adjustment_notes
          SET status      = 'cancelled',

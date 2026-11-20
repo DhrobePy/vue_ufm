@@ -3,7 +3,9 @@ import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
 import { postCommodityGRNCost } from '~/server/utils/commodityTrading'
 import { nextDocNumber } from '~/server/utils/creditOrders'
+import { nextNoteNumber } from '~/server/utils/purchaseNotes'
 import { postGRNJournalEntry } from '~/server/utils/grnGL'
+import { sendTelegram } from '~/server/utils/telegram'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -36,11 +38,14 @@ export default defineEventHandler(async (event) => {
     // Fetch PO
     const [[po]] = await conn.query<any>(
       `SELECT id, po_number, supplier_name, supplier_id, unit_price_per_kg, quantity_kg,
-              commodity_id, wheat_origin
+              commodity_id, wheat_origin, is_delivery_locked, delivery_lock_reason, quantity_kg AS po_qty
        FROM purchase_orders_adnan WHERE id = ?`,
       [Number(po_id)],
     )
     if (!po) throw createError({ statusCode: 404, statusMessage: 'Purchase order not found' })
+    // Legacy rule: an admin-locked PO takes no further GRNs until it is re-opened
+    if (Number(po.is_delivery_locked) === 1)
+      throw createError({ statusCode: 409, statusMessage: `This purchase order (PO #${po.po_number}) has been locked by admin — no further GRNs can be recorded.${po.delivery_lock_reason ? ' Reason: ' + po.delivery_lock_reason : ''} Contact a Superadmin or Admin to re-open it.` })
 
     const receivedKg  = Number(quantity_received_kg)
     const expectedKg  = Number(expected_quantity) || 0
@@ -148,7 +153,7 @@ export default defineEventHandler(async (event) => {
            WHERE table_schema = DATABASE() AND table_name = 'purchase_adjustment_notes'`,
         )
         if (adjCheck.n > 0) {
-          const danNo = await nextDocNumber(conn, 'DAN', 'purchase_adjustment_notes', 'note_number')
+          const danNo = await nextNoteNumber(conn, 'debit')
 
           const [danResult] = await conn.query<any>(
             `INSERT INTO purchase_adjustment_notes
@@ -180,7 +185,11 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    const [[tot]] = await conn.query<any>(`SELECT total_received_qty FROM purchase_orders_adnan WHERE id = ?`, [Number(po_id)])
     await conn.commit()
+    const poQty = Number(po.po_qty) || 0, got = Number(tot?.total_received_qty) || 0
+    sendTelegram(
+      `📦 <b>Goods Received</b>\n${grnNo} — ${po.supplier_name} (PO ${po.po_number})\n${receivedKg.toLocaleString()} KG${truck_number ? ' · truck ' + truck_number : ''} @ ৳${unitPrice.toLocaleString()} = ৳${totalValue.toLocaleString()}\nPO progress: ${got.toLocaleString()} / ${poQty.toLocaleString()} KG${poQty > 0 ? ` (${((got / poQty) * 100).toFixed(1)}%)` : ''}`, 'goods_received')
     return { ok: true, id: grnId, grn_number: grnNo }
   } catch (e) {
     await conn.rollback()

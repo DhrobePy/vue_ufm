@@ -1,5 +1,6 @@
 import type { PoolConnection } from 'mysql2/promise'
-import { postJournalEntry, getGLAccountId } from '~/server/utils/creditOrders'
+import { postJournalEntry } from '~/server/utils/creditOrders'
+import { getGrnPendingAccountId } from '~/server/utils/purchasePaymentGL'
 
 /**
  * GRN → General Ledger. Wheat received on a GRN is raw-material inventory
@@ -24,32 +25,36 @@ export async function postGRNJournalEntry(conn: PoolConnection, opts: {
   grnDate: string, totalValue: number, userId: number,
 }): Promise<number | null> {
   const [[po]] = await (conn as any).query(
-    `SELECT commodity_id FROM purchase_orders_adnan WHERE id = ?`, [opts.poId],
+    `SELECT commodity_id, wheat_origin FROM purchase_orders_adnan WHERE id = ?`, [opts.poId],
   )
-  if (!po?.commodity_id) {
-    console.warn(`[grn-gl] Skipping JE for ${opts.grnNumber}: PO has no commodity_id`)
+  const [[commodity]] = po?.commodity_id
+    ? await (conn as any).query(`SELECT inventory_account_id, name FROM purchase_commodities WHERE id = ?`, [po.commodity_id])
+    : [[null]]
+  // Wheat (or an untagged PO) follows the legacy rule: Canadian origin → 1400, every other origin → 1401. Other commodities use their own inventory account.
+  const isWheat = !commodity || String(commodity.name).toLowerCase() === 'wheat'
+  let inventoryId: number | null = null
+  if (isWheat) {
+    const canadian = /কানাডা|canad/i.test(String(po?.wheat_origin ?? ''))
+    const [[inv]] = await (conn as any).query(`SELECT id FROM chart_of_accounts WHERE account_number = ?`, [canadian ? '1400' : '1401'])
+    inventoryId = inv?.id ?? commodity?.inventory_account_id ?? null
+  } else inventoryId = commodity?.inventory_account_id ?? null
+  if (!inventoryId) {
+    console.warn(`[grn-gl] Skipping JE for ${opts.grnNumber}: no inventory account for this PO/commodity`)
     return null
   }
-  const [[commodity]] = await (conn as any).query(
-    `SELECT inventory_account_id, name FROM purchase_commodities WHERE id = ?`, [po.commodity_id],
-  )
-  if (!commodity?.inventory_account_id) {
-    console.warn(`[grn-gl] Skipping JE for ${opts.grnNumber}: commodity has no inventory_account_id configured`)
-    return null
-  }
-  const apId = await getGLAccountId(conn, 'Accounts Payable')
-  if (!apId) {
-    console.warn(`[grn-gl] Skipping JE for ${opts.grnNumber}: no Accounts Payable account in chart_of_accounts`)
+  const payableId = await getGrnPendingAccountId(conn)
+  if (!payableId) {
+    console.warn(`[grn-gl] Skipping JE for ${opts.grnNumber}: no GRN Pending / Accounts Payable account in chart_of_accounts`)
     return null
   }
 
   const jeId = await postJournalEntry(conn, {
     date: opts.grnDate,
-    description: `GRN ${opts.grnNumber} — PO ${opts.poNumber} · ${commodity.name} · ৳${opts.totalValue.toLocaleString()}`,
+    description: `GRN ${opts.grnNumber} — PO ${opts.poNumber} · ${commodity?.name ?? 'Wheat'} ${po?.wheat_origin ?? ''} · ৳${opts.totalValue.toLocaleString()}`.slice(0, 250),
     docType: 'grn_adnan', docId: opts.grnId, userId: opts.userId,
     lines: [
-      { accountId: Number(commodity.inventory_account_id), debit: opts.totalValue, credit: 0, memo: opts.grnNumber },
-      { accountId: apId, debit: 0, credit: opts.totalValue, memo: opts.grnNumber },
+      { accountId: Number(inventoryId), debit: opts.totalValue, credit: 0, memo: opts.grnNumber },
+      { accountId: payableId, debit: 0, credit: opts.totalValue, memo: opts.grnNumber },
     ],
   })
   await (conn as any).query(`UPDATE goods_received_adnan SET journal_entry_id = ? WHERE id = ?`, [jeId, opts.grnId])

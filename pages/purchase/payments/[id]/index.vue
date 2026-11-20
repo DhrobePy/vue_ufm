@@ -95,9 +95,11 @@ const pmt = computed(() => (data.value?.payment ?? {}) as any)
 
 async function deletePayment() {
   if (!confirm(`Delete payment ${pmt.value.payment_voucher_number}? This action may not be reversible.`)) return
+  const reason = (prompt('Reason for deleting this payment (required):') ?? '').trim()
+  if (!reason) return
   deleting.value = true
   try {
-    await $fetch(`/api/purchase/payments/${route.params.id}`, { method: 'DELETE' })
+    await $fetch(`/api/purchase/payments/${route.params.id}`, { method: 'DELETE', body: { reason } })
     success('Payment deleted')
     navigateTo('/purchase/payments')
   } catch (e: any) {

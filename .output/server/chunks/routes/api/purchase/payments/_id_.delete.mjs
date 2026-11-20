@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, u as createError, a9 as getUserSession, M as getDb, b1 as reversePurchasePaymentJE, aQ as recycleBegin, aP as recycleArchiveDelete, aR as recycleFinalize, aM as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, u as createError, a9 as getUserSession, aK as readBody, M as getDb, b3 as reversePurchasePaymentJE, aR as recycleBegin, aQ as recycleArchiveDelete, aS as recycleFinalize, aN as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const _id__delete = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e, _f, _g, _h;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid payment ID" });
   const session = await getUserSession(event);
@@ -22,13 +22,15 @@ const _id__delete = defineEventHandler(async (event) => {
   const role = ((_h = (_g = session == null ? void 0 : session.user) == null ? void 0 : _g.role) != null ? _h : "").toLowerCase();
   if (role !== "superadmin")
     throw createError({ statusCode: 403, statusMessage: "Only a Superadmin can delete a purchase payment" });
+  const reason = String((_j = (_i = await readBody(event).catch(() => null)) == null ? void 0 : _i.reason) != null ? _j : "").trim();
+  if (!reason) throw createError({ statusCode: 400, statusMessage: "Enter a reason for deleting this payment" });
   const db = getDb();
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
     const [[pmt]] = await conn.query(
       `SELECT id, payment_voucher_number, purchase_order_id, is_posted, journal_entry_id,
-              amount_paid, supplier_name, remarks
+              amount_paid, supplier_name, remarks, cash_account_id
        FROM purchase_payments_adnan WHERE id = ? FOR UPDATE`,
       [id]
     );
@@ -48,7 +50,7 @@ const _id__delete = defineEventHandler(async (event) => {
       const now = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").slice(0, 19);
       const jeNote = reversalJeId ? ` (JE reversed #${reversalJeId})` : pmt.journal_entry_id ? " (JE reversal FAILED \u2014 no lines found)" : "";
       const newNote = `
-[DELETED: ${userName} @ ${now}${jeNote}]`;
+[DELETED: ${userName} @ ${now}${jeNote} \u2014 ${reason}]`;
       await conn.query(
         `UPDATE purchase_payments_adnan
          SET is_posted  = 0,
@@ -67,6 +69,8 @@ const _id__delete = defineEventHandler(async (event) => {
       await recycleArchiveDelete(conn, batchId, "purchase_payments_adnan", "id", id);
       await recycleFinalize(conn, batchId);
     }
+    if (pmt.is_posted && pmt.cash_account_id) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance + ? WHERE id = ?`, [Number(pmt.amount_paid), pmt.cash_account_id]);
+    await conn.query(`DELETE FROM supplier_balance_adjustments WHERE payment_id = ? AND type = 'debit'`, [id]);
     await recalcPO(conn, pmt.purchase_order_id);
     const typeNote = pmt.is_posted ? " (was posted \u2014 soft deleted)" : " (hard deleted)";
     await auditLog(conn, {
@@ -76,7 +80,7 @@ const _id__delete = defineEventHandler(async (event) => {
       recordType: "purchase_payment",
       recordId: id,
       referenceNumber: pmt.payment_voucher_number,
-      description: `Payment ${pmt.payment_voucher_number} deleted by ${userName} \xB7 \u09F3${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote}`,
+      description: `Payment ${pmt.payment_voucher_number} deleted by ${userName} \xB7 \u09F3${Number(pmt.amount_paid).toLocaleString()} to ${pmt.supplier_name}${typeNote} \xB7 reason: ${reason}`,
       severity: "warning"
     });
     await conn.commit();

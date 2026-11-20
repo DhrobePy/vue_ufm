@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, u as createError, aJ as readBody, a9 as getUserSession, M as getDb, l as auditLog, aM as recalcPO } from '../../../../../nitro/nitro.mjs';
+import { x as defineEventHandler, a4 as getRouterParam, u as createError, aK as readBody, a9 as getUserSession, M as getDb, ak as nextNoteNumber, l as auditLog, aN as recalcPO } from '../../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -13,7 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const close_post = defineEventHandler(async (event) => {
-  var _a, _b, _c, _d, _e;
+  var _a, _b, _c, _d, _e, _f;
   const id = Number(getRouterParam(event, "id"));
   if (!id) throw createError({ statusCode: 400, statusMessage: "Invalid PO ID" });
   const body = await readBody(event);
@@ -27,24 +27,48 @@ const close_post = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[po]] = await conn.query(
-      `SELECT id, po_number, delivery_status, po_status FROM purchase_orders_adnan WHERE id = ?`,
+      `SELECT id, po_number, delivery_status, po_status, supplier_id, supplier_name, quantity_kg, total_received_qty, unit_price_per_kg, is_delivery_locked FROM purchase_orders_adnan WHERE id = ? FOR UPDATE`,
       [id]
     );
     if (!po) throw createError({ statusCode: 404, statusMessage: "Purchase order not found" });
     if (action === "final_delivery") {
       if (!isAdmin) throw createError({ statusCode: 403, statusMessage: "Only admin can mark final delivery" });
       if (po.delivery_status === "closed") throw createError({ statusCode: 400, statusMessage: "PO is already closed" });
+      if (Number(po.is_delivery_locked) === 1) throw createError({ statusCode: 400, statusMessage: "Delivery is already locked." });
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET delivery_status            = 'closed',
-             is_delivery_locked         = 1,
-             delivery_lock_reason       = 'Final delivery marked by admin',
+         SET is_delivery_locked         = 1,
+             delivery_lock_reason       = 'Final delivery marked by admin \u2014 PO closed for further GRNs',
              delivery_locked_by_user_id = ?,
              delivery_locked_at         = NOW(),
+             final_delivery_marked      = 1,
              updated_at                 = NOW()
          WHERE id = ?`,
         [userId, id]
       );
+      const shortfall = Number(po.quantity_kg) - Number((_f = po.total_received_qty) != null ? _f : 0);
+      let canNo = null;
+      if ((body == null ? void 0 : body.create_can_for_shortfall) && shortfall > 1) {
+        canNo = await nextNoteNumber(conn, "credit");
+        const amt = shortfall * Number(po.unit_price_per_kg);
+        await conn.query(
+          `INSERT INTO purchase_adjustment_notes
+             (note_number, note_type, reason_type, purchase_order_id, po_number, supplier_id, supplier_name, quantity_kg, unit_price_per_kg, amount, description, status, created_by_user_id, created_at, updated_at)
+           VALUES (?, 'credit', 'under_delivery_closure', ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW(), NOW())`,
+          [
+            canNo,
+            id,
+            po.po_number,
+            po.supplier_id,
+            po.supplier_name,
+            shortfall,
+            po.unit_price_per_kg,
+            amt,
+            `Auto-generated CAN: PO closed with shortfall of ${shortfall.toLocaleString()} KG (\u09F3${amt.toLocaleString()}) \u2014 marked as final delivery.`,
+            userId
+          ]
+        );
+      }
       await auditLog(conn, {
         userId,
         action: "po_locked",
@@ -56,7 +80,7 @@ const close_post = defineEventHandler(async (event) => {
         severity: "info"
       });
       await conn.commit();
-      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked` };
+      return { ok: true, message: `PO ${po.po_number} marked as final delivery and locked.${canNo ? ` Draft CAN ${canNo} created for the shortfall.` : ""}` };
     }
     if (action === "reverse") {
       if (!isAdmin) throw createError({ statusCode: 403, statusMessage: "Only admin/superadmin can reverse a PO" });
@@ -101,11 +125,12 @@ const close_post = defineEventHandler(async (event) => {
       if (!isAdmin && po.delivery_status !== "closed") {
         throw createError({ statusCode: 400, statusMessage: "PO is not closed \u2014 cannot reopen" });
       }
+      const [[got]] = await conn.query(`SELECT COALESCE(SUM(quantity_received_kg), 0) AS q FROM goods_received_adnan WHERE purchase_order_id = ? AND grn_status != 'cancelled'`, [id]);
       await conn.query(
         `UPDATE purchase_orders_adnan
-         SET delivery_status = 'partial', po_status = 'active', updated_at = NOW()
+         SET delivery_status = ?, is_delivery_locked = 0, delivery_lock_reason = NULL, updated_at = NOW()
          WHERE id = ?`,
-        [id]
+        [Number(got.q) > 0 ? "partial" : "pending", id]
       );
       await auditLog(conn, {
         userId,

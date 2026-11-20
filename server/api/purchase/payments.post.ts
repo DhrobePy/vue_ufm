@@ -1,7 +1,8 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
 import { nextDocNumber, postCustomerLedger } from '~/server/utils/creditOrders'
-import { postPurchasePaymentJE } from '~/server/utils/purchasePaymentGL'
+import { postPurchasePaymentJE, resolvePaymentSource } from '~/server/utils/purchasePaymentGL'
+import { sendTelegram } from '~/server/utils/telegram'
 
 /**
  * POST /api/purchase/payments
@@ -29,15 +30,21 @@ export default defineEventHandler(async (event) => {
     payment_method = 'bank',
     bank_account_id,
     reference_number,
-    payment_type = 'credit',   // advance | credit | against_delivery | contra
+    payment_type: payment_type_in = 'credit',   // advance | credit | against_delivery | contra
+    cash_account_id,        // petty-cash account (cash payments)
+    handled_by_employee,    // who handled the cash (cash payments)
+    credit_applied,         // supplier credit (CAN) used against this payment
     remarks,
   } = body ?? {}
+  let payment_type: string = payment_type_in
 
   if (!purchase_order_id || !amount_paid || Number(amount_paid) <= 0) {
     throw createError({ statusCode: 400, statusMessage: 'purchase_order_id and amount_paid are required' })
   }
 
   const isContra = payment_type === 'contra'
+  if (payment_method === 'cash' && !isContra && !String(handled_by_employee ?? '').trim())
+    throw createError({ statusCode: 400, statusMessage: 'Enter who handled the cash' })
   if (isContra && !reference_number) {
     throw createError({ statusCode: 400, statusMessage: 'Contra payment requires a sales invoice reference (order_number)' })
   }
@@ -56,22 +63,25 @@ export default defineEventHandler(async (event) => {
 
     // ── Load the PO ──────────────────────────────────────────────────────────
     const [[po]] = await conn.query<any>(
-      `SELECT id, po_number, supplier_id, supplier_name, balance_payable
-       FROM purchase_orders_adnan WHERE id = ?`,
+      `SELECT id, po_number, supplier_id, supplier_name, balance_payable, total_paid, total_received_value
+       FROM purchase_orders_adnan WHERE id = ? FOR UPDATE`,
       [purchase_order_id],
     )
     if (!po) throw createError({ statusCode: 404, statusMessage: 'Purchase order not found' })
 
     // ── Bank info ─────────────────────────────────────────────────────────────
-    let bankName: string | null = null
-    let bankGlAccountId: number | null = null
-    if (bank_account_id) {
-      const [[ba]] = await conn.query<any>(
-        `SELECT bank_name, chart_of_account_id FROM bank_accounts WHERE id = ?`,
-        [bank_account_id],
-      )
-      bankName        = ba?.bank_name ?? null
-      bankGlAccountId = ba?.chart_of_account_id ?? null
+    // Bank/cheque/mobile → a company bank account; cash → a petty-cash account (same rules as legacy). No balance check: overdraft is allowed.
+    const src = await resolvePaymentSource(conn, { method: isContra ? 'contra' : payment_method, bankAccountId: bank_account_id ? Number(bank_account_id) : null, cashAccountId: cash_account_id ? Number(cash_account_id) : null })
+    const bankName = src.bankName, bankGlAccountId = src.glAccountId
+    // Paying more than the value received so far is an advance (legacy auto-detects this).
+    if (!isContra && Number(po.total_received_value) > 0 && Number(po.total_paid ?? 0) + pmtAmt > Number(po.total_received_value)) payment_type = 'advance'
+
+    // Supplier credit being used: it must exist, and it is consumed (a 'debit' row) so it can never be used twice.
+    const creditUsed = Number(credit_applied) > 0 ? Number(credit_applied) : 0
+    if (creditUsed) {
+      const [[cr]] = await conn.query<any>(
+        `SELECT COALESCE(SUM(CASE WHEN type = 'credit' THEN amount ELSE -amount END), 0) AS avail FROM supplier_balance_adjustments WHERE supplier_id = ? FOR UPDATE`, [po.supplier_id])
+      if (creditUsed > Number(cr.avail) + 0.005) throw createError({ statusCode: 400, statusMessage: `Only ৳${Number(cr.avail).toLocaleString()} of supplier credit is available` })
     }
 
     // ── Voucher number (CURDATE() for Bangladesh timezone safety) ─────────────
@@ -83,8 +93,8 @@ export default defineEventHandler(async (event) => {
          (payment_voucher_number, payment_date, purchase_order_id, po_number,
           supplier_id, supplier_name, amount_paid, payment_method,
           bank_account_id, bank_name, reference_number,
-          payment_type, is_posted, remarks, created_by_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
+          payment_type, is_posted, remarks, handled_by_employee, cash_account_id, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
       [
         voucherNo,
         pmtDate,
@@ -99,10 +109,21 @@ export default defineEventHandler(async (event) => {
         reference_number ?? null,
         payment_type,
         remarks ?? null,
+        String(handled_by_employee ?? '').trim() || null,
+        src.cashAccountId,
         userId,
       ],
     )
     const paymentId = result.insertId
+
+    if (creditUsed) {
+      await conn.query(
+        `INSERT INTO supplier_balance_adjustments (supplier_id, purchase_order_id, payment_id, type, amount, description, created_by_user_id)
+         VALUES (?, ?, ?, 'debit', ?, ?, ?)`,
+        [po.supplier_id, purchase_order_id, paymentId, creditUsed, `Supplier credit applied against payment ${voucherNo}`, userId])
+    }
+    // Cash leaves the till: keep the petty-cash running balance in step (like every other cash flow in the app)
+    if (src.cashAccountId) await conn.query(`UPDATE branch_petty_cash_accounts SET current_balance = current_balance - ?, updated_at = NOW() WHERE id = ?`, [pmtAmt, src.cashAccountId])
 
     // ── 2. Update PO totals ───────────────────────────────────────────────────
     await conn.query(
@@ -210,6 +231,8 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+    sendTelegram(
+      `💸 <b>Supplier Payment</b>\n${voucherNo} — ${po.supplier_name} (PO ${po.po_number})\n৳${pmtAmt.toLocaleString()} via ${bankName ?? payment_method}${payment_type === 'advance' ? ' · advance' : ''}${creditUsed ? ` · credit used ৳${creditUsed.toLocaleString()}` : ''}`, 'payment')
     return { ok: true, id: paymentId, voucher_number: voucherNo }
 
   } catch (e: any) {
