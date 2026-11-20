@@ -6,6 +6,7 @@ import { nextDocNumber } from '~/server/utils/creditOrders'
 import { nextNoteNumber } from '~/server/utils/purchaseNotes'
 import { postGRNJournalEntry } from '~/server/utils/grnGL'
 import { sendTelegram } from '~/server/utils/telegram'
+import { defaultGrnBasis, grnPricedQty } from '~/server/utils/grnValue'
 
 export default defineEventHandler(async (event) => {
   const body   = await readBody(event)
@@ -21,6 +22,7 @@ export default defineEventHandler(async (event) => {
     unload_point_name,
     unload_point_branch_id,   // which branch received the goods — feeds commodity costing
     remarks,
+    value_basis,          // 'expected' | 'received' — which quantity to price this GRN on (default: Settings → Finance)
     over_delivery_action, // 'as_is' | 'accept_with_dan'
     excess_qty,
   } = body ?? {}
@@ -50,9 +52,9 @@ export default defineEventHandler(async (event) => {
     const receivedKg  = Number(quantity_received_kg)
     const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(po.unit_price_per_kg)
-    // Payment is based on EXPECTED (billed) quantity, not actual weighed quantity.
-    // If no expected_quantity is provided, fall back to actual received.
-    const billedQty   = expectedKg > 0 ? expectedKg : receivedKg
+    // The user picks per GRN: price on the supplier's billed (expected) quantity or on the weighed (received) quantity.
+    const basis       = ['expected', 'received'].includes(value_basis) ? value_basis : await defaultGrnBasis()
+    const billedQty   = grnPricedQty(basis, receivedKg, expectedKg)
     const totalValue  = billedQty * unitPrice
 
     // Variance vs expected_quantity (if provided) else vs PO ordered qty
@@ -70,7 +72,7 @@ export default defineEventHandler(async (event) => {
           unit_price_per_kg, total_value,
           variance_percentage,
           truck_number, unload_point_name, unload_point_branch_id, remarks,
-          grn_status, receiver_user_id,
+          grn_status, receiver_user_id, value_basis,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
@@ -78,7 +80,7 @@ export default defineEventHandler(async (event) => {
                ?, ?,
                ?,
                ?, ?, ?, ?,
-               'verified', ?,
+               'verified', ?, ?,
                NOW(), NOW())`,
       [
         grnNo, grn_date, Number(po_id), po.po_number,
@@ -89,7 +91,7 @@ export default defineEventHandler(async (event) => {
         truck_number ?? null, unload_point_name ?? null,
         unload_point_branch_id ? Number(unload_point_branch_id) : null,
         remarks ?? null,
-        userId,
+        userId, basis,
       ],
     )
     const grnId = result.insertId

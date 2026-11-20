@@ -26,8 +26,8 @@ Status as of 20 Nov 2026. ✅ = identical now · 🔧 = was different, fixed in 
 | Over-delivery → draft DAN | yes | ✅ |
 | Delivery status maths (pending/partial/completed ≤105 %/over) | yes | ✅ |
 | GRN edit / cancel | superadmin only; cancelled can't be edited | ✅ |
-| **GRN value basis** | legacy books **weighed (received) quantity × PO price** in the ledger; its supplier statement shows *expected (billed)* quantity | ⚖️ Vue prices a new GRN on **expected quantity** (commit 3eba1dc0, 5 Jun 2026, "pay on expected qty"). Synced GRNs carry legacy's received-based values, so new and old differ in basis. **Owner to confirm which basis the books should use.** |
-| Close / reopen PO | Superadmin only | ⚖️ admin may too; "Reverse PO" and "Permanently delete PO" exist only here (same commit) |
+| **GRN value basis** | ledger books the **weighed (received) quantity × PO price** | ✅ owner decision 20 Nov 2026: **both methods kept** — chosen per receipt (and per edit), default set in Settings → Finance → "Goods-received valuation" (starts as *expected*, as before). Each GRN remembers its basis (`value_basis`); older rows infer it from their stored value. |
+| Close / reopen PO | Superadmin only | ✅ owner decision 20 Nov 2026: **keep** — admin may too; "Reverse PO" and "Permanently delete PO" exist only here |
 | Variance report | open to purchase users | ⚖️ admin only (same commit) |
 | Bank cached balance after a payment | decremented | ⏳ not kept (the cached figure is unreliable in legacy too; ledger is the source) |
 | Bank-statement bridge for purchase payments | attempted, almost never matched (1 row ever) | ⏳ not replicated |
@@ -45,12 +45,31 @@ Status as of 20 Nov 2026. ✅ = identical now · 🔧 = was different, fixed in 
 | Rule | Now |
 |---|---|
 | Create → pending, approve / reject with audit, amount > 0 | ✅ |
-| Approving a bank transaction | ⚖️ legacy never posts to the ledger; Vue posts a journal entry on approval, **forward-only, by explicit owner decision** (bankTxGL.ts). |
+| Approving a bank transaction | ✅ owner decision 20 Nov 2026: **Vue's way kept** — a journal entry is posted on approval, forward-only (bankTxGL.ts); legacy never posts. |
 | A bank row mirrored from a customer payment | 🔧 approving it no longer posts a second entry (it would have counted the receipt twice) |
+
+## Loans
+| Rule | Now |
+|---|---|
+| One borrower (customer **or** supplier); amount > 0; method Cash / bank; maker-checker limit (`loan_disbursement`); number `LN-YYYYMMDD-NNNN`; DR Loans & Advances Receivable / CR cash or bank; repay ≤ balance; Telegram | ✅ |
+| Loan date | 🔧 today for everyone; only an admin may back-date, never into the future (before: any date) |
+| Cash loan when the till is short | 🔧 no balance check, like legacy and every other cash payment (before: refused — and the cached petty-cash figures are negative, so every cash loan would have been refused) |
+
+## Trading (commodity sales)
+| Rule | Now |
+|---|---|
+| Future date refused, stock check with "sell anyway" override, delegated limit with approval queue, COGS at weighted-average cost, AR/revenue/COGS/inventory entries, customer-ledger invoice line | ✅ (built to the legacy rules; read through, nothing to change) |
+
+## Accounts
+| Rule | Now |
+|---|---|
+| Debit voucher: `DV-YYYYMMDD-NNNN`, auto-approved, DR expense / CR cash-or-bank | ✅ |
+| Debit voucher Telegram alert | 🔧 added |
+| **Internal transfer** | 🔧 **was backwards**: the page debited the *From* account and credited the *To* account. Now DR destination / CR source, responsible employee required, entry type `InternalTransfer`, and a petty-cash till on either side moves with its cash log (legacy rule). No transfers had been posted the old way (checked). |
 
 ## Ledger / data
 - Journal entries, trial balance (54 accounts), customer balances, orders, order lines, payments, purchases, GRNs, expenses, bank transactions: identical after sync (see `verify-parity.mjs`, `repair-gl-parity.mjs`).
 - The only standing ledger differences: 4 expense vouchers legacy never posted (৳37,180) and 3 POS sales (legacy keeps POS in separate tables).
 
 ## ⏳ Not compared line-by-line yet
-POS (rebuilt earlier against the spec), Trading, Loans, Products/Pricing (prices identical; rules not re-read), Production, HR/Payroll, Fleet/Logistics (not migrated), Accounts vouchers/journals/transfers, Admin.
+Products/Pricing (prices identical; rules not re-read), Production, Admin. **Skipped by owner instruction (20 Nov 2026): POS, HR, Fleet, Logistics.**

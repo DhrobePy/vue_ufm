@@ -123,9 +123,20 @@
             </p>
           </div>
 
+          <!-- Valuation basis — choose per receipt -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Value this receipt on</label>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label v-for="o in basisOptions" :key="o.v" class="flex items-start gap-2 p-3 rounded-xl border cursor-pointer text-xs"
+                     :class="form.value_basis === o.v ? 'border-amber-500/50 bg-amber-500/10 text-amber-200' : 'border-white/10 text-gray-400'">
+                <input v-model="form.value_basis" type="radio" :value="o.v" class="mt-0.5" /><span><strong>{{ o.t }}</strong><br />{{ o.d }}</span>
+              </label>
+            </div>
+          </div>
+
           <!-- Calculated Value -->
           <div class="rounded-xl bg-white/[0.04] border border-white/[0.07] p-4">
-            <p class="text-xs text-gray-500 mb-1">Calculated Value (Expected Qty × Unit Price)</p>
+            <p class="text-xs text-gray-500 mb-1">Calculated Value ({{ form.value_basis === 'received' || !form.expected_quantity ? 'Received' : 'Expected' }} Qty × Unit Price)</p>
             <p class="text-3xl font-bold text-gold-400 font-mono">৳{{ calculatedValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</p>
           </div>
 
@@ -217,6 +228,7 @@ const form = reactive({
   truck_number:         '',
   quantity_received_kg: 0,
   expected_quantity:    0,
+  value_basis:          'expected' as 'expected' | 'received',
   unload_point_name:    '',
   remarks:              '',
   over_delivery_action: 'as_is' as 'as_is' | 'accept_with_dan',
@@ -257,11 +269,19 @@ const varianceBg = computed(() => {
   return 'bg-emerald-500/[0.08] border-emerald-400/40 text-emerald-300'
 })
 
-// Calculated value = expected qty × unit price
+const basisOptions = [
+  { v: 'expected', t: 'Expected (billed) quantity', d: 'What the supplier invoiced — per the truck challan' },
+  { v: 'received', t: 'Received (weighed) quantity', d: 'What actually came off the scale' },
+]
+{ // default comes from Settings → Finance
+  const { settings } = useAppSettings()
+  watchEffect(() => { const b = settings.value?.finance_settings?.grnValueBasis; if (b === 'received' || b === 'expected') form.value_basis = b })
+}
+// Calculated value = chosen quantity × unit price
 const calculatedValue = computed(() => {
   const unitPrice = Number(selectedPO.value?.unit_price_per_kg ?? 0)
   const expected  = form.expected_quantity || 0
-  return unitPrice * expected
+  return unitPrice * (form.value_basis === 'expected' && expected > 0 ? expected : (form.quantity_received_kg || 0))
 })
 
 // Over-delivery detection
@@ -317,6 +337,7 @@ async function submit() {
         truck_number:         form.truck_number || null,
         quantity_received_kg: form.quantity_received_kg,
         expected_quantity:    form.expected_quantity || null,
+        value_basis:          form.value_basis,
         unload_point_name:    form.unload_point_name || null,
         remarks:              form.remarks || null,
         over_delivery_action: form.over_delivery_action,

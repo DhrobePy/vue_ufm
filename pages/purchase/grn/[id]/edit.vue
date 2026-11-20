@@ -98,6 +98,17 @@
                 </p>
               </div>
 
+              <!-- Valuation basis -->
+              <div class="md:col-span-2 space-y-1.5">
+                <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Value this receipt on</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label v-for="o in basisOptions" :key="o.v" class="flex items-start gap-2 p-3 rounded-xl border cursor-pointer text-xs"
+                         :class="form.value_basis === o.v ? 'border-blue-500/50 bg-blue-500/10 text-blue-200' : 'border-white/10 text-gray-400'">
+                    <input v-model="form.value_basis" type="radio" :value="o.v" class="mt-0.5" /><span><strong>{{ o.t }}</strong></span>
+                  </label>
+                </div>
+              </div>
+
               <!-- Calculated Value (auto) -->
               <div class="space-y-1.5">
                 <label class="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Calculated Total Value</label>
@@ -164,6 +175,7 @@ const form = reactive({
   truck_number:           '',
   quantity_received_kg:   0,
   expected_quantity:      0,
+  value_basis:            'received' as 'expected' | 'received',
   unload_point_name:      '',
   unload_point_branch_id: '' as string | number,
   variance_remarks:       '',
@@ -176,14 +188,20 @@ watch(grn, (g) => {
   form.truck_number           = g.truck_number || ''
   form.quantity_received_kg   = Number(g.quantity_received_kg || 0)
   form.expected_quantity      = Number(g.expected_quantity || 0)
+  {
+    const tv = Number(g.total_value || 0), p = Number(g.unit_price_per_kg || 0), r = Number(g.quantity_received_kg || 0), e = Number(g.expected_quantity || 0)
+    form.value_basis = g.value_basis === 'expected' || g.value_basis === 'received' ? g.value_basis
+      : (e > 0 && Math.abs(tv - e * p) < 1 && Math.abs(tv - r * p) >= 1 ? 'expected' : 'received')
+  }
   form.unload_point_name      = g.unload_point_name || ''
   form.unload_point_branch_id = g.unload_point_branch_id || ''
   form.variance_remarks       = g.variance_remarks || ''
   form.remarks                = g.remarks || ''
 }, { immediate: true })
 
+const basisOptions = [{ v: 'expected', t: 'Expected (billed) quantity' }, { v: 'received', t: 'Received (weighed) quantity' }]
 const previewValue = computed(() =>
-  Math.round(form.quantity_received_kg * Number(grn.value?.unit_price_per_kg || 0) * 100) / 100,
+  Math.round((form.value_basis === 'expected' && form.expected_quantity > 0 ? form.expected_quantity : form.quantity_received_kg) * Number(grn.value?.unit_price_per_kg || 0) * 100) / 100,
 )
 function recalcValue() { /* previewValue is computed */ }
 
@@ -201,6 +219,7 @@ async function submit() {
         truck_number:           form.truck_number || null,
         quantity_received_kg:   form.quantity_received_kg,
         expected_quantity:      form.expected_quantity || null,
+        value_basis:            form.value_basis,
         unload_point_name:      form.unload_point_name || null,
         unload_point_branch_id: form.unload_point_branch_id || null,
         variance_remarks:       form.variance_remarks || null,

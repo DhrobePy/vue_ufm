@@ -13,7 +13,7 @@
       <p class="text-sm text-gray-400">Use this form to transfer a balance between two ledger accounts (e.g. re-classify an expense or move a prepayment).</p>
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">From Account *</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">From Account * <span class="normal-case text-gray-600">(money leaves)</span></label>
           <select v-model="form.from" class="input-glass">
             <option value="">— Select —</option>
             <optgroup v-for="g in accountGroups" :key="g.label" :label="g.label">
@@ -22,7 +22,7 @@
           </select>
         </div>
         <div class="space-y-1.5">
-          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">To Account *</label>
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">To Account * <span class="normal-case text-gray-600">(money arrives)</span></label>
           <select v-model="form.to" class="input-glass">
             <option value="">— Select —</option>
             <optgroup v-for="g in accountGroups" :key="g.label" :label="g.label">
@@ -42,6 +42,11 @@
           <input v-model="form.date" type="date" class="input-glass" />
         </div>
         <div class="space-y-1.5 sm:col-span-2">
+          <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Responsible Employee *</label>
+          <select v-model="form.employee" class="input-glass mb-3">
+            <option value="">— Select employee —</option>
+            <option v-for="e in employees" :key="e.id" :value="e.id">{{ e.name }}</option>
+          </select>
           <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Narration *</label>
           <input v-model="form.narration" type="text" class="input-glass" placeholder="Reason for transfer / re-classification" />
         </div>
@@ -80,28 +85,24 @@ const form = reactive({
   amount:   null as number | null,
   date:     new Date().toISOString().slice(0, 10),
   narration: '',
+  employee:  '' as number | string,
 })
+const { data: empData } = await useFetch('/api/accounts/transfer')
+const employees = computed(() => (empData.value as any)?.employees ?? [])
 const saving = ref(false)
 
 const isValid = computed(() =>
   form.from && form.to && form.from !== form.to &&
-  form.amount && form.amount > 0 && form.narration
+  form.amount && form.amount > 0 && form.narration && form.employee
 )
 
 async function submit() {
   if (!isValid.value) return
   saving.value = true
   try {
-    await $fetch('/api/accounts/journal', {
+    await $fetch('/api/accounts/transfer', {
       method: 'POST',
-      body: {
-        transaction_date: form.date,
-        description:      form.narration,
-        lines: [
-          { account_id: Number(form.from), debit_amount: form.amount, credit_amount: 0,           description: form.narration },
-          { account_id: Number(form.to),   debit_amount: 0,           credit_amount: form.amount, description: form.narration },
-        ],
-      },
+      body: { from_account_id: Number(form.from), to_account_id: Number(form.to), amount: form.amount, transfer_date: form.date, memo: form.narration, responsible_employee_id: Number(form.employee) },
     })
     success('Account transfer posted successfully')
     navigateTo('/accounts')

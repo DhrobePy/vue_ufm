@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, aj as nextDocNumber, aN as recalcPO, au as postCommodityGRNCost, ay as postGRNJournalEntry, l as auditLog, ak as nextNoteNumber, b8 as sendTelegram } from '../../../nitro/nitro.mjs';
+import { y as defineEventHandler, aN as readBody, aa as getUserSession, u as createError, N as getDb, x as defaultGrnBasis, ac as grnPricedQty, am as nextDocNumber, aQ as recalcPO, ax as postCommodityGRNCost, aB as postGRNJournalEntry, l as auditLog, an as nextNoteNumber, bb as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -27,6 +27,8 @@ const index_post = defineEventHandler(async (event) => {
     unload_point_branch_id,
     // which branch received the goods — feeds commodity costing
     remarks,
+    value_basis,
+    // 'expected' | 'received' — which quantity to price this GRN on (default: Settings → Finance)
     over_delivery_action,
     // 'as_is' | 'accept_with_dan'
     excess_qty
@@ -50,7 +52,8 @@ const index_post = defineEventHandler(async (event) => {
     const receivedKg = Number(quantity_received_kg);
     const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(po.unit_price_per_kg);
-    const billedQty = expectedKg > 0 ? expectedKg : receivedKg;
+    const basis = ["expected", "received"].includes(value_basis) ? value_basis : await defaultGrnBasis();
+    const billedQty = grnPricedQty(basis, receivedKg, expectedKg);
     const totalValue = billedQty * unitPrice;
     const baseQty = expectedKg > 0 ? expectedKg : Number(po.quantity_kg);
     const varPct = baseQty > 0 ? ((receivedKg - baseQty) / baseQty * 100).toFixed(4) : "0";
@@ -63,7 +66,7 @@ const index_post = defineEventHandler(async (event) => {
           unit_price_per_kg, total_value,
           variance_percentage,
           truck_number, unload_point_name, unload_point_branch_id, remarks,
-          grn_status, receiver_user_id,
+          grn_status, receiver_user_id, value_basis,
           created_at, updated_at)
        VALUES (?, ?, ?, ?,
                ?, ?,
@@ -71,7 +74,7 @@ const index_post = defineEventHandler(async (event) => {
                ?, ?,
                ?,
                ?, ?, ?, ?,
-               'verified', ?,
+               'verified', ?, ?,
                NOW(), NOW())`,
       [
         grnNo,
@@ -89,7 +92,8 @@ const index_post = defineEventHandler(async (event) => {
         unload_point_name != null ? unload_point_name : null,
         unload_point_branch_id ? Number(unload_point_branch_id) : null,
         remarks != null ? remarks : null,
-        userId
+        userId,
+        basis
       ]
     );
     const grnId = result.insertId;

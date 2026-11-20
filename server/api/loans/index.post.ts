@@ -41,7 +41,14 @@ export default defineEventHandler(async (event) => {
 
   const validMethods = ['Cash', 'Bank Transfer', 'Cheque', 'Mobile Banking']
   const method   = validMethods.includes(body?.payment_method) ? body.payment_method : 'Cash'
-  const loanDate = String(body?.loan_date ?? new Date().toISOString().slice(0, 10))
+  // Legacy rule: the loan is dated today (Dhaka); only an admin may back-date it, and never into the future.
+  const todayDhaka = new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 10)
+  const canBackdate = ['admin', 'superadmin'].includes(role)
+  let loanDate = todayDhaka
+  if (canBackdate && /^\d{4}-\d{2}-\d{2}$/.test(String(body?.loan_date ?? ''))) {
+    if (String(body.loan_date) > todayDhaka) throw createError({ statusCode: 400, statusMessage: 'Loan date cannot be in the future' })
+    loanDate = String(body.loan_date)
+  }
 
   const conn = await getDb().getConnection()
   try {
@@ -113,7 +120,7 @@ export default defineEventHandler(async (event) => {
       const [[pcAcc]] = await conn.query<any>(
         `SELECT current_balance, branch_id FROM branch_petty_cash_accounts WHERE id = ?`, [cashId])
       const bal = Number(pcAcc?.current_balance ?? 0)
-      if (bal < amount) throw createError({ statusCode: 400, statusMessage: `Petty cash only has ৳${bal.toLocaleString()}` })
+      // No balance check — legacy allows the cash account to go negative (the same as every other cash payment in the app).
       await conn.query(
         `INSERT INTO branch_petty_cash_transactions
            (account_id, branch_id, transaction_type, amount, balance_after,

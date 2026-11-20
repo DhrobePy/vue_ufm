@@ -2,6 +2,7 @@ import { getDb } from '~/server/utils/db'
 import { recalcPO } from '~/server/utils/recalcPO'
 import { auditLog } from '~/server/utils/audit'
 import { postGRNJournalEntry, reverseGRNJournalEntry } from '~/server/utils/grnGL'
+import { grnBasisOf, grnPricedQty } from '~/server/utils/grnValue'
 
 export default defineEventHandler(async (event) => {
   const id = Number(getRouterParam(event, 'id'))
@@ -23,6 +24,7 @@ export default defineEventHandler(async (event) => {
     unload_point_branch_id,
     variance_remarks,
     remarks,
+    value_basis,
   } = body ?? {}
 
   if (!grn_date) throw createError({ statusCode: 400, statusMessage: 'grn_date is required' })
@@ -33,8 +35,8 @@ export default defineEventHandler(async (event) => {
     await conn.beginTransaction()
 
     const [[grn]] = await conn.query<any>(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id,
-              quantity_received_kg AS old_qty
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id, value_basis, total_value, expected_quantity AS old_expected,
+              quantity_received_kg AS old_qty, quantity_received_kg
        FROM goods_received_adnan WHERE id = ? FOR UPDATE`,
       [id],
     )
@@ -46,8 +48,10 @@ export default defineEventHandler(async (event) => {
     const newQtyKg    = Number(quantity_received_kg ?? grn.old_qty)
     const expectedKg  = Number(expected_quantity) || 0
     const unitPrice   = Number(grn.unit_price_per_kg)
-    // Payment is based on EXPECTED (billed) quantity, not actual weighed quantity.
-    const billedQty   = expectedKg > 0 ? expectedKg : newQtyKg
+    // Keep the GRN's own valuation basis unless the editor changes it.
+    const basis: 'expected' | 'received' = ['expected', 'received'].includes(value_basis)
+      ? value_basis : grnBasisOf({ value_basis: grn.value_basis, total_value: grn.total_value, quantity_received_kg: grn.old_qty, expected_quantity: grn.old_expected, unit_price_per_kg: grn.unit_price_per_kg })
+    const billedQty   = grnPricedQty(basis, newQtyKg, expectedKg)
     const totalValue  = billedQty * unitPrice
 
     // Variance vs expected_quantity (if provided)
@@ -78,6 +82,7 @@ export default defineEventHandler(async (event) => {
            unload_point_branch_id = ?,
            variance_remarks       = ?,
            remarks                = ?,
+           value_basis            = ?,
            updated_at             = NOW()
        WHERE id = ?`,
       [
@@ -91,6 +96,7 @@ export default defineEventHandler(async (event) => {
         unload_point_branch_id ?? null,
         variance_remarks ?? null,
         remarks ?? null,
+        basis,
         id,
       ],
     )

@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { u as createError$1, aq as parseURL, C as encodePath, w as decodePath, aa as hasProtocol, af as isScriptProtocol, ag as joinURL, bl as withQuery, z as defu, b6 as sanitizeStatusCode, I as getContext, $ as $fetch$1, m as baseURL, v as createHooks, E as executeAsync } from '../nitro/nitro.mjs';
+import { u as createError$1, at as parseURL, E as encodePath, w as decodePath, ad as hasProtocol, ai as isScriptProtocol, aj as joinURL, bo as withQuery, B as defu, b9 as sanitizeStatusCode, J as getContext, $ as $fetch$1, m as baseURL, v as createHooks, F as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -816,7 +816,7 @@ const _routes = [
     name: "admin-settings",
     path: "/admin/settings",
     meta: __nuxt_page_meta$2y || {},
-    component: () => import('./settings-v8EB-TBa.mjs')
+    component: () => import('./settings-B7j3-9ub.mjs')
   },
   {
     name: "bank-statement",
@@ -954,7 +954,7 @@ const _routes = [
     name: "accounts-transfer",
     path: "/accounts/transfer",
     meta: __nuxt_page_meta$2b || {},
-    component: () => import('./transfer-BTCnpI-e.mjs')
+    component: () => import('./transfer-Dlu9NXsO.mjs')
   },
   {
     name: "admin-recycle-bin",
@@ -1182,7 +1182,7 @@ const _routes = [
     name: "purchase-grn-create",
     path: "/purchase/grn/create",
     meta: __nuxt_page_meta$1B || {},
-    component: () => import('./create-C2777vqG.mjs')
+    component: () => import('./create-D2czezM7.mjs')
   },
   {
     name: "trading-sales",
@@ -1410,7 +1410,7 @@ const _routes = [
     name: "purchase-grn-id-edit",
     path: "/purchase/grn/:id()/edit",
     meta: __nuxt_page_meta$$ || {},
-    component: () => import('./edit-C2DRo8LF.mjs')
+    component: () => import('./edit-B98DnuM1.mjs')
   },
   {
     name: "purchase-orders-create",

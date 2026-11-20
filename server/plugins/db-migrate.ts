@@ -279,6 +279,7 @@ export default defineNitroPlugin(async () => {
   //   startup and never inside a transaction.
   await addCol(db, 'purchase_payments_adnan', 'is_posted',       'TINYINT(1) NOT NULL DEFAULT 1')
   await addCol(db, 'purchase_payments_adnan', 'journal_entry_id','INT DEFAULT NULL')
+  await addCol(db, 'goods_received_adnan', 'value_basis', 'VARCHAR(10) NULL DEFAULT NULL')   // 'expected' | 'received' — which quantity this GRN's value was priced on
   await addCol(db, 'purchase_payments_adnan', 'cash_account_id', 'INT UNSIGNED NULL DEFAULT NULL')   // petty-cash account a cash payment was made from
 
   // ── 12. purchase_orders_adnan — po_payment_terms ─────────────────────────

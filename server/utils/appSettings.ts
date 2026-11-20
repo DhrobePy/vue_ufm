@@ -10,7 +10,7 @@ export const APP_SETTING_GROUPS = {
     name: 'Ujjal Flour Mills Co.', tradeName: 'Ujjal FMC', regNo: 'TL-SRG-2018-4821', tin: '', bin: '002148694',
     address: 'Sirajgonj Sadar, Sirajgonj-6700 · Demra, Dhaka-1361', phone: '+880 1711-000000', email: 'accounts@ujjalfmc.com',
   },
-  finance_settings: { fyStart: 7, defaultCreditLimit: 0, defaultPaymentTerms: 30, lateRate: 0 },
+  finance_settings: { fyStart: 7, defaultCreditLimit: 0, defaultPaymentTerms: 30, lateRate: 0, grnValueBasis: 'expected' },   // grnValueBasis: how a goods-received note is valued by default — 'expected' (billed qty) or 'received' (weighed qty)
   order_policy: { auto_approve: false, allow_partial: true, block_overdue: false },
   security_policy: { sessionTimeout: 0, maxLoginAttempts: 5 },
   notify_policy: { telegram: true },

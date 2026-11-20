@@ -29,6 +29,7 @@ export default defineEventHandler(async (event) => {
     } else clean[k] = String(v).trim().slice(0, 500)
   }
   if (group === 'company_profile' && clean.name !== undefined && !clean.name) throw createError({ statusCode: 400, statusMessage: 'Company name cannot be empty' })
+  if (group === 'finance_settings' && clean.grnValueBasis !== undefined && !['expected', 'received'].includes(clean.grnValueBasis)) throw createError({ statusCode: 400, statusMessage: 'Goods-received valuation must be "expected" or "received"' })
   if (group === 'finance_settings' && clean.fyStart !== undefined && !(clean.fyStart >= 1 && clean.fyStart <= 12)) throw createError({ statusCode: 400, statusMessage: 'Financial year must start in month 1–12' })
   if (group === 'security_policy' && clean.maxLoginAttempts !== undefined && clean.maxLoginAttempts < 3) throw createError({ statusCode: 400, statusMessage: 'Allow at least 3 login attempts' })
 

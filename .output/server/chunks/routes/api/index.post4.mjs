@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, bi as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, M as getDb, ae as isAdminRole, K as getCreditWorkflowSettings, a5 as getUserActionLimit, aJ as queuePendingRequest, b8 as sendTelegram, aj as nextDocNumber, U as getLoansReceivableAccountId, aA as postJournalEntry, l as auditLog } from '../../nitro/nitro.mjs';
+import { y as defineEventHandler, aN as readBody, aa as getUserSession, u as createError, bl as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, N as getDb, ah as isAdminRole, L as getCreditWorkflowSettings, a6 as getUserActionLimit, aM as queuePendingRequest, bb as sendTelegram, am as nextDocNumber, V as getLoansReceivableAccountId, aD as postJournalEntry, l as auditLog } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -37,7 +37,13 @@ const index_post = defineEventHandler(async (event) => {
   if (amount <= 0) throw createError({ statusCode: 400, statusMessage: "Amount must be positive" });
   const validMethods = ["Cash", "Bank Transfer", "Cheque", "Mobile Banking"];
   const method = validMethods.includes(body == null ? void 0 : body.payment_method) ? body.payment_method : "Cash";
-  const loanDate = String((_d = body == null ? void 0 : body.loan_date) != null ? _d : (/* @__PURE__ */ new Date()).toISOString().slice(0, 10));
+  const todayDhaka = new Date(Date.now() + 6 * 36e5).toISOString().slice(0, 10);
+  const canBackdate = ["admin", "superadmin"].includes(role);
+  let loanDate = todayDhaka;
+  if (canBackdate && /^\d{4}-\d{2}-\d{2}$/.test(String((_d = body == null ? void 0 : body.loan_date) != null ? _d : ""))) {
+    if (String(body.loan_date) > todayDhaka) throw createError({ statusCode: 400, statusMessage: "Loan date cannot be in the future" });
+    loanDate = String(body.loan_date);
+  }
   const conn = await getDb().getConnection();
   try {
     await conn.beginTransaction();
@@ -112,7 +118,6 @@ Requested by ${userName}`,
         [cashId]
       );
       const bal = Number((_g = pcAcc == null ? void 0 : pcAcc.current_balance) != null ? _g : 0);
-      if (bal < amount) throw createError({ statusCode: 400, statusMessage: `Petty cash only has \u09F3${bal.toLocaleString()}` });
       await conn.query(
         `INSERT INTO branch_petty_cash_transactions
            (account_id, branch_id, transaction_type, amount, balance_after,

@@ -134,6 +134,14 @@
                 <p class="text-[11px] text-gray-600">Printed on invoices; an invoice older than this with a balance counts as overdue.</p>
               </div>
               <div class="space-y-1.5">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Goods-received valuation (default)</label>
+                <select v-model="finance.grnValueBasis" class="input-glass">
+                  <option value="expected">Expected (billed) quantity</option>
+                  <option value="received">Received (weighed) quantity</option>
+                </select>
+                <p class="text-[11px] text-gray-600">Pre-selected when recording a goods-received note; can still be changed on each receipt. Legacy used the weighed quantity.</p>
+              </div>
+              <div class="space-y-1.5">
                 <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Late Payment Charge (% per month)</label>
                 <input v-model.number="finance.lateRate" type="number" min="0" step="0.5" class="input-glass font-mono" />
                 <p class="text-[11px] text-gray-600">Printed on invoices as the late-payment charge (0 = not printed).</p>

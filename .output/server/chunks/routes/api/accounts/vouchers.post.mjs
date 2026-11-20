@@ -1,4 +1,4 @@
-import { x as defineEventHandler, aK as readBody, a9 as getUserSession, u as createError, M as getDb, l as auditLog } from '../../../nitro/nitro.mjs';
+import { y as defineEventHandler, aN as readBody, aa as getUserSession, u as createError, N as getDb, l as auditLog, bb as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -92,6 +92,10 @@ const vouchers_post = defineEventHandler(async (event) => {
       severity: "info"
     });
     await conn.commit();
+    sendTelegram(`\u{1F9FE} <b>Debit Voucher</b>
+${voucherNo} \u2014 \u09F3${Number(amount).toLocaleString()}
+Paid to ${paid_to}
+${description}${reference_number ? "\nRef: " + reference_number : ""}`, "payment");
     return { ok: true, id: voucherId, voucher_number: voucherNo, journal_entry_id: jeId };
   } catch (e) {
     await conn.rollback();

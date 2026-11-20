@@ -1,4 +1,4 @@
-import { x as defineEventHandler, a4 as getRouterParam, u as createError, aK as readBody, a9 as getUserSession, M as getDb, b2 as reverseGRNJournalEntry, ay as postGRNJournalEntry, aN as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
+import { y as defineEventHandler, a5 as getRouterParam, u as createError, aN as readBody, aa as getUserSession, N as getDb, ab as grnBasisOf, ac as grnPricedQty, b5 as reverseGRNJournalEntry, aB as postGRNJournalEntry, aQ as recalcPO, l as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -30,7 +30,8 @@ const _id__patch = defineEventHandler(async (event) => {
     unload_point_name,
     unload_point_branch_id,
     variance_remarks,
-    remarks
+    remarks,
+    value_basis
   } = body != null ? body : {};
   if (!grn_date) throw createError({ statusCode: 400, statusMessage: "grn_date is required" });
   const db = getDb();
@@ -38,8 +39,8 @@ const _id__patch = defineEventHandler(async (event) => {
   try {
     await conn.beginTransaction();
     const [[grn]] = await conn.query(
-      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id,
-              quantity_received_kg AS old_qty
+      `SELECT id, grn_number, grn_status, purchase_order_id, unit_price_per_kg, journal_entry_id, value_basis, total_value, expected_quantity AS old_expected,
+              quantity_received_kg AS old_qty, quantity_received_kg
        FROM goods_received_adnan WHERE id = ? FOR UPDATE`,
       [id]
     );
@@ -50,7 +51,8 @@ const _id__patch = defineEventHandler(async (event) => {
     const newQtyKg = Number(quantity_received_kg != null ? quantity_received_kg : grn.old_qty);
     const expectedKg = Number(expected_quantity) || 0;
     const unitPrice = Number(grn.unit_price_per_kg);
-    const billedQty = expectedKg > 0 ? expectedKg : newQtyKg;
+    const basis = ["expected", "received"].includes(value_basis) ? value_basis : grnBasisOf({ value_basis: grn.value_basis, total_value: grn.total_value, quantity_received_kg: grn.old_qty, expected_quantity: grn.old_expected, unit_price_per_kg: grn.unit_price_per_kg });
+    const billedQty = grnPricedQty(basis, newQtyKg, expectedKg);
     const totalValue = billedQty * unitPrice;
     const varPct = expectedKg > 0 ? ((newQtyKg - expectedKg) / expectedKg * 100).toFixed(4) : "0";
     if (grn.journal_entry_id) {
@@ -74,6 +76,7 @@ const _id__patch = defineEventHandler(async (event) => {
            unload_point_branch_id = ?,
            variance_remarks       = ?,
            remarks                = ?,
+           value_basis            = ?,
            updated_at             = NOW()
        WHERE id = ?`,
       [
@@ -87,6 +90,7 @@ const _id__patch = defineEventHandler(async (event) => {
         unload_point_branch_id != null ? unload_point_branch_id : null,
         variance_remarks != null ? variance_remarks : null,
         remarks != null ? remarks : null,
+        basis,
         id
       ]
     );

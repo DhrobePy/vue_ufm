@@ -1,5 +1,6 @@
 import { getDb } from '~/server/utils/db'
 import { auditLog } from '~/server/utils/audit'
+import { sendTelegram } from '~/server/utils/telegram'
 
 export default defineEventHandler(async (event) => {
   const body    = await readBody(event)
@@ -97,6 +98,7 @@ export default defineEventHandler(async (event) => {
     })
 
     await conn.commit()
+    sendTelegram(`🧾 <b>Debit Voucher</b>\n${voucherNo} — ৳${Number(amount).toLocaleString()}\nPaid to ${paid_to}\n${description}${reference_number ? '\nRef: ' + reference_number : ''}`, 'payment')
     return { ok: true, id: voucherId, voucher_number: voucherNo, journal_entry_id: jeId }
   } catch (e) {
     await conn.rollback()
