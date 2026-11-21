@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bo as readBody, aE as getUserSession, N as createError, bl as query, at as getRequestHeader, c4 as verifyDeliveryQrSignature, aj as getDb, c0 as transitionOrder, aV as nextDocNumber, x as auditLog, bV as sendTelegram, bv as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bo as readBody, aE as getUserSession, N as createError, bl as query, at as getRequestHeader, c5 as verifyDeliveryQrSignature, aj as getDb, c1 as transitionOrder, aV as nextDocNumber, x as auditLog, bW as sendTelegram, bv as recordQrScan } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

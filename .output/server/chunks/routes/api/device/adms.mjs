@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bY as setResponseHeader, ap as getMethod, as as getQuery, av as getRequestURL, br as readRawBody, aj as getDb, bm as queryOne } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bZ as setResponseHeader, ap as getMethod, as as getQuery, av as getRequestURL, br as readRawBody, aj as getDb, bm as queryOne } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

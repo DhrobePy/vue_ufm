@@ -389,8 +389,8 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
 
   const [[already]] = await conn.query(
     `SELECT id FROM customer_ledger
-     WHERE reference_type = 'credit_order' AND reference_id = ? AND transaction_type = 'invoice'
-     LIMIT 1`,
+     WHERE reference_type IN ('credit_order','credit_orders') AND reference_id = ? AND transaction_type = 'invoice'
+     LIMIT 1`,                        // 'credit_orders' = rows copied from the legacy app; without it a legacy-posted order would be invoiced twice
     [opts.orderId],
   )
   const alreadyPosted = !!already
@@ -441,6 +441,41 @@ export async function postGoodsOnBoardInvoice(conn: any, opts: {
 }
 
 // ─── GL posting helpers — the ONE way money is recorded ──────────────────────
+/**
+ * A dispatcher discount given on an order whose invoice is ALREADY posted (it was dispatched before, then moved
+ * back to Ready to Ship). The once-only invoice post is skipped, so without this the ledger and journal keep the
+ * old, higher figure while the order and printed invoice show the discounted one. Restates the posted invoice
+ * in place (old figure kept in the description): ledger debit, the journal's receivable + revenue lines, the
+ * running balance of that row and every later one, and the customer's stored balance. Nothing is deleted.
+ * Runs inside the caller's transaction. Returns null if no invoice is posted yet (the normal first post is right).
+ * Throws if the journal is not the plain two-line shape, so a dispatch is refused rather than left out of balance.
+ */
+export async function restatePostedInvoiceForDiscount(conn: any, opts: { orderId: number; orderNumber: string; customerId: number; discount: number }): Promise<{ from: number; to: number } | null> {
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  const [[inv]] = await conn.query(
+    `SELECT id, debit_amount, description, journal_entry_id FROM customer_ledger
+     WHERE reference_type IN ('credit_order','credit_orders') AND reference_id = ? AND transaction_type = 'invoice' ORDER BY id ASC LIMIT 1`,
+    [opts.orderId],
+  )
+  if (!inv || !(opts.discount > 0)) return null
+  const from = Number(inv.debit_amount), to = r2(from - opts.discount)
+  if (to < 0) throw new Error(`Discount exceeds the posted invoice of ${opts.orderNumber}.`)
+  if (inv.journal_entry_id) {
+    const [lines] = await conn.query(`SELECT id, debit_amount, credit_amount FROM transaction_lines WHERE journal_entry_id = ? ORDER BY id ASC`, [inv.journal_entry_id])
+    const dr = (lines as any[]).find(l => Number(l.debit_amount) > 0), cr = (lines as any[]).find(l => Number(l.credit_amount) > 0)
+    if (!dr || !cr || Math.abs(Number(dr.debit_amount) - from) > 0.01 || Math.abs(Number(cr.credit_amount) - from) > 0.01)
+      throw new Error(`Cannot restate the posted invoice of ${opts.orderNumber}: its journal is not the plain receivable/revenue pair. Ask an administrator to reverse the dispatch first.`)
+    await conn.query(`UPDATE transaction_lines SET debit_amount = ? WHERE id = ?`, [to, dr.id])
+    await conn.query(`UPDATE transaction_lines SET credit_amount = ? WHERE id = ?`, [to, cr.id])
+  }
+  const note = ` [net of dispatch discount: ৳${from.toLocaleString('en-US')} → ৳${to.toLocaleString('en-US')}]`
+  await conn.query(`UPDATE customer_ledger SET debit_amount = ?, description = ? WHERE id = ?`, [to, (String(inv.description ?? '').slice(0, 250 - note.length) + note), inv.id])
+  await conn.query(`UPDATE customer_ledger SET balance_after = balance_after - ? WHERE customer_id = ? AND id >= ?`, [opts.discount, opts.customerId, inv.id])
+  const [[led]] = await conn.query(`SELECT COALESCE(SUM(debit_amount), 0) - COALESCE(SUM(credit_amount), 0) AS bal FROM customer_ledger WHERE customer_id = ?`, [opts.customerId])
+  await conn.query(`UPDATE customers SET current_balance = ?, updated_at = NOW() WHERE id = ?`, [Number(led.bal), opts.customerId])
+  return { from, to }
+}
+
 /** Resolve a GL account id by account_type (first matching). */
 export async function getGLAccountId(conn: any, accountType: string): Promise<number | null> {
   const [[row]] = await conn.query(

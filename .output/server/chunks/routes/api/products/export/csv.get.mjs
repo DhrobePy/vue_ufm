@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, aE as getUserSession, N as createError, bl as query, bY as setResponseHeader } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, aE as getUserSession, N as createError, bl as query, bZ as setResponseHeader } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

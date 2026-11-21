@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, az as getRouterParam, N as createError, bo as readBody, aE as getUserSession, at as getRequestHeader, aj as getDb, aV as nextDocNumber, aA as getUserActionLimit, ac as generateDeliverySlipNumber, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, ae as getAppSettings, aL as isAdminRole, c0 as transitionOrder, x as auditLog } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, az as getRouterParam, N as createError, bo as readBody, aE as getUserSession, at as getRequestHeader, aj as getDb, aV as nextDocNumber, aA as getUserActionLimit, ac as generateDeliverySlipNumber, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, ae as getAppSettings, aL as isAdminRole, c1 as transitionOrder, x as auditLog } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, Q as crmUser, bo as readBody, N as createError, bl as query, bR as scopedHealth, J as clearCrmCache } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, Q as crmUser, bo as readBody, N as createError, bl as query, bS as scopedHealth, J as clearCrmCache } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, az as getRouterParam, bo as readBody, aE as getUserSession, N as createError, at as getRequestHeader, aL as isAdminRole, c3 as userCanAction, j as DISPATCH_ROLES, A as ACCOUNTS_ROLES, l as PRODUCTION_ROLES, aj as getDb, aC as getUserBranchIds, aB as getUserApprovalLimit, ai as getCustomerOutstanding, ah as getCreditWorkflowSettings, aK as isAccountsRole, aq as getOrderGateState, v as assertDispatchClear, ac as generateDeliverySlipNumber, bc as postGoodsOnBoardInvoice, be as postOtherSalesCOGS, bC as releaseOrderPayments, c0 as transitionOrder, x as auditLog, bV as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, az as getRouterParam, bo as readBody, aE as getUserSession, N as createError, at as getRequestHeader, aL as isAdminRole, c4 as userCanAction, j as DISPATCH_ROLES, A as ACCOUNTS_ROLES, l as PRODUCTION_ROLES, aj as getDb, aC as getUserBranchIds, aB as getUserApprovalLimit, ai as getCustomerOutstanding, ah as getCreditWorkflowSettings, aK as isAccountsRole, aq as getOrderGateState, v as assertDispatchClear, ac as generateDeliverySlipNumber, bc as postGoodsOnBoardInvoice, bJ as restatePostedInvoiceForDiscount, be as postOtherSalesCOGS, bC as releaseOrderPayments, c1 as transitionOrder, x as auditLog, bW as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
@@ -334,6 +334,10 @@ Reason: ${comments}` : ""}`;
       });
       if (!result.alreadyPosted)
         wfComment = `Goods on board \u2014 invoice \u09F3${Number((_H = order.total_amount) != null ? _H : 0).toLocaleString()} posted to ledger \xB7 ${wfComment}`.trim();
+      else if (extra > 0) {
+        const r = await restatePostedInvoiceForDiscount(conn, { orderId: id, orderNumber: order.order_number, customerId: order.customer_id, discount: extra });
+        if (r) wfComment = `Posted invoice restated net of the dispatcher discount (\u09F3${r.from.toLocaleString()} \u2192 \u09F3${r.to.toLocaleString()}) \xB7 ${wfComment}`.trim();
+      }
       if (result.autoReleased)
         wfComment += " \xB7 dispatch clearance auto-released (condition met)";
       telegramMsg = result.telegramMsg;

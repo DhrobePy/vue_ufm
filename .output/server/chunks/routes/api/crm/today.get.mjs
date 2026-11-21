@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, a3 as dhakaToday, Q as crmUser, aR as maybeTriggerCrmBrief, bR as scopedHealth, aU as nextActions, bl as query } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, a3 as dhakaToday, Q as crmUser, aR as maybeTriggerCrmBrief, bS as scopedHealth, aU as nextActions, bl as query } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

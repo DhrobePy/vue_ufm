@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, az as getRouterParam, N as createError, aE as getUserSession, b as ADMIN_ROLES, bo as readBody, aj as getDb, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, bc as postGoodsOnBoardInvoice, be as postOtherSalesCOGS, x as auditLog, bV as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, az as getRouterParam, N as createError, aE as getUserSession, b as ADMIN_ROLES, bo as readBody, aj as getDb, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, bc as postGoodsOnBoardInvoice, be as postOtherSalesCOGS, x as auditLog, bW as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
@@ -69,7 +69,7 @@ const overrideStatus_post = defineEventHandler(async (event) => {
       }
       const [[invoiceLedger]] = await conn.query(
         `SELECT id, journal_entry_id FROM customer_ledger
-         WHERE reference_type = 'credit_order' AND reference_id = ? AND transaction_type = 'invoice' LIMIT 1`,
+         WHERE reference_type IN ('credit_order','credit_orders') AND reference_id = ? AND transaction_type = 'invoice' LIMIT 1`,
         [id]
       );
       if (invoiceLedger) {

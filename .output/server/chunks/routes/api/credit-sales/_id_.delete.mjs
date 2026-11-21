@@ -89,7 +89,7 @@ const _id__delete = defineEventHandler(async (event) => {
     const deliveryRefSql = deliveryIds.length ? ` OR (reference_type = 'credit_order_delivery' AND reference_id IN (${deliveryIds.map(() => "?").join(",")}))` : "";
     const [ledgerRows] = await conn.query(
       `SELECT id, journal_entry_id FROM customer_ledger
-       WHERE (reference_type = 'credit_order' AND reference_id = ?)${deliveryRefSql}`,
+       WHERE (reference_type IN ('credit_order','credit_orders') AND reference_id = ?)${deliveryRefSql}`,
       ledgerRefParams
     );
     const jeIds = ledgerRows.map((r) => r.journal_entry_id).filter(Boolean);

@@ -6,7 +6,7 @@ import {
   ADMIN_ROLES, ACCOUNTS_ROLES, PRODUCTION_ROLES, DISPATCH_ROLES,
   isAdminRole, isAccountsRole,
   getCustomerOutstanding, getUserApprovalLimit, getUserBranchIds,
-  getOrderGateState, assertDispatchClear, transitionOrder, postGoodsOnBoardInvoice, generateDeliverySlipNumber, getCreditWorkflowSettings,
+  getOrderGateState, assertDispatchClear, transitionOrder, postGoodsOnBoardInvoice, restatePostedInvoiceForDiscount, generateDeliverySlipNumber, getCreditWorkflowSettings,
 } from '~/server/utils/creditOrders'
 import { userCanAction } from '~/server/utils/permissions'
 import { postOtherSalesCOGS } from '~/server/utils/commodityTrading'
@@ -395,6 +395,11 @@ export default defineEventHandler(async (event) => {
       })
       if (!result.alreadyPosted)
         wfComment = `Goods on board — invoice ৳${Number(order.total_amount ?? 0).toLocaleString()} posted to ledger · ${wfComment}`.trim()
+      else if (extra > 0) {
+        // dispatched before: the invoice is already in the ledger at the old figure — carry the discount into it
+        const r = await restatePostedInvoiceForDiscount(conn, { orderId: id, orderNumber: order.order_number, customerId: order.customer_id, discount: extra })
+        if (r) wfComment = `Posted invoice restated net of the dispatcher discount (৳${r.from.toLocaleString()} → ৳${r.to.toLocaleString()}) · ${wfComment}`.trim()
+      }
       if (result.autoReleased)
         wfComment += ' · dispatch clearance auto-released (condition met)'
       telegramMsg = result.telegramMsg

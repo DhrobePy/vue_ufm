@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, aE as getUserSession, N as createError, c3 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, bo as readBody, aj as getDb, b9 as postCustomerLedger, x as auditLog } from '../../nitro/nitro.mjs';
+import { Z as defineEventHandler, aE as getUserSession, N as createError, c4 as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, bo as readBody, aj as getDb, b9 as postCustomerLedger, x as auditLog } from '../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

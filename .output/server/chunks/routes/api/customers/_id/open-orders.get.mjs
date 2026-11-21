@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, az as getRouterParam, N as createError, aE as getUserSession, as as getQuery, c3 as userCanAction, bl as query } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, az as getRouterParam, N as createError, aE as getUserSession, as as getQuery, c4 as userCanAction, bl as query } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

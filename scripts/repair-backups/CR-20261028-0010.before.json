@@ -1,0 +1,64 @@
+{
+  "order": "CR-20261028-0010",
+  "ledger": [
+    {
+      "id": 7580,
+      "customer_id": 69,
+      "transaction_date": "2026-11-01",
+      "transaction_type": "invoice",
+      "reference_type": "credit_orders",
+      "reference_id": 3754,
+      "invoice_number": "CR-20261028-0010",
+      "description": "Credit sale — CR-20261028-0010",
+      "debit_amount": 585200,
+      "credit_amount": 0,
+      "balance_after": 602900,
+      "created_by_user_id": 5,
+      "journal_entry_id": 15030,
+      "created_at": "2026-11-01 12:04:02"
+    },
+    {
+      "id": 7884,
+      "customer_id": 69,
+      "transaction_date": "2026-11-05",
+      "transaction_type": "payment",
+      "reference_type": "customer_payments",
+      "reference_id": 3344,
+      "invoice_number": "PAY-20261105-0031",
+      "description": "Payment received (Receipt #PAY-20261105-0031) allocated to invoices.",
+      "debit_amount": 0,
+      "credit_amount": 548200,
+      "balance_after": 54700,
+      "created_by_user_id": 2,
+      "journal_entry_id": 17000,
+      "created_at": "2026-11-05 16:39:20"
+    }
+  ],
+  "lines": [
+    {
+      "id": 30086,
+      "account_id": 23,
+      "debit_amount": 585200,
+      "credit_amount": 0
+    },
+    {
+      "id": 30087,
+      "account_id": 1,
+      "debit_amount": 0,
+      "credit_amount": 585200
+    }
+  ],
+  "customer": [
+    {
+      "id": 69,
+      "current_balance": 54700
+    }
+  ],
+  "snapshot": {
+    "id": 3418,
+    "subtotal": 585200,
+    "discount_amount": 0,
+    "total_amount": 585200,
+    "balance_due": 585200
+  }
+}

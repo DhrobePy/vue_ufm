@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, as as getQuery, bR as scopedHealth, b3 as portfolioSummary } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, as as getQuery, bS as scopedHealth, b3 as portfolioSummary } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

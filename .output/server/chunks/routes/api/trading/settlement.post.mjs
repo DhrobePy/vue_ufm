@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bo as readBody, aE as getUserSession, N as createError, c3 as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, aj as getDb, aV as nextDocNumber, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, x as auditLog, bV as sendTelegram } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bo as readBody, aE as getUserSession, N as createError, c4 as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, aj as getDb, aV as nextDocNumber, am as getGLAccountId, bd as postJournalEntry, b9 as postCustomerLedger, x as auditLog, bW as sendTelegram } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

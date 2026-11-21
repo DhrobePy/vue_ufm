@@ -94,7 +94,7 @@ export default defineEventHandler(async (event) => {
       : ''
     const [ledgerRows] = await conn.query<any[]>(
       `SELECT id, journal_entry_id FROM customer_ledger
-       WHERE (reference_type = 'credit_order' AND reference_id = ?)${deliveryRefSql}`,
+       WHERE (reference_type IN ('credit_order','credit_orders') AND reference_id = ?)${deliveryRefSql}`,
       ledgerRefParams,
     )
     const jeIds = (ledgerRows as any[]).map(r => r.journal_entry_id).filter(Boolean)
