@@ -602,6 +602,15 @@ export default defineNitroPlugin(async () => {
   await addCol(db, 'crm_interactions', 'accuracy_m', 'INT NULL DEFAULT NULL')
   await addCol(db, 'crm_interactions', 'label_at', 'VARCHAR(20) NULL DEFAULT NULL')
 
+  // ── 32d. "Forgot password" requests: an administrator sets the new password (there is no e-mail service) ──
+  try {
+    await db.query(`CREATE TABLE IF NOT EXISTS password_reset_requests (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, email VARCHAR(190) NOT NULL, user_id INT UNSIGNED NULL, ip_address VARCHAR(45) NULL,
+      status ENUM('open','done') NOT NULL DEFAULT 'open', created_at DATETIME DEFAULT CURRENT_TIMESTAMP, handled_by_user_id INT UNSIGNED NULL, handled_at DATETIME NULL,
+      KEY idx_pr_status (status, created_at), KEY idx_pr_email (email, created_at), KEY idx_pr_ip (ip_address, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+  } catch (e) { console.warn('[db-migrate] password_reset_requests failed:', e) }
+
   // ── 32b. customer_balance_reconciliations — audit trail of every stored-balance correction (reversible) ──
   try {
     await db.query(`

@@ -131,6 +131,8 @@ export default defineEventHandler(async (event) => {
       params,
     )
 
+    if (pwdChanged) await conn.query(`UPDATE password_reset_requests SET status = 'done', handled_at = NOW() WHERE user_id = ? AND status = 'open'`, [id]).catch(() => {})   // closes any "forgot password" request
+
     // Build a meaningful audit description
     const changes: string[] = []
     if (display_name.trim() !== old.display_name) changes.push(`name: "${old.display_name}" → "${display_name.trim()}"`)

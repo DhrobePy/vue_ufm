@@ -723,7 +723,7 @@ const _routes = [
     name: "auth-login",
     path: "/auth/login",
     meta: __nuxt_page_meta$3a || {},
-    component: () => import('./login-COFS-zd0.mjs')
+    component: () => import('./login-QkffGWv5.mjs')
   },
   {
     name: "bank",
@@ -933,7 +933,7 @@ const _routes = [
     name: "collector",
     path: "/collector",
     meta: __nuxt_page_meta$2D || {},
-    component: () => import('./index-CTwfUxHN.mjs')
+    component: () => import('./index-CVPnomSj.mjs')
   },
   {
     name: "customers",
@@ -1047,7 +1047,7 @@ const _routes = [
     name: "admin-users",
     path: "/admin/users",
     meta: __nuxt_page_meta$2k || {},
-    component: () => import('./index-CvzxxlcN.mjs')
+    component: () => import('./index-BWzooHYE.mjs')
   },
   {
     name: "expenses-vouchers",

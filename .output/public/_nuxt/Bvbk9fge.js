@@ -1,0 +1,1 @@
+import{_ as r}from"./Dyz30LXP.js";import{s as t,k as e,W as p}from"./EElYtSLb.js";import"./Dk8mwHFX.js";import"./DpeX9fHh.js";import"./S-SZ-xBV.js";import"./vHFckrqG.js";import"./D9EDw1Sl.js";const l=t({__name:"product-sales",setup(m){return(s,c)=>{const o=r;return p(),e(o,{mode:"product"})}}});export{l as default};

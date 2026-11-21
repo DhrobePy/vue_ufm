@@ -13,6 +13,7 @@ import 'mysql2/promise';
 import 'node:url';
 
 const schedule_get = defineEventHandler(async () => {
+  var _a, _b;
   const schedule = await query(
     `SELECT
        c.id,
@@ -27,6 +28,18 @@ const schedule_get = defineEventHandler(async () => {
      ORDER BY outstanding DESC
      LIMIT 30`
   );
+  const todays = await query(
+    `SELECT customer_id, SUM(amount) AS collected, SUBSTRING_INDEX(GROUP_CONCAT(payment_method ORDER BY id DESC), ',', 1) AS method
+     FROM customer_payments WHERE payment_date = CURDATE() GROUP BY customer_id`
+  );
+  const tmap = new Map(todays.map((t) => [t.customer_id, t]));
+  for (const v of schedule) {
+    const t = tmap.get(v.id);
+    v.outstanding = Number(v.outstanding);
+    v.collected = Number((_a = t == null ? void 0 : t.collected) != null ? _a : 0);
+    v.method = (_b = t == null ? void 0 : t.method) != null ? _b : "";
+    v.status = v.collected > 0 ? "partial" : "pending";
+  }
   const recentCollections = await query(
     `SELECT
        cp.id,
@@ -42,13 +55,11 @@ const schedule_get = defineEventHandler(async () => {
      ORDER BY cp.payment_date DESC, cp.id DESC
      LIMIT 30`
   );
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
   const [statsRow] = await query(
     `SELECT
-       COALESCE(SUM(CASE WHEN DATE(payment_date) = ? THEN amount END), 0) AS today_total,
+       COALESCE(SUM(CASE WHEN payment_date = CURDATE() THEN amount END), 0) AS today_total,
        COALESCE(SUM(CASE WHEN payment_date >= DATE_FORMAT(NOW(),'%Y-%m-01') THEN amount END), 0) AS month_total
-     FROM customer_payments`,
-    [todayStr]
+     FROM customer_payments`
   );
   return { schedule, recentCollections, stats: statsRow };
 });

@@ -7,6 +7,16 @@
       </template>
     </UiPageHeader>
 
+    <div v-if="resets.length" class="glass-card p-4 border border-amber-500/30 space-y-2">
+      <p class="text-xs font-semibold text-amber-300">🔑 Password reset requested</p>
+      <div v-for="r in resets" :key="r.id" class="flex flex-wrap items-center gap-2 text-xs">
+        <span class="text-gray-200">{{ r.display_name }}</span><span class="text-gray-500">{{ r.email }}</span>
+        <span class="text-gray-600">{{ String(r.requested_at).slice(0, 16) }}{{ r.times > 1 ? ` · asked ${r.times}×` : '' }}</span>
+        <NuxtLink :to="`/admin/users/${r.user_id}`" class="btn-gold text-[11px] px-2.5 py-1 ml-auto">Set a new password</NuxtLink>
+      </div>
+      <p class="text-[11px] text-gray-600">Open the user, type a new password (8+ characters) and save — then tell them. The request closes itself.</p>
+    </div>
+
     <!-- Stats row -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <div v-for="s in statsCards" :key="s.label" class="glass-card p-4">
@@ -63,6 +73,8 @@ const { user: sessionUser } = useUserSession()
 const isSuperadmin = computed(() => (sessionUser.value?.role ?? '').toLowerCase() === 'superadmin')
 
 const search = ref('')
+const { data: resetData } = await useFetch<any>('/api/admin/password-resets', { lazy: true, server: false })
+const resets = computed(() => (resetData.value?.requests ?? []) as any[])
 
 const { data, pending, error, refresh } = await useFetch('/api/admin/users', {
   query: computed(() => ({ search: search.value })),

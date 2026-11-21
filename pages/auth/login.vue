@@ -76,9 +76,19 @@
                          class="w-4 h-4 rounded border-white/20 bg-white/[0.05] text-gold-500 focus:ring-gold-500/40" />
                   <span class="text-xs text-gray-500 group-hover:text-gray-300 transition-colors">Remember me</span>
                 </label>
-                <button type="button" class="text-xs text-gold-500/80 hover:text-gold-400 transition-colors duration-150">
+                <button type="button" class="text-xs text-gold-500/80 hover:text-gold-400 transition-colors duration-150" @click="showForgot = !showForgot">
                   Forgot password?
                 </button>
+              </div>
+
+              <!-- Forgot password: asks the administrator to set a new one (no e-mail service) -->
+              <div v-if="showForgot" class="rounded-xl p-3.5 space-y-2.5" style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);">
+                <p class="text-xs text-gray-400">Enter the e-mail you sign in with. The administrator is told and will set a new password for you.</p>
+                <div class="flex gap-2">
+                  <input v-model="form.email" type="email" autocomplete="username" placeholder="you@company.com" class="input-glass flex-1 text-sm" />
+                  <button type="button" :disabled="forgotBusy" class="btn-gold text-xs px-3 justify-center" @click="sendForgot">{{ forgotBusy ? 'Sending…' : 'Ask for reset' }}</button>
+                </div>
+                <p v-if="forgotMsg" class="text-xs" :class="forgotOk ? 'text-emerald-400' : 'text-red-400'">{{ forgotMsg }}</p>
               </div>
 
               <!-- Error alert -->
@@ -134,6 +144,15 @@ const errors = reactive({ email: '', password: '' })
 const loading = ref(false)
 const loginError = ref('')
 const showPassword = ref(false)
+const showForgot = ref(false), forgotBusy = ref(false), forgotMsg = ref(''), forgotOk = ref(false)
+async function sendForgot() {
+  forgotMsg.value = ''
+  if (!form.email.trim()) { forgotOk.value = false; forgotMsg.value = 'Type your e-mail address first.'; return }
+  forgotBusy.value = true
+  try { const r: any = await $fetch('/api/auth/forgot-password', { method: 'POST', body: { email: form.email } }); forgotOk.value = true; forgotMsg.value = r?.message ?? 'The administrator has been told.' }
+  catch (e: any) { forgotOk.value = false; forgotMsg.value = e?.data?.statusMessage ?? 'Could not send the request — please contact the administrator.' }
+  finally { forgotBusy.value = false }
+}
 
 // Deep-link redirect (e.g. a QR gate-pass/delivery scan while logged out) —
 // only ever a same-origin relative path since it comes from Vue Router's

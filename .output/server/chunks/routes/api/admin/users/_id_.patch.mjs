@@ -118,6 +118,8 @@ const _id__patch = defineEventHandler(async (event) => {
       `UPDATE users SET ${setClauses.join(", ")}, updated_at = NOW() WHERE id = ?`,
       params
     );
+    if (pwdChanged) await conn.query(`UPDATE password_reset_requests SET status = 'done', handled_at = NOW() WHERE user_id = ? AND status = 'open'`, [id]).catch(() => {
+    });
     const changes = [];
     if (display_name.trim() !== old.display_name) changes.push(`name: "${old.display_name}" \u2192 "${display_name.trim()}"`);
     if (email.toLowerCase().trim() !== old.email) changes.push(`email: ${old.email} \u2192 ${email.toLowerCase().trim()}`);

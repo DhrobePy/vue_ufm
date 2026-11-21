@@ -17,6 +17,19 @@ export default defineEventHandler(async () => {
      LIMIT 30`,
   ) as any[]
 
+  // What was already collected from these customers today (Dhaka date = server date), so each row shows pending / part-paid
+  const todays = await query(
+    `SELECT customer_id, SUM(amount) AS collected, SUBSTRING_INDEX(GROUP_CONCAT(payment_method ORDER BY id DESC), ',', 1) AS method
+     FROM customer_payments WHERE payment_date = CURDATE() GROUP BY customer_id`,
+  ) as any[]
+  const tmap = new Map(todays.map((t: any) => [t.customer_id, t]))
+  for (const v of schedule) {
+    const t = tmap.get(v.id)
+    v.outstanding = Number(v.outstanding)
+    v.collected = Number(t?.collected ?? 0); v.method = t?.method ?? ''
+    v.status = v.collected > 0 ? 'partial' : 'pending'
+  }
+
   // Recent collections (last 30)
   const recentCollections = await query(
     `SELECT
@@ -35,13 +48,11 @@ export default defineEventHandler(async () => {
   ) as any[]
 
   // KPI stats
-  const todayStr = new Date().toISOString().slice(0, 10)
   const [statsRow] = await query(
     `SELECT
-       COALESCE(SUM(CASE WHEN DATE(payment_date) = ? THEN amount END), 0) AS today_total,
+       COALESCE(SUM(CASE WHEN payment_date = CURDATE() THEN amount END), 0) AS today_total,
        COALESCE(SUM(CASE WHEN payment_date >= DATE_FORMAT(NOW(),'%Y-%m-01') THEN amount END), 0) AS month_total
      FROM customer_payments`,
-    [todayStr],
   ) as any[]
 
   return { schedule, recentCollections, stats: statsRow }
