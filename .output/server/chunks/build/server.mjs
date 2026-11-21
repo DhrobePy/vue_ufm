@@ -1115,7 +1115,7 @@ const _routes = [
     name: "crm-prospects-id",
     path: "/crm/prospects/:id()",
     meta: __nuxt_page_meta$24 || {},
-    component: () => import('./_id_-DIVH8f0P.mjs')
+    component: () => import('./_id_-jumRKELv.mjs')
   },
   {
     name: "expenses-id-edit",
