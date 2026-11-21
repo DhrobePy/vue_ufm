@@ -1,6 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { query } from '~/server/utils/db'
 import { getAppSettings } from '~/server/utils/appSettings'
+import { reorderRadar, crossSell, forecast, nextActions } from '~/server/utils/crmIntel'
+import { outcomes } from '~/server/utils/crmOutcomes'
 import { scopedHealth, portfolioSummary, assessProspect, customerHealth, dhakaToday, SEGMENTS, type CustomerHealth } from '~/server/utils/crm'
 
 /**
@@ -23,6 +25,8 @@ Rules you must follow:
 - Be short and practical: lead with the answer, then at most a few next steps. Reply in the language the user writes in (Bangla or English). Drafts (SMS / WhatsApp / email) must be brief, polite, specific to the business type, with no pressure tactics, and end with a simple way to opt out.
 - Do not infer anything from a person's name, religion or gender.${web ? '\n- You may search the web to find prospects. Use public business information only, prefer a few good leads over many weak ones, and record for each lead where you found it.' : ''}`
 
+/** The company phone is still the install-time placeholder (…000000) → leave a visible [PHONE] marker instead of a fake number; sending is refused until it is replaced. */
+const realPhone = (p: any) => ({ ...p, phone: /0{6}/.test(String(p?.phone ?? '')) || !String(p?.phone ?? '').trim() ? '[PHONE]' : p.phone })
 const mask = (p: string | null | undefined, on: boolean) => !p ? null : on ? String(p).replace(/\d(?=\d{3})/g, 'X') : p
 const slim = (r: CustomerHealth, maskPhones: boolean) => ({
   id: r.id, name: r.name, business: r.business_name, phone: mask(r.phone, maskPhones), segment: r.segment, district: r.district, branch: r.branch, label: r.label,
@@ -39,6 +43,11 @@ const TOOLS: Anthropic.Beta.BetaTool[] = [
   { name: 'customer_detail', description: 'One customer in full: health, recent orders and payments, contact log, open tasks.', input_schema: { type: 'object', properties: { customer_id: { type: 'integer' } }, required: ['customer_id'] } },
   { name: 'list_prospects', description: 'The prospect pipeline (optionally one stage: new, researching, contacted, quoted, trial, won, lost) with fit score, risk band and verdict.', input_schema: { type: 'object', properties: { stage: { type: 'string' } } } },
   { name: 'assess_prospect', description: 'Scored assessment of a saved prospect: fit, estimated potential (range, from similar customers), risk flags (duplicates, links to blocked customers, missing checks), suggested first-order terms, and what is still unknown.', input_schema: { type: 'object', properties: { prospect_id: { type: 'integer' } }, required: ['prospect_id'] } },
+  { name: 'next_actions', description: 'The ranked to-do list for today across collections, reorders that are due, customers going quiet, products to cross-sell and prospects to chase. Use for "who should I call today / what should I do first".', input_schema: { type: 'object', properties: { limit: { type: 'integer' } } } },
+  { name: 'reorder_radar', description: 'Regular customers with their usual reorder gap, expected next order date, how many days late, and a churn % (how likely they are slipping away). Optional filter by status (on_track, due_soon, due, late, lapsing). Max 25 rows, most value at risk first.', input_schema: { type: 'object', properties: { status: { type: 'string', enum: ['on_track', 'due_soon', 'due', 'late', 'lapsing'] }, limit: { type: 'integer' } } } },
+  { name: 'cross_sell', description: 'Products that peers of the same business type buy and a customer does not, with an estimated monthly value; plus the biggest product gaps by business type. Optional customer_id.', input_schema: { type: 'object', properties: { customer_id: { type: 'integer' } } } },
+  { name: 'sales_forecast', description: 'Monthly sales history, the next 3 months with an error band measured by back-testing, this month\'s pace, and the orders expected in the next 30 days.', input_schema: { type: 'object', properties: {} } },
+  { name: 'outcomes', description: 'Whether follow-ups work: share of contacted customers who ordered / paid within 14 days (by channel), promise-to-pay reliability, task punctuality, prospect win rate by source and type.', input_schema: { type: 'object', properties: {} } },
   { name: 'create_prospect', description: 'Save a new prospect. Include source_url for anything found online. Refused if the phone already belongs to a customer or prospect. Only call when the user asked for it.', input_schema: { type: 'object', properties: { name: { type: 'string' }, business_name: { type: 'string' }, segment: { type: 'string', enum: [...SEGMENTS] }, district: { type: 'string' }, address: { type: 'string' }, phone: { type: 'string' }, email: { type: 'string' }, website: { type: 'string' }, contact_person: { type: 'string' }, source_url: { type: 'string' }, source_note: { type: 'string', description: 'what the source showed, e.g. "Google Maps listing, 4.1★, bakery"' } }, required: ['name'] } },
   { name: 'add_note', description: 'Write a note into a customer\'s or prospect\'s contact log.', input_schema: { type: 'object', properties: { party_type: { type: 'string', enum: ['customer', 'prospect'] }, party_id: { type: 'integer' }, summary: { type: 'string' } }, required: ['party_type', 'party_id', 'summary'] } },
   { name: 'create_task', description: 'Create a follow-up task for the user (call, visit, collect, reorder, credit_review, other). Only when the user asked for it.', input_schema: { type: 'object', properties: { party_type: { type: 'string', enum: ['customer', 'prospect'] }, party_id: { type: 'integer' }, title: { type: 'string' }, kind: { type: 'string', enum: ['follow_up', 'collect', 'reorder', 'credit_review', 'visit', 'other'] }, due_date: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['party_type', 'party_id', 'title'] } },
@@ -54,6 +63,11 @@ async function runTool(name: string, input: any, c: Ctx): Promise<string> {
         && (!s || `${r.name} ${r.business_name ?? ''} ${r.address ?? ''}`.toLowerCase().includes(s))).sort((a, b) => b.priority - a.priority || b.value_12m - a.value_12m)
       return clip({ total_matching: rows.length, customers: rows.slice(0, lim).map(r => slim(r, c.maskPhones)) })
     }
+    if (name === 'next_actions') { const r = await nextActions(await scopedHealth(c.event), { userId: c.userId, limit: Math.min(25, Number(input?.limit) || 12) }); return clip({ total: r.total, counts: r.counts, actions: r.actions.map(a => ({ type: a.type, id: a.party_id, kind: a.party_type, name: a.name, headline: a.headline, why: a.why, value: Math.round(a.value), last_contact_days: a.last_contact_days })) }) }
+    if (name === 'reorder_radar') { const rows = (await reorderRadar(await scopedHealth(c.event))).filter(r => !input?.status || r.status === input.status); return clip({ matching: rows.length, rows: rows.slice(0, Math.min(25, Number(input?.limit) || 15)).map(({ phone, ...r }) => r) }) }
+    if (name === 'cross_sell') { const r = await crossSell(await scopedHealth(c.event)), id = Number(input?.customer_id); return clip(id ? { suggestions: r.suggestions.filter(s => s.customer_id === id).slice(0, 5) } : { biggest_gaps: r.gaps, top_suggestions: r.suggestions.slice(0, 15) }) }
+    if (name === 'sales_forecast') return clip(await forecast(await scopedHealth(c.event)))
+    if (name === 'outcomes') return clip(await outcomes(await scopedHealth(c.event)))
     if (name === 'customer_detail') {
       const id = Number(input?.customer_id), me = (await scopedHealth(c.event)).find(r => r.id === id)
       if (!me) return 'Customer not found, or outside this user\'s branch.'
@@ -166,7 +180,7 @@ export async function askAgent(event: any, userId: number, question: string, his
 
 /** A first-contact message for a prospect. With the assistant on, Claude writes it (no tools, one cheap call); otherwise a plain template. Always a draft — a person sends it. */
 export async function draftOutreach(p: any, a: any, channel: 'sms' | 'whatsapp' | 'email', lang: 'bn' | 'en') {
-  const company = (await getAppSettings()).company_profile
+  const company = realPhone((await getAppSettings()).company_profile)
   const tpl = () => {
     const who = p.contact_person || p.name, prod = a.benchmark?.top_products?.[0]?.replace(/\s*\(.*\)/, '') ?? 'flour'
     if (lang === 'bn') {
@@ -189,4 +203,41 @@ export async function draftOutreach(p: any, a: any, channel: 'sms' | 'whatsapp' 
     if (channel === 'email') { const m = text.match(/^Subject:\s*(.+)\n+([\s\S]+)$/i); return { subject: m?.[1] ?? `Flour supply — ${company.name}`, body: (m?.[2] ?? text).trim(), source: 'assistant' } }
     return { body: text, source: 'assistant' }
   } catch { return { ...tpl(), source: 'template' } }
+}
+
+/** A message to an existing customer: payment reminder, reorder nudge, win-back, cross-sell or a plain check-in. Figures come from the ledger / radar, never from the model. Always a draft — a person sends it. */
+export async function draftCustomerMessage(c: CustomerHealth, kind: 'reorder' | 'collect' | 'winback' | 'crosssell' | 'checkin', channel: 'sms' | 'whatsapp' | 'email', lang: 'bn' | 'en', extra: { product?: string; gap?: number } = {}) {
+  const company = realPhone((await getAppSettings()).company_profile), who = c.name, n0 = (v: number) => Math.round(v).toLocaleString('en-US')
+  const old60 = c.overdue60 > 0, amt = old60 ? c.overdue60 : c.overdue30 > 0 ? c.overdue30 : Math.max(0, c.balance), last = c.last_order ? String(c.last_order).slice(0, 10) : null
+  const bn: Record<string, string> = {
+    collect: `আপনার হিসাবে ৳${n0(amt)} বকেয়া আছে${old60 ? ' (৬০ দিনের বেশি পুরনো)' : ''}। সুবিধামতো কবে পরিশোধ করতে পারবেন জানালে ধন্যবাদ।`,
+    reorder: `আপনার শেষ অর্ডার ছিল ${last ?? 'কিছুদিন আগে'}${extra.gap ? `; সাধারণত ${extra.gap} দিন পরপর আপনি অর্ডার করেন` : ''}। এবার মাল লাগলে জানাবেন, আমরা সময়মতো ডেলিভারি দেব।`,
+    winback: `${last ? last + ' থেকে' : 'অনেকদিন'} আপনার অর্ডার পাইনি। দাম, মান বা ডেলিভারি নিয়ে কোনো সমস্যা থাকলে জানাবেন — আমরা সমাধান করতে চাই।`,
+    crosssell: `আপনার মতো অনেক ব্যবসায়ী ${extra.product ?? 'আমাদের অন্য পণ্য'} নিচ্ছেন। চাইলে দাম ও ডেলিভারি জানাতে পারি।`,
+    checkin: `আশা করি ভালো আছেন। ব্যবসা কেমন চলছে, আমাদের কাছ থেকে কিছু লাগলে জানাবেন।`,
+  }
+  const en: Record<string, string> = {
+    collect: `Our records show ৳${n0(amt)} outstanding${old60 ? ' (over 60 days old)' : ''}. Could you let us know when you can settle it? Thank you.`,
+    reorder: `Your last order was ${last ?? 'a while ago'}${extra.gap ? `; you usually order about every ${extra.gap} days` : ''}. Let us know when you need stock and we'll deliver on time.`,
+    winback: `We haven't had an order from you since ${last ?? 'some time'}. If price, quality or delivery has been a problem, please tell us — we'd like to put it right.`,
+    crosssell: `Many businesses like yours buy ${extra.product ?? 'our other products'}. Happy to share the price and delivery if you're interested.`,
+    checkin: `Hope business is going well. Please tell us if you need anything from us.`,
+  }
+  const tpl = () => {
+    const body = lang === 'bn' ? `আসসালামু আলাইকুম ${who}। ${company.name} থেকে বলছি। ${bn[kind]} ${company.phone}। বার্তা না চাইলে STOP লিখুন।` : `Hello ${who}, this is ${company.name}. ${en[kind]} ${company.phone}. Reply STOP to opt out.`
+    return channel === 'email' ? { subject: `${company.name} — ${kind === 'collect' ? (lang === 'bn' ? 'বকেয়া সম্পর্কে' : 'Outstanding balance') : (lang === 'bn' ? 'আপনার সাথে যোগাযোগ' : 'Staying in touch')}`, body } : { body }
+  }
+  const cfg = useRuntimeConfig(), st = await agentStatus()
+  if (!st.enabled || !st.configured) return { ...tpl(), source: 'template', kind }
+  try {
+    const client = new Anthropic({ apiKey: String(cfg.anthropicApiKey), maxRetries: 1, timeout: 60_000 })
+    const res = await client.messages.create({
+      model: st.model, max_tokens: 1200, output_config: { effort: 'low' },
+      system: `You write short ${channel === 'sms' ? 'SMS (under 300 characters)' : channel === 'whatsapp' ? 'WhatsApp messages (under 600 characters)' : 'emails (a subject line and under 120 words)'} from ${company.name}, a flour mill, to an EXISTING business customer in Bangladesh. Write in ${lang === 'bn' ? 'Bangla' : 'English'}. Warm, respectful, specific; for a payment reminder be polite and factual, never threatening. Use ONLY the facts given — no invented prices, dates or amounts. Include ${company.phone} to reply and end with a short opt-out line (reply STOP). Output only the message${channel === 'email' ? ' as: Subject: ...\\n\\nbody' : ''}.`,
+      messages: [{ role: 'user', content: `Purpose: ${kind}\nCustomer: ${who}\nBusiness type: ${c.segment}\nFacts: ${en[kind]}\nLast order: ${last ?? 'unknown'}` }],
+    })
+    const text = res.content.filter((b): b is Anthropic.TextBlock => b.type === 'text').map(b => b.text).join('\n').trim()
+    if (channel === 'email') { const m = text.match(/^Subject:\s*(.+)\n+([\s\S]+)$/i); return { subject: m?.[1] ?? `${company.name}`, body: (m?.[2] ?? text).trim(), source: 'assistant', kind } }
+    return { body: text, source: 'assistant', kind }
+  } catch { return { ...tpl(), source: 'template', kind } }
 }

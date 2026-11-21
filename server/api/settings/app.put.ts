@@ -22,6 +22,7 @@ export default defineEventHandler(async (event) => {
     const v = body?.values?.[k]
     if (v === undefined) continue
     if (typeof d === 'boolean') clean[k] = Boolean(v)
+    else if (Array.isArray(d)) clean[k] = (Array.isArray(v) ? v : []).map(Number).filter((n: number) => Number.isInteger(n) && n >= 0 && n <= 6)   // e.g. CRM brief off-days (0 = Sunday)
     else if (typeof d === 'number') {
       const n = Number(v)
       if (!Number.isFinite(n) || n < 0) throw createError({ statusCode: 400, statusMessage: `"${k}" must be a number, zero or more` })
@@ -31,6 +32,7 @@ export default defineEventHandler(async (event) => {
   if (group === 'company_profile' && clean.name !== undefined && !clean.name) throw createError({ statusCode: 400, statusMessage: 'Company name cannot be empty' })
   if (group === 'finance_settings' && clean.grnValueBasis !== undefined && !['expected', 'received'].includes(clean.grnValueBasis)) throw createError({ statusCode: 400, statusMessage: 'Goods-received valuation must be "expected" or "received"' })
   if (group === 'finance_settings' && clean.fyStart !== undefined && !(clean.fyStart >= 1 && clean.fyStart <= 12)) throw createError({ statusCode: 400, statusMessage: 'Financial year must start in month 1–12' })
+  if (group === 'crm_policy' && clean.briefHour !== undefined && !(clean.briefHour >= 0 && clean.briefHour <= 23)) throw createError({ statusCode: 400, statusMessage: 'Brief hour must be 0–23' })
   if (group === 'security_policy' && clean.maxLoginAttempts !== undefined && clean.maxLoginAttempts < 3) throw createError({ statusCode: 400, statusMessage: 'Allow at least 3 login attempts' })
 
   const conn = await getDb().getConnection()

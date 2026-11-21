@@ -39,6 +39,11 @@ const DISTRICTS: Record<string, string[]> = {
   Narayanganj: ['narayanganj', 'sonargaon', 'araihazar'],
   Sylhet: ['sylhet'], Chattogram: ['chattogram', 'chittagong', 'ctg'], Bogura: ['bogra', 'bogura'], Pabna: ['pabna'], Rajshahi: ['rajshahi'], Natore: ['natore'],
 }
+/** Middle of each district — used to place a customer on the route map when no GPS pin has been saved yet. */
+export const DISTRICT_CENTRE: Record<string, [number, number]> = {
+  Dhaka: [23.78, 90.40], Tangail: [24.25, 89.92], Sirajganj: [24.45, 89.70], Mymensingh: [24.75, 90.41], Sherpur: [25.02, 90.02], Jamalpur: [24.92, 89.94], Gazipur: [24.00, 90.42],
+  Narayanganj: [23.62, 90.50], Sylhet: [24.89, 91.87], Chattogram: [22.34, 91.83], Bogura: [24.85, 89.37], Pabna: [24.00, 89.23], Rajshahi: [24.37, 88.60], Natore: [24.41, 89.00], Khulna: [22.81, 89.56], Cumilla: [23.46, 91.18],
+}
 export function inferDistrict(address: string | null | undefined): string {
   const a = String(address ?? '').toLowerCase()
   if (!a) return 'Unknown'

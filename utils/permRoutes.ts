@@ -30,6 +30,10 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/crm/portfolio':              { module: 'crm',          page: 'portfolio' },
   '/crm/prospects':              { module: 'crm',          page: 'prospects' },
   '/crm/agent':                  { module: 'crm',          page: 'agent' },
+  '/crm/insights':               { module: 'crm',          page: 'insights' },
+  '/crm/route':                  { module: 'crm',          page: 'route' },
+  '/crm/messages':               { module: 'crm',          page: 'messages' },
+  '/crm/results':                { module: 'crm',          page: 'results' },
   '/production/dispatch-report': { module: 'production',   page: 'dispatch_report' },
 
   '/fleet':                      { module: 'fleet',        page: 'dashboard' },

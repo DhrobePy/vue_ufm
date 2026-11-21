@@ -23,6 +23,18 @@ export default defineNuxtConfig({
     googleOauthClientSecret: '',    // Google OAuth2 client secret — set NUXT_GOOGLE_OAUTH_CLIENT_SECRET in .env
     googleOauthRefreshToken: '',    // long-lived refresh token for the real Drive account that owns the backup folder — set NUXT_GOOGLE_OAUTH_REFRESH_TOKEN in .env
     anthropicApiKey: '',            // Claude API key for the CRM assistant — set NUXT_ANTHROPIC_API_KEY in the server .env (never in chat or code)
+    // CRM messaging gateways — all set in the server .env (NUXT_…), never in code. Sending stays OFF until Settings → CRM → messaging is switched on.
+    smsGatewayUrl: '',              // NUXT_SMS_GATEWAY_URL — your SMS provider's send URL; use {to} {text} {key} as placeholders (GET), e.g. https://provider/api?key={key}&to={to}&msg={text}
+    smsGatewayBody: '',             // NUXT_SMS_GATEWAY_BODY — optional JSON body template (POST) with the same placeholders
+    smsGatewayKey: '',              // NUXT_SMS_GATEWAY_KEY
+    smsGatewayOkMatch: '',          // NUXT_SMS_GATEWAY_OK_MATCH — optional regex the provider's reply must match to count as sent
+    whatsappToken: '',              // NUXT_WHATSAPP_TOKEN — WhatsApp Cloud API access token
+    whatsappPhoneId: '',            // NUXT_WHATSAPP_PHONE_ID
+    whatsappVerifyToken: '',        // NUXT_WHATSAPP_VERIFY_TOKEN — any secret string you also enter in Meta's webhook setup
+    whatsappAppSecret: '',          // NUXT_WHATSAPP_APP_SECRET — lets us verify Meta signed the webhook
+    whatsappTemplate: '',           // NUXT_WHATSAPP_TEMPLATE — approved template (one body variable) used to START a conversation
+    whatsappTemplateLang: 'bn',     // NUXT_WHATSAPP_TEMPLATE_LANG
+    crmWebhookSecret: '',           // NUXT_CRM_WEBHOOK_SECRET — token for the inbound-SMS webhook
     googlePlacesKey: '',            // optional: NUXT_GOOGLE_PLACES_KEY in the server .env switches "Find prospects" from OpenStreetMap to Google Places
     crmAgentModel:'claude-opus-5-5',  // set NUXT_CRM_AGENT_MODEL=claude-sonnet-5-5 to run cheaper
     googleDriveBackupFolderId: '',  // Drive folder id the DB backups get uploaded into — set NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID in .env

@@ -578,7 +578,29 @@ export default defineNitroPlugin(async () => {
        model VARCHAR(60) NULL, ok TINYINT(1) NOT NULL DEFAULT 1, error VARCHAR(300) NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
        KEY idx_agent_day (created_at)
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    // Messaging (SMS / WhatsApp, two-way) and do-not-contact list
+    `CREATE TABLE IF NOT EXISTS crm_messages (
+       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+       party_type ENUM('customer','prospect') NULL, party_id INT UNSIGNED NULL,
+       channel ENUM('sms','whatsapp') NOT NULL, direction ENUM('out','in') NOT NULL,
+       phone VARCHAR(30) NOT NULL, phone9 VARCHAR(12) NOT NULL, body VARCHAR(1600) NOT NULL,
+       status ENUM('sent','failed','received') NOT NULL, provider_ref VARCHAR(120) NULL, error VARCHAR(300) NULL,
+       user_id INT UNSIGNED NULL, read_at DATETIME NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       KEY idx_msg_party (party_type, party_id), KEY idx_msg_phone (phone9, created_at), KEY idx_msg_day (created_at)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS crm_optout (
+       phone9 VARCHAR(12) NOT NULL PRIMARY KEY, reason VARCHAR(200) NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
   ]) { try { await db.query(ddl) } catch (e) { console.warn('[db-migrate] crm table failed:', e) } }
+  // GPS pins (set from a visit check-in) and what state the account was in when it was contacted (for outcome tracking)
+  await addCol(db, 'customers', 'lat', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'customers', 'lon', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'crm_prospects', 'lat', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'crm_prospects', 'lon', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'crm_interactions', 'lat', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'crm_interactions', 'lon', 'DECIMAL(9,6) NULL DEFAULT NULL')
+  await addCol(db, 'crm_interactions', 'accuracy_m', 'INT NULL DEFAULT NULL')
+  await addCol(db, 'crm_interactions', 'label_at', 'VARCHAR(20) NULL DEFAULT NULL')
 
   // ── 32b. customer_balance_reconciliations — audit trail of every stored-balance correction (reversible) ──
   try {

@@ -8,11 +8,19 @@
         <div class="flex flex-wrap items-center gap-3">
           <h1 class="text-xl font-bold text-gray-100">{{ c.name }}</h1><CrmLabel :label="c.label" />
           <span class="text-xs text-gray-500">{{ c.business_name }}</span>
-          <div class="ml-auto flex gap-2"><NuxtLink :to="`/customers/${c.id}`" class="btn-ghost text-xs">Customer profile</NuxtLink><NuxtLink :to="`/credit-sales/ledger?customer=${c.id}`" class="btn-ghost text-xs">Ledger</NuxtLink></div>
+          <div class="ml-auto flex gap-2"><button class="btn-gold text-xs" @click="cm = true">Message</button><NuxtLink :to="`/customers/${c.id}`" class="btn-ghost text-xs">Customer profile</NuxtLink><NuxtLink :to="`/credit-sales/ledger?customer=${c.id}`" class="btn-ghost text-xs">Ledger</NuxtLink></div>
         </div>
         <p v-if="c.reasons.length" class="text-xs text-gray-400">{{ c.reasons.join(' · ') }}</p>
         <ul v-if="c.suggestions.length" class="text-xs text-gray-200 list-disc pl-5 space-y-0.5"><li v-for="s in c.suggestions" :key="s">{{ s }}</li></ul>
+        <div v-if="d.reorder" class="text-xs rounded-lg bg-white/[0.04] p-2 space-y-0.5">
+          <p class="text-gray-200">🔁 Usually orders every ~{{ d.reorder.usual_gap }} days{{ d.reorder.regular ? '' : ' (irregular)' }} · last {{ d.reorder.last_order }} · next expected {{ d.reorder.expected_date }}
+            <span :class="d.reorder.status === 'on_track' ? 'text-emerald-400' : d.reorder.status === 'due_soon' ? 'text-amber-300' : 'text-red-400'">— {{ STATUS[d.reorder.status] }}</span></p>
+          <p class="text-gray-500">Typical order ৳{{ n0(d.reorder.avg_order) }} · chance they are slipping away {{ d.reorder.churn_pct }}%</p>
+        </div>
+        <p v-for="s in d.cross_sell" :key="s.product" class="text-xs text-gray-300">➕ <b>{{ s.product }}</b> — {{ s.peers_buying_pct }}% of {{ s.segment }} customers buy it, this one doesn't (about ৳{{ n0(s.est_monthly) }} a month)</p>
+        <p v-if="d.opted_out" class="text-xs text-red-400">⛔ This number asked not to be contacted.</p>
       </div>
+      <CrmComposer :open="cm" party-type="customer" :party-id="c.id" :name="c.name" :phone="c.phone" :kind="defaultKind" :opted-out="d.opted_out" @close="cm = false" @done="refresh()" />
 
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div v-for="k in tiles" :key="k.l" class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">{{ k.l }}</p><p class="text-lg font-bold font-mono text-gray-100">{{ k.v }}</p><p class="text-[10px] text-gray-600">{{ k.s }}</p></div>
@@ -26,6 +34,7 @@
             <input v-model="f.outcome" class="field-input text-xs py-1.5 flex-1 min-w-[8rem]" placeholder="Outcome (e.g. promised to pay)" />
           </div>
           <textarea v-model="f.summary" rows="2" class="field-input text-xs w-full" placeholder="What was said / agreed…" />
+          <CrmCapture v-model="f.summary" v-model:geo="geo" v-model:pin="pin" />
           <div class="flex flex-wrap items-center gap-2 text-xs text-gray-400">
             Follow up on <input v-model="f.follow_up_date" type="date" class="field-input text-xs py-1.5 w-36" />
             promised ৳ <input v-model.number="f.promise_amount" type="number" min="0" class="field-input text-xs py-1.5 w-28" placeholder="optional" />
@@ -78,10 +87,13 @@ const tiles = computed(() => { const x = c.value; return [
   { l: 'Balance / limit', v: `৳${n0(x.balance)}`, s: x.credit_limit >= 1000 ? `limit ৳${n0(x.credit_limit)}${x.over_limit ? ' — OVER' : ''}` : 'no real limit set' },
   { l: 'Pays in', v: x.pay_days != null ? `${x.pay_days} days` : '—', s: x.overdue60 > 0 ? `৳${n0(x.overdue60)} older than 60 d` : 'nothing older than 60 days' }] })
 const f = reactive({ channel: 'call', outcome: '', summary: '', follow_up_date: '', promise_amount: null as number | null })
-const busy = ref(false)
+const busy = ref(false), cm = ref(false), geo = ref<any>(null), pin = ref(false)
+const STATUS: Record<string, string> = { on_track: 'on track', due_soon: 'due soon', due: 'due now', late: 'late', lapsing: 'going quiet' }
+const defaultKind = computed(() => c.value.overdue60 > 0 ? 'collect' : c.value.label === 'Dormant' ? 'winback' : ['Slipping'].includes(c.value.label) || ['due', 'late'].includes(d.value.reorder?.status) ? 'reorder' : 'checkin')
+watch(geo, g => { if (g && f.channel === 'call') f.channel = 'visit' })
 async function log() {
   busy.value = true
-  try { await $fetch('/api/crm/interactions', { method: 'POST', body: { party_type: 'customer', party_id: c.value.id, ...f, promise_amount: f.promise_amount || undefined, follow_up_date: f.follow_up_date || undefined } }); success('Saved'); Object.assign(f, { outcome: '', summary: '', follow_up_date: '', promise_amount: null }); await refresh() }
+  try { await $fetch('/api/crm/interactions', { method: 'POST', body: { party_type: 'customer', party_id: c.value.id, ...f, promise_amount: f.promise_amount || undefined, follow_up_date: f.follow_up_date || undefined, ...(geo.value ? { lat: geo.value.lat, lon: geo.value.lon, accuracy_m: geo.value.acc, pin: pin.value } : {}) } }); success('Saved'); Object.assign(f, { outcome: '', summary: '', follow_up_date: '', promise_amount: null }); geo.value = null; pin.value = false; await refresh() }
   catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } finally { busy.value = false }
 }
 async function setProfile(body: any) { try { await $fetch(`/api/crm/customers/${c.value.id}`, { method: 'PATCH', body }); success('Profile updated'); await refresh() } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } }

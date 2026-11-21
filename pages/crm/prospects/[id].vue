@@ -132,6 +132,7 @@
           <h2 class="section-title">Log a contact</h2>
           <div class="flex gap-2"><select v-model="f.channel" class="field-input text-xs py-1.5 w-32"><option v-for="x in ['call','visit','whatsapp','sms','email','note']" :key="x" :value="x">{{ x }}</option></select><input v-model="f.outcome" class="field-input text-xs py-1.5 flex-1" placeholder="Outcome" /></div>
           <textarea v-model="f.summary" rows="2" class="field-input text-xs w-full" placeholder="What was said / agreed…" />
+          <CrmCapture v-model="f.summary" v-model:geo="geo" v-model:pin="pin" />
           <div class="flex items-center gap-2 text-xs text-gray-400">Follow up on <input v-model="f.follow_up_date" type="date" class="field-input text-xs py-1.5 w-36" /><button class="btn-gold text-xs ml-auto" :disabled="!f.summary.trim()" @click="log">Save</button></div>
           <div class="pt-2 border-t border-white/[0.06] max-h-60 overflow-y-auto">
             <div v-for="i in d.interactions" :key="i.id" class="text-xs py-1.5 border-b border-white/[0.04]"><span class="text-gray-500">{{ String(i.created_at).slice(0, 16) }}</span> <span class="px-1.5 py-0.5 rounded bg-white/10 mx-1">{{ i.channel }}</span>{{ i.summary }}<span v-if="i.outcome" class="text-emerald-400"> — {{ i.outcome }}</span></div>
@@ -201,8 +202,9 @@ async function draft() { dbusy.value = true; try { const r: any = await $fetch(`
 const waUrl = computed(() => whatsappLink(p.value.phone, dr.body))
 async function copyDraft() { try { await navigator.clipboard.writeText((dr.subject ? dr.subject + '\n\n' : '') + dr.body); success('Copied') } catch { toastError('Could not copy') } }
 async function markSent() { await $fetch('/api/crm/interactions', { method: 'POST', body: { party_type: 'prospect', party_id: p.value.id, channel: dr.channel, summary: `Sent first-contact ${dr.channel}: ${dr.body.slice(0, 200)}` } }); if (p.value.stage === 'new' || p.value.stage === 'researching') await save({ stage: 'contacted' }); success('Logged'); await refresh() }
-const f = reactive({ channel: 'call', outcome: '', summary: '', follow_up_date: '' })
-async function log() { try { await $fetch('/api/crm/interactions', { method: 'POST', body: { party_type: 'prospect', party_id: p.value.id, ...f, follow_up_date: f.follow_up_date || undefined } }); success('Saved'); Object.assign(f, { outcome: '', summary: '', follow_up_date: '' }); await refresh() } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } }
+const f = reactive({ channel: 'call', outcome: '', summary: '', follow_up_date: '' }), geo = ref<any>(null), pin = ref(false)
+watch(geo, g => { if (g && f.channel === 'call') f.channel = 'visit' })
+async function log() { try { await $fetch('/api/crm/interactions', { method: 'POST', body: { party_type: 'prospect', party_id: p.value.id, ...f, follow_up_date: f.follow_up_date || undefined, ...(geo.value ? { lat: geo.value.lat, lon: geo.value.lon, accuracy_m: geo.value.acc, pin: pin.value } : {}) } }); success('Saved'); Object.assign(f, { outcome: '', summary: '', follow_up_date: '' }); geo.value = null; pin.value = false; await refresh() } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') } }
 const busy = ref(false)
 async function convert() {
   if (!confirm(`Create ${p.value.name} as a customer with a ৳0 credit limit?`)) return

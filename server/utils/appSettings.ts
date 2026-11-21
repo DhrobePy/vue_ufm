@@ -15,7 +15,7 @@ export const APP_SETTING_GROUPS = {
   security_policy: { sessionTimeout: 0, maxLoginAttempts: 5 },
   notify_policy: { telegram: true },
   // CRM assistant: master switch, whether it may search the web for prospects, questions per day (cost cap), and whether customer phone numbers are hidden from the AI
-  crm_policy: { agentEnabled: false, webSearch: false, dailyLimit: 100, maskPhones: true },
+  crm_policy: { agentEnabled: false, webSearch: false, dailyLimit: 100, maskPhones: true, briefEnabled: true, briefHour: 8, briefOffDays: [5], messagingEnabled: false, messageDailyLimit: 100 },   // brief: Telegram CRM morning brief (hour in Dhaka time, offDays 0=Sun … 5=Fri); messaging: master switch for sending SMS / WhatsApp from the CRM
   backup_policy: { enabled: true },   // scheduled DB backups (scripts/server-backup.sh reads this row); Admin → Settings → Maintenance
 } as const
 

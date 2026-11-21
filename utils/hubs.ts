@@ -24,6 +24,10 @@ export const HUBS: Record<string, HubTab[]> = {
     { label: 'Today',     to: '/crm', exact: true, also: ['/crm/customers'] },
     { label: 'Portfolio', to: '/crm/portfolio' },
     { label: 'Prospects', to: '/crm/prospects' },
+    { label: 'Insights',  to: '/crm/insights' },
+    { label: 'Route',     to: '/crm/route' },
+    { label: 'Messages',  to: '/crm/messages' },
+    { label: 'Results',   to: '/crm/results' },
     { label: 'Ask',       to: '/crm/agent' },
   ],
   returns: [

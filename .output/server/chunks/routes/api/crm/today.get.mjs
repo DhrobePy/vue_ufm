@@ -1,8 +1,8 @@
-import { X as defineEventHandler, a1 as dhakaToday, bE as scopedHealth, bb as query } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, a3 as dhakaToday, Q as crmUser, aR as maybeTriggerCrmBrief, bR as scopedHealth, aU as nextActions, bl as query } from '../../../nitro/nitro.mjs';
+import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
-import 'node:crypto';
 import 'node:http';
 import 'node:https';
 import 'node:events';
@@ -13,8 +13,10 @@ import 'mysql2/promise';
 import 'node:url';
 
 const today_get = defineEventHandler(async (event) => {
-  const today = dhakaToday();
+  const today = dhakaToday(), me = await crmUser(event);
+  maybeTriggerCrmBrief();
   const rows = await scopedHealth(event);
+  const next = await nextActions(rows, { userId: me.id, limit: 12 });
   const tasks = await query(
     `SELECT t.id, t.party_type, t.party_id, t.kind, t.title, t.due_date, t.promise_amount, t.created_by_agent,
             COALESCE(c.name, p.name) AS party_name, u.display_name AS assigned_to, (t.due_date < ?) AS overdue
@@ -31,7 +33,7 @@ const today_get = defineEventHandler(async (event) => {
     [today]
   );
   const pipeline = await query(`SELECT stage, COUNT(*) n FROM crm_prospects GROUP BY stage`);
-  return { today, tasks, calls, cold_prospects: cold, pipeline, counts: { open_tasks: tasks.length, overdue: tasks.filter((t) => Number(t.overdue)).length } };
+  return { today, next, tasks, calls, cold_prospects: cold, pipeline, counts: { open_tasks: tasks.length, overdue: tasks.filter((t) => Number(t.overdue)).length } };
 });
 
 export { today_get as default };

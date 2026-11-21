@@ -22,6 +22,7 @@ const PUBLIC_PREFIXES = [
   '/api/device/',
   '/api/verify/',
   '/api/cron/',
+  '/api/hook/',      // inbound SMS / WhatsApp webhooks — each checks its own secret / signature
 ]
 
 /**

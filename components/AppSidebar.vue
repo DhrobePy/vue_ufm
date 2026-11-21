@@ -201,6 +201,10 @@
         <SidebarNavItem v-if="perms.canAccessRoute('/crm')" label="Today" route="/crm" :collapsed="collapsed" icon-type="dashboard" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/crm/portfolio')" label="Portfolio" route="/crm/portfolio" :collapsed="collapsed" icon-type="chart" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/crm/prospects')" label="Prospects" route="/crm/prospects" :collapsed="collapsed" icon-type="list" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/insights')" label="Insights" route="/crm/insights" :collapsed="collapsed" icon-type="chart" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/route')" label="Route & territory" route="/crm/route" :collapsed="collapsed" icon-type="list" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/messages')" label="Messages" route="/crm/messages" :collapsed="collapsed" icon-type="check" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/results')" label="Results" route="/crm/results" :collapsed="collapsed" icon-type="chart" sub />
         <SidebarNavItem v-if="perms.canAccessRoute('/crm/agent')" label="Ask the assistant" route="/crm/agent" :collapsed="collapsed" icon-type="check" sub />
       </SidebarGroup>
       <!-- Products -->

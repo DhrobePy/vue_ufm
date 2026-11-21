@@ -614,6 +614,19 @@
             <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.webSearch" type="checkbox" /> Let it search the web to find new prospects (costs extra per search)</label>
             <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.maskPhones" type="checkbox" /> Hide customer phone numbers from the AI (recommended)</label>
             <div class="flex items-center gap-2 text-sm text-gray-200">Questions allowed per day <input v-model.number="crmPolicy.dailyLimit" type="number" min="1" class="input-glass w-24 font-mono" /></div>
+            <div class="border-t border-white/[0.07] pt-3 space-y-2">
+              <h4 class="text-sm font-semibold text-gray-200">Morning brief (Telegram)</h4>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.briefEnabled" type="checkbox" /> Send the CRM morning brief to the Telegram group once a day</label>
+              <div class="flex flex-wrap items-center gap-2 text-sm text-gray-200">After <input v-model.number="crmPolicy.briefHour" type="number" min="0" max="23" class="input-glass w-16 font-mono" /> o'clock (Dhaka time), not on:
+                <label v-for="(dn, i) in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="i" class="flex items-center gap-1 text-xs"><input type="checkbox" :checked="crmPolicy.briefOffDays.includes(i)" @change="($event.target as HTMLInputElement).checked ? crmPolicy.briefOffDays.push(i) : crmPolicy.briefOffDays.splice(crmPolicy.briefOffDays.indexOf(i), 1)" />{{ dn }}</label></div>
+              <p class="text-[11px] text-gray-500">Sent by the server's scheduled task (every 30 minutes, only once a day) and, as a backup, the first time anyone opens CRM → Today after that hour.</p>
+            </div>
+            <div class="border-t border-white/[0.07] pt-3 space-y-2">
+              <h4 class="text-sm font-semibold text-gray-200">Sending SMS / WhatsApp from the CRM</h4>
+              <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.messagingEnabled" type="checkbox" /> Allow staff to send messages from the CRM (a person always presses Send; the assistant never sends)</label>
+              <div class="flex items-center gap-2 text-sm text-gray-200">Messages allowed per day <input v-model.number="crmPolicy.messageDailyLimit" type="number" min="1" class="input-glass w-24 font-mono" /></div>
+              <p class="text-[11px] text-gray-500">Needs the SMS / WhatsApp provider details in the server's .env — see docs/CRM_ASSISTANT.md. Numbers that reply STOP are never messaged again.</p>
+            </div>
             <div class="flex justify-end"><button @click="saveGroup('crm_policy', crmPolicy, 'CRM assistant settings')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save' }}</button></div>
           </div>
 
@@ -928,7 +941,7 @@ const finance     = reactive({ ...(appData.value?.finance_settings ?? {}) })
 const orderPolicy = reactive<Record<string, boolean>>({ ...(appData.value?.order_policy ?? {}) })
 const security    = reactive({ ...(appData.value?.security_policy ?? {}) })
 const notifyPolicy = reactive({ ...(appData.value?.notify_policy ?? { telegram: true }) })
-const crmPolicy = reactive({ agentEnabled: false, webSearch: false, maskPhones: true, dailyLimit: 100, ...(appData.value?.crm_policy ?? {}) })
+const crmPolicy = reactive({ agentEnabled: false, webSearch: false, maskPhones: true, dailyLimit: 100, briefEnabled: true, briefHour: 8, briefOffDays: [5] as number[], messagingEnabled: false, messageDailyLimit: 100, ...(appData.value?.crm_policy ?? {}) })
 const { data: crmStatus } = await useFetch<any>('/api/crm/agent-status').catch(() => ({ data: ref(null) } as any))
 const backupPolicy = reactive({ enabled: true, ...(appData.value?.backup_policy ?? {}) })
 const savingGroup = ref(false)

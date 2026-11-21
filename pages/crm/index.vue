@@ -7,7 +7,7 @@
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">Open tasks</p><p class="text-xl font-bold text-gray-100">{{ d.counts.open_tasks }}</p></div>
         <div class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">Overdue</p><p class="text-xl font-bold" :class="d.counts.overdue ? 'text-red-400' : 'text-emerald-400'">{{ d.counts.overdue }}</p></div>
-        <div class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">Customers needing a call</p><p class="text-xl font-bold text-amber-400">{{ d.calls.length }}</p></div>
+        <div class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">Actions today</p><p class="text-xl font-bold text-amber-400">{{ d.next.total }}</p></div>
         <div class="glass-card p-3"><p class="text-[10px] uppercase tracking-wider text-gray-500">Prospects in the pipeline</p><p class="text-xl font-bold text-gray-100">{{ pipelineOpen }}</p></div>
       </div>
 
@@ -24,18 +24,27 @@
       </div>
 
       <div class="glass-card p-4 space-y-2">
-        <h2 class="section-title">Customers who most need a conversation</h2>
-        <div v-for="c in d.calls" :key="c.id" class="py-2 border-b border-white/[0.05] text-xs space-y-1">
+        <div class="flex flex-wrap items-center gap-2"><h2 class="section-title">Do first — next best actions</h2>
+          <span class="text-[11px] text-gray-500">{{ d.next.total }} in all<template v-if="d.next.recently_contacted"> · {{ d.next.recently_contacted }} left out because someone contacted them in the last 2 days</template></span>
+          <div class="ml-auto flex flex-wrap gap-1"><button v-for="(l, k) in TYPES" :key="k" class="px-2 py-0.5 rounded-lg text-[10px] border" :class="only === k ? 'bg-gold-500/15 text-gold-400 border-gold-500/25' : 'text-gray-500 border-white/[0.07]'" @click="only = only === k ? '' : String(k)">{{ l.icon }} {{ l.label }} {{ d.next.counts[k] ?? 0 }}</button></div></div>
+        <div v-for="a in shown" :key="a.key" class="py-2 border-b border-white/[0.05] text-xs space-y-1">
           <div class="flex flex-wrap items-center gap-2">
-            <CrmLabel :label="c.label" /><NuxtLink :to="`/crm/customers/${c.id}`" class="font-semibold text-gold-400 hover:underline">{{ c.name }}</NuxtLink>
-            <span class="text-gray-500">{{ c.segment }} · {{ c.district }}</span><span class="ml-auto text-gray-500">12-mo ৳{{ n0(c.value_12m) }} · owes ৳{{ n0(Math.max(0, c.balance)) }}</span>
+            <span class="px-2 py-0.5 rounded bg-white/10 text-gray-300" :title="TYPES[a.type].label">{{ TYPES[a.type].icon }} {{ TYPES[a.type].label }}</span>
+            <NuxtLink :to="a.party_type === 'prospect' ? `/crm/prospects/${a.party_id}` : `/crm/customers/${a.party_id}`" class="font-semibold text-gold-400 hover:underline">{{ a.name }}</NuxtLink>
+            <span class="text-gray-500">{{ a.segment }} · {{ a.district }}</span>
+            <span class="ml-auto text-gray-500">{{ a.last_contact_days != null ? `last contacted ${a.last_contact_days} d ago` : 'never contacted' }}</span>
           </div>
-          <p class="text-gray-400">{{ c.reasons.join(' · ') }}</p>
-          <p class="text-gray-200">→ {{ c.suggestions[0] }}</p>
-          <div class="flex gap-2"><NuxtLink :to="`/crm/customers/${c.id}`" class="btn-ghost text-[11px] px-2.5 py-1">Open card</NuxtLink><span v-if="c.has_open_task" class="text-[11px] text-emerald-400 self-center">task already open</span></div>
+          <p class="text-gray-100">{{ a.headline }}</p>
+          <p class="text-gray-500">{{ a.why.join(' · ') }}</p>
+          <div class="flex flex-wrap gap-2 items-center">
+            <button class="btn-gold text-[11px] px-2.5 py-1" @click="compose(a)">Message</button>
+            <NuxtLink :to="a.party_type === 'prospect' ? `/crm/prospects/${a.party_id}` : `/crm/customers/${a.party_id}`" class="btn-ghost text-[11px] px-2.5 py-1">Open card</NuxtLink>
+            <button v-if="!a.open_task" class="btn-ghost text-[11px] px-2.5 py-1" @click="addTask(a)">+ Task for tomorrow</button><span v-else class="text-[11px] text-emerald-400">task already open</span>
+          </div>
         </div>
-        <p v-if="!d.calls.length" class="text-xs text-gray-600 py-2">No customer is flagged right now.</p>
+        <p v-if="!shown.length" class="text-xs text-gray-600 py-2">Nothing flagged right now.</p>
       </div>
+      <CrmComposer v-if="cm" :open="!!cm" :party-type="cm.party_type" :party-id="cm.party_id" :name="cm.name" :phone="cm.phone" :kind="cm.kind" @close="cm = null" @done="refresh()" />
 
       <div v-if="d.cold_prospects.length" class="glass-card p-4 space-y-2">
         <h2 class="section-title">Prospects going cold</h2>
@@ -52,6 +61,14 @@ definePageMeta({ layout: 'default' })
 const { success, error: toastError } = useToast()
 const { data: d, pending, refresh } = await useFetch<any>('/api/crm/today')
 const n0 = (v: number) => Math.round(Number(v ?? 0)).toLocaleString('en-US')
+const TYPES: Record<string, { icon: string; label: string }> = { collect: { icon: '💰', label: 'Collect' }, reorder: { icon: '🔁', label: 'Reorder' }, winback: { icon: '🛟', label: 'Win back' }, crosssell: { icon: '➕', label: 'Cross-sell' }, prospect: { icon: '🎯', label: 'Prospect' } }
+const only = ref(''), cm = ref<any>(null)
+const shown = computed(() => (d.value?.next.actions ?? []).filter((a: any) => !only.value || a.type === only.value))
+const compose = (a: any) => { cm.value = { party_type: a.party_type, party_id: a.party_id, name: a.name, phone: a.phone, kind: a.type === 'prospect' ? undefined : a.type } }
+async function addTask(a: any) {
+  const due = new Date(Date.now() + 30 * 3600_000).toISOString().slice(0, 10)
+  try { await $fetch('/api/crm/tasks', { method: 'POST', body: { party_type: a.party_type, party_id: a.party_id, title: a.headline, kind: a.type === 'collect' ? 'collect' : a.type === 'reorder' ? 'reorder' : 'follow_up', due_date: due } }); success('Task added'); await refresh() } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Failed') }
+}
 const pipelineOpen = computed(() => (d.value?.pipeline ?? []).filter((x: any) => !['won', 'lost'].includes(x.stage)).reduce((t: number, x: any) => t + Number(x.n), 0))
 async function done(t: any) {
   const outcome = (prompt(`What happened? (optional) — ${t.title}`) ?? '')

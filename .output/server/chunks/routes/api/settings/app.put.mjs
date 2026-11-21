@@ -1,8 +1,8 @@
-import { X as defineEventHandler, ay as getUserSession, L as createError, be as readBody, e as APP_SETTING_GROUPS, ae as getDb, w as auditLog, bt as resetAppSettingsCache } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, aE as getUserSession, N as createError, bo as readBody, e as APP_SETTING_GROUPS, aj as getDb, x as auditLog, bF as resetAppSettingsCache } from '../../../nitro/nitro.mjs';
+import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
-import 'node:crypto';
 import 'node:http';
 import 'node:https';
 import 'node:events';
@@ -27,6 +27,7 @@ const app_put = defineEventHandler(async (event) => {
     const v = (_f = body == null ? void 0 : body.values) == null ? void 0 : _f[k];
     if (v === void 0) continue;
     if (typeof d === "boolean") clean[k] = Boolean(v);
+    else if (Array.isArray(d)) clean[k] = (Array.isArray(v) ? v : []).map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
     else if (typeof d === "number") {
       const n = Number(v);
       if (!Number.isFinite(n) || n < 0) throw createError({ statusCode: 400, statusMessage: `"${k}" must be a number, zero or more` });
@@ -36,6 +37,7 @@ const app_put = defineEventHandler(async (event) => {
   if (group === "company_profile" && clean.name !== void 0 && !clean.name) throw createError({ statusCode: 400, statusMessage: "Company name cannot be empty" });
   if (group === "finance_settings" && clean.grnValueBasis !== void 0 && !["expected", "received"].includes(clean.grnValueBasis)) throw createError({ statusCode: 400, statusMessage: 'Goods-received valuation must be "expected" or "received"' });
   if (group === "finance_settings" && clean.fyStart !== void 0 && !(clean.fyStart >= 1 && clean.fyStart <= 12)) throw createError({ statusCode: 400, statusMessage: "Financial year must start in month 1\u201312" });
+  if (group === "crm_policy" && clean.briefHour !== void 0 && !(clean.briefHour >= 0 && clean.briefHour <= 23)) throw createError({ statusCode: 400, statusMessage: "Brief hour must be 0\u201323" });
   if (group === "security_policy" && clean.maxLoginAttempts !== void 0 && clean.maxLoginAttempts < 3) throw createError({ statusCode: 400, statusMessage: "Allow at least 3 login attempts" });
   const conn = await getDb().getConnection();
   try {
