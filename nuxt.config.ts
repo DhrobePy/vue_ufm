@@ -38,7 +38,7 @@ export default defineNuxtConfig({
   },
 
   // node_modules is not shipped by git, so the Claude SDK must be bundled into the server file (otherwise: 503 at start-up)
-  nitro: { externals: { inline: ['@anthropic-ai/sdk'] } },
+  nitro: { externals: { inline: ['@anthropic-ai/sdk', '@opentelemetry/api', 'standardwebhooks', '@stablelib/base64', 'fast-sha256'] } },
 
   css: ['~/assets/css/main.css', '~/assets/css/apple.css'],
 

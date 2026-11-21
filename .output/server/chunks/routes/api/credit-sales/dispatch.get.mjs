@@ -1,6 +1,4 @@
 import { V as defineEventHandler, av as getUserSession, ab as getDb, at as getUserBranchIds, b8 as query, b9 as queryOne, ah as getOrderGateState } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,6 +1,4 @@
 import { V as defineEventHandler, av as getUserSession, J as createError, bb as readBody, T as TELEGRAM_CATEGORIES, bD as sendTelegram, b8 as query, br as resetTelegramCache } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

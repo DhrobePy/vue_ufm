@@ -1,6 +1,4 @@
 import { V as defineEventHandler, av as getUserSession, J as createError, aC as isAdminRole, A as ACCOUNTS_ROLES, j as PRODUCTION_ROLES, bb as readBody, ab as getDb, au as getUserBranchScope } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -10,8 +10,6 @@ import { u as usePermissions } from './usePermissions-D6Wyx0sM.mjs';
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,7 +1,5 @@
 import { V as defineEventHandler, aq as getRouterParam, J as createError, bb as readBody, av as getUserSession, ak as getRequestHeader, bN as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, i as DISPATCH_ROLES, ab as getDb, bD as sendTelegram, v as auditLog } from '../../../../../nitro/nitro.mjs';
 import crypto__default from 'node:crypto';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

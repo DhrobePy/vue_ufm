@@ -1,6 +1,4 @@
 import { V as defineEventHandler, bb as readBody, ab as getDb, b8 as query, J as createError } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

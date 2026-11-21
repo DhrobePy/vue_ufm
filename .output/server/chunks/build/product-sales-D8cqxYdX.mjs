@@ -5,8 +5,6 @@ import './ReportFrame-Dts5xb5M.mjs';
 import './useAppSettings-Cev_RXDm.mjs';
 import './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

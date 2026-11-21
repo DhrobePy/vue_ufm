@@ -6,8 +6,6 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrInterpolate, ssrR
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import './nuxt-link-rXgW20ax.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -8,8 +8,6 @@ import { u as usePermissions } from './usePermissions-D6Wyx0sM.mjs';
 import { u as useTheme, _ as __nuxt_component_0$2 } from './UiStyleToggle-6CEHfWZo.mjs';
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

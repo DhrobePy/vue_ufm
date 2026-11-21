@@ -5,8 +5,6 @@ import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import { c as _export_sfc } from './server.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

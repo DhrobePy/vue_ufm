@@ -1,6 +1,4 @@
 import { V as defineEventHandler, aq as getRouterParam, J as createError, av as getUserSession, b9 as queryOne, ab as getDb, bj as recycleBegin, bi as recycleArchiveDelete, bk as recycleFinalize } from '../../../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

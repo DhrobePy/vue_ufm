@@ -7,8 +7,6 @@ import { defineComponent, computed, ref, withAsyncContext, mergeProps, withCtx, 
 import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrInterpolate, ssrRenderClass, ssrRenderAttr } from 'vue/server-renderer';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

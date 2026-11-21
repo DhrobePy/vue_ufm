@@ -1,1 +1,0 @@
-import{_ as r}from"./D2KcDz4a.js";import{s as t,k as e,W as p}from"./DLLsSJ0w.js";import"./DCaYj0NK.js";import"./CAQZ_s_D.js";import"./B9VrBia1.js";import"./CB5vdRxZ.js";const u=t({__name:"product-sales",setup(m){return(s,c)=>{const o=r;return p(),e(o,{mode:"product"})}}});export{u as default};

@@ -1,6 +1,4 @@
 import { V as defineEventHandler, aj as getQuery, bB as scopedHealth, aS as portfolioSummary } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

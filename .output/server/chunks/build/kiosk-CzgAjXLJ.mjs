@@ -2,8 +2,6 @@ import { ssrRenderAttrs, ssrRenderSlot } from 'vue/server-renderer';
 import { useSSRContext } from 'vue';
 import { c as _export_sfc } from './server.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

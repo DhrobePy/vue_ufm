@@ -2,8 +2,6 @@ import process from 'node:process';globalThis._importMeta_=globalThis._importMet
 import { J as createError$1, aR as parseURL, a1 as encodePath, O as decodePath, ay as hasProtocol, aD as isScriptProtocol, aF as joinURL, bQ as withQuery, X as defu, bA as sanitizeStatusCode, a7 as getContext, $ as $fetch$1, w as baseURL, K as createHooks, a3 as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -925,7 +923,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2A || {},
-    component: () => import('./create-t91-BWZA.mjs')
+    component: () => import('./create-CNJ3alEC.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -1027,7 +1025,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$2j || {},
-    component: () => import('./vouchers-Tpqla2mu.mjs')
+    component: () => import('./vouchers-BLiLVgus.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1099,13 +1097,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$27 || {},
-    component: () => import('./create-DmP9a0iw.mjs')
+    component: () => import('./create-C0XAx9GH.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$26 || {},
-    component: () => import('./index-CMbvh43e.mjs')
+    component: () => import('./index-DtVVKgT5.mjs')
   },
   {
     name: "crm-customers-id",
@@ -1123,7 +1121,7 @@ const _routes = [
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$23 || {},
-    component: () => import('./edit-DbgyqsMm.mjs')
+    component: () => import('./edit-MgypdSR1.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1345,7 +1343,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1u || {},
-    component: () => import('./edit-C-0UncBa.mjs')
+    component: () => import('./edit-DVXPIEfJ.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1555,7 +1553,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$X || {},
-    component: () => import('./index-BDtOkO4e.mjs')
+    component: () => import('./index-BSBjrZsk.mjs')
   },
   {
     name: "credit-sales-production",

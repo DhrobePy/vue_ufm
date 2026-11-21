@@ -7,8 +7,6 @@ import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import { u as useAppSettings } from './useAppSettings-Cev_RXDm.mjs';
 import './server.mjs';
 import '../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

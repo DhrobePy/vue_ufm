@@ -1,6 +1,4 @@
 import { V as defineEventHandler, bp as requireAction, av as getUserSession, bb as readBody, ab as getDb, J as createError, b5 as priceAutoApplyEnabled, r as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

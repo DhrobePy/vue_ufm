@@ -9,8 +9,6 @@ import * as readline from 'node:readline';
 import { once } from 'node:events';
 import { Worker } from 'node:worker_threads';
 import * as stream from 'node:stream';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:zlib';
 import 'node:http';
 import 'node:https';

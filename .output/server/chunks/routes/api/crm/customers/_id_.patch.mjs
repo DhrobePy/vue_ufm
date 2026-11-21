@@ -1,6 +1,4 @@
 import { V as defineEventHandler, L as crmUser, aq as getRouterParam, bb as readBody, l as SEGMENTS, J as createError, ab as getDb, v as auditLog, H as clearCrmCache } from '../../../../nitro/nitro.mjs';
-import '@opentelemetry/api';
-import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
