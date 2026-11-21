@@ -1,4 +1,4 @@
-import { V as defineEventHandler, b8 as query } from '../../nitro/nitro.mjs';
+import { X as defineEventHandler, bb as query } from '../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

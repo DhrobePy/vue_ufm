@@ -1,4 +1,4 @@
-import { V as defineEventHandler, I as clearUserSession } from '../../../nitro/nitro.mjs';
+import { X as defineEventHandler, J as clearUserSession } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

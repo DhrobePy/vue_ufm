@@ -1,5 +1,5 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { J as createError$1, aR as parseURL, a1 as encodePath, O as decodePath, ay as hasProtocol, aD as isScriptProtocol, aF as joinURL, bQ as withQuery, X as defu, bA as sanitizeStatusCode, a7 as getContext, $ as $fetch$1, w as baseURL, K as createHooks, a3 as executeAsync } from '../nitro/nitro.mjs';
+import { L as createError$1, aU as parseURL, a4 as encodePath, U as decodePath, aB as hasProtocol, aG as isScriptProtocol, aI as joinURL, bT as withQuery, Z as defu, bD as sanitizeStatusCode, aa as getContext, $ as $fetch$1, x as baseURL, N as createHooks, a6 as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
 import 'node:child_process';
@@ -1211,7 +1211,7 @@ const _routes = [
     name: "crm-prospects",
     path: "/crm/prospects",
     meta: __nuxt_page_meta$1Q || {},
-    component: () => import('./index-CLWtjFOW.mjs')
+    component: () => import('./index-w1NGWT3l.mjs')
   },
   {
     name: "customers-id-edit",

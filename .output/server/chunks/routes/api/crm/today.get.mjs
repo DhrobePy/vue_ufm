@@ -1,4 +1,4 @@
-import { V as defineEventHandler, Z as dhakaToday, bB as scopedHealth, b8 as query } from '../../../nitro/nitro.mjs';
+import { X as defineEventHandler, a1 as dhakaToday, bE as scopedHealth, bb as query } from '../../../nitro/nitro.mjs';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
