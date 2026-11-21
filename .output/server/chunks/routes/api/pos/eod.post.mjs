@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, aP as readBody, Q as getDb, aj as isAdminRole, m as auditLog, bd as sendTelegram } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, aZ as readBody, a1 as getDb, as as isAdminRole, q as auditLog, bo as sendTelegram } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

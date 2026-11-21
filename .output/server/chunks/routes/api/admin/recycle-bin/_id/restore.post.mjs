@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, a7 as getRouterParam, Q as getDb, aZ as recycleRestore, m as auditLog, bd as sendTelegram } from '../../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, ag as getRouterParam, a1 as getDb, b7 as recycleRestore, q as auditLog, bo as sendTelegram } from '../../../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

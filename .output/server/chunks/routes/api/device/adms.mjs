@@ -1,4 +1,5 @@
-import { B as defineEventHandler, bg as setResponseHeader, Y as getMethod, a0 as getQuery, a3 as getRequestURL, aR as readRawBody, Q as getDb, aN as queryOne } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, br as setResponseHeader, a6 as getMethod, a9 as getQuery, ac as getRequestURL, a$ as readRawBody, a1 as getDb, aX as queryOne } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -43,6 +43,7 @@ const PATH_MODULE_MAP: Array<{ prefix: string; modules: string[] }> = [
   { prefix: '/api/logistics',     modules: ['dispatch'] },
   { prefix: '/api/pos',           modules: ['pos'] },
   { prefix: '/api/hr',            modules: ['hr'] },
+  { prefix: '/api/crm',           modules: ['crm'] },
   { prefix: '/api/admin',         modules: ['admin'] },
   { prefix: '/api/settings',      modules: ['admin'] },   // GETs exempted below — config reads are needed app-wide
   // NOTE: /api/notifications intentionally unmapped — endpoint scopes to the

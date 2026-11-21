@@ -54,6 +54,7 @@ const ROUTE_MODULE_MAP: Record<string, string> = {
   pos:          'pos',
   admin:        'admin',
   hr:           'hr',
+  crm:          'crm',
 }
 
 const DEFAULT_STATE = (): PermsState => ({

@@ -5,6 +5,7 @@ import './ReportFrame-Dts5xb5M.mjs';
 import './useAppSettings-Cev_RXDm.mjs';
 import './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

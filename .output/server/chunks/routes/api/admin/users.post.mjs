@@ -1,5 +1,6 @@
-import { B as defineEventHandler, aP as readBody, ac as getUserSession, w as createError, Q as getDb, aN as queryOne, m as auditLog } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, aZ as readBody, al as getUserSession, C as createError, a1 as getDb, aX as queryOne, q as auditLog } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

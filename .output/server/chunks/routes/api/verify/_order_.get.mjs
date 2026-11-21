@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, a0 as getQuery, Q as getDb, bo as verifyDeliveryQrSignature, Z as getOrderGateState, a1 as getRequestHeader, aU as recordQrScan, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, g as PRODUCTION_ROLES } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, a9 as getQuery, a1 as getDb, bz as verifyDeliveryQrSignature, a7 as getOrderGateState, aa as getRequestHeader, b2 as recordQrScan, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, g as PRODUCTION_ROLES } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

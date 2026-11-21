@@ -14,6 +14,8 @@ export const APP_SETTING_GROUPS = {
   order_policy: { auto_approve: false, allow_partial: true, block_overdue: false },
   security_policy: { sessionTimeout: 0, maxLoginAttempts: 5 },
   notify_policy: { telegram: true },
+  // CRM assistant: master switch, whether it may search the web for prospects, questions per day (cost cap), and whether customer phone numbers are hidden from the AI
+  crm_policy: { agentEnabled: false, webSearch: false, dailyLimit: 100, maskPhones: true },
   backup_policy: { enabled: true },   // scheduled DB backups (scripts/server-backup.sh reads this row); Admin → Settings → Maintenance
 } as const
 

@@ -7,6 +7,7 @@ import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import { q as useUserSession, e as createError } from './server.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

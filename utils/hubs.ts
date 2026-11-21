@@ -20,6 +20,12 @@ export const HUBS: Record<string, HubTab[]> = {
     { label: 'Debit Vouchers',    to: '/accounts/voucher' },
     { label: 'All Accounts',      to: '/accounts/all-accounts' },
   ],
+  crm: [
+    { label: 'Today',     to: '/crm', exact: true, also: ['/crm/customers'] },
+    { label: 'Portfolio', to: '/crm/portfolio' },
+    { label: 'Prospects', to: '/crm/prospects' },
+    { label: 'Ask',       to: '/crm/agent' },
+  ],
   returns: [
     { label: 'Goods Returns',     to: '/credit-sales/returns' },
     { label: 'Stock Adjustments', to: '/products/stock-adjustments' },

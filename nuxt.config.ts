@@ -22,6 +22,8 @@ export default defineNuxtConfig({
     googleOauthClientId: '',        // Google OAuth2 client id (installed-app flow) — set NUXT_GOOGLE_OAUTH_CLIENT_ID in .env
     googleOauthClientSecret: '',    // Google OAuth2 client secret — set NUXT_GOOGLE_OAUTH_CLIENT_SECRET in .env
     googleOauthRefreshToken: '',    // long-lived refresh token for the real Drive account that owns the backup folder — set NUXT_GOOGLE_OAUTH_REFRESH_TOKEN in .env
+    anthropicApiKey: '',            // Claude API key for the CRM assistant — set NUXT_ANTHROPIC_API_KEY in the server .env (never in chat or code)
+    crmAgentModel: 'claude-opus-5-5',  // set NUXT_CRM_AGENT_MODEL=claude-sonnet-5-5 to run cheaper
     googleDriveBackupFolderId: '',  // Drive folder id the DB backups get uploaded into — set NUXT_GOOGLE_DRIVE_BACKUP_FOLDER_ID in .env
     public: {
       appName: 'Ujjal FMC ERP',

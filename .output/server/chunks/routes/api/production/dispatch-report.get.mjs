@@ -1,4 +1,5 @@
-import { B as defineEventHandler, s as buildOrderReport } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, w as buildOrderReport } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

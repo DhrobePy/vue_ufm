@@ -8,6 +8,7 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrInterpolate, ssrR
 import { q as useUserSession } from './server.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

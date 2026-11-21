@@ -7,6 +7,7 @@ import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import { u as useAppSettings } from './useAppSettings-Cev_RXDm.mjs';
 import './server.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

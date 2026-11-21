@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, a0 as getQuery, Q as getDb, ab as getUserBranchScope, aM as query, an as maybeTriggerProductionShortfallAlert } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, a9 as getQuery, a1 as getDb, ak as getUserBranchScope, aW as query, aw as maybeTriggerProductionShortfallAlert } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

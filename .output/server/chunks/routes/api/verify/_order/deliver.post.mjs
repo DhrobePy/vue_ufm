@@ -1,4 +1,5 @@
-import { B as defineEventHandler, aP as readBody, ac as getUserSession, w as createError, aM as query, a1 as getRequestHeader, bo as verifyDeliveryQrSignature, Q as getDb, bk as transitionOrder, ao as nextDocNumber, m as auditLog, bd as sendTelegram, aU as recordQrScan } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, aZ as readBody, al as getUserSession, C as createError, aW as query, aa as getRequestHeader, bz as verifyDeliveryQrSignature, a1 as getDb, bv as transitionOrder, ax as nextDocNumber, q as auditLog, bo as sendTelegram, b2 as recordQrScan } from '../../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

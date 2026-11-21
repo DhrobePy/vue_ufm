@@ -535,6 +535,51 @@ export default defineNitroPlugin(async () => {
     `)
   } catch (e) { console.warn('[db-migrate] account_type_group backfill failed:', e) }
 
+  // ── 32c. CRM: confirmed business type / district on customers, prospects, tasks, contact log, agent log ──
+  await addCol(db, 'customers', 'segment', 'VARCHAR(40) NULL DEFAULT NULL')    // confirmed business type (else guessed from the name)
+  await addCol(db, 'customers', 'district', 'VARCHAR(40) NULL DEFAULT NULL')   // confirmed district (else guessed from the address)
+  await addCol(db, 'customers', 'owner_user_id', 'INT UNSIGNED NULL DEFAULT NULL')   // who looks after this account
+  for (const ddl of [
+    `CREATE TABLE IF NOT EXISTS crm_prospects (
+       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+       name VARCHAR(160) NOT NULL, business_name VARCHAR(160) NULL,
+       segment VARCHAR(40) NULL, district VARCHAR(40) NULL, address VARCHAR(300) NULL,
+       phone VARCHAR(40) NULL, phone2 VARCHAR(40) NULL, email VARCHAR(160) NULL, website VARCHAR(300) NULL, contact_person VARCHAR(120) NULL,
+       source VARCHAR(60) NULL, source_url VARCHAR(500) NULL, source_note VARCHAR(500) NULL,
+       stage ENUM('new','researching','contacted','quoted','trial','won','lost') NOT NULL DEFAULT 'new',
+       lost_reason VARCHAR(200) NULL, owner_user_id INT UNSIGNED NULL,
+       checklist JSON NULL, notes TEXT NULL,
+       converted_customer_id INT UNSIGNED NULL,
+       created_by_user_id INT UNSIGNED NULL, created_by_agent TINYINT(1) NOT NULL DEFAULT 0,
+       created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+       KEY idx_prospect_stage (stage), KEY idx_prospect_phone (phone)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS crm_interactions (
+       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+       party_type ENUM('customer','prospect') NOT NULL, party_id INT UNSIGNED NOT NULL,
+       channel ENUM('call','visit','sms','whatsapp','email','note') NOT NULL DEFAULT 'note',
+       direction ENUM('out','in') NOT NULL DEFAULT 'out', summary VARCHAR(1000) NOT NULL, outcome VARCHAR(120) NULL,
+       user_id INT UNSIGNED NULL, via_agent TINYINT(1) NOT NULL DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       KEY idx_inter_party (party_type, party_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS crm_tasks (
+       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+       party_type ENUM('customer','prospect') NOT NULL, party_id INT UNSIGNED NOT NULL,
+       kind ENUM('follow_up','promise','collect','reorder','credit_review','visit','other') NOT NULL DEFAULT 'follow_up',
+       title VARCHAR(300) NOT NULL, due_date DATE NULL, promise_amount DECIMAL(15,2) NULL,
+       status ENUM('open','done','cancelled') NOT NULL DEFAULT 'open',
+       assigned_user_id INT UNSIGNED NULL, created_by_user_id INT UNSIGNED NULL, created_by_agent TINYINT(1) NOT NULL DEFAULT 0,
+       completed_at DATETIME NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       KEY idx_task_due (status, due_date), KEY idx_task_party (party_type, party_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+    `CREATE TABLE IF NOT EXISTS crm_agent_log (
+       id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT UNSIGNED NULL, question VARCHAR(1000) NOT NULL,
+       tools_used VARCHAR(500) NULL, answer_preview VARCHAR(400) NULL, input_tokens INT NULL, output_tokens INT NULL, web_searches INT NOT NULL DEFAULT 0,
+       model VARCHAR(60) NULL, ok TINYINT(1) NOT NULL DEFAULT 1, error VARCHAR(300) NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+       KEY idx_agent_day (created_at)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+  ]) { try { await db.query(ddl) } catch (e) { console.warn('[db-migrate] crm table failed:', e) } }
+
   // ── 32b. customer_balance_reconciliations — audit trail of every stored-balance correction (reversible) ──
   try {
     await db.query(`

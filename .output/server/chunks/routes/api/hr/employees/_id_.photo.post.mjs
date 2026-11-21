@@ -1,7 +1,8 @@
-import { B as defineEventHandler, a7 as getRouterParam, w as createError, aQ as readMultipartFormData, aM as query } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ag as getRouterParam, C as createError, a_ as readMultipartFormData, aW as query } from '../../../../nitro/nitro.mjs';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { extname, join } from 'node:path';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

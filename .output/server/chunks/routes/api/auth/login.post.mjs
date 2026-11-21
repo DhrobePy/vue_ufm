@@ -1,5 +1,6 @@
-import { B as defineEventHandler, aP as readBody, w as createError, K as getAppSettings, aN as queryOne, bh as setUserSession, aM as query, a2 as getRequestIP, bm as useRuntimeConfig } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, aZ as readBody, C as createError, X as getAppSettings, aX as queryOne, bs as setUserSession, aW as query, ab as getRequestIP, bx as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

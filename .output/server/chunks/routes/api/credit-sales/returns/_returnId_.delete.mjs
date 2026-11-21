@@ -1,4 +1,5 @@
-import { B as defineEventHandler, a7 as getRouterParam, w as createError, ac as getUserSession, a1 as getRequestHeader, Q as getDb, aW as recycleBegin, be as serializeRow, a_ as recycleSnapshotBefore, aV as recycleArchiveDelete, aX as recycleFinalize, m as auditLog } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ag as getRouterParam, C as createError, al as getUserSession, aa as getRequestHeader, a1 as getDb, b4 as recycleBegin, bp as serializeRow, b8 as recycleSnapshotBefore, b3 as recycleArchiveDelete, b5 as recycleFinalize, q as auditLog } from '../../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

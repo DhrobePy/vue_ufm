@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, aP as readBody, aM as query, Q as getDb, aK as priceAutoApplyEnabled, k as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, aZ as readBody, aW as query, a1 as getDb, aU as priceAutoApplyEnabled, m as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

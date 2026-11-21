@@ -735,6 +735,15 @@ const moduleRegistry = [
     ],
   },
   {
+    key: 'crm', label: 'CRM', icon: '🤝',
+    pages: [
+      { key: 'today',     label: 'Today board & customer cards', route: 'crm', actions: [] },
+      { key: 'portfolio', label: 'Customer Portfolio',           route: 'crm/portfolio', actions: [] },
+      { key: 'prospects', label: 'Prospects',                    route: 'crm/prospects', actions: [] },
+      { key: 'agent',     label: 'Ask the assistant',            route: 'crm/agent', actions: [] },
+    ],
+  },
+  {
     key: 'hr', label: 'Human Resources', icon: '👤',
     pages: [
       { key: 'dashboard',       label: 'HR Dashboard',      route: 'hr',

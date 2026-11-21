@@ -1,4 +1,5 @@
-import { B as defineEventHandler, a7 as getRouterParam, w as createError, ac as getUserSession, aN as queryOne, Q as getDb, O as getCustomerOutstanding, aa as getUserBranchIds, aM as query, bn as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, h as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ag as getRouterParam, C as createError, al as getUserSession, aX as queryOne, a1 as getDb, a0 as getCustomerOutstanding, aj as getUserBranchIds, aW as query, by as userCanAction, A as ACCOUNTS_ROLES, S as SALES_ROLES, h as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

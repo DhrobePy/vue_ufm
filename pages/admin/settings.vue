@@ -603,6 +603,20 @@
         <!-- ── Maintenance ───────────────────────────────────────────────── -->
         <div v-if="activeTab === 'maintenance'" class="space-y-5">
 
+          <!-- CRM assistant -->
+          <div class="glass-card p-6 space-y-3">
+            <div>
+              <h3 class="section-title">CRM Assistant (AI)</h3>
+              <p class="text-xs text-gray-500 mt-1">An AI that answers questions about customers, collections and prospects from your live data, and drafts messages. It can add prospects, notes and tasks — it never changes money, orders or credit limits and never sends anything. Needs an API key set on the server (<code>NUXT_ANTHROPIC_API_KEY</code>). CRM pages work without it.</p>
+              <p class="text-xs mt-1" :class="crmStatus?.configured ? 'text-emerald-400' : 'text-amber-400'">{{ crmStatus?.configured ? '● Server has an API key' : '● No API key on the server yet' }}<span v-if="crmStatus"> · {{ crmStatus.used_today }} questions today · model {{ crmStatus.model }}</span></p>
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.agentEnabled" type="checkbox" /> Turn the assistant on</label>
+            <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.webSearch" type="checkbox" /> Let it search the web to find new prospects (costs extra per search)</label>
+            <label class="flex items-center gap-2 text-sm text-gray-200"><input v-model="crmPolicy.maskPhones" type="checkbox" /> Hide customer phone numbers from the AI (recommended)</label>
+            <div class="flex items-center gap-2 text-sm text-gray-200">Questions allowed per day <input v-model.number="crmPolicy.dailyLimit" type="number" min="1" class="input-glass w-24 font-mono" /></div>
+            <div class="flex justify-end"><button @click="saveGroup('crm_policy', crmPolicy, 'CRM assistant settings')" :disabled="savingGroup" class="btn-gold text-xs disabled:opacity-50">{{ savingGroup ? 'Saving…' : 'Save' }}</button></div>
+          </div>
+
           <!-- Scheduled database backups on/off -->
           <div class="glass-card p-6">
             <div class="flex items-start justify-between">
@@ -914,6 +928,8 @@ const finance     = reactive({ ...(appData.value?.finance_settings ?? {}) })
 const orderPolicy = reactive<Record<string, boolean>>({ ...(appData.value?.order_policy ?? {}) })
 const security    = reactive({ ...(appData.value?.security_policy ?? {}) })
 const notifyPolicy = reactive({ ...(appData.value?.notify_policy ?? { telegram: true }) })
+const crmPolicy = reactive({ agentEnabled: false, webSearch: false, maskPhones: true, dailyLimit: 100, ...(appData.value?.crm_policy ?? {}) })
+const { data: crmStatus } = await useFetch<any>('/api/crm/agent-status').catch(() => ({ data: ref(null) } as any))
 const backupPolicy = reactive({ enabled: true, ...(appData.value?.backup_policy ?? {}) })
 const savingGroup = ref(false)
 

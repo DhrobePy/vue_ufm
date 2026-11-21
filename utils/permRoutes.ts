@@ -24,6 +24,12 @@ export const PERM_ROUTES: Record<string, PermRoute> = {
   '/credit-sales/ageing':        { module: 'credit_sales', page: 'ageing' },
   '/credit-sales/reports':       { module: 'credit_sales', page: 'reports' },
   '/credit-sales/returns':       { module: 'credit_sales', page: 'returns' },
+
+  '/crm':                        { module: 'crm',          page: 'today' },
+  '/crm/customers':              { module: 'crm',          page: 'today' },
+  '/crm/portfolio':              { module: 'crm',          page: 'portfolio' },
+  '/crm/prospects':              { module: 'crm',          page: 'prospects' },
+  '/crm/agent':                  { module: 'crm',          page: 'agent' },
   '/production/dispatch-report': { module: 'production',   page: 'dispatch_report' },
 
   '/fleet':                      { module: 'fleet',        page: 'dashboard' },

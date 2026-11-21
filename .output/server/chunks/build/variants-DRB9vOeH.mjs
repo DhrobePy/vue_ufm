@@ -6,6 +6,7 @@ import { c as _export_sfc, k as useRoute, q as useUserSession } from './server.m
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,4 +1,5 @@
-import { B as defineEventHandler, bm as useRuntimeConfig, a0 as getQuery, w as createError, bd as sendTelegram } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, bx as useRuntimeConfig, a9 as getQuery, C as createError, bo as sendTelegram } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

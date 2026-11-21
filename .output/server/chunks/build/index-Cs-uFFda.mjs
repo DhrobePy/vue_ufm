@@ -7,6 +7,7 @@ import { _ as _sfc_main$3 } from './DataTable-COn8qGcx.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import './server.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

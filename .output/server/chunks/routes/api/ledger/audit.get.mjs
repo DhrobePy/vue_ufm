@@ -1,4 +1,5 @@
-import { B as defineEventHandler, b0 as requireAction, ba as runLedgerAudit, f as AUDIT_TITLES } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ba as requireAction, bk as runLedgerAudit, f as AUDIT_TITLES } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

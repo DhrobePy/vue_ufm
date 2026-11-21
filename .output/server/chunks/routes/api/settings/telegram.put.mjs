@@ -1,4 +1,5 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, aP as readBody, T as TELEGRAM_CATEGORIES, bd as sendTelegram, aM as query, b2 as resetTelegramCache } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, aZ as readBody, T as TELEGRAM_CATEGORIES, bo as sendTelegram, aW as query, bc as resetTelegramCache } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

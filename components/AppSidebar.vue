@@ -196,6 +196,13 @@
 
       <!-- Customers -->
       <SidebarNavItem v-if="perms.canAccessModule('customers')" label="Customers"  route="/customers"  :collapsed="collapsed" icon-type="users"    />
+      <!-- CRM -->
+      <SidebarGroup v-if="isAdminUser || perms.canAccessModule('crm')" label="CRM" route="/crm" :collapsed="collapsed" icon-type="users" color="blue">
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm')" label="Today" route="/crm" :collapsed="collapsed" icon-type="dashboard" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/portfolio')" label="Portfolio" route="/crm/portfolio" :collapsed="collapsed" icon-type="chart" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/prospects')" label="Prospects" route="/crm/prospects" :collapsed="collapsed" icon-type="list" sub />
+        <SidebarNavItem v-if="perms.canAccessRoute('/crm/agent')" label="Ask the assistant" route="/crm/agent" :collapsed="collapsed" icon-type="check" sub />
+      </SidebarGroup>
       <!-- Products -->
       <SidebarNavItem v-if="perms.canAccessModule('products')" label="Products" route="/products" :collapsed="collapsed" icon-type="box" />
       <!-- POS -->

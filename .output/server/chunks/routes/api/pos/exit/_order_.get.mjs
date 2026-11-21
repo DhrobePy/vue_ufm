@@ -1,5 +1,6 @@
-import { B as defineEventHandler, ac as getUserSession, w as createError, a7 as getRouterParam, a0 as getQuery, aM as query, Q as getDb, U as getDeliveryQrSecret, aT as recordPosExitScan, a1 as getRequestHeader, aw as posExitQrSignature } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, al as getUserSession, C as createError, ag as getRouterParam, a9 as getQuery, aW as query, a1 as getDb, a2 as getDeliveryQrSecret, b1 as recordPosExitScan, aa as getRequestHeader, aG as posExitQrSignature } from '../../../../nitro/nitro.mjs';
 import crypto from 'node:crypto';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

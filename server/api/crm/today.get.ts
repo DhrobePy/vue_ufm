@@ -1,0 +1,21 @@
+import { query } from '~/server/utils/db'
+import { scopedHealth, dhakaToday } from '~/server/utils/crm'
+
+/** GET /api/crm/today — what needs doing today: tasks due, promises, customers that most need a call, prospects going cold. */
+export default defineEventHandler(async (event) => {
+  const today = dhakaToday()
+  const rows = await scopedHealth(event)
+  const tasks = await query<any>(
+    `SELECT t.id, t.party_type, t.party_id, t.kind, t.title, t.due_date, t.promise_amount, t.created_by_agent,
+            COALESCE(c.name, p.name) AS party_name, u.display_name AS assigned_to, (t.due_date < ?) AS overdue
+     FROM crm_tasks t LEFT JOIN customers c ON t.party_type = 'customer' AND c.id = t.party_id LEFT JOIN crm_prospects p ON t.party_type = 'prospect' AND p.id = t.party_id
+     LEFT JOIN users u ON u.id = t.assigned_user_id
+     WHERE t.status = 'open' AND (t.due_date IS NULL OR t.due_date <= DATE_ADD(?, INTERVAL 3 DAY)) ORDER BY t.due_date IS NULL, t.due_date, t.id LIMIT 150`, [today, today])
+  const hasTask = new Set((await query<any>(`SELECT DISTINCT party_id FROM crm_tasks WHERE status = 'open' AND party_type = 'customer'`)).map(r => r.party_id))
+  const calls = rows.filter(r => r.priority >= 45 && r.suggestions.length).sort((a, b) => b.priority - a.priority).slice(0, 15).map(r => ({ ...r, has_open_task: hasTask.has(r.id) }))
+  const cold = await query<any>(
+    `SELECT p.id, p.name, p.stage, p.segment, p.district, DATEDIFF(?, COALESCE((SELECT MAX(i.created_at) FROM crm_interactions i WHERE i.party_type = 'prospect' AND i.party_id = p.id), p.created_at)) AS idle_days
+     FROM crm_prospects p WHERE p.stage IN ('new','researching','contacted','quoted','trial') HAVING idle_days >= 5 ORDER BY idle_days DESC LIMIT 15`, [today])
+  const pipeline = await query<any>(`SELECT stage, COUNT(*) n FROM crm_prospects GROUP BY stage`)
+  return { today, tasks, calls, cold_prospects: cold, pipeline, counts: { open_tasks: tasks.length, overdue: tasks.filter((t: any) => Number(t.overdue)).length } }
+})

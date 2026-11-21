@@ -1,4 +1,5 @@
-import { B as defineEventHandler, a7 as getRouterParam, w as createError, a0 as getQuery, Q as getDb, J as getAdvanceCredit, bi as suggestAllotment } from '../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ag as getRouterParam, C as createError, a9 as getQuery, a1 as getDb, W as getAdvanceCredit, bt as suggestAllotment } from '../../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

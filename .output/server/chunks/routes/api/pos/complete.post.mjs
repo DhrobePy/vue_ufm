@@ -1,4 +1,5 @@
-import { B as defineEventHandler, aP as readBody, ac as getUserSession, w as createError, P as POS_VALID_METHODS, Q as getDb, _ as getPosCustomerOutstanding, aO as queuePendingRequest, bd as sendTelegram, aH as postPosSale, m as auditLog, U as getDeliveryQrSecret, aw as posExitQrSignature, a3 as getRequestURL, aj as isAdminRole } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, aZ as readBody, al as getUserSession, C as createError, P as POS_VALID_METHODS, a1 as getDb, a8 as getPosCustomerOutstanding, aY as queuePendingRequest, bo as sendTelegram, aR as postPosSale, q as auditLog, a2 as getDeliveryQrSecret, aG as posExitQrSignature, ac as getRequestURL, as as isAdminRole } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

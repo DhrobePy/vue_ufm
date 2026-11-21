@@ -8,6 +8,7 @@ import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import { c as _export_sfc } from './server.mjs';
 import './SidebarIcon-oZVkzwjh.mjs';
 import '../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

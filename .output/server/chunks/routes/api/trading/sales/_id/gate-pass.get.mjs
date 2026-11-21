@@ -1,5 +1,6 @@
-import { B as defineEventHandler, a7 as getRouterParam, w as createError, ac as getUserSession, Q as getDb, U as getDeliveryQrSecret } from '../../../../../nitro/nitro.mjs';
+import { J as defineEventHandler, ag as getRouterParam, C as createError, al as getUserSession, a1 as getDb, a2 as getDeliveryQrSecret } from '../../../../../nitro/nitro.mjs';
 import crypto from 'node:crypto';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

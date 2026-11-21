@@ -1,4 +1,5 @@
-import { B as defineEventHandler, aP as readBody, Q as getDb, aM as query, w as createError } from '../../../nitro/nitro.mjs';
+import { J as defineEventHandler, aZ as readBody, a1 as getDb, aW as query, C as createError } from '../../../nitro/nitro.mjs';
+import '@anthropic-ai/sdk';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
