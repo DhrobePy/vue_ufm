@@ -1,11 +1,12 @@
-import { query, queryOne, paginate } from '~/server/utils/db'
+import { query, queryOne } from '~/server/utils/db'
 
 export default defineEventHandler(async (event) => {
   const q      = getQuery(event)
   const search = (q.search as string) || ''
   const status = (q.status as string) || ''
   const page   = Number(q.page)       || 1
-  const { limit, offset } = paginate(page, 20)
+  const per    = Math.min(5000, Math.max(1, Number(q.per) || 20))   // the Export button asks for everything that matches
+  const limit = per, offset = (Math.max(1, page) - 1) * per
 
   const where: string[] = []
   const params: unknown[] = []

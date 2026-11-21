@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, Q as crmUser, bo as readBody, N as createError, u as askAgent } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, Q as crmUser, bq as readBody, N as createError, u as askAgent } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

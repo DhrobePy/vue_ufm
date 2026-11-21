@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, a_ as outcomes, bS as scopedHealth } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, b0 as outcomes, bU as scopedHealth } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

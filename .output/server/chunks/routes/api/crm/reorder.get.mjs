@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bD as reorderRadar, bS as scopedHealth } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bF as reorderRadar, bU as scopedHealth } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

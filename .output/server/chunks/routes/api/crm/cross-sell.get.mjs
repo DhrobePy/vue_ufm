@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, U as crossSell, bS as scopedHealth } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, U as crossSell, bU as scopedHealth } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

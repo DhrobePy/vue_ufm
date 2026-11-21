@@ -4,6 +4,7 @@
     <UiPageHeader title="Debit Vouchers" subtitle="Payment vouchers authorised for disbursement"
                   :breadcrumb="['Accounts', 'Voucher']">
       <template #actions>
+        <button class="btn-ghost text-xs" :disabled="exporting" @click="exportCsv">{{ exporting ? 'Preparing…' : '⬇ Export CSV' }}</button>
         <NuxtLink to="/accounts/voucher/create" class="btn-gold text-xs">+ New Voucher</NuxtLink>
       </template>
     </UiPageHeader>
@@ -54,8 +55,8 @@
         </template>
         <template #actions="{ row }">
           <div class="flex gap-1.5">
-            <button class="btn-ghost text-xs py-1 px-2">View</button>
-            <button class="btn-ghost text-xs py-1 px-2">Print</button>
+            <button class="btn-ghost text-xs py-1 px-2" @click="openVoucher(row, false)">View</button>
+            <button class="btn-ghost text-xs py-1 px-2" @click="openVoucher(row, true)">Print</button>
           </div>
         </template>
       </UiDataTable>
@@ -102,4 +103,25 @@ const { data, pending } = await useFetch('/api/accounts/vouchers', {
 const vouchers = computed(() => (data.value as any)?.vouchers ?? [])
 const stats    = computed(() => (data.value as any)?.stats    ?? {})
 const total    = computed(() => (data.value as any)?.total    ?? 0)
+
+// ── Export (everything that matches the current search / status, not just this page) ──
+const { company } = useAppSettings()
+const exp = useReportExport(), { error: toastError } = useToast()
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    const r: any = await $fetch('/api/accounts/vouchers', { query: { search: search.value, status: statusFilter.value, page: 1, per: 5000 } })
+    exp.csv(`debit-vouchers_${new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 10)}`, {
+      name: 'Debit vouchers',
+      cols: [{ key: 'voucher_number', label: 'Voucher #' }, { key: 'date', label: 'Date' }, { key: 'paid_to', label: 'Pay to' }, { key: 'purpose', label: 'Purpose' },
+        { key: 'expense_account', label: 'Expense account' }, { key: 'payment_account', label: 'Paid from' }, { key: 'amount', label: 'Amount (৳)', fmt: 'money', sum: true }, { key: 'status', label: 'Status' }, { key: 'created_by', label: 'Created by' }],
+      rows: (r.vouchers ?? []).map((v: any) => ({ ...v, date: String(v.date ?? '').slice(0, 10) })), totals: true,
+    })
+  } catch (e: any) { toastError(e?.data?.statusMessage ?? 'Export failed') } finally { exporting.value = false }
+}
+
+// ── View / Print one voucher: a clean slip in its own window (see composables/useVoucherPrint.ts) ──
+const { openVoucher: openVoucherWindow } = useVoucherPrint()
+const openVoucher = (v: any, print: boolean) => { if (!openVoucherWindow(v, print, company.value)) toastError('Allow pop-ups to view or print the voucher') }
 </script>

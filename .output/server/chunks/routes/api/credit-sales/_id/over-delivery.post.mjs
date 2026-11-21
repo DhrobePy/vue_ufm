@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, az as getRouterParam, N as createError, bo as readBody, aE as getUserSession, c4 as userCanAction, A as ACCOUNTS_ROLES, j as DISPATCH_ROLES, aj as getDb, aV as nextDocNumber, x as auditLog, bW as sendTelegram } from '../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, aB as getRouterParam, N as createError, bq as readBody, aG as getUserSession, c6 as userCanAction, A as ACCOUNTS_ROLES, j as DISPATCH_ROLES, aj as getDb, aX as nextDocNumber, x as auditLog, bY as sendTelegram } from '../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

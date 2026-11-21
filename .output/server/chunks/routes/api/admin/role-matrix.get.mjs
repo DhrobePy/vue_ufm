@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bl as query, bI as resolvePermissions } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bn as query, bK as resolvePermissions } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

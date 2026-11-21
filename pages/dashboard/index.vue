@@ -27,7 +27,7 @@
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button class="btn-ghost text-xs">
+        <button class="btn-ghost text-xs" @click="exportDashboard">
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           Export
         </button>
@@ -477,6 +477,18 @@ const orderCountSpark = computed(() =>
 )
 
 // ── KPI cards ─────────────────────────────────────
+// Export what the dashboard is showing right now: the KPI tiles and the revenue chart series (Excel, two sheets).
+const dashExp = useReportExport()
+function exportDashboard() {
+  const day = new Date(Date.now() + 6 * 3600_000).toISOString().slice(0, 10)
+  dashExp.xlsx(`dashboard_${day}`, [
+    { name: 'KPIs', cols: [{ key: 'label', label: 'Indicator' }, { key: 'value', label: 'Value' }, { key: 'trend', label: 'Trend' }, { key: 'sub', label: 'Note' }],
+      rows: kpiCards.value.map((k: any) => ({ label: k.label, value: k.value, trend: k.trend, sub: k.sub })) },
+    { name: `Revenue (${chartPeriod.value})`, cols: [{ key: 'month', label: 'Period' }, { key: 'revenue', label: 'Revenue (৳)', fmt: 'money', sum: true }, { key: 'order_count', label: 'Orders', fmt: 'qty', sum: true }],
+      rows: ((monthlyRevenueData.value as any[]) ?? []).map((r: any) => ({ month: r.month, revenue: Number(r.revenue), order_count: Number(r.order_count) })), totals: true },
+  ], `Dashboard — ${day}`)
+}
+
 const kpiCards = computed(() => [
   {
     label: 'Month Revenue',

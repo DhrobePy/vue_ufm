@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, as as getQuery, bl as query, bm as queryOne, a$ as paginate } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, au as getQuery, bn as query, bo as queryOne } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
@@ -17,7 +17,8 @@ const vouchers_get = defineEventHandler(async (event) => {
   const search = q.search || "";
   const status = q.status || "";
   const page = Number(q.page) || 1;
-  const { limit, offset } = paginate(page, 20);
+  const per = Math.min(5e3, Math.max(1, Number(q.per) || 20));
+  const limit = per, offset = (Math.max(1, page) - 1) * per;
   const where = [];
   const params = [];
   if (search) {

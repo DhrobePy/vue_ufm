@@ -5,7 +5,8 @@
                   :breadcrumb="['Accounts', 'Statement']">
       <template #actions>
         <button @click="printStatement" class="btn-ghost text-xs">🖨 Print</button>
-        <button class="btn-gold text-xs">⬇ Export</button>
+        <button @click="exportStatement('xlsx')" class="btn-gold text-xs">⬇ Excel</button>
+        <button @click="exportStatement('csv')" class="btn-ghost text-xs">⬇ CSV</button>
       </template>
     </UiPageHeader>
 
@@ -250,6 +251,31 @@ const bsData = computed(() => {
 })
 
 const trialBalance = computed(() => (data.value as any)?.trialBalance ?? [])
+
+// Export the statement that is on screen (same figures, numbers stay numbers in Excel).
+const exp = useReportExport()
+function exportStatement(kind: 'xlsx' | 'csv') {
+  const R = (section: string, line: string, amount: number | null = null, bold = false) => ({ section, line: bold ? line.toUpperCase() : line, amount })
+  const items = (section: string, list: any[]) => (list ?? []).map(i => R(section, i.name, Number(i.amount ?? 0)))
+  let name = 'Profit & Loss', rows: any[] = [], cols: any[] = [{ key: 'section', label: 'Section' }, { key: 'line', label: 'Line' }, { key: 'amount', label: 'Amount (৳)', fmt: 'money' }], file = 'profit-and-loss'
+  if (activeType.value === 'pl') {
+    const p = plData.value
+    rows = [...items('Revenue', p.revenue), R('Revenue', 'Total revenue', p.totalRevenue, true), ...items('Cost of goods sold', p.cogs), R('', 'Gross profit', p.grossProfit, true),
+      ...items('Operating expenses', p.opex), R('', 'Operating profit (EBIT)', p.ebit, true), ...items('Finance', p.finance), R('', 'Net profit', p.netProfit, true)]
+  } else if (activeType.value === 'bs') {
+    const b = bsData.value; name = 'Balance Sheet'; file = 'balance-sheet'
+    rows = [...items('Current assets', b.currentAssets), R('Current assets', 'Total current assets', b.totalCurrentAssets, true), ...items('Fixed assets', b.fixedAssets), R('Fixed assets', 'Total fixed assets', b.totalFixedAssets, true),
+      R('', 'Total assets', b.totalAssets, true), ...items('Current liabilities', b.currentLiabilities), ...items('Long-term liabilities', b.longTermLiabilities), ...items('Equity', b.equity)]
+  } else {
+    name = 'Trial Balance'; file = 'trial-balance'
+    cols = [{ key: 'code', label: 'Code' }, { key: 'name', label: 'Account' }, { key: 'debit', label: 'Debit', fmt: 'money', sum: true }, { key: 'credit', label: 'Credit', fmt: 'money', sum: true }]
+    rows = trialBalance.value.map((r: any) => ({ code: r.code, name: r.name, debit: r.debit || 0, credit: r.credit || 0 }))
+  }
+  const sheet = { name, cols, rows, totals: activeType.value === 'trial' }
+  const fname = `${file}_${range.value.from || today}_to_${range.value.to || today}`
+  if (kind === 'csv') exp.csv(fname, sheet)
+  else exp.xlsx(fname, [sheet], `${company.value.name} — ${name} (${fmtD(range.value.from)} to ${fmtD(range.value.to)})`)
+}
 
 function printStatement() {
   printElement('statement-print', 'Financial Statement — Ujjal FMC')

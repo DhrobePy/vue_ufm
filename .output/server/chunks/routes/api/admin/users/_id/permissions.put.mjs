@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, aE as getUserSession, at as getRequestHeader, N as createError, az as getRouterParam, bo as readBody, aj as getDb, x as auditLog, aJ as invalidatePermCache } from '../../../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, aG as getUserSession, av as getRequestHeader, N as createError, aB as getRouterParam, bq as readBody, aj as getDb, x as auditLog, aL as invalidatePermCache } from '../../../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

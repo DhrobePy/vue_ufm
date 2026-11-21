@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, as as getQuery, bl as query, V as customerHealth, w as assessProspect } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, au as getQuery, bn as query, V as customerHealth, w as assessProspect } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';

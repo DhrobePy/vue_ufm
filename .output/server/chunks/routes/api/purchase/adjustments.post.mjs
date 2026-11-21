@@ -1,4 +1,4 @@
-import { Z as defineEventHandler, bo as readBody, aE as getUserSession, N as createError, bm as queryOne, aj as getDb, aW as nextNoteNumber, x as auditLog } from '../../../nitro/nitro.mjs';
+import { Z as defineEventHandler, bq as readBody, aG as getUserSession, N as createError, bo as queryOne, aj as getDb, aY as nextNoteNumber, x as auditLog } from '../../../nitro/nitro.mjs';
 import 'node:crypto';
 import 'node:child_process';
 import 'node:zlib';
