@@ -923,7 +923,7 @@ const _routes = [
     name: "expenses-create",
     path: "/expenses/create",
     meta: __nuxt_page_meta$2A || {},
-    component: () => import('./create-CNJ3alEC.mjs')
+    component: () => import('./create-t91-BWZA.mjs')
   },
   {
     name: "hr-payslip-id",
@@ -1025,7 +1025,7 @@ const _routes = [
     name: "expenses-vouchers",
     path: "/expenses/vouchers",
     meta: __nuxt_page_meta$2j || {},
-    component: () => import('./vouchers-BLiLVgus.mjs')
+    component: () => import('./vouchers-Tpqla2mu.mjs')
   },
   {
     name: "fleet-fuel-create",
@@ -1097,13 +1097,13 @@ const _routes = [
     name: "admin-users-create",
     path: "/admin/users/create",
     meta: __nuxt_page_meta$27 || {},
-    component: () => import('./create-C0XAx9GH.mjs')
+    component: () => import('./create-DmP9a0iw.mjs')
   },
   {
     name: "credit-sales",
     path: "/credit-sales",
     meta: __nuxt_page_meta$26 || {},
-    component: () => import('./index-DtVVKgT5.mjs')
+    component: () => import('./index-CMbvh43e.mjs')
   },
   {
     name: "crm-customers-id",
@@ -1121,7 +1121,7 @@ const _routes = [
     name: "expenses-id-edit",
     path: "/expenses/:id()/edit",
     meta: __nuxt_page_meta$23 || {},
-    component: () => import('./edit-MgypdSR1.mjs')
+    component: () => import('./edit-DbgyqsMm.mjs')
   },
   {
     name: "fleet-trips-create",
@@ -1211,7 +1211,7 @@ const _routes = [
     name: "crm-prospects",
     path: "/crm/prospects",
     meta: __nuxt_page_meta$1Q || {},
-    component: () => import('./index-w1NGWT3l.mjs')
+    component: () => import('./index-BHs7y_tE.mjs')
   },
   {
     name: "customers-id-edit",
@@ -1343,7 +1343,7 @@ const _routes = [
     name: "admin-users-id-edit",
     path: "/admin/users/:id()/edit",
     meta: __nuxt_page_meta$1u || {},
-    component: () => import('./edit-DVXPIEfJ.mjs')
+    component: () => import('./edit-C-0UncBa.mjs')
   },
   {
     name: "credit-sales-dispatch",
@@ -1553,7 +1553,7 @@ const _routes = [
     name: "credit-sales-id",
     path: "/credit-sales/:id()",
     meta: __nuxt_page_meta$X || {},
-    component: () => import('./index-BSBjrZsk.mjs')
+    component: () => import('./index-BDtOkO4e.mjs')
   },
   {
     name: "credit-sales-production",
