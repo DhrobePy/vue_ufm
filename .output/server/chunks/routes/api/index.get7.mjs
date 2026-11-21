@@ -1,5 +1,6 @@
-import { J as defineEventHandler, a9 as getQuery, aW as query, aC as paginate } from '../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aj as getQuery, b8 as query, aP as paginate } from '../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,6 +1,7 @@
-import { J as defineEventHandler, ag as getRouterParam, C as createError, aZ as readBody, al as getUserSession, aa as getRequestHeader, by as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, D as DISPATCH_ROLES, a1 as getDb, bo as sendTelegram, q as auditLog } from '../../../../../nitro/nitro.mjs';
-import crypto from 'node:crypto';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, J as createError, bb as readBody, av as getUserSession, ak as getRequestHeader, bN as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, i as DISPATCH_ROLES, ab as getDb, bD as sendTelegram, v as auditLog } from '../../../../../nitro/nitro.mjs';
+import crypto__default from 'node:crypto';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -51,7 +52,7 @@ const dispatch_post = defineEventHandler(async (event) => {
         `SELECT setting_value FROM system_settings WHERE setting_key = 'invoice_qr_secret'`
       );
       if (secretRow == null ? void 0 : secretRow.setting_value) {
-        const expected = crypto.createHmac("sha256", secretRow.setting_value).update(`CTDELIV|${sale.sale_number}`).digest("hex").slice(0, 16);
+        const expected = crypto__default.createHmac("sha256", secretRow.setting_value).update(`CTDELIV|${sale.sale_number}`).digest("hex").slice(0, 16);
         if (expected !== String(body.sig))
           throw createError({ statusCode: 403, statusMessage: "Invalid QR signature" });
       }

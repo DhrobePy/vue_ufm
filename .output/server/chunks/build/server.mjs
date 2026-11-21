@@ -1,8 +1,9 @@
 import process from 'node:process';globalThis._importMeta_=globalThis._importMeta_||{url:"file:///_entry.js",env:process.env};import { defineComponent, inject, computed, unref, shallowRef, getCurrentInstance, provide, cloneVNode, h, createElementBlock, ref, Suspense, hasInjectionContext, toRef, isRef, defineAsyncComponent, Fragment, shallowReactive, nextTick, mergeProps, useSSRContext, createApp, onErrorCaptured, onServerPrefetch, createVNode, resolveDynamicComponent, reactive, effectScope, getCurrentScope, withCtx, isReadonly, isShallow, isReactive, toRaw, markRaw } from 'vue';
-import { C as createError$1, aE as parseURL, Q as encodePath, H as decodePath, ao as hasProtocol, at as isScriptProtocol, au as joinURL, bB as withQuery, L as defu, bl as sanitizeStatusCode, Y as getContext, $ as $fetch$1, r as baseURL, E as createHooks, U as executeAsync } from '../nitro/nitro.mjs';
+import { J as createError$1, aR as parseURL, a1 as encodePath, O as decodePath, ay as hasProtocol, aD as isScriptProtocol, aF as joinURL, bQ as withQuery, X as defu, bA as sanitizeStatusCode, a7 as getContext, $ as $fetch$1, w as baseURL, K as createHooks, a3 as executeAsync } from '../nitro/nitro.mjs';
 import { useRoute as useRoute$1, RouterView, createMemoryHistory, createRouter, START_LOCATION } from 'vue-router';
 import { ssrRenderAttrs, ssrInterpolate, ssrRenderSuspense, ssrRenderComponent, ssrRenderVNode } from 'vue/server-renderer';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

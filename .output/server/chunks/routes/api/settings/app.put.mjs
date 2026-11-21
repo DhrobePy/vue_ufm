@@ -1,5 +1,6 @@
-import { J as defineEventHandler, al as getUserSession, C as createError, aZ as readBody, e as APP_SETTING_GROUPS, a1 as getDb, q as auditLog, bb as resetAppSettingsCache } from '../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, av as getUserSession, J as createError, bb as readBody, e as APP_SETTING_GROUPS, ab as getDb, v as auditLog, bq as resetAppSettingsCache } from '../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,5 +1,6 @@
-import { J as defineEventHandler, al as getUserSession, C as createError, a9 as getQuery, aW as query, bq as setHeader, h as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, av as getUserSession, J as createError, aj as getQuery, b8 as query, bF as setHeader, k as RUNNING_BALANCE_SQL } from '../../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

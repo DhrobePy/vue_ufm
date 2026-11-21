@@ -1,5 +1,6 @@
-import { J as defineEventHandler, aZ as readBody, al as getUserSession, C as createError, aa as getRequestHeader, by as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, a1 as getDb, as as isAdminRole, _ as getCreditWorkflowSettings, ah as getUserActionLimit, aY as queuePendingRequest, bo as sendTelegram, aK as postCommoditySale, q as auditLog } from '../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, bb as readBody, av as getUserSession, J as createError, ak as getRequestHeader, bN as userCanAction, b as ADMIN_ROLES, A as ACCOUNTS_ROLES, ab as getDb, aC as isAdminRole, a9 as getCreditWorkflowSettings, ar as getUserActionLimit, ba as queuePendingRequest, bD as sendTelegram, aX as postCommoditySale, v as auditLog } from '../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

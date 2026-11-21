@@ -4,7 +4,8 @@ import { defineComponent, ref, withAsyncContext, watch, computed, reactive, merg
 import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrRenderClass, ssrInterpolate, ssrRenderAttr, ssrIncludeBooleanAttr, ssrLooseContain, ssrLooseEqual, ssrRenderStyle, ssrRenderTeleport } from 'vue/server-renderer';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

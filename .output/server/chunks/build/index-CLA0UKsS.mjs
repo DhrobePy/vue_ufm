@@ -7,7 +7,8 @@ import { ssrRenderAttrs, ssrRenderComponent, ssrInterpolate, ssrRenderList, ssrR
 import { q as useUserSession } from './server.mjs';
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import '../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

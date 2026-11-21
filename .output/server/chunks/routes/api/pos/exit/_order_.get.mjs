@@ -1,6 +1,7 @@
-import { J as defineEventHandler, al as getUserSession, C as createError, ag as getRouterParam, a9 as getQuery, aW as query, a1 as getDb, a2 as getDeliveryQrSecret, b1 as recordPosExitScan, aa as getRequestHeader, aG as posExitQrSignature } from '../../../../nitro/nitro.mjs';
-import crypto from 'node:crypto';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, av as getUserSession, J as createError, aq as getRouterParam, aj as getQuery, b8 as query, ab as getDb, ac as getDeliveryQrSecret, bg as recordPosExitScan, ak as getRequestHeader, aT as posExitQrSignature } from '../../../../nitro/nitro.mjs';
+import crypto__default from 'node:crypto';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -48,7 +49,7 @@ const _order__get = defineEventHandler(async (event) => {
     conn.release();
   }
   const expected = posExitQrSignature(order.order_number, secret);
-  const sigValid = sig.length === expected.length && crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
+  const sigValid = sig.length === expected.length && crypto__default.timingSafeEqual(Buffer.from(expected), Buffer.from(sig));
   return { order, sig_valid: sigValid, scan_count: scanCount };
 });
 

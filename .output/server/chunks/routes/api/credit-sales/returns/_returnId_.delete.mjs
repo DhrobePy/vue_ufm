@@ -1,5 +1,6 @@
-import { J as defineEventHandler, ag as getRouterParam, C as createError, al as getUserSession, aa as getRequestHeader, a1 as getDb, b4 as recycleBegin, bp as serializeRow, b8 as recycleSnapshotBefore, b3 as recycleArchiveDelete, b5 as recycleFinalize, q as auditLog } from '../../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, J as createError, av as getUserSession, ak as getRequestHeader, ab as getDb, bj as recycleBegin, bE as serializeRow, bn as recycleSnapshotBefore, bi as recycleArchiveDelete, bk as recycleFinalize, v as auditLog } from '../../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

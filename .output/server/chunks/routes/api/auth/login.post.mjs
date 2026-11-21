@@ -1,6 +1,7 @@
-import { J as defineEventHandler, aZ as readBody, C as createError, X as getAppSettings, aX as queryOne, bs as setUserSession, aW as query, ab as getRequestIP, bx as useRuntimeConfig } from '../../../nitro/nitro.mjs';
+import { V as defineEventHandler, bb as readBody, J as createError, a6 as getAppSettings, b9 as queryOne, bH as setUserSession, b8 as query, al as getRequestIP, bM as useRuntimeConfig } from '../../../nitro/nitro.mjs';
 import bcrypt from 'bcryptjs';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

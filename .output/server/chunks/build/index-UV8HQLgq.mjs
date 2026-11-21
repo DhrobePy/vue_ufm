@@ -4,7 +4,8 @@ import { defineComponent, mergeProps, withCtx, createVNode, toDisplayString, use
 import { ssrRenderAttrs, ssrRenderComponent, ssrRenderList, ssrRenderClass, ssrInterpolate } from 'vue/server-renderer';
 import './server.mjs';
 import '../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

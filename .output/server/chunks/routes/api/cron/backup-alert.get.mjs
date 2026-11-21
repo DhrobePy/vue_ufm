@@ -1,5 +1,6 @@
-import { J as defineEventHandler, bx as useRuntimeConfig, a9 as getQuery, C as createError, bo as sendTelegram } from '../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, bM as useRuntimeConfig, aj as getQuery, J as createError, bD as sendTelegram } from '../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

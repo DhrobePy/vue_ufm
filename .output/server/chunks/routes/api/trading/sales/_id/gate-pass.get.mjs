@@ -1,6 +1,7 @@
-import { J as defineEventHandler, ag as getRouterParam, C as createError, al as getUserSession, a1 as getDb, a2 as getDeliveryQrSecret } from '../../../../../nitro/nitro.mjs';
-import crypto from 'node:crypto';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, J as createError, av as getUserSession, ab as getDb, ac as getDeliveryQrSecret } from '../../../../../nitro/nitro.mjs';
+import crypto__default from 'node:crypto';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
@@ -35,7 +36,7 @@ const gatePass_get = defineEventHandler(async (event) => {
     );
     if (!sale) throw createError({ statusCode: 404, statusMessage: "Sale not found" });
     const secret = await getDeliveryQrSecret(conn);
-    const sig = crypto.createHmac("sha256", secret).update(`CTDELIV|${sale.sale_number}`).digest("hex").slice(0, 16);
+    const sig = crypto__default.createHmac("sha256", secret).update(`CTDELIV|${sale.sale_number}`).digest("hex").slice(0, 16);
     return { sale, verify_path: `/trading/verify/${sale.id}?sig=${sig}` };
   } finally {
     conn.release();

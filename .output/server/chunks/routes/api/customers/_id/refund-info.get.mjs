@@ -1,5 +1,6 @@
-import { J as defineEventHandler, ag as getRouterParam, a1 as getDb, C as createError } from '../../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, ab as getDb, J as createError } from '../../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

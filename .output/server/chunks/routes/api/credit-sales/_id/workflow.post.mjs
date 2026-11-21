@@ -1,5 +1,6 @@
-import { J as defineEventHandler, ag as getRouterParam, aZ as readBody, al as getUserSession, C as createError, aa as getRequestHeader, as as isAdminRole, by as userCanAction, D as DISPATCH_ROLES, A as ACCOUNTS_ROLES, g as PRODUCTION_ROLES, a1 as getDb, aj as getUserBranchIds, ai as getUserApprovalLimit, a0 as getCustomerOutstanding, _ as getCreditWorkflowSettings, ar as isAccountsRole, a7 as getOrderGateState, o as assertDispatchClear, V as generateDeliverySlipNumber, aO as postGoodsOnBoardInvoice, aQ as postOtherSalesCOGS, b9 as releaseOrderPayments, bv as transitionOrder, q as auditLog, bo as sendTelegram } from '../../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, bb as readBody, av as getUserSession, J as createError, ak as getRequestHeader, aC as isAdminRole, bN as userCanAction, i as DISPATCH_ROLES, A as ACCOUNTS_ROLES, j as PRODUCTION_ROLES, ab as getDb, at as getUserBranchIds, as as getUserApprovalLimit, aa as getCustomerOutstanding, a9 as getCreditWorkflowSettings, aB as isAccountsRole, ah as getOrderGateState, t as assertDispatchClear, a4 as generateDeliverySlipNumber, a$ as postGoodsOnBoardInvoice, b1 as postOtherSalesCOGS, bo as releaseOrderPayments, bK as transitionOrder, v as auditLog, bD as sendTelegram } from '../../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -5,7 +5,8 @@ import { c as _export_sfc, k as useRoute, m as moduleDisabled } from './server.m
 import { u as useFetch } from './fetch-DAhIlcha.mjs';
 import { u as useToast } from './useToast-Mxh_qoqg.mjs';
 import '../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

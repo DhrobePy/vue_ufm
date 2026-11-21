@@ -1,5 +1,6 @@
-import { J as defineEventHandler, ba as requireAction, al as getUserSession, aZ as readBody, a1 as getDb, C as createError, aU as priceAutoApplyEnabled, m as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, bp as requireAction, av as getUserSession, bb as readBody, ab as getDb, J as createError, b5 as priceAutoApplyEnabled, r as applyPriceChangeToOpenOrders } from '../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

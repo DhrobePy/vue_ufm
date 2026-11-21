@@ -1,5 +1,6 @@
-import { J as defineEventHandler, N as dhakaToday, bm as scopedHealth, aW as query } from '../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, Z as dhakaToday, bB as scopedHealth, b8 as query } from '../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';

@@ -1,5 +1,6 @@
-import { J as defineEventHandler, ag as getRouterParam, aZ as readBody, al as getUserSession, C as createError, a1 as getDb, ai as getUserApprovalLimit, ah as getUserActionLimit, l as applyAmendment, q as auditLog, bo as sendTelegram } from '../../../../../nitro/nitro.mjs';
-import '@anthropic-ai/sdk';
+import { V as defineEventHandler, aq as getRouterParam, bb as readBody, av as getUserSession, J as createError, ab as getDb, as as getUserApprovalLimit, ar as getUserActionLimit, q as applyAmendment, v as auditLog, bD as sendTelegram } from '../../../../../nitro/nitro.mjs';
+import '@opentelemetry/api';
+import 'standardwebhooks';
 import 'node:child_process';
 import 'node:zlib';
 import 'node:stream';
